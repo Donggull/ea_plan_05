@@ -40,7 +40,7 @@ export const supabase = createClient<Database>(
 export const checkSupabaseConnection = async () => {
   try {
     // Simple connection test using a basic query
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('profiles')
       .select('count', { count: 'exact', head: true })
 
