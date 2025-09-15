@@ -31,11 +31,11 @@ export function MainLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-bg-primary">
+    <div className="h-screen bg-bg-primary flex flex-col">
       {/* Header */}
       <Header />
 
-      <div className="flex h-[calc(100vh-4rem)]"> {/* header height 4rem (64px) 제외 */}
+      <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
         <Sidebar
           isCollapsed={isSidebarCollapsed}
@@ -43,7 +43,7 @@ export function MainLayout() {
         />
 
         {/* Main Content Area */}
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 overflow-y-auto">
           {/* Content Container */}
           <div className="p-6">
             {/* Page Content */}
