@@ -22,7 +22,10 @@
       "mcp__supabase__generate_typescript_types",
       "mcp__supabase__list_tables",
       "mcp__supabase__apply_migration",
-      "mcp__supabase__execute_sql"
+      "mcp__supabase__execute_sql",
+      "Bash(npm run type-check:*)",
+      "mcp__github-mcp__git-add",
+      "mcp__supabase__get_logs"
     ],
     "deny": [],
     "ask": []
