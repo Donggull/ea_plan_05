@@ -1,9 +1,9 @@
-import { Bell, Search, User, Moon, Sun } from 'lucide-react'
+import { Bell, Search, User, Moon, Sun, Crown, Shield } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { useState, useEffect } from 'react'
 
 export function Header() {
-  const { user } = useAuthStore()
+  const { user, profile } = useAuthStore()
   const [isDark, setIsDark] = useState(false)
 
   useEffect(() => {
@@ -18,6 +18,35 @@ export function Header() {
     localStorage.setItem('theme', newTheme ? 'dark' : 'light')
     document.documentElement.classList.toggle('dark', newTheme)
   }
+
+  const getRoleDisplay = (role: string) => {
+    switch (role) {
+      case 'admin':
+        return {
+          label: 'Admin',
+          icon: Crown,
+          color: 'text-amber-500',
+          bgColor: 'bg-amber-500/10 border-amber-500/20'
+        }
+      case 'subadmin':
+        return {
+          label: 'SubAdmin',
+          icon: Shield,
+          color: 'text-blue-500',
+          bgColor: 'bg-blue-500/10 border-blue-500/20'
+        }
+      case 'user':
+      default:
+        return {
+          label: 'User',
+          icon: User,
+          color: 'text-gray-500',
+          bgColor: 'bg-gray-500/10 border-gray-500/20'
+        }
+    }
+  }
+
+  const roleDisplay = profile?.role ? getRoleDisplay(profile.role) : getRoleDisplay('user')
 
   return (
     <header className="flex items-center justify-between h-16 px-6 bg-bg-secondary/80 bg-linear-blur border-b border-border-primary backdrop-blur-md">
@@ -49,9 +78,15 @@ export function Header() {
           <div className="w-8 h-8 bg-primary-500 rounded-full flex items-center justify-center">
             <User className="w-4 h-4 text-white" />
           </div>
-          <span className="text-regular font-medium text-text-primary">
-            {user?.email}
-          </span>
+          <div className="flex flex-col">
+            <span className="text-regular font-medium text-text-primary">
+              {user?.email}
+            </span>
+            <div className={`inline-flex items-center px-2 py-1 rounded-md border text-xs font-medium ${roleDisplay.bgColor} ${roleDisplay.color}`}>
+              <roleDisplay.icon className="w-3 h-3 mr-1" />
+              {roleDisplay.label}
+            </div>
+          </div>
         </div>
       </div>
     </header>
