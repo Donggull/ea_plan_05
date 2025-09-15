@@ -25,23 +25,20 @@ export function Header() {
         return {
           label: 'Admin',
           icon: Crown,
-          color: 'text-amber-500',
-          bgColor: 'bg-amber-500/10 border-amber-500/20'
+          className: 'role-badge role-badge-admin'
         }
       case 'subadmin':
         return {
           label: 'SubAdmin',
           icon: Shield,
-          color: 'text-blue-500',
-          bgColor: 'bg-blue-500/10 border-blue-500/20'
+          className: 'role-badge role-badge-subadmin'
         }
       case 'user':
       default:
         return {
           label: 'User',
           icon: User,
-          color: 'text-gray-500',
-          bgColor: 'bg-gray-500/10 border-gray-500/20'
+          className: 'role-badge role-badge-user'
         }
     }
   }
@@ -49,14 +46,14 @@ export function Header() {
   const roleDisplay = profile?.role ? getRoleDisplay(profile.role) : getRoleDisplay('user')
 
   return (
-    <header className="flex items-center justify-between h-16 px-6 bg-bg-secondary/80 bg-linear-blur border-b border-border-primary backdrop-blur-md">
+    <header className="linear-header">
       <div className="flex items-center flex-1 max-w-lg">
         <div className="relative w-full">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-text-tertiary w-4 h-4" />
           <input
             type="text"
             placeholder="Search projects, documents..."
-            className="w-full pl-10 pr-4 py-2 text-regular bg-bg-primary border border-border-primary rounded-lg focus:outline-none focus:border-border-focus focus:border-linear-glow transition-all duration-fast text-text-primary placeholder:text-text-muted"
+            className="linear-search-input"
           />
         </div>
       </div>
@@ -64,25 +61,25 @@ export function Header() {
       <div className="flex items-center space-x-2">
         <button
           onClick={toggleTheme}
-          className="p-2 text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary rounded-lg transition-all duration-fast"
+          className="linear-button"
           aria-label="Toggle theme"
         >
           {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
         </button>
 
-        <button className="p-2 text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary rounded-lg transition-all duration-fast">
+        <button className="linear-button">
           <Bell className="w-5 h-5" />
         </button>
 
         <div className="flex items-center space-x-3 ml-2">
-          <div className="w-8 h-8 bg-primary-500 rounded-full flex items-center justify-center">
+          <div className="linear-avatar">
             <User className="w-4 h-4 text-white" />
           </div>
           <div className="flex flex-col">
-            <span className="text-regular font-medium text-text-primary">
+            <span className="linear-user-info">
               {user?.email}
             </span>
-            <div className={`inline-flex items-center px-2 py-1 rounded-md border text-xs font-medium ${roleDisplay.bgColor} ${roleDisplay.color}`}>
+            <div className={roleDisplay.className}>
               <roleDisplay.icon className="w-3 h-3 mr-1" />
               {roleDisplay.label}
             </div>

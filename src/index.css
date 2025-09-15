@@ -131,6 +131,13 @@
     line-height: 1.4;
   }
 
+  .text-regular {
+    font-size: 0.9375rem; /* 15px */
+    font-weight: 400;
+    letter-spacing: -0.012em;
+    line-height: 1.4;
+  }
+
   .bg-linear-blur {
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
@@ -146,6 +153,18 @@
 
   .animate-linear-slide-in {
     animation: slideIn 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+
+  .duration-fast {
+    transition-duration: 0.15s;
+  }
+
+  .duration-normal {
+    transition-duration: 0.25s;
+  }
+
+  .duration-slow {
+    transition-duration: 0.4s;
   }
 }
 
@@ -189,4 +208,73 @@
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* Linear Theme Components */
+@layer components {
+  /* Header Components */
+  .linear-header {
+    @apply flex items-center justify-between h-16 px-6;
+    @apply bg-bg-secondary/80 bg-linear-blur border-b border-border-primary backdrop-blur-md;
+  }
+
+  .linear-search-input {
+    @apply w-full pl-10 pr-4 py-2 text-regular;
+    @apply bg-bg-primary border border-border-primary rounded-lg;
+    @apply focus:outline-none focus:border-border-focus focus:border-linear-glow;
+    @apply transition-all duration-fast text-text-primary placeholder:text-text-muted;
+  }
+
+  .linear-button {
+    @apply p-2 text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary;
+    @apply rounded-lg transition-all duration-fast;
+  }
+
+  .linear-avatar {
+    @apply w-8 h-8 bg-primary-500 rounded-full flex items-center justify-center;
+  }
+
+  .linear-user-info {
+    @apply text-regular font-medium text-text-primary;
+  }
+
+  /* Role Badge Components */
+  .role-badge {
+    @apply inline-flex items-center px-2 py-1 rounded-md border text-xs font-medium;
+  }
+
+  .role-badge-admin {
+    @apply bg-amber-500/10 border-amber-500/20 text-amber-500;
+  }
+
+  .role-badge-subadmin {
+    @apply bg-blue-500/10 border-blue-500/20 text-blue-500;
+  }
+
+  .role-badge-user {
+    @apply bg-gray-500/10 border-gray-500/20 text-gray-500;
+  }
+
+  /* Primary Color System */
+  .bg-primary-50 { background-color: #f0f9ff; }
+  .bg-primary-100 { background-color: #e0f2fe; }
+  .bg-primary-200 { background-color: #bae6fd; }
+  .bg-primary-300 { background-color: #7dd3fc; }
+  .bg-primary-400 { background-color: #38bdf8; }
+  .bg-primary-500 { background-color: #0ea5e9; }
+  .bg-primary-600 { background-color: #0284c7; }
+  .bg-primary-700 { background-color: #0369a1; }
+  .bg-primary-800 { background-color: #075985; }
+  .bg-primary-900 { background-color: #0c4a6e; }
+
+  .text-primary-50 { color: #f0f9ff; }
+  .text-primary-100 { color: #e0f2fe; }
+  .text-primary-200 { color: #bae6fd; }
+  .text-primary-300 { color: #7dd3fc; }
+  .text-primary-400 { color: #38bdf8; }
+  .text-primary-500 { color: #0ea5e9; }
+  .text-primary-600 { color: #0284c7; }
+  .text-primary-700 { color: #0369a1; }
+  .text-primary-800 { color: #075985; }
+  .text-primary-900 { color: #0c4a6e; }
 }
