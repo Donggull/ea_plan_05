@@ -31,98 +31,108 @@ export async function getRecentActivity(userId: string): Promise<RecentActivity[
     return []
   }
 
-  // AI 분석 활동
-  const { data: analyses, error: analysisError } = await supabase
-    .from('ai_analysis')
-    .select(`
-      id,
-      analysis_type,
-      status,
-      created_at,
-      completed_at,
-      projects:project_id (name)
-    `)
-    .eq('created_by', userId)
-    .order('created_at', { ascending: false })
-    .limit(5)
-
-  if (analysisError) {
-    console.error('Error fetching recent analyses:', analysisError)
+  if (!userId) {
+    console.warn('No user ID provided for getRecentActivity')
+    return []
   }
 
-  // 문서 업로드 활동
-  const { data: documents, error: documentsError } = await supabase
-    .from('documents')
-    .select(`
-      id,
-      file_name,
-      created_at,
-      projects:project_id (name)
-    `)
-    .eq('uploaded_by', userId)
-    .order('created_at', { ascending: false })
-    .limit(3)
+  try {
+    // AI 분석 활동
+    const { data: analyses, error: analysisError } = await supabase
+      .from('ai_analysis')
+      .select(`
+        id,
+        analysis_type,
+        status,
+        created_at,
+        completed_at,
+        projects:project_id (name)
+      `)
+      .eq('created_by', userId)
+      .order('created_at', { ascending: false })
+      .limit(5)
 
-  if (documentsError) {
-    console.error('Error fetching recent documents:', documentsError)
-  }
-
-  const activities: RecentActivity[] = []
-
-  // AI 분석 활동 추가
-  analyses?.forEach(analysis => {
-    if (!analysis.created_at) return
-
-    const timeDiff = Date.now() - new Date(analysis.created_at).getTime()
-    const timeAgo = getTimeAgo(timeDiff)
-
-    let action = ''
-    let type: RecentActivity['type'] = 'info'
-
-    if (analysis.status === 'completed') {
-      action = `AI analysis completed for ${(analysis.projects as any)?.name || 'Unknown Project'}`
-      type = 'success'
-    } else if (analysis.status === 'failed') {
-      action = `AI analysis failed for ${(analysis.projects as any)?.name || 'Unknown Project'}`
-      type = 'error'
-    } else {
-      action = `AI analysis started for ${(analysis.projects as any)?.name || 'Unknown Project'}`
-      type = 'info'
+    if (analysisError) {
+      console.error('Error fetching recent analyses:', analysisError.message)
     }
 
-    activities.push({
-      id: analysis.id,
-      action,
-      time: timeAgo,
-      type,
-      project_name: (analysis.projects as any)?.name
+    // 문서 업로드 활동
+    const { data: documents, error: documentsError } = await supabase
+      .from('documents')
+      .select(`
+        id,
+        file_name,
+        created_at,
+        projects:project_id (name)
+      `)
+      .eq('uploaded_by', userId)
+      .order('created_at', { ascending: false })
+      .limit(3)
+
+    if (documentsError) {
+      console.error('Error fetching recent documents:', documentsError.message)
+    }
+
+    const activities: RecentActivity[] = []
+
+    // AI 분석 활동 추가
+    analyses?.forEach(analysis => {
+      if (!analysis.created_at) return
+
+      const timeDiff = Date.now() - new Date(analysis.created_at).getTime()
+      const timeAgo = getTimeAgo(timeDiff)
+
+      let action = ''
+      let type: RecentActivity['type'] = 'info'
+
+      if (analysis.status === 'completed') {
+        action = `AI analysis completed for ${(analysis.projects as any)?.name || 'Unknown Project'}`
+        type = 'success'
+      } else if (analysis.status === 'failed') {
+        action = `AI analysis failed for ${(analysis.projects as any)?.name || 'Unknown Project'}`
+        type = 'error'
+      } else {
+        action = `AI analysis started for ${(analysis.projects as any)?.name || 'Unknown Project'}`
+        type = 'info'
+      }
+
+      activities.push({
+        id: analysis.id,
+        action,
+        time: timeAgo,
+        type,
+        project_name: (analysis.projects as any)?.name
+      })
     })
-  })
 
-  // 문서 업로드 활동 추가
-  documents?.forEach(document => {
-    if (!document.created_at) return
+    // 문서 업로드 활동 추가
+    documents?.forEach(document => {
+      if (!document.created_at) return
 
-    const timeDiff = Date.now() - new Date(document.created_at).getTime()
-    const timeAgo = getTimeAgo(timeDiff)
+      const timeDiff = Date.now() - new Date(document.created_at).getTime()
+      const timeAgo = getTimeAgo(timeDiff)
 
-    activities.push({
-      id: document.id,
-      action: `New document uploaded: ${document.file_name}`,
-      time: timeAgo,
-      type: 'info',
-      project_name: (document.projects as any)?.name
+      activities.push({
+        id: document.id,
+        action: `New document uploaded: ${document.file_name}`,
+        time: timeAgo,
+        type: 'info',
+        project_name: (document.projects as any)?.name
+      })
     })
-  })
 
-  // 시간순 정렬
-  return activities
-    .sort((a, b) => {
-      const timeA = parseTimeAgo(a.time)
-      const timeB = parseTimeAgo(b.time)
-      return timeA - timeB
-    })
-    .slice(0, 4)
+    // 시간순 정렬
+    return activities
+      .sort((a, b) => {
+        const timeA = parseTimeAgo(a.time)
+        const timeB = parseTimeAgo(b.time)
+        return timeA - timeB
+      })
+      .slice(0, 4)
+  } catch (err) {
+    console.error('Unexpected error in getRecentActivity:', err)
+    return []
+  }
 }
 
 // AI 사용량 통계 조회
