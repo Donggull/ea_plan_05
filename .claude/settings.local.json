@@ -25,7 +25,8 @@
       "mcp__supabase__execute_sql",
       "Bash(npm run type-check:*)",
       "mcp__github-mcp__git-add",
-      "mcp__supabase__get_logs"
+      "mcp__supabase__get_logs",
+      "Bash(npx tsc:*)"
     ],
     "deny": [],
     "ask": []

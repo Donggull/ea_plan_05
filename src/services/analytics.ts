@@ -142,7 +142,8 @@ export async function getAIUsageStats(userId: string): Promise<AIUsageStats> {
     throw new Error('Supabase client not initialized')
   }
 
-  const { data: analyses, error } = await supabase
+  try {
+    const { data: analyses, error } = await supabase
     .from('ai_analysis')
     .select(`
       id,
@@ -155,43 +156,53 @@ export async function getAIUsageStats(userId: string): Promise<AIUsageStats> {
       created_at,
       projects:project_id (name)
     `)
-    .eq('created_by', userId)
-    .order('created_at', { ascending: false })
+      .eq('created_by', userId)
+      .order('created_at', { ascending: false })
 
-  if (error) {
-    console.error('Error fetching AI usage stats:', error)
-    throw error
-  }
+    if (error) {
+      console.error('Error fetching AI usage stats:', error)
+      throw error
+    }
 
-  const total_analyses = analyses?.length || 0
-  const total_tokens = analyses?.reduce((sum, a) => sum + (a.input_tokens || 0) + (a.output_tokens || 0), 0) || 0
-  const total_cost = analyses?.reduce((sum, a) => sum + (a.total_cost || 0), 0) || 0
+    const total_analyses = analyses?.length || 0
+    const total_tokens = analyses?.reduce((sum, a) => sum + (a.input_tokens || 0) + (a.output_tokens || 0), 0) || 0
+    const total_cost = analyses?.reduce((sum, a) => sum + (a.total_cost || 0), 0) || 0
 
-  // 모델별 사용량 계산
-  const models_used: Record<string, number> = {}
-  analyses?.forEach(analysis => {
-    const model = analysis.ai_model || 'unknown'
-    models_used[model] = (models_used[model] || 0) + 1
-  })
+    // 모델별 사용량 계산
+    const models_used: Record<string, number> = {}
+    analyses?.forEach(analysis => {
+      const model = analysis.ai_model || 'unknown'
+      models_used[model] = (models_used[model] || 0) + 1
+    })
 
-  // 최근 분석 (상위 5개)
-  const recent_analyses = analyses?.slice(0, 5)
-    .filter(analysis => analysis.created_at && analysis.status)
-    .map(analysis => ({
-      id: analysis.id,
-      analysis_type: analysis.analysis_type,
-      ai_model: analysis.ai_model,
-      created_at: analysis.created_at!,
-      status: analysis.status!,
-      project_name: (analysis.projects as any)?.name
-    })) || []
+    // 최근 분석 (상위 5개)
+    const recent_analyses = analyses?.slice(0, 5)
+      .filter(analysis => analysis.created_at && analysis.status)
+      .map(analysis => ({
+        id: analysis.id,
+        analysis_type: analysis.analysis_type,
+        ai_model: analysis.ai_model,
+        created_at: analysis.created_at!,
+        status: analysis.status!,
+        project_name: (analysis.projects as any)?.name
+      })) || []
 
-  return {
-    total_analyses,
-    total_tokens,
-    total_cost,
-    models_used,
-    recent_analyses
+    return {
+      total_analyses,
+      total_tokens,
+      total_cost,
+      models_used,
+      recent_analyses
+    }
+  } catch (err) {
+    console.error('Error in getAIUsageStats:', err)
+    return {
+      total_analyses: 0,
+      total_tokens: 0,
+      total_cost: 0,
+      models_used: {},
+      recent_analyses: []
+    }
   }
 }
 
