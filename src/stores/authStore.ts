@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { User, Session } from '@supabase/supabase-js'
-import { supabase } from '@/services/supabase/client'
+import { supabase } from '@/lib/supabase'
 
 interface AuthState {
   user: User | null
@@ -20,6 +20,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   isAuthenticated: false,
 
   signIn: async (email: string, password: string) => {
+    if (!supabase) {
+      throw new Error('Supabase client not initialized. Please check your environment variables.')
+    }
+
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -28,6 +32,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   signUp: async (email: string, password: string) => {
+    if (!supabase) {
+      throw new Error('Supabase client not initialized. Please check your environment variables.')
+    }
+
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -36,6 +44,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   signOut: async () => {
+    if (!supabase) {
+      throw new Error('Supabase client not initialized. Please check your environment variables.')
+    }
+
     const { error } = await supabase.auth.signOut()
     if (error) throw error
     set({
@@ -48,21 +60,42 @@ export const useAuthStore = create<AuthState>((set) => ({
   initialize: async () => {
     set({ isLoading: true })
 
-    const { data: { session } } = await supabase.auth.getSession()
+    try {
+      if (!supabase) {
+        console.error('❌ Supabase client not initialized')
+        set({
+          user: null,
+          session: null,
+          isAuthenticated: false,
+          isLoading: false,
+        })
+        return
+      }
 
-    set({
-      user: session?.user ?? null,
-      session,
-      isAuthenticated: !!session,
-      isLoading: false,
-    })
+      const { data: { session } } = await supabase.auth.getSession()
 
-    supabase.auth.onAuthStateChange((_event, session) => {
       set({
         user: session?.user ?? null,
         session,
         isAuthenticated: !!session,
+        isLoading: false,
       })
-    })
+
+      supabase.auth.onAuthStateChange((_event, session) => {
+        set({
+          user: session?.user ?? null,
+          session,
+          isAuthenticated: !!session,
+        })
+      })
+    } catch (error) {
+      console.error('❌ Auth initialization error:', error)
+      set({
+        user: null,
+        session: null,
+        isAuthenticated: false,
+        isLoading: false,
+      })
+    }
   },
 }))

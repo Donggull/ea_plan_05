@@ -19,24 +19,41 @@ function App() {
 
   useEffect(() => {
     const initializeApp = async () => {
-      console.log('🔄 Initializing application...')
+      console.log('🔄 Initializing EA Plan 05 application...')
+      console.log('Environment:', import.meta.env.MODE)
+
       try {
         // Supabase 연결 테스트
-        const isConnected = await checkSupabaseConnection()
-        if (isConnected) {
+        console.log('🔄 Step 1: Testing Supabase connection...')
+        const connectionResult = await checkSupabaseConnection()
+
+        if (connectionResult.success) {
           setConnectionStatus('connected')
-          console.log('✅ Supabase connection successful!')
+          console.log('✅ Step 1 completed: Supabase connection successful!')
+          if (connectionResult.details) {
+            console.log('Connection details:', connectionResult.details)
+          }
 
           // 인증 상태 초기화
+          console.log('🔄 Step 2: Initializing authentication state...')
           await initialize()
-          console.log('✅ Auth state initialized!')
+          console.log('✅ Step 2 completed: Auth state initialized!')
+          console.log('🎉 Application initialization complete!')
         } else {
           setConnectionStatus('error')
-          console.error('❌ Supabase connection failed')
+          console.error('❌ Step 1 failed: Supabase connection failed')
+          console.error('Error:', connectionResult.error)
+          if (connectionResult.details) {
+            console.error('Error details:', connectionResult.details)
+          }
         }
       } catch (error) {
         setConnectionStatus('error')
         console.error('❌ Application initialization error:', error)
+        console.error('Error details:', {
+          message: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined
+        })
       }
     }
 
@@ -56,18 +73,48 @@ function App() {
 
   if (connectionStatus === 'error') {
     return (
-      <div className="flex h-screen items-center justify-center flex-col space-y-4 p-8">
+      <div className="flex h-screen items-center justify-center flex-col space-y-6 p-8 bg-bg-primary">
         <div className="text-error text-6xl">⚠️</div>
-        <h1 className="text-title2 font-semibold text-text-primary">Database Connection Error</h1>
-        <p className="text-regular text-text-secondary text-center max-w-md">
-          Unable to connect to Supabase. Please check your environment variables and try again.
-        </p>
-        <button
-          onClick={() => window.location.reload()}
-          className="px-6 py-3 bg-primary-500 text-white rounded-lg hover:bg-primary-400 transition-colors"
-        >
-          Retry Connection
-        </button>
+        <div className="text-center space-y-3">
+          <h1 className="text-title2 font-semibold text-text-primary">Database Connection Error</h1>
+          <p className="text-regular text-text-secondary max-w-lg">
+            EA Plan 05 couldn't connect to Supabase. This might be due to environment variables or network issues.
+          </p>
+        </div>
+
+        <div className="bg-bg-secondary border border-border-primary rounded-lg p-4 max-w-2xl w-full">
+          <h3 className="text-sm font-medium text-text-primary mb-2">Troubleshooting Steps:</h3>
+          <ul className="text-sm text-text-secondary space-y-1 list-disc list-inside">
+            <li>Check if VITE_SUPABASE_URL is set correctly</li>
+            <li>Verify VITE_SUPABASE_ANON_KEY is valid</li>
+            <li>Ensure your Supabase project is active</li>
+            <li>Check your internet connection</li>
+            <li>Open browser console for detailed error logs</li>
+          </ul>
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            onClick={() => {
+              console.log('🔄 Manual retry initiated by user')
+              window.location.reload()
+            }}
+            className="px-6 py-3 bg-primary-500 text-white rounded-lg hover:bg-primary-400 transition-colors"
+          >
+            Retry Connection
+          </button>
+          <button
+            onClick={() => {
+              console.log('📋 Environment variables:')
+              console.log('VITE_SUPABASE_URL:', import.meta.env.VITE_SUPABASE_URL ? 'Set' : 'Missing')
+              console.log('VITE_SUPABASE_ANON_KEY:', import.meta.env.VITE_SUPABASE_ANON_KEY ? 'Set' : 'Missing')
+              console.log('Environment mode:', import.meta.env.MODE)
+            }}
+            className="px-6 py-3 bg-bg-tertiary text-text-primary border border-border-primary rounded-lg hover:bg-bg-secondary transition-colors"
+          >
+            Debug Info
+          </button>
+        </div>
       </div>
     )
   }
