@@ -11,15 +11,44 @@ import {
   Sun,
   ChevronDown,
   Search,
-  Bell
+  Bell,
+  Crown,
+  Shield
 } from 'lucide-react'
 
 export function Header() {
   const navigate = useNavigate()
-  const { user, isAuthenticated, signOut } = useAuthStore()
+  const { user, profile, isAuthenticated, signOut } = useAuthStore()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
   const [isDarkMode, setIsDarkMode] = useState(true) // Linear 테마는 기본적으로 다크모드
+
+  // Role Display 함수
+  const getRoleDisplay = (role: string) => {
+    switch (role) {
+      case 'admin':
+        return {
+          label: 'Admin',
+          icon: Crown,
+          className: 'role-badge role-badge-admin'
+        }
+      case 'subadmin':
+        return {
+          label: 'SubAdmin',
+          icon: Shield,
+          className: 'role-badge role-badge-subadmin'
+        }
+      case 'user':
+      default:
+        return {
+          label: 'User',
+          icon: User,
+          className: 'role-badge role-badge-user'
+        }
+    }
+  }
+
+  const roleDisplay = profile?.role ? getRoleDisplay(profile.role) : getRoleDisplay('user')
 
   // 다크모드 상태 초기화 및 동기화
   useEffect(() => {
@@ -133,12 +162,26 @@ export function Header() {
                 onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
                 className="flex items-center space-x-2 p-2 text-text-secondary hover:text-text-primary hover:bg-bg-secondary rounded-lg transition-colors"
               >
-                <div className="w-8 h-8 bg-bg-tertiary rounded-full flex items-center justify-center">
+                <div className="w-8 h-8 bg-bg-tertiary rounded-full flex items-center justify-center relative">
                   <User className="w-4 h-4" />
+                  {/* Role indicator - small icon */}
+                  {profile?.role === 'admin' && (
+                    <Crown className="w-2 h-2 absolute -top-1 -right-1 text-amber-500" />
+                  )}
+                  {profile?.role === 'subadmin' && (
+                    <Shield className="w-2 h-2 absolute -top-1 -right-1 text-blue-500" />
+                  )}
                 </div>
-                <span className="hidden sm:block text-regular font-normal">
-                  {user?.email?.split('@')[0] || 'User'}
-                </span>
+                <div className="hidden sm:flex flex-col items-start">
+                  <span className="text-regular font-normal">
+                    {profile?.full_name || user?.email?.split('@')[0] || 'User'}
+                  </span>
+                  {profile?.role && (
+                    <span className="text-xs text-text-tertiary">
+                      {roleDisplay.label}
+                    </span>
+                  )}
+                </div>
                 <ChevronDown className="w-4 h-4" />
               </button>
 
@@ -148,11 +191,16 @@ export function Header() {
                   <div className="py-1">
                     <div className="px-4 py-2 border-b border-border-secondary">
                       <p className="text-text-primary text-small font-medium">
-                        {user?.email?.split('@')[0] || 'User'}
+                        {profile?.full_name || user?.email?.split('@')[0] || 'User'}
                       </p>
                       <p className="text-text-tertiary text-mini">
                         {user?.email}
                       </p>
+                      {/* Role Badge */}
+                      <div className={`${roleDisplay.className} mt-2`}>
+                        <roleDisplay.icon className="w-3 h-3 mr-1" />
+                        {roleDisplay.label}
+                      </div>
                     </div>
 
                     <button
