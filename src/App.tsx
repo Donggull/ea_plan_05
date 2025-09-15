@@ -5,7 +5,13 @@ import { useEffect, useState } from 'react'
 import { useAuthStore } from '@/stores/authStore'
 import { HomePage } from '@/pages/HomePage'
 import { LoginPage } from '@/pages/LoginPage'
+import { SignupPage } from '@/pages/SignupPage'
+import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage'
+import { ResetPasswordPage } from '@/pages/ResetPasswordPage'
+import { EmailVerificationPage } from '@/pages/EmailVerificationPage'
+import { AuthCallbackPage } from '@/pages/AuthCallbackPage'
 import { DashboardPage } from '@/pages/DashboardPage'
+import { ProfilePage } from '@/pages/ProfilePage'
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute'
 import { MainLayout } from '@/layouts/MainLayout'
 import { AuthLayout } from '@/layouts/AuthLayout'
@@ -128,7 +134,14 @@ function App() {
         {/* Auth Routes with AuthLayout */}
         <Route element={<AuthLayout />}>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/signup" element={<SignupPage />} />
         </Route>
+
+        {/* Auth Routes without AuthLayout (full page) */}
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/email-verification" element={<EmailVerificationPage />} />
+        <Route path="/auth/callback" element={<AuthCallbackPage />} />
 
         {/* Protected Routes with MainLayout */}
         <Route element={<ProtectedRoute />}>
@@ -139,6 +152,7 @@ function App() {
             <Route path="/analytics" element={<DashboardPage />} />
             <Route path="/team" element={<DashboardPage />} />
             <Route path="/settings" element={<DashboardPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
           </Route>
         </Route>
       </Routes>
