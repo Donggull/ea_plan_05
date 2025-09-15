@@ -7,35 +7,41 @@ import { HomePage } from '@/pages/HomePage'
 import { LoginPage } from '@/pages/LoginPage'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute'
-import { AppLayout } from '@/components/layout/AppLayout'
+import { MainLayout } from '@/layouts/MainLayout'
+import { AuthLayout } from '@/layouts/AuthLayout'
 import { checkSupabaseConnection } from '@/lib/supabase'
 
 const queryClient = new QueryClient()
 
 function App() {
-  const { isLoading } = useAuthStore()
+  const { isLoading, initialize } = useAuthStore()
   const [connectionStatus, setConnectionStatus] = useState<'checking' | 'connected' | 'error'>('checking')
 
   useEffect(() => {
-    const testConnection = async () => {
-      console.log('🔄 Testing Supabase connection...')
+    const initializeApp = async () => {
+      console.log('🔄 Initializing application...')
       try {
+        // Supabase 연결 테스트
         const isConnected = await checkSupabaseConnection()
         if (isConnected) {
           setConnectionStatus('connected')
           console.log('✅ Supabase connection successful!')
+
+          // 인증 상태 초기화
+          await initialize()
+          console.log('✅ Auth state initialized!')
         } else {
           setConnectionStatus('error')
           console.error('❌ Supabase connection failed')
         }
       } catch (error) {
         setConnectionStatus('error')
-        console.error('❌ Supabase connection error:', error)
+        console.error('❌ Application initialization error:', error)
       }
     }
 
-    testConnection()
-  }, [])
+    initializeApp()
+  }, [initialize])
 
   if (isLoading || connectionStatus === 'checking') {
     return (
@@ -68,22 +74,29 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="min-h-screen bg-background">
-        <Routes>
-          {/* Public Routes */}
-          <Route path="/" element={<HomePage />} />
+      <Routes>
+        {/* Public Routes */}
+        <Route path="/" element={<HomePage />} />
+
+        {/* Auth Routes with AuthLayout */}
+        <Route element={<AuthLayout />}>
           <Route path="/login" element={<LoginPage />} />
+        </Route>
 
-          {/* Protected Routes */}
-          <Route element={<ProtectedRoute />}>
-            <Route element={<AppLayout />}>
-              <Route path="/dashboard" element={<DashboardPage />} />
-            </Route>
+        {/* Protected Routes with MainLayout */}
+        <Route element={<ProtectedRoute />}>
+          <Route element={<MainLayout />}>
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/projects" element={<DashboardPage />} />
+            <Route path="/documents" element={<DashboardPage />} />
+            <Route path="/analytics" element={<DashboardPage />} />
+            <Route path="/team" element={<DashboardPage />} />
+            <Route path="/settings" element={<DashboardPage />} />
           </Route>
-        </Routes>
+        </Route>
+      </Routes>
 
-        <Toaster position="bottom-right" />
-      </div>
+      <Toaster position="bottom-right" />
     </QueryClientProvider>
   )
 }
