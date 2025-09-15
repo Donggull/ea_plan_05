@@ -296,6 +296,214 @@ npm run test:e2e
 
 ---
 
+## 🔒 Supabase RLS 정책 관리 가이드
+
+### 현재 상태 (2025-01-15 수정됨)
+
+**콘솔 오류 해결을 위해 RLS 정책을 근본적으로 재설계했습니다.**
+
+#### ✅ 현재 활성화된 RLS 정책 (안전한 정책)
+
+1. **profiles 테이블**
+   ```sql
+   -- 사용자는 자신의 프로필만 접근 가능
+   CREATE POLICY "Own profile only" ON profiles
+   FOR ALL
+   USING (auth.uid() = id)
+   WITH CHECK (auth.uid() = id);
+   ```
+
+2. **projects 테이블**
+   ```sql
+   -- 사용자는 자신이 생성한 프로젝트만 접근 가능
+   CREATE POLICY "Own projects only" ON projects
+   FOR ALL
+   USING (owner_id = auth.uid())
+   WITH CHECK (owner_id = auth.uid());
+   ```
+
+3. **documents 테이블**
+   ```sql
+   -- 자신의 프로젝트 내 문서만 접근 가능
+   CREATE POLICY "Documents in own projects" ON documents
+   FOR ALL
+   USING (
+       project_id IN (
+           SELECT id FROM projects WHERE owner_id = auth.uid()
+       )
+   )
+   WITH CHECK (
+       project_id IN (
+           SELECT id FROM projects WHERE owner_id = auth.uid()
+       )
+   );
+   ```
+
+4. **ai_analysis 테이블**
+   ```sql
+   -- 자신의 프로젝트 내 AI 분석만 접근 가능
+   CREATE POLICY "Analysis in own projects" ON ai_analysis
+   FOR ALL
+   USING (
+       project_id IN (
+           SELECT id FROM projects WHERE owner_id = auth.uid()
+       )
+   )
+   WITH CHECK (
+       project_id IN (
+           SELECT id FROM projects WHERE owner_id = auth.uid()
+       )
+   );
+   ```
+
+#### ⚠️ 현재 비활성화된 테이블들 (향후 안전한 정책으로 재활성화 예정)
+
+- `project_members` - 프로젝트 멤버 관리
+- `document_content` - 문서 내용
+- `document_embeddings` - 문서 임베딩
+- `operation_tickets` - 운영 티켓
+- `ticket_comments` - 티켓 댓글
+- `user_api_usage` - API 사용량
+- `mcp_servers` - MCP 서버 관리
+- `mcp_usage_logs` - MCP 사용 로그
+
+### 향후 RLS 정책 재활성화 가이드
+
+#### 1. project_members 테이블 활성화 (우선순위: 높음)
+```sql
+-- 프로젝트 멤버 기능을 위해 필요
+ALTER TABLE project_members ENABLE ROW LEVEL SECURITY;
+
+-- 안전한 정책: 자신이 멤버인 프로젝트 정보만 조회
+CREATE POLICY "Own project memberships" ON project_members
+FOR ALL
+USING (user_id = auth.uid())
+WITH CHECK (user_id = auth.uid());
+
+-- 프로젝트 소유자는 자신의 프로젝트 멤버 관리 가능
+CREATE POLICY "Project owners manage members" ON project_members
+FOR ALL
+USING (
+    project_id IN (
+        SELECT id FROM projects WHERE owner_id = auth.uid()
+    )
+)
+WITH CHECK (
+    project_id IN (
+        SELECT id FROM projects WHERE owner_id = auth.uid()
+    )
+);
+```
+
+#### 2. document_content 테이블 활성화
+```sql
+ALTER TABLE document_content ENABLE ROW LEVEL SECURITY;
+
+-- 자신의 프로젝트 문서 내용만 접근
+CREATE POLICY "Content of own project documents" ON document_content
+FOR ALL
+USING (
+    document_id IN (
+        SELECT d.id FROM documents d
+        JOIN projects p ON d.project_id = p.id
+        WHERE p.owner_id = auth.uid()
+    )
+)
+WITH CHECK (
+    document_id IN (
+        SELECT d.id FROM documents d
+        JOIN projects p ON d.project_id = p.id
+        WHERE p.owner_id = auth.uid()
+    )
+);
+```
+
+#### 3. operation_tickets 테이블 활성화
+```sql
+ALTER TABLE operation_tickets ENABLE ROW LEVEL SECURITY;
+
+-- 자신이 요청하거나 할당받은 티켓만 접근
+CREATE POLICY "Own tickets" ON operation_tickets
+FOR ALL
+USING (
+    requested_by = auth.uid() OR
+    assigned_to = auth.uid() OR
+    project_id IN (
+        SELECT id FROM projects WHERE owner_id = auth.uid()
+    )
+)
+WITH CHECK (
+    requested_by = auth.uid() OR
+    project_id IN (
+        SELECT id FROM projects WHERE owner_id = auth.uid()
+    )
+);
+```
+
+#### 4. 관리자 기능이 필요한 경우
+
+RLS 정책 대신 **애플리케이션 레벨**에서 관리자 권한 처리:
+
+```typescript
+// 서비스 함수에서 관리자 권한 확인
+export async function isAdmin(userId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', userId)
+    .single();
+
+  return data?.role === 'admin';
+}
+
+// 관리자만 접근 가능한 API 엔드포인트에서 사용
+export async function getAllProjects(userId: string) {
+  const adminCheck = await isAdmin(userId);
+
+  if (adminCheck) {
+    // 관리자는 모든 프로젝트 조회 가능
+    return supabase.from('projects').select('*');
+  } else {
+    // 일반 사용자는 자신의 프로젝트만
+    return supabase
+      .from('projects')
+      .select('*')
+      .eq('owner_id', userId);
+  }
+}
+```
+
+### 🚨 주의사항
+
+1. **무한 재귀 방지**: 테이블 간 상호 참조하는 정책 금지
+2. **단순성 유지**: 복잡한 JOIN이나 서브쿼리 최소화
+3. **성능 고려**: 인덱스가 없는 컬럼 조건 사용 시 성능 저하 가능
+4. **점진적 활성화**: 한 번에 모든 테이블을 활성화하지 말고 단계적으로 진행
+5. **테스트 필수**: 각 정책 활성화 후 반드시 브라우저 콘솔에서 오류 확인
+
+### 🔧 RLS 정책 관리 명령어
+
+```sql
+-- RLS 상태 확인
+SELECT schemaname, tablename, rowsecurity
+FROM pg_tables
+WHERE schemaname = 'public'
+ORDER BY tablename;
+
+-- 특정 테이블의 정책 확인
+SELECT policyname, cmd, qual
+FROM pg_policies
+WHERE schemaname = 'public' AND tablename = 'your_table_name';
+
+-- 정책 삭제 (필요시)
+DROP POLICY IF EXISTS "policy_name" ON table_name;
+
+-- RLS 비활성화 (필요시)
+ALTER TABLE table_name DISABLE ROW LEVEL SECURITY;
+```
+
+---
+
 ## 🎯 시작하기
 
 Claude Code에서 이 프로젝트를 개발하려면:
