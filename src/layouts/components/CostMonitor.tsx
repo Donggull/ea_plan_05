@@ -5,7 +5,6 @@ import {
   TrendingDown,
   Activity,
   Zap,
-  Database,
   Cpu,
   AlertTriangle
 } from 'lucide-react'
@@ -40,7 +39,7 @@ interface CostMonitorProps {
 }
 
 export function CostMonitor({ isCollapsed = false, className = '' }: CostMonitorProps) {
-  const [costData, setCostData] = useState<CostData>({
+  const [costData] = useState<CostData>({
     current: {
       today: 12.45,
       thisMonth: 342.78,

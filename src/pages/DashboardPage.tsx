@@ -7,18 +7,12 @@ import {
   Users,
   TrendingUp,
   Activity,
-  Clock,
-  CheckCircle,
-  AlertTriangle,
   Cpu,
-  Database,
-  Globe,
   Plus
 } from 'lucide-react'
 
 export function DashboardPage() {
   const location = useLocation()
-  const { user } = useAuthStore()
 
   // 현재 페이지에 따라 다른 내용 표시
   const getPageContent = () => {
@@ -51,7 +45,7 @@ function DashboardContent() {
       title: 'Active Projects',
       value: '3',
       change: '+12%',
-      changeType: 'positive' as const,
+      changeType: 'positive' as 'positive' | 'negative' | 'neutral',
       icon: FolderOpen,
       color: 'text-accent-blue'
     },
@@ -59,7 +53,7 @@ function DashboardContent() {
       title: 'Documents',
       value: '24',
       change: '+8%',
-      changeType: 'positive' as const,
+      changeType: 'positive' as 'positive' | 'negative' | 'neutral',
       icon: FileText,
       color: 'text-accent-green'
     },
@@ -67,7 +61,7 @@ function DashboardContent() {
       title: 'AI Analysis',
       value: '156',
       change: '+23%',
-      changeType: 'positive' as const,
+      changeType: 'positive' as 'positive' | 'negative' | 'neutral',
       icon: Zap,
       color: 'text-accent-orange'
     },
@@ -75,7 +69,7 @@ function DashboardContent() {
       title: 'Team Members',
       value: '8',
       change: '0%',
-      changeType: 'neutral' as const,
+      changeType: 'neutral' as 'positive' | 'negative' | 'neutral',
       icon: Users,
       color: 'text-primary-500'
     }

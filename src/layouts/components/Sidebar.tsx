@@ -6,9 +6,6 @@ import {
   FolderOpen,
   Plus,
   Settings,
-  Zap,
-  Database,
-  Globe,
   BarChart3,
   FileText,
   Users,
@@ -18,7 +15,6 @@ import {
   Activity,
   Circle,
   CheckCircle,
-  AlertCircle,
   XCircle,
   ChevronDown,
   Building
