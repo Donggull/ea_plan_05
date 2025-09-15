@@ -264,20 +264,17 @@ export class UserService {
   ): Promise<void> {
     if (!supabase) throw new Error('Supabase client not initialized')
 
-    const updates = userIds.map(userId => ({
-      id: userId,
-      role,
-      user_level: level,
-      updated_at: new Date().toISOString()
-    }))
+    for (const userId of userIds) {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          role,
+          user_level: level,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId)
 
-    const { error } = await supabase
-      .from('profiles')
-      .upsert(updates)
-
-    if (error) {
-      console.error('Error bulk updating user roles:', error)
-      throw error
+      if (error) throw error
     }
   }
 

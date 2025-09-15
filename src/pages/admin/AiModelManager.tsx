@@ -5,17 +5,12 @@ import { Card } from '@/components/ui/Card'
 import { withPermission } from '@/lib/middleware/permissionCheck'
 import {
   Brain,
-  Zap,
   DollarSign,
   Activity,
-  Settings,
   Plus,
   Edit,
   Trash2,
-  BarChart3,
-  TrendingUp,
   Clock,
-  Users,
   AlertCircle,
   CheckCircle,
   Pause,
@@ -51,9 +46,7 @@ interface AiModel {
 function AiModelManagerPage() {
   const [models, setModels] = useState<AiModel[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedModel, setSelectedModel] = useState<AiModel | null>(null)
   const [showAddModal, setShowAddModal] = useState(false)
-  const [showEditModal, setShowEditModal] = useState(false)
   const [newModel, setNewModel] = useState({
     name: '',
     provider: 'openai' as AiModel['provider'],
@@ -529,10 +522,6 @@ function AiModelManagerPage() {
                   <Button
                     size="sm"
                     variant="secondary"
-                    onClick={() => {
-                      setSelectedModel(model)
-                      setShowEditModal(true)
-                    }}
                     className="flex items-center gap-1"
                   >
                     <Edit className="w-3 h-3" />

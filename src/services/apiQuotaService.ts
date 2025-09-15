@@ -3,7 +3,6 @@ import type { Database } from '@/types/supabase'
 import { getUserRoleDefinition } from '@/types/user'
 import { UserService } from './userService'
 
-type UserApiUsage = Database['public']['Tables']['user_api_usage']['Row']
 type UserApiUsageInsert = Database['public']['Tables']['user_api_usage']['Insert']
 
 export interface ApiQuotaInfo {

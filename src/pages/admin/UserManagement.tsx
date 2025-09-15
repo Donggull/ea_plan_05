@@ -9,18 +9,16 @@ import { withPermission } from '@/lib/middleware/permissionCheck'
 import {
   Search,
   UserPlus,
-  Settings,
   MoreVertical,
   Eye,
   Edit,
-  Trash2,
   Shield,
   TrendingUp,
   Users,
   UserX
 } from 'lucide-react'
 import type { Database } from '@/types/supabase'
-import { USER_ROLE_DEFINITIONS, UserRole, UserLevel } from '@/types/user'
+import { UserRole, UserLevel } from '@/types/user'
 
 type Profile = Database['public']['Tables']['profiles']['Row']
 
@@ -72,15 +70,6 @@ function UserManagementPage() {
     setCurrentPage(1)
   }
 
-  const handleRoleUpdate = async (userId: string, role: UserRole, level?: UserLevel) => {
-    try {
-      await UserService.updateUserRole(userId, role, level)
-      fetchUsers()
-      fetchStats()
-    } catch (error) {
-      console.error('Error updating user role:', error)
-    }
-  }
 
   const handleStatusToggle = async (userId: string, isActive: boolean) => {
     try {
@@ -142,7 +131,7 @@ function UserManagementPage() {
             <div>
               <p className="text-sm text-text-secondary">관리자</p>
               <p className="text-xl font-semibold text-text-primary">
-                {(stats.admin || 0) + (stats.subadmin || 0)}
+                {(stats['admin'] || 0) + (stats['subadmin'] || 0)}
               </p>
             </div>
           </div>

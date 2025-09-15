@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { UserService } from '@/services/userService'
 import { UserRoleBadge } from '@/components/common/UserRoleBadge'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -11,15 +10,11 @@ import {
   Users,
   FileText,
   Activity,
-  Calendar,
-  MoreVertical,
   Eye,
   Edit,
   Trash2,
   Settings,
-  Plus,
-  Filter,
-  TrendingUp
+  Plus
 } from 'lucide-react'
 import type { Database } from '@/types/supabase'
 
@@ -70,12 +65,19 @@ function ProjectOverviewPage() {
           name: 'AI 챗봇 개발 프로젝트',
           description: '고객 서비스용 AI 챗봇 개발',
           status: 'active',
-          project_type: 'development',
+          project_types: ['development'],
           owner_id: 'user1',
           created_at: '2024-01-15T10:00:00Z',
           updated_at: '2024-01-20T15:30:00Z',
           settings: {},
           metadata: {},
+          budget_info: null,
+          client_info: null,
+          current_workflow_step: null,
+          end_date: null,
+          start_date: null,
+          workflow_config: null,
+          workflow_progress: 65,
           owner: {
             id: 'user1',
             email: 'john@example.com',
@@ -85,7 +87,10 @@ function ProjectOverviewPage() {
             is_active: true,
             created_at: '2024-01-10T10:00:00Z',
             updated_at: '2024-01-20T15:30:00Z',
-            metadata: {}
+            metadata: {},
+            avatar_url: null,
+            last_login_at: null,
+            username: null
           },
           member_count: 5,
           document_count: 12,
@@ -96,12 +101,19 @@ function ProjectOverviewPage() {
           name: '웹사이트 리뉴얼',
           description: '회사 홈페이지 전면 리뉴얼',
           status: 'planning',
-          project_type: 'design',
+          project_types: ['design'],
           owner_id: 'user2',
           created_at: '2024-01-18T14:00:00Z',
           updated_at: '2024-01-22T09:15:00Z',
           settings: {},
           metadata: {},
+          budget_info: null,
+          client_info: null,
+          current_workflow_step: null,
+          end_date: null,
+          start_date: null,
+          workflow_config: null,
+          workflow_progress: 25,
           owner: {
             id: 'user2',
             email: 'jane@example.com',
@@ -111,7 +123,10 @@ function ProjectOverviewPage() {
             is_active: true,
             created_at: '2024-01-12T10:00:00Z',
             updated_at: '2024-01-22T09:15:00Z',
-            metadata: {}
+            metadata: {},
+            avatar_url: null,
+            last_login_at: null,
+            username: null
           },
           member_count: 3,
           document_count: 8,
@@ -397,7 +412,7 @@ function ProjectOverviewPage() {
               ) : (
                 projects.map((project) => {
                   const statusInfo = getStatusInfo(project.status)
-                  const typeInfo = getProjectTypeInfo(project.project_type)
+                  const typeInfo = getProjectTypeInfo(project.project_types?.[0] || 'other')
                   return (
                     <tr key={project.id} className="border-b border-border-secondary hover:bg-bg-secondary">
                       <td className="p-4">

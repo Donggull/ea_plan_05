@@ -10,12 +10,10 @@ import {
   DollarSign,
   Server,
   Brain,
-  TrendingUp,
   AlertTriangle,
   CheckCircle,
   Clock,
   BarChart3,
-  Settings,
   Eye
 } from 'lucide-react'
 

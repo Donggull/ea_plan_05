@@ -1,34 +1,22 @@
 import { useState, useEffect } from 'react'
 import { ApiQuotaService, type ApiQuotaInfo } from '@/services/apiQuotaService'
-import { UserService } from '@/services/userService'
-import { ApiUsageProgress } from '@/components/common/ApiUsageProgress'
-import { UserRoleBadge } from '@/components/common/UserRoleBadge'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card } from '@/components/ui/Card'
 import { withPermission } from '@/lib/middleware/permissionCheck'
 import {
   Search,
-  TrendingUp,
   Users,
   DollarSign,
   Activity,
-  Plus,
   AlertTriangle,
-  Gift,
-  BarChart3,
-  Filter
+  Gift
 } from 'lucide-react'
-import type { Database } from '@/types/supabase'
-
-type Profile = Database['public']['Tables']['profiles']['Row']
 
 interface UserQuotaInfo extends ApiQuotaInfo {
   userInfo: {
     email: string
     full_name: string | null
-    role: string
-    user_level: number | null
   }
 }
 
@@ -72,10 +60,10 @@ function ApiUsageControlPage() {
         )
       }
 
-      // 역할 필터
-      if (filters.role) {
-        filteredUsers = filteredUsers.filter(user => user.userInfo.role === filters.role)
-      }
+      // 역할 필터는 임시로 비활성화 (userInfo에 role이 없음)
+      // if (filters.role) {
+      //   filteredUsers = filteredUsers.filter(user => user.userInfo.role === filters.role)
+      // }
 
       // 할당량 상태 필터
       if (filters.quotaStatus === 'exceeded') {
@@ -401,7 +389,9 @@ function ApiUsageControlPage() {
                         </div>
                       </td>
                       <td className="p-4">
-                        <UserRoleBadge role={user.userInfo.role} level={user.userInfo.user_level} />
+                        <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded text-xs">
+                          사용자
+                        </span>
                       </td>
                       <td className="p-4">
                         <span className={`text-sm font-medium ${usageStatus.color}`}>

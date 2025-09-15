@@ -18,9 +18,6 @@ import {
   Globe,
   FileText,
   Code,
-  MoreVertical,
-  Download,
-  Upload,
   RefreshCw
 } from 'lucide-react'
 
@@ -282,7 +279,6 @@ function McpServerManagerPage() {
   const runningServers = servers.filter(s => s.status === 'running').length
   const errorServers = servers.filter(s => s.status === 'error').length
   const totalRequests = servers.reduce((sum, s) => sum + s.request_count, 0)
-  const totalErrors = servers.reduce((sum, s) => sum + s.error_count, 0)
 
   return (
     <div className="p-6 space-y-6">

@@ -1,3 +1,4 @@
+import React from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { UserService } from '@/services/userService'
 import { hasPermission, canAccessAllProjects, isAdmin, isSubAdmin } from '@/types/user'
@@ -78,7 +79,7 @@ export class PermissionCheck {
   // 프로젝트 접근 권한 검증
   private static async checkProjectAccess(
     user: Profile,
-    projectId: string,
+    _projectId: string,
     action: string
   ): Promise<PermissionCheckResult> {
     // 관리자와 부관리자는 모든 프로젝트 접근 가능
@@ -226,8 +227,8 @@ export class PermissionCheck {
   // 리소스 소유권 검증
   static async checkOwnership(
     userId: string | null,
-    resource: string,
-    resourceId: string
+    _resource: string,
+    _resourceId: string
   ): Promise<PermissionCheckResult> {
     if (!userId) {
       return { allowed: false, reason: 'Authentication required' }
@@ -272,22 +273,22 @@ export function usePermissionCheck() {
     }
 
     // 사용자 역할 정보가 user_metadata에 있다고 가정
-    const userRole = user.user_metadata.role || 'user'
-    const userLevel = user.user_metadata.user_level || 1
+    const userRole = user.user_metadata?.['role'] || 'user'
+    const userLevel = user.user_metadata?.['user_level'] || 1
 
     return hasPermission(userRole, userLevel, resource, action)
   }
 
   const isAdminUser = (): boolean => {
-    return user?.user_metadata?.role === 'admin'
+    return user?.user_metadata?.['role'] === 'admin'
   }
 
   const isSubAdminUser = (): boolean => {
-    return user?.user_metadata?.role === 'subadmin'
+    return user?.user_metadata?.['role'] === 'subadmin'
   }
 
   const getUserLevel = (): number => {
-    return user?.user_metadata?.user_level || 1
+    return user?.user_metadata?.['user_level'] || 1
   }
 
   return {
