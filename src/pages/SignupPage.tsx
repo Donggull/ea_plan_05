@@ -57,8 +57,8 @@ export function SignupPage() {
       newErrors.password = '비밀번호를 입력해주세요'
     } else if (formData.password.length < 8) {
       newErrors.password = '비밀번호는 8자 이상이어야 합니다'
-    } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(formData.password)) {
-      newErrors.password = '대문자, 소문자, 숫자를 포함해야 합니다'
+    } else if (!/(?=.*[a-z])(?=.*\d)/.test(formData.password)) {
+      newErrors.password = '소문자, 숫자를 포함해야 합니다'
     }
 
     // 비밀번호 확인 검증
@@ -136,12 +136,11 @@ export function SignupPage() {
     let strength = 0
     if (password.length >= 8) strength++
     if (/[a-z]/.test(password)) strength++
-    if (/[A-Z]/.test(password)) strength++
     if (/\d/.test(password)) strength++
     if (/[!@#$%^&*(),.?":{}|<>]/.test(password)) strength++
 
     if (strength < 2) return { strength, label: '약함', color: 'text-error' }
-    if (strength < 4) return { strength, label: '보통', color: 'text-warning' }
+    if (strength < 3) return { strength, label: '보통', color: 'text-warning' }
     return { strength, label: '강함', color: 'text-success' }
   }
 
@@ -150,8 +149,8 @@ export function SignupPage() {
   return (
     <div className="min-h-screen bg-bg-primary flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <h1 className="text-title1 font-semibold text-text-primary mb-2">
+        <div className="text-center mb-6">
+          <h1 className="text-title1 font-semibold text-text-primary mb-1">
             EA Plan 05 시작하기
           </h1>
           <p className="text-regular text-text-secondary">
@@ -220,7 +219,7 @@ export function SignupPage() {
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="8자 이상, 대소문자, 숫자 포함"
+                  placeholder="8자 이상, 소문자, 숫자 포함"
                   value={formData.password}
                   onChange={handleChange('password')}
                   className={`pl-10 pr-10 ${errors.password ? 'border-error' : ''}`}
@@ -249,7 +248,7 @@ export function SignupPage() {
                         passwordStrength.strength < 2 ? 'bg-error' :
                         passwordStrength.strength < 4 ? 'bg-warning' : 'bg-success'
                       }`}
-                      style={{ width: `${(passwordStrength.strength / 5) * 100}%` }}
+                      style={{ width: `${(passwordStrength.strength / 4) * 100}%` }}
                     />
                   </div>
                   <span className={`text-xs font-medium ${passwordStrength.color}`}>
