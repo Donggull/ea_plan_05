@@ -14,26 +14,39 @@ export function useProjectData(projectId: string | null) {
 
     setIsLoading(true)
 
-    supabase
-      .from('projects')
-      .select(`
-        *,
-        owner:profiles!owner_id(*),
-        members:project_members(
-          *,
-          user:profiles(*)
-        ),
-        documents(count),
-        ai_analysis(count)
-      `)
-      .eq('id', projectId)
-      .single()
-      .then(({ data, error }) => {
+    const fetchProject = async () => {
+      try {
+        if (!supabase) {
+          console.error('Supabase client not available')
+          setIsLoading(false)
+          return
+        }
+
+        const { data, error } = await supabase
+          .from('projects')
+          .select(`
+            *,
+            owner:profiles!owner_id(*),
+            members:project_members(
+              *,
+              user:profiles(*)
+            ),
+            documents(count),
+            ai_analysis(count)
+          `)
+          .eq('id', projectId)
+          .single()
+
         if (error) throw error
         setProject(data)
-      })
-      .catch((error: any) => console.error(error))
-      .finally(() => setIsLoading(false))
+      } catch (error: any) {
+        console.error(error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchProject()
   }, [projectId])
 
   return {
@@ -55,22 +68,35 @@ export function useProjectsList(userId: string | null) {
 
     setIsLoading(true)
 
-    supabase
-      .from('projects')
-      .select(`
-        *,
-        owner:profiles!owner_id(full_name, avatar_url),
-        members:project_members(count),
-        documents(count)
-      `)
-      .eq('owner_id', userId)
-      .order('created_at', { ascending: false })
-      .then(({ data, error }) => {
+    const fetchProjects = async () => {
+      try {
+        if (!supabase) {
+          console.error('Supabase client not available')
+          setIsLoading(false)
+          return
+        }
+
+        const { data, error } = await supabase
+          .from('projects')
+          .select(`
+            *,
+            owner:profiles!owner_id(full_name, avatar_url),
+            members:project_members(count),
+            documents(count)
+          `)
+          .eq('owner_id', userId)
+          .order('created_at', { ascending: false })
+
         if (error) throw error
         setProjects(data || [])
-      })
-      .catch((error: any) => console.error(error))
-      .finally(() => setIsLoading(false))
+      } catch (error: any) {
+        console.error(error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchProjects()
   }, [userId])
 
   return {
@@ -93,15 +119,24 @@ export function useRealtimeProject(projectId: string | null) {
     setIsLoading(true)
     let subscription: any = null
 
-    // 초기 데이터 가져오기
-    supabase
-      .from('projects')
-      .select('*')
-      .eq('id', projectId)
-      .single()
-      .then(({ data, error }) => {
+    const initializeRealtimeProject = async () => {
+      try {
+        if (!supabase) {
+          console.error('Supabase client not available')
+          setIsLoading(false)
+          return
+        }
+
+        // 초기 데이터 가져오기
+        const { data, error } = await supabase
+          .from('projects')
+          .select('*')
+          .eq('id', projectId)
+          .single()
+
         if (error) {
           console.error('Error fetching project:', error)
+          setIsLoading(false)
           return
         }
 
@@ -109,29 +144,33 @@ export function useRealtimeProject(projectId: string | null) {
         setIsLoading(false)
 
         // 실시간 구독 설정
-        subscription = supabase
-          .channel(`project-${projectId}`)
-          .on(
-            'postgres_changes',
-            {
-              event: '*',
-              schema: 'public',
-              table: 'projects',
-              filter: `id=eq.${projectId}`
-            },
-            (payload) => {
-              // 실시간 업데이트 처리
-              if (payload.eventType === 'UPDATE') {
-                setProject((prev: any) => ({ ...prev, ...payload.new }))
+        if (supabase) {
+          subscription = supabase
+            .channel(`project-${projectId}`)
+            .on(
+              'postgres_changes',
+              {
+                event: '*',
+                schema: 'public',
+                table: 'projects',
+                filter: `id=eq.${projectId}`
+              },
+              (payload) => {
+                // 실시간 업데이트 처리
+                if (payload.eventType === 'UPDATE') {
+                  setProject((prev: any) => ({ ...prev, ...payload.new }))
+                }
               }
-            }
-          )
-          .subscribe()
-      })
-      .catch((error) => {
+            )
+            .subscribe()
+        }
+      } catch (error: any) {
         console.error('Error in useRealtimeProject:', error)
         setIsLoading(false)
-      })
+      }
+    }
+
+    initializeRealtimeProject()
 
     // 정리 함수
     return () => {
@@ -162,22 +201,35 @@ export function useAIAnalysisData(projectId: string | null) {
 
     setIsLoading(true)
 
-    supabase
-      .from('ai_analysis')
-      .select(`
-        *,
-        document:documents(file_name),
-        creator:profiles!created_by(full_name)
-      `)
-      .eq('project_id', projectId)
-      .order('created_at', { ascending: false })
-      .limit(10)
-      .then(({ data, error }) => {
+    const fetchAnalyses = async () => {
+      try {
+        if (!supabase) {
+          console.error('Supabase client not available')
+          setIsLoading(false)
+          return
+        }
+
+        const { data, error } = await supabase
+          .from('ai_analysis')
+          .select(`
+            *,
+            document:documents(file_name),
+            creator:profiles!created_by(full_name)
+          `)
+          .eq('project_id', projectId)
+          .order('created_at', { ascending: false })
+          .limit(10)
+
         if (error) throw error
         setAnalyses(data || [])
-      })
-      .catch((error: any) => console.error(error))
-      .finally(() => setIsLoading(false))
+      } catch (error: any) {
+        console.error(error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchAnalyses()
   }, [projectId])
 
   return {
@@ -200,17 +252,30 @@ export function useUserAPIUsage(userId: string | null) {
     setIsLoading(true)
     const today = new Date().toISOString().split('T')[0]
 
-    supabase
-      .from('user_api_usage')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('date', today)
-      .then(({ data, error }) => {
+    const fetchUsage = async () => {
+      try {
+        if (!supabase) {
+          console.error('Supabase client not available')
+          setIsLoading(false)
+          return
+        }
+
+        const { data, error } = await supabase
+          .from('user_api_usage')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('date', today)
+
         if (error) throw error
         setUsage(data || [])
-      })
-      .catch((error: any) => console.error(error))
-      .finally(() => setIsLoading(false))
+      } catch (error: any) {
+        console.error(error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchUsage()
   }, [userId])
 
   const totalTokens = useMemo(() =>
