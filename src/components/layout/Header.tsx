@@ -6,6 +6,12 @@ export function Header() {
   const { user, profile } = useAuthStore()
   const [isDark, setIsDark] = useState(false)
 
+  // 디버깅을 위한 로그
+  useEffect(() => {
+    console.log('Header - User:', user)
+    console.log('Header - Profile:', profile)
+  }, [user, profile])
+
   useEffect(() => {
     const theme = localStorage.getItem('theme')
     setIsDark(theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches))
@@ -77,8 +83,9 @@ export function Header() {
           </div>
           <div className="flex flex-col">
             <span className="linear-user-info">
-              {user?.email}
+              {profile?.full_name || user?.email || 'Loading...'}
             </span>
+            {/* Role Badge - 항상 표시 */}
             <div className={roleDisplay.className}>
               <roleDisplay.icon className="w-3 h-3 mr-1" />
               {roleDisplay.label}
