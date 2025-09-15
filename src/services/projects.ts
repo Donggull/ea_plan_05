@@ -51,7 +51,7 @@ export async function getUserProjects(userId: string): Promise<Project[]> {
     throw error
   }
 
-  return (data || []) as Project[]
+  return (data || []) as unknown as Project[]
 }
 
 // 최근 프로젝트 조회 (3개)
@@ -73,7 +73,7 @@ export async function getRecentProjects(userId: string): Promise<Project[]> {
     throw error
   }
 
-  return (data || []) as Project[]
+  return (data || []) as unknown as Project[]
 }
 
 // 프로젝트 통계 조회

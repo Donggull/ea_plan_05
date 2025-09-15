@@ -2,7 +2,7 @@ import { useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { useQuery } from '@tanstack/react-query'
 import { getProjectStats, getRecentProjects } from '@/services/projects'
-import { getRecentActivity, getAIUsageStats } from '@/services/analytics'
+import { getRecentActivity } from '@/services/analytics'
 import {
   FolderOpen,
   FileText,
@@ -66,12 +66,6 @@ function DashboardContent() {
     staleTime: 2 * 60 * 1000, // 2분
   })
 
-  const { data: aiUsageStats } = useQuery({
-    queryKey: ['aiUsageStats', user?.id],
-    queryFn: () => getAIUsageStats(user?.id || ''),
-    enabled: !!user?.id,
-    staleTime: 10 * 60 * 1000, // 10분
-  })
 
   // 통계 카드 데이터 구성
   const stats = [
