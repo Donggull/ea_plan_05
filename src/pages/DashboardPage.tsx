@@ -1,5 +1,8 @@
 import { useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
+import { useQuery } from '@tanstack/react-query'
+import { getProjectStats, getRecentProjects } from '@/services/projects'
+import { getRecentActivity, getAIUsageStats } from '@/services/analytics'
 import {
   FolderOpen,
   FileText,
@@ -8,7 +11,8 @@ import {
   TrendingUp,
   Activity,
   Cpu,
-  Plus
+  Plus,
+  Loader2
 } from 'lucide-react'
 
 export function DashboardPage() {
@@ -40,53 +44,80 @@ export function DashboardPage() {
 function DashboardContent() {
   const { user } = useAuthStore()
 
+  // 데이터 페칭을 위한 React Query 사용
+  const { data: projectStats, isLoading: statsLoading } = useQuery({
+    queryKey: ['projectStats', user?.id],
+    queryFn: () => getProjectStats(user?.id || ''),
+    enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000, // 5분
+  })
+
+  const { data: recentProjects, isLoading: projectsLoading } = useQuery({
+    queryKey: ['recentProjects', user?.id],
+    queryFn: () => getRecentProjects(user?.id || ''),
+    enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const { data: recentActivity, isLoading: activityLoading } = useQuery({
+    queryKey: ['recentActivity', user?.id],
+    queryFn: () => getRecentActivity(user?.id || ''),
+    enabled: !!user?.id,
+    staleTime: 2 * 60 * 1000, // 2분
+  })
+
+  const { data: aiUsageStats, isLoading: aiStatsLoading } = useQuery({
+    queryKey: ['aiUsageStats', user?.id],
+    queryFn: () => getAIUsageStats(user?.id || ''),
+    enabled: !!user?.id,
+    staleTime: 10 * 60 * 1000, // 10분
+  })
+
+  // 통계 카드 데이터 구성
   const stats = [
     {
       title: 'Active Projects',
-      value: '3',
-      change: '+12%',
+      value: projectStats?.activeProjects?.toString() || '0',
+      change: projectStats?.activeProjects > 0 ? '+12%' : '0%',
       changeType: 'positive' as 'positive' | 'negative' | 'neutral',
       icon: FolderOpen,
       color: 'text-accent-blue'
     },
     {
       title: 'Documents',
-      value: '24',
-      change: '+8%',
+      value: projectStats?.totalDocuments?.toString() || '0',
+      change: projectStats?.totalDocuments > 0 ? '+8%' : '0%',
       changeType: 'positive' as 'positive' | 'negative' | 'neutral',
       icon: FileText,
       color: 'text-accent-green'
     },
     {
       title: 'AI Analysis',
-      value: '156',
-      change: '+23%',
+      value: projectStats?.totalAnalysis?.toString() || '0',
+      change: projectStats?.totalAnalysis > 0 ? '+23%' : '0%',
       changeType: 'positive' as 'positive' | 'negative' | 'neutral',
       icon: Zap,
       color: 'text-accent-orange'
     },
     {
-      title: 'Team Members',
-      value: '8',
-      change: '0%',
-      changeType: 'neutral' as 'positive' | 'negative' | 'neutral',
+      title: 'Total Budget',
+      value: projectStats?.totalBudget ? `₩${(projectStats.totalBudget / 10000).toFixed(0)}만` : '₩0',
+      change: projectStats?.totalBudget > 0 ? '+15%' : '0%',
+      changeType: 'positive' as 'positive' | 'negative' | 'neutral',
       icon: Users,
       color: 'text-primary-500'
     }
   ]
 
-  const recentProjects = [
-    { name: 'Enterprise Cloud Migration', status: 'In Progress', progress: 75 },
-    { name: 'AI Assistant Implementation', status: 'Planning', progress: 25 },
-    { name: 'Security Audit 2024', status: 'Completed', progress: 100 }
-  ]
-
-  const recentActivity = [
-    { action: 'AI analysis completed for Project Alpha', time: '2 minutes ago', type: 'success' },
-    { action: 'New document uploaded to Beta Project', time: '15 minutes ago', type: 'info' },
-    { action: 'Team member John joined Gamma Project', time: '1 hour ago', type: 'info' },
-    { action: 'Warning: High token usage detected', time: '2 hours ago', type: 'warning' }
-  ]
+  // 로딩 상태 처리
+  if (statsLoading || projectsLoading || activityLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
+        <span className="ml-2 text-text-secondary">데이터를 불러오는 중...</span>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-8">
@@ -141,30 +172,43 @@ function DashboardContent() {
           </div>
 
           <div className="space-y-4">
-            {recentProjects.map((project, index) => (
-              <div key={index} className="p-4 bg-bg-tertiary rounded-lg">
+            {recentProjects?.map((project) => (
+              <div key={project.id} className="p-4 bg-bg-tertiary rounded-lg">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-regular font-medium text-text-primary">{project.name}</h3>
                   <span className={`text-mini px-2 py-1 rounded-full ${
-                    project.status === 'Completed' ? 'bg-accent-green/10 text-accent-green' :
-                    project.status === 'In Progress' ? 'bg-accent-blue/10 text-accent-blue' :
-                    'bg-accent-orange/10 text-accent-orange'
+                    project.status === 'completed' ? 'bg-accent-green/10 text-accent-green' :
+                    project.status === 'active' ? 'bg-accent-blue/10 text-accent-blue' :
+                    project.status === 'paused' ? 'bg-accent-orange/10 text-accent-orange' :
+                    'bg-text-tertiary/10 text-text-tertiary'
                   }`}>
-                    {project.status}
+                    {project.status === 'active' ? 'In Progress' :
+                     project.status === 'completed' ? 'Completed' :
+                     project.status === 'paused' ? 'Paused' : 'Archived'}
                   </span>
                 </div>
                 <div className="w-full bg-bg-primary rounded-full h-2">
                   <div
                     className="bg-primary-500 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${project.progress}%` }}
+                    style={{ width: `${project.workflow_progress}%` }}
                   />
                 </div>
                 <div className="flex justify-between items-center mt-2">
                   <span className="text-text-tertiary text-mini">Progress</span>
-                  <span className="text-text-primary text-mini font-medium">{project.progress}%</span>
+                  <span className="text-text-primary text-mini font-medium">{project.workflow_progress}%</span>
                 </div>
+                {project.description && (
+                  <p className="text-mini text-text-secondary mt-2 line-clamp-2">
+                    {project.description}
+                  </p>
+                )}
               </div>
-            ))}
+            )) || (
+              <div className="text-center py-8 text-text-secondary">
+                <FolderOpen className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p>아직 생성된 프로젝트가 없습니다</p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -176,19 +220,28 @@ function DashboardContent() {
           </div>
 
           <div className="space-y-4">
-            {recentActivity.map((activity, index) => (
-              <div key={index} className="flex items-start space-x-3">
+            {recentActivity?.map((activity) => (
+              <div key={activity.id} className="flex items-start space-x-3">
                 <div className={`w-2 h-2 rounded-full mt-2 ${
                   activity.type === 'success' ? 'bg-accent-green' :
                   activity.type === 'warning' ? 'bg-accent-orange' :
+                  activity.type === 'error' ? 'bg-accent-red' :
                   'bg-accent-blue'
                 }`} />
                 <div className="flex-1">
                   <p className="text-regular text-text-primary">{activity.action}</p>
                   <p className="text-small text-text-tertiary">{activity.time}</p>
+                  {activity.project_name && (
+                    <p className="text-mini text-text-muted">in {activity.project_name}</p>
+                  )}
                 </div>
               </div>
-            ))}
+            )) || (
+              <div className="text-center py-8 text-text-secondary">
+                <Activity className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p>최근 활동이 없습니다</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
