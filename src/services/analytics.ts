@@ -26,6 +26,11 @@ export interface AIUsageStats {
 
 // 최근 활동 조회
 export async function getRecentActivity(userId: string): Promise<RecentActivity[]> {
+  if (!supabase) {
+    console.error('Supabase client not initialized')
+    return []
+  }
+
   // AI 분석 활동
   const { data: analyses, error: analysisError } = await supabase
     .from('ai_analysis')
@@ -66,6 +71,8 @@ export async function getRecentActivity(userId: string): Promise<RecentActivity[
 
   // AI 분석 활동 추가
   analyses?.forEach(analysis => {
+    if (!analysis.created_at) return
+
     const timeDiff = Date.now() - new Date(analysis.created_at).getTime()
     const timeAgo = getTimeAgo(timeDiff)
 
@@ -94,6 +101,8 @@ export async function getRecentActivity(userId: string): Promise<RecentActivity[
 
   // 문서 업로드 활동 추가
   documents?.forEach(document => {
+    if (!document.created_at) return
+
     const timeDiff = Date.now() - new Date(document.created_at).getTime()
     const timeAgo = getTimeAgo(timeDiff)
 
@@ -118,6 +127,11 @@ export async function getRecentActivity(userId: string): Promise<RecentActivity[
 
 // AI 사용량 통계 조회
 export async function getAIUsageStats(userId: string): Promise<AIUsageStats> {
+  if (!supabase) {
+    console.error('Supabase client not initialized')
+    throw new Error('Supabase client not initialized')
+  }
+
   const { data: analyses, error } = await supabase
     .from('ai_analysis')
     .select(`
@@ -151,14 +165,16 @@ export async function getAIUsageStats(userId: string): Promise<AIUsageStats> {
   })
 
   // 최근 분석 (상위 5개)
-  const recent_analyses = analyses?.slice(0, 5).map(analysis => ({
-    id: analysis.id,
-    analysis_type: analysis.analysis_type,
-    ai_model: analysis.ai_model,
-    created_at: analysis.created_at,
-    status: analysis.status,
-    project_name: (analysis.projects as any)?.name
-  })) || []
+  const recent_analyses = analyses?.slice(0, 5)
+    .filter(analysis => analysis.created_at && analysis.status)
+    .map(analysis => ({
+      id: analysis.id,
+      analysis_type: analysis.analysis_type,
+      ai_model: analysis.ai_model,
+      created_at: analysis.created_at!,
+      status: analysis.status!,
+      project_name: (analysis.projects as any)?.name
+    })) || []
 
   return {
     total_analyses,

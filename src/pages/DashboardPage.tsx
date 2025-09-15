@@ -66,7 +66,7 @@ function DashboardContent() {
     staleTime: 2 * 60 * 1000, // 2분
   })
 
-  const { data: aiUsageStats, isLoading: aiStatsLoading } = useQuery({
+  const { data: aiUsageStats } = useQuery({
     queryKey: ['aiUsageStats', user?.id],
     queryFn: () => getAIUsageStats(user?.id || ''),
     enabled: !!user?.id,
@@ -77,32 +77,32 @@ function DashboardContent() {
   const stats = [
     {
       title: 'Active Projects',
-      value: projectStats?.activeProjects?.toString() || '0',
-      change: projectStats?.activeProjects > 0 ? '+12%' : '0%',
+      value: (projectStats?.activeProjects ?? 0).toString(),
+      change: (projectStats?.activeProjects ?? 0) > 0 ? '+12%' : '0%',
       changeType: 'positive' as 'positive' | 'negative' | 'neutral',
       icon: FolderOpen,
       color: 'text-accent-blue'
     },
     {
       title: 'Documents',
-      value: projectStats?.totalDocuments?.toString() || '0',
-      change: projectStats?.totalDocuments > 0 ? '+8%' : '0%',
+      value: (projectStats?.totalDocuments ?? 0).toString(),
+      change: (projectStats?.totalDocuments ?? 0) > 0 ? '+8%' : '0%',
       changeType: 'positive' as 'positive' | 'negative' | 'neutral',
       icon: FileText,
       color: 'text-accent-green'
     },
     {
       title: 'AI Analysis',
-      value: projectStats?.totalAnalysis?.toString() || '0',
-      change: projectStats?.totalAnalysis > 0 ? '+23%' : '0%',
+      value: (projectStats?.totalAnalysis ?? 0).toString(),
+      change: (projectStats?.totalAnalysis ?? 0) > 0 ? '+23%' : '0%',
       changeType: 'positive' as 'positive' | 'negative' | 'neutral',
       icon: Zap,
       color: 'text-accent-orange'
     },
     {
       title: 'Total Budget',
-      value: projectStats?.totalBudget ? `₩${(projectStats.totalBudget / 10000).toFixed(0)}만` : '₩0',
-      change: projectStats?.totalBudget > 0 ? '+15%' : '0%',
+      value: projectStats?.totalBudget ? `₩${((projectStats.totalBudget ?? 0) / 10000).toFixed(0)}만` : '₩0',
+      change: (projectStats?.totalBudget ?? 0) > 0 ? '+15%' : '0%',
       changeType: 'positive' as 'positive' | 'negative' | 'neutral',
       icon: Users,
       color: 'text-primary-500'

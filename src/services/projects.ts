@@ -35,6 +35,11 @@ export interface ProjectStats {
 
 // 사용자의 프로젝트 목록 조회
 export async function getUserProjects(userId: string): Promise<Project[]> {
+  if (!supabase) {
+    console.error('Supabase client not initialized')
+    throw new Error('Supabase client not initialized')
+  }
+
   const { data, error } = await supabase
     .from('projects')
     .select('*')
@@ -46,11 +51,16 @@ export async function getUserProjects(userId: string): Promise<Project[]> {
     throw error
   }
 
-  return data || []
+  return (data || []) as Project[]
 }
 
 // 최근 프로젝트 조회 (3개)
 export async function getRecentProjects(userId: string): Promise<Project[]> {
+  if (!supabase) {
+    console.error('Supabase client not initialized')
+    throw new Error('Supabase client not initialized')
+  }
+
   const { data, error } = await supabase
     .from('projects')
     .select('*')
@@ -63,11 +73,16 @@ export async function getRecentProjects(userId: string): Promise<Project[]> {
     throw error
   }
 
-  return data || []
+  return (data || []) as Project[]
 }
 
 // 프로젝트 통계 조회
 export async function getProjectStats(userId: string): Promise<ProjectStats> {
+  if (!supabase) {
+    console.error('Supabase client not initialized')
+    throw new Error('Supabase client not initialized')
+  }
+
   // 프로젝트 통계
   const { data: projects, error: projectsError } = await supabase
     .from('projects')
@@ -103,7 +118,8 @@ export async function getProjectStats(userId: string): Promise<ProjectStats> {
   const activeProjects = projects?.filter(p => p.status === 'active').length || 0
   const completedProjects = projects?.filter(p => p.status === 'completed').length || 0
   const totalBudget = projects?.reduce((sum, p) => {
-    return sum + (p.budget_info?.actual || 0)
+    const budgetInfo = p.budget_info as any
+    return sum + (budgetInfo?.actual || 0)
   }, 0) || 0
 
   return {
@@ -118,6 +134,11 @@ export async function getProjectStats(userId: string): Promise<ProjectStats> {
 
 // 프로젝트별 문서 개수 조회
 export async function getProjectDocumentCounts(projectIds: string[]) {
+  if (!supabase) {
+    console.error('Supabase client not initialized')
+    return {}
+  }
+
   const { data, error } = await supabase
     .from('documents')
     .select('project_id')
