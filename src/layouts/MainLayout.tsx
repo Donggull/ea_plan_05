@@ -44,13 +44,11 @@ export function MainLayout() {
 
         {/* Main Content Area */}
         <main className="flex-1 overflow-auto">
-          <div className="h-full">
-            {/* Content Container */}
-            <div className="h-full p-6">
-              {/* Page Content */}
-              <div className="max-w-full mx-auto h-full">
-                <Outlet />
-              </div>
+          {/* Content Container */}
+          <div className="p-6">
+            {/* Page Content */}
+            <div className="max-w-full mx-auto">
+              <Outlet />
             </div>
           </div>
         </main>
