@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(node:*)",
+      "Bash(npm --version)",
+      "Bash(npm install)",
+      "Bash(npm install:*)",
+      "Bash(npm run typecheck:*)",
+      "Bash(npm run dev:*)",
+      "mcp__github-mcp__git-status",
+      "mcp__github-mcp__git-init",
+      "mcp__github-mcp__git-remote-add",
+      "mcp__github-mcp__git-add-all"
+    ],
+    "deny": [],
+    "ask": []
+  },
+  "enabledMcpjsonServers": [
+    "context7",
+    "playwright-stealth",
+    "supabase",
+    "github-mcp"
+  ]
+}

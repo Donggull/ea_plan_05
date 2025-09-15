@@ -1,0 +1,386 @@
+/* Linear Theme Global Styles for ELUO Project */
+
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+/* ============================================
+   Font Face Definitions
+   ============================================ */
+
+@font-face {
+  font-family: 'Inter Variable';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/Inter-Variable.woff2') format('woff2-variations');
+}
+
+/* ============================================
+   CSS Variables (Linear Theme)
+   ============================================ */
+
+@layer base {
+  :root {
+    /* Background Colors */
+    --linear-bg-primary: #080910;
+    --linear-bg-secondary: #101113;
+    --linear-bg-tertiary: #202124;
+    --linear-bg-elevated: #2a2d30;
+    
+    /* Text Colors */
+    --linear-text-primary: #f7f8f8;
+    --linear-text-secondary: #d0d6e0;
+    --linear-text-tertiary: #8a8f98;
+    --linear-text-muted: #636871;
+    --linear-text-disabled: #4a4e57;
+    
+    /* Border Colors */
+    --linear-border-primary: #2a2d30;
+    --linear-border-secondary: #1f2124;
+    --linear-border-focus: #4ea7fc;
+    
+    /* Accent Colors */
+    --linear-accent-blue: #4ea7fc;
+    --linear-accent-red: #eb5757;
+    --linear-accent-green: #4cb782;
+    --linear-accent-orange: #fc7840;
+    --linear-accent-yellow: #f2c94c;
+    --linear-accent-indigo: #5e6ad2;
+    
+    /* Semantic Colors */
+    --linear-success: #4cb782;
+    --linear-warning: #fc7840;
+    --linear-error: #eb5757;
+    --linear-info: #4ea7fc;
+    
+    /* Spacing */
+    --linear-spacing-xs: 4px;
+    --linear-spacing-sm: 8px;
+    --linear-spacing-md: 16px;
+    --linear-spacing-lg: 24px;
+    --linear-spacing-xl: 32px;
+    --linear-spacing-2xl: 48px;
+    --linear-spacing-3xl: 64px;
+    
+    /* Border Radius */
+    --linear-radius-sm: 4px;
+    --linear-radius-md: 6px;
+    --linear-radius-lg: 8px;
+    --linear-radius-xl: 12px;
+    --linear-radius-2xl: 16px;
+    
+    /* Animation */
+    --linear-duration-fast: 0.1s;
+    --linear-duration-normal: 0.25s;
+    --linear-duration-slow: 0.5s;
+    --linear-ease-out: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    --linear-ease-in-out: cubic-bezier(0.645, 0.045, 0.355, 1);
+    
+    /* Shadows */
+    --linear-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --linear-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    --linear-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    --linear-shadow-glow: 0 0 20px rgba(78, 167, 252, 0.2);
+  }
+  
+  /* Dark mode is default for Linear theme */
+  html {
+    color-scheme: dark;
+  }
+  
+  body {
+    background-color: var(--linear-bg-primary);
+    color: var(--linear-text-primary);
+    font-family: 'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 0.9375rem; /* 15px base */
+    line-height: 1.4;
+    letter-spacing: -0.012em;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* ============================================
+   Component Styles
+   ============================================ */
+
+@layer components {
+  /* Buttons */
+  .linear-btn {
+    @apply inline-flex items-center justify-center;
+    @apply px-6 py-3 rounded-linear-lg;
+    @apply text-linear-base font-linear-medium;
+    @apply transition-all duration-linear-fast;
+    @apply linear-button-press;
+  }
+  
+  .linear-btn-primary {
+    @apply linear-btn;
+    @apply bg-primary-500 text-white;
+    @apply hover:bg-primary-400;
+    @apply disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  
+  .linear-btn-secondary {
+    @apply linear-btn;
+    @apply bg-transparent text-linear-text-tertiary;
+    @apply border border-linear-border;
+    @apply hover:bg-linear-bg-secondary hover:text-linear-text-secondary;
+  }
+  
+  .linear-btn-ghost {
+    @apply linear-btn;
+    @apply bg-transparent text-linear-text-secondary;
+    @apply hover:bg-linear-bg-secondary;
+  }
+  
+  /* Cards */
+  .linear-card {
+    @apply bg-linear-bg-secondary;
+    @apply border border-linear-border;
+    @apply rounded-linear-xl p-linear-lg;
+    @apply shadow-linear-md;
+  }
+  
+  .linear-card-interactive {
+    @apply linear-card;
+    @apply cursor-pointer;
+    @apply linear-card-hover;
+  }
+  
+  /* Inputs */
+  .linear-input {
+    @apply w-full px-4 py-3;
+    @apply bg-linear-bg-secondary;
+    @apply border border-linear-border;
+    @apply rounded-linear-lg;
+    @apply text-linear-text-primary text-linear-base;
+    @apply placeholder:text-linear-text-tertiary;
+    @apply transition-all duration-linear-fast;
+    @apply linear-focus;
+  }
+  
+  .linear-input-error {
+    @apply border-error;
+  }
+  
+  /* Select */
+  .linear-select {
+    @apply linear-input;
+    @apply cursor-pointer;
+    @apply appearance-none;
+    background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%238a8f98' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-position: right 16px center;
+    background-repeat: no-repeat;
+    padding-right: 40px;
+  }
+  
+  /* Badge */
+  .linear-badge {
+    @apply inline-flex items-center;
+    @apply px-2 py-1 rounded-linear-md;
+    @apply text-linear-mini font-linear-medium;
+  }
+  
+  .linear-badge-default {
+    @apply linear-badge;
+    @apply bg-linear-bg-tertiary text-linear-text-secondary;
+  }
+  
+  .linear-badge-primary {
+    @apply linear-badge;
+    @apply bg-primary-500/10 text-primary-500;
+  }
+  
+  .linear-badge-success {
+    @apply linear-badge;
+    @apply bg-success/10 text-success;
+  }
+  
+  .linear-badge-warning {
+    @apply linear-badge;
+    @apply bg-warning/10 text-warning;
+  }
+  
+  .linear-badge-error {
+    @apply linear-badge;
+    @apply bg-error/10 text-error;
+  }
+  
+  /* Progress Bar */
+  .linear-progress {
+    @apply w-full h-1 bg-linear-bg-tertiary rounded-full overflow-hidden;
+  }
+  
+  .linear-progress-bar {
+    @apply h-full bg-primary-500;
+    @apply transition-all duration-linear-normal ease-linear-ease;
+  }
+  
+  /* Divider */
+  .linear-divider {
+    @apply border-t border-linear-border my-linear-md;
+  }
+  
+  /* Navigation */
+  .linear-nav {
+    @apply linear-glass;
+    @apply fixed top-0 left-0 right-0 h-16 z-50;
+    @apply border-b border-linear-border;
+  }
+  
+  /* Sidebar */
+  .linear-sidebar {
+    @apply fixed left-0 top-16 bottom-0 w-60;
+    @apply bg-linear-bg-primary;
+    @apply border-r border-linear-border;
+    @apply transition-transform duration-linear-normal;
+  }
+  
+  /* Main Content */
+  .linear-main {
+    @apply ml-60 mt-16 p-linear-lg;
+    @apply min-h-screen;
+  }
+}
+
+/* ============================================
+   Utilities
+   ============================================ */
+
+@layer utilities {
+  /* Text Utilities */
+  .text-gradient {
+    background: linear-gradient(135deg, var(--linear-accent-blue), var(--linear-accent-indigo));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  
+  /* Hover Glow Effect */
+  .hover-glow {
+    transition: all var(--linear-duration-normal);
+  }
+  
+  .hover-glow:hover {
+    box-shadow: var(--linear-shadow-glow);
+  }
+  
+  /* Custom Scrollbar */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: var(--linear-bg-secondary);
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: var(--linear-border-primary);
+    border-radius: 4px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: var(--linear-border-secondary);
+  }
+  
+  /* Focus Styles */
+  .focus-visible-ring:focus-visible {
+    outline: 2px solid var(--linear-accent-blue);
+    outline-offset: 2px;
+  }
+}
+
+/* ============================================
+   Animations
+   ============================================ */
+
+@keyframes linearFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes linearSlideIn {
+  from {
+    transform: translateY(-10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes linearScaleIn {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes linearSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes linearPulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* ============================================
+   Responsive Design
+   ============================================ */
+
+@media (max-width: 768px) {
+  .linear-sidebar {
+    transform: translateX(-100%);
+  }
+  
+  .linear-sidebar.open {
+    transform: translateX(0);
+  }
+  
+  .linear-main {
+    margin-left: 0;
+  }
+}
+
+/* ============================================
+   Print Styles
+   ============================================ */
+
+@media print {
+  body {
+    background: white;
+    color: black;
+  }
+  
+  .linear-nav,
+  .linear-sidebar {
+    display: none;
+  }
+  
+  .linear-main {
+    margin: 0;
+    padding: 0;
+  }
+}
