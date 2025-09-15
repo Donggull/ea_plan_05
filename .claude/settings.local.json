@@ -16,7 +16,13 @@
       "mcp__github-mcp__git-commit",
       "mcp__github-mcp__git-push",
       "Bash(git push:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "mcp__supabase__get_project_url",
+      "mcp__supabase__get_anon_key",
+      "mcp__supabase__generate_typescript_types",
+      "mcp__supabase__list_tables",
+      "mcp__supabase__apply_migration",
+      "mcp__supabase__execute_sql"
     ],
     "deny": [],
     "ask": []
