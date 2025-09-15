@@ -5,11 +5,11 @@ import { Input } from '@/components/ui/Input'
 import { Card } from '@/components/ui/Card'
 import { Mail, ArrowLeft, AlertCircle, CheckCircle } from 'lucide-react'
 import { toast } from 'sonner'
-import { auth } from '@/lib/supabase'
+import { useAuth } from '@/contexts/AuthContext'
 
 export function ForgotPasswordPage() {
+  const { resetPassword, isLoading, clearError } = useAuth()
   const [email, setEmail] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
   const [isEmailSent, setIsEmailSent] = useState(false)
   const [error, setError] = useState('')
 
@@ -28,15 +28,14 @@ export function ForgotPasswordPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    clearError()
 
     if (!validateEmail(email)) {
       return
     }
 
-    setIsLoading(true)
-
     try {
-      await auth.resetPassword(email)
+      await resetPassword(email)
 
       setIsEmailSent(true)
       toast.success('비밀번호 재설정 이메일이 전송되었습니다', {
@@ -55,8 +54,6 @@ export function ForgotPasswordPage() {
 
       setError(errorMessage)
       toast.error(errorMessage)
-    } finally {
-      setIsLoading(false)
     }
   }
 
@@ -86,14 +83,11 @@ export function ForgotPasswordPage() {
   }
 
   const handleResendEmail = async () => {
-    setIsLoading(true)
     try {
-      await auth.resetPassword(email)
+      await resetPassword(email)
       toast.success('비밀번호 재설정 이메일이 다시 전송되었습니다')
     } catch (error) {
       toast.error('이메일 전송 중 오류가 발생했습니다')
-    } finally {
-      setIsLoading(false)
     }
   }
 

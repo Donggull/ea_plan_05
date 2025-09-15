@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useAuthStore } from '@/stores/authStore'
+import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card } from '@/components/ui/Card'
@@ -23,8 +23,7 @@ interface FormErrors {
 
 export function SignupPage() {
   const navigate = useNavigate()
-  const { signUp } = useAuthStore()
-  const [isLoading, setIsLoading] = useState(false)
+  const { signUp, isLoading, clearError } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [formData, setFormData] = useState<FormData>({
@@ -93,10 +92,12 @@ export function SignupPage() {
       return
     }
 
-    setIsLoading(true)
+    clearError()
 
     try {
-      await signUp(formData.email, formData.password)
+      await signUp(formData.email, formData.password, {
+        full_name: formData.fullName
+      })
 
       toast.success(
         '회원가입이 완료되었습니다! 이메일을 확인해주세요.',
@@ -127,8 +128,6 @@ export function SignupPage() {
       }
 
       toast.error(errorMessage)
-    } finally {
-      setIsLoading(false)
     }
   }
 

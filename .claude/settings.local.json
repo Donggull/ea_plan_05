@@ -26,7 +26,9 @@
       "Bash(npm run type-check:*)",
       "mcp__github-mcp__git-add",
       "mcp__supabase__get_logs",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "mcp__github-mcp__git-diff",
+      "mcp__github-mcp__git-log"
     ],
     "deny": [],
     "ask": []
