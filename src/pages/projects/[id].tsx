@@ -15,6 +15,7 @@ import { ProjectService } from '../../services/projectService'
 import { MemberList } from '../../components/projects/members/MemberList'
 import { InviteModal } from '../../components/projects/members/InviteModal'
 import { CollaborativeWorkspace } from '../../components/realtime/CollaborativeWorkspace'
+import { useProjectMembers } from '../../lib/queries/projectMembers'
 
 export function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -24,6 +25,9 @@ export function ProjectDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
+
+  // 프로젝트 멤버 데이터 조회
+  const { data: projectMembers = [] } = useProjectMembers(id || '')
 
   // 프로젝트 상세 정보 로딩
   useEffect(() => {
@@ -249,7 +253,7 @@ export function ProjectDetailPage() {
                     <Users className="w-4 h-4" />
                     <span>멤버</span>
                   </div>
-                  <span className="text-text-primary font-medium">1</span>
+                  <span className="text-text-primary font-medium">{projectMembers.length}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2 text-text-secondary">
