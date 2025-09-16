@@ -474,7 +474,8 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
                     selectedModelId
                       ? (() => {
                           const model = availableModels.find(m => m.id === selectedModelId)
-                          return `${selectedProviderId?.charAt(0).toUpperCase() + selectedProviderId?.slice(1)}: ${model?.name || 'Unknown Model'}`
+                          const providerName = selectedProviderId ? selectedProviderId.charAt(0).toUpperCase() + selectedProviderId.slice(1) : 'Unknown Provider'
+                          return `${providerName}: ${model?.name || 'Unknown Model'}`
                         })()
                       : selectedProviderId
                         ? `${selectedProviderId.charAt(0).toUpperCase() + selectedProviderId.slice(1)}: No model selected`
