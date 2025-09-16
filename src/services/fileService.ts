@@ -112,7 +112,6 @@ class FileService {
 
     // 파일 경로 생성
     const timestamp = Date.now()
-    const extension = this.getFileExtension(file.name)
     const filename = `${timestamp}-${this.sanitizeFilename(file.name)}`
     const folder = options.folder || 'documents'
     const filePath = options.projectId
@@ -120,8 +119,10 @@ class FileService {
       : `${folder}/${options.userId}/${filename}`
 
     try {
+      if (!supabase) throw new Error('Supabase 클라이언트가 초기화되지 않았습니다.')
+
       // Supabase Storage에 업로드
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('documents')
         .upload(filePath, file, {
           cacheControl: '3600',
@@ -152,13 +153,13 @@ class FileService {
           metadata: options.metadata,
           is_processed: false,
           version: 1
-        })
+        } as any)
         .select()
         .single()
 
       if (dbError) {
         // 업로드된 파일 정리
-        await supabase.storage
+        await supabase?.storage
           .from('documents')
           .remove([filePath])
 
@@ -209,6 +210,8 @@ class FileService {
   }
 
   async deleteFile(documentId: string): Promise<void> {
+    if (!supabase) throw new Error('Supabase 클라이언트가 초기화되지 않았습니다.')
+
     // 문서 정보 조회
     const { data: document, error: fetchError } = await supabase
       .from('documents')
@@ -293,11 +296,6 @@ class FileService {
     }
   }
 
-  // 썸네일 생성 기능 - 향후 구현 예정
-  private async generateThumbnail(file: File, documentId: string): Promise<void> {
-    // 현재 데이터베이스 스키마에 thumbnail_path 필드가 없어서 주석 처리
-    console.log('썸네일 생성 기능은 향후 구현 예정입니다.', file.name, documentId)
-  }
 }
 
 export const fileService = new FileService()

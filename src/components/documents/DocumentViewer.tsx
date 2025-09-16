@@ -9,10 +9,10 @@ import {
   RotateCw,
   ChevronLeft,
   ChevronRight,
-  Eye,
-  Search,
   Type,
-  X
+  X,
+  Search,
+  Eye
 } from 'lucide-react'
 import { ocrService, OCRResult } from '@/services/ocrService'
 import { toast } from 'sonner'

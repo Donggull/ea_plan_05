@@ -66,6 +66,8 @@ export function DocumentManager({
     try {
       setLoading(true)
 
+      if (!supabase) return
+
       let query = supabase
         .from('documents')
         .select('*')
@@ -148,7 +150,7 @@ export function DocumentManager({
 
   // 문서 삭제
   const handleDeleteDocument = async (document: Document) => {
-    if (!confirm(`"${document.title}" 파일을 삭제하시겠습니까?`)) {
+    if (!confirm(`"${document.file_name}" 파일을 삭제하시겠습니까?`)) {
       return
     }
 
@@ -165,9 +167,13 @@ export function DocumentManager({
   // 문서 다운로드
   const handleDownloadDocument = async (document: Document) => {
     try {
+      if (!supabase) return
+
       const { data } = supabase.storage
         .from('documents')
         .getPublicUrl(document.storage_path)
+
+      if (!data?.publicUrl) return
 
       const link = window.document.createElement('a')
       link.href = data.publicUrl
@@ -186,9 +192,6 @@ export function DocumentManager({
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
       {filteredDocuments.map((document) => {
         const FileIcon = getFileIcon(document.mime_type)
-        const { data: publicUrl } = supabase.storage
-          .from('documents')
-          .getPublicUrl(document.storage_path)
 
         return (
           <div
@@ -238,7 +241,7 @@ export function DocumentManager({
                 </div>
               </div>
               <p className="text-xs text-text-tertiary mt-1">
-                {formatDistanceToNow(new Date(document.created_at), {
+                {document.created_at && formatDistanceToNow(new Date(document.created_at), {
                   addSuffix: true,
                   locale: ko
                 })}
@@ -273,7 +276,7 @@ export function DocumentManager({
               <div className="flex items-center space-x-4 text-xs text-text-tertiary mt-1">
                 <span>{formatFileSize(document.file_size)}</span>
                 <span>
-                  {formatDistanceToNow(new Date(document.created_at), {
+                  {document.created_at && formatDistanceToNow(new Date(document.created_at), {
                     addSuffix: true,
                     locale: ko
                   })}
@@ -447,9 +450,9 @@ export function DocumentManager({
                 file_type: selectedDocument.mime_type,
                 file_path: selectedDocument.storage_path
               }}
-              url={supabase.storage
+              url={supabase?.storage
                 .from('documents')
-                .getPublicUrl(selectedDocument.storage_path).data.publicUrl}
+                .getPublicUrl(selectedDocument.storage_path).data.publicUrl || ''}
               onClose={() => setSelectedDocument(null)}
             />
           </div>

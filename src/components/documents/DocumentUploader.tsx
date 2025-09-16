@@ -180,7 +180,7 @@ export function DocumentUploader({
             ? 'border-accent bg-accent/5'
             : 'border-border hover:border-accent/50'
           }
-          ${isUploading || uploadFiles.length >= maxFiles
+          ${isUploading || uploadFilesList.length >= maxFiles
             ? 'opacity-50 cursor-not-allowed'
             : ''
           }
