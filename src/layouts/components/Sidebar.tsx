@@ -19,6 +19,8 @@ import {
   ChevronDown,
   Building
 } from 'lucide-react'
+import { ApiUsageService } from '../../services/apiUsageService'
+import { useAIModel } from '../../contexts/AIModelContext'
 
 interface SidebarProps {
   isCollapsed?: boolean
@@ -32,10 +34,16 @@ interface MCPServer {
 }
 
 interface AIModel {
+  id: string
   name: string
-  provider: 'openai' | 'anthropic' | 'google'
+  provider: 'openai' | 'anthropic' | 'google' | 'custom'
+  model_id: string
+  cost_per_input_token: number
+  cost_per_output_token: number
+  status: string
+  capabilities: string[]
+  max_tokens: number
   available: boolean
-  cost: string
 }
 
 export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps) {
@@ -43,9 +51,11 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
   const location = useLocation()
   const [collapsed, setCollapsed] = useState(isCollapsed)
   const [selectedProject, setSelectedProject] = useState('EA Plan 05')
-  const [selectedAIModel, setSelectedAIModel] = useState('Claude 3.5 Sonnet')
   const [isProjectDropdownOpen, setIsProjectDropdownOpen] = useState(false)
   const [isAIModelDropdownOpen, setIsAIModelDropdownOpen] = useState(false)
+
+  // AI 모델 컨텍스트 사용
+  const { state: aiModelState, selectModel } = useAIModel()
 
   // MCP 서버 상태 (실제로는 상태 관리에서 가져와야 함)
   const [mcpServers] = useState<MCPServer[]>([
@@ -55,20 +65,48 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
     { name: 'GitHub', status: 'disconnected', description: 'Code Repository' }
   ])
 
-  // AI 모델 목록
-  const [aiModels] = useState<AIModel[]>([
-    { name: 'Claude 3.5 Sonnet', provider: 'anthropic', available: true, cost: '$0.003/1K' },
-    { name: 'GPT-4 Turbo', provider: 'openai', available: true, cost: '$0.01/1K' },
-    { name: 'Gemini Pro', provider: 'google', available: true, cost: '$0.0005/1K' }
-  ])
+  // AI 모델 컨텍스트에서 상태 추출
+  const { selectedModelId, availableModels, loading, error } = aiModelState
 
-  // 실시간 비용 데이터 (모의 데이터)
-  const [costData] = useState({
-    today: '$12.45',
-    thisMonth: '$342.78',
-    tokens: '1.2M',
-    trend: '+5.2%'
+  // 실시간 비용 데이터
+  const [costData, setCostData] = useState({
+    today: '$0.00',
+    thisMonth: '$0.00',
+    tokens: '0',
+    trend: '0%'
   })
+
+  // 비용 데이터 로딩
+  useEffect(() => {
+    const loadCostData = async () => {
+      try {
+        // TODO: 사용자 ID를 실제 인증된 사용자에서 가져와야 함
+        const userId = 'temp-user-id' // 임시 사용자 ID
+
+        const realTimeUsage = await ApiUsageService.getRealTimeUsage(userId)
+
+        // 비용 데이터 포맷팅
+        setCostData({
+          today: `$${realTimeUsage.currentDayRequests * 0.001}`, // 임시 계산
+          thisMonth: `$${realTimeUsage.currentDayRequests * 30 * 0.001}`, // 임시 계산
+          tokens: realTimeUsage.currentHourRequests > 1000
+            ? `${(realTimeUsage.currentHourRequests / 1000).toFixed(1)}K`
+            : realTimeUsage.currentHourRequests.toString(),
+          trend: realTimeUsage.avgResponseTime > 1000 ? '+' : '-' +
+                 Math.abs(realTimeUsage.avgResponseTime / 100).toFixed(1) + '%'
+        })
+      } catch (err) {
+        console.error('Failed to load cost data:', err)
+        // 실패시 기본값 유지
+      }
+    }
+
+    loadCostData()
+
+    // 30초마다 비용 데이터 새로고침
+    const interval = setInterval(loadCostData, 30000)
+    return () => clearInterval(interval)
+  }, [])
 
   useEffect(() => {
     setCollapsed(isCollapsed)
@@ -105,6 +143,8 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
         return 'text-accent-green'
       case 'google':
         return 'text-accent-blue'
+      case 'custom':
+        return 'text-accent-indigo'
       default:
         return 'text-text-secondary'
     }
@@ -230,51 +270,92 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
             <h3 className="text-text-tertiary text-mini font-medium uppercase tracking-wide">
               AI Model
             </h3>
-            <div className="relative">
-              <button
-                onClick={() => setIsAIModelDropdownOpen(!isAIModelDropdownOpen)}
-                className="w-full flex items-center justify-between p-3 bg-bg-tertiary rounded-lg hover:bg-bg-elevated transition-colors"
-              >
+
+            {loading ? (
+              <div className="p-3 bg-bg-tertiary rounded-lg">
                 <div className="flex items-center space-x-3">
-                  <Cpu className="w-5 h-5 text-accent-orange" />
-                  <div className="text-left">
-                    <div className="text-text-primary text-small font-medium">{selectedAIModel}</div>
-                    <div className="text-text-tertiary text-mini">
-                      {aiModels.find(m => m.name === selectedAIModel)?.cost}
+                  <Cpu className="w-5 h-5 text-accent-orange animate-pulse" />
+                  <div className="text-text-secondary text-small">Loading models...</div>
+                </div>
+              </div>
+            ) : error ? (
+              <div className="p-3 bg-bg-tertiary rounded-lg">
+                <div className="flex items-center space-x-3">
+                  <XCircle className="w-5 h-5 text-accent-red" />
+                  <div className="text-accent-red text-small">{error}</div>
+                </div>
+              </div>
+            ) : (
+              <div className="relative">
+                <button
+                  onClick={() => setIsAIModelDropdownOpen(!isAIModelDropdownOpen)}
+                  className="w-full flex items-center justify-between p-3 bg-bg-tertiary rounded-lg hover:bg-bg-elevated transition-colors"
+                >
+                  <div className="flex items-center space-x-3">
+                    <Cpu className="w-5 h-5 text-accent-orange" />
+                    <div className="text-left">
+                      {selectedModelId ? (() => {
+                        const model = availableModels.find(m => m.id === selectedModelId)
+                        return (
+                          <>
+                            <div className="text-text-primary text-small font-medium">{model?.name || 'Unknown Model'}</div>
+                            <div className="text-text-tertiary text-mini">
+                              ${((model?.cost_per_input_token || 0) * 1000000).toFixed(3)}/1M tokens
+                            </div>
+                          </>
+                        )
+                      })() : (
+                        <div className="text-text-secondary text-small">Select Model</div>
+                      )}
                     </div>
                   </div>
-                </div>
-                <ChevronDown className="w-4 h-4 text-text-secondary" />
-              </button>
+                  <ChevronDown className="w-4 h-4 text-text-secondary" />
+                </button>
 
-              {/* AI 모델 드롭다운 */}
-              {isAIModelDropdownOpen && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-bg-elevated border border-border-primary rounded-lg shadow-lg z-50">
-                  <div className="p-1">
-                    {aiModels.map((model) => (
-                      <button
-                        key={model.name}
-                        onClick={() => {
-                          setSelectedAIModel(model.name)
-                          setIsAIModelDropdownOpen(false)
-                        }}
-                        className="w-full text-left px-3 py-2 hover:bg-bg-tertiary rounded-md transition-colors"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className={`text-small font-medium ${getProviderColor(model.provider)}`}>
-                              {model.name}
-                            </div>
-                            <div className="text-text-tertiary text-mini">{model.cost}</div>
-                          </div>
-                          {model.available && <CheckCircle className="w-4 h-4 text-accent-green" />}
+                {/* AI 모델 드롭다운 */}
+                {isAIModelDropdownOpen && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-bg-elevated border border-border-primary rounded-lg shadow-lg z-50">
+                    <div className="p-1">
+                      {availableModels.length === 0 ? (
+                        <div className="px-3 py-2 text-text-secondary text-small">
+                          No models available
                         </div>
-                      </button>
-                    ))}
+                      ) : (
+                        availableModels.map((model) => (
+                          <button
+                            key={model.id}
+                            onClick={() => {
+                              selectModel(model.id)
+                              setIsAIModelDropdownOpen(false)
+                            }}
+                            className={`w-full text-left px-3 py-2 hover:bg-bg-tertiary rounded-md transition-colors ${
+                              selectedModelId === model.id ? 'bg-bg-tertiary' : ''
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <div className={`text-small font-medium ${getProviderColor(model.provider)}`}>
+                                  {model.name}
+                                </div>
+                                <div className="text-text-tertiary text-mini">
+                                  ${((model.cost_per_input_token || 0) * 1000000).toFixed(3)}/1M • {(model.max_tokens || 0).toLocaleString()} tokens
+                                </div>
+                                {model.capabilities.length > 0 && (
+                                  <div className="text-text-muted text-mini mt-1">
+                                    {model.capabilities.slice(0, 2).join(', ')}
+                                  </div>
+                                )}
+                              </div>
+                              {model.available && <CheckCircle className="w-4 h-4 text-accent-green" />}
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
