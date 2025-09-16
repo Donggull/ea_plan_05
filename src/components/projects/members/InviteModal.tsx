@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { X, Search, UserPlus, ChevronDown, Loader2, User, CheckCircle } from 'lucide-react'
-import { useInviteMember, useMemberRoles, useUserSearch } from '../../../lib/queries/projectMembers'
+import { useInviteMember, useMemberRoles, useUserSearch, useProjectMembers } from '../../../lib/queries/projectMembers'
 import { useAuth } from '../../../contexts/AuthContext'
 
 interface InviteModalProps {
@@ -20,6 +20,13 @@ export function InviteModal({ projectId, onClose, onInvite }: InviteModalProps) 
   const [error, setError] = useState('')
 
   const { data: searchResults = [], isLoading: isSearching } = useUserSearch(searchQuery)
+  const { data: currentMembers = [] } = useProjectMembers(projectId)
+
+  // 이미 프로젝트 멤버인 사용자 ID 목록
+  const existingMemberIds = currentMembers.map(member => member.user_id).filter(Boolean)
+
+  // 중복되지 않은 사용자만 필터링
+  const availableUsers = searchResults.filter(user => !existingMemberIds.includes(user.id))
 
   const modalRef = useRef<HTMLDivElement>(null)
 
@@ -173,14 +180,15 @@ export function InviteModal({ projectId, onClose, onInvite }: InviteModalProps) 
             </div>
           )}
 
-          {/* 검색 결과 */}
-          {searchQuery.length >= 1 && (
-            <div className="mb-6">
-              <h3 className="text-sm font-medium text-text-primary mb-3">검색 결과</h3>
+          {/* 사용자 목록 */}
+          <div className="mb-6">
+            <h3 className="text-sm font-medium text-text-primary mb-3">
+              {searchQuery.trim() ? '검색 결과' : '전체 사용자'}
+            </h3>
               <div className="max-h-64 overflow-y-auto border border-border-primary rounded-lg">
-                {searchResults.length > 0 ? (
+                {availableUsers.length > 0 ? (
                   <div className="divide-y divide-border-secondary">
-                    {searchResults.map((searchUser) => {
+                    {availableUsers.map((searchUser) => {
                       const isSelected = isUserSelected(searchUser.id)
                       return (
                         <button
@@ -218,12 +226,18 @@ export function InviteModal({ projectId, onClose, onInvite }: InviteModalProps) 
                   </div>
                 ) : (
                   <div className="p-4 text-center text-text-muted">
-                    {isSearching ? '검색 중...' : '검색 결과가 없습니다'}
+                    {isSearching
+                      ? '검색 중...'
+                      : searchQuery.trim()
+                        ? '검색 결과가 없거나 이미 프로젝트 멤버입니다'
+                        : searchResults.length > 0
+                          ? '초대 가능한 사용자가 없습니다 (모든 사용자가 이미 멤버입니다)'
+                          : '등록된 사용자가 없습니다'
+                    }
                   </div>
                 )}
               </div>
             </div>
-          )}
 
           {/* 에러 메시지 */}
           {error && (

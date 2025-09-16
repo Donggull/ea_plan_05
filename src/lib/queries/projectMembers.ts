@@ -45,7 +45,7 @@ export function useUserSearch(query: string, options?: UseQueryOptions<{ id: str
   return useQuery({
     queryKey: projectMemberKeys.search(query),
     queryFn: () => ProjectMemberService.searchUsers(query),
-    enabled: query.length >= 2, // 최소 2글자 이상
+    enabled: true, // 항상 활성화하여 전체 사용자 목록 표시
     staleTime: 30 * 1000, // 30초
     gcTime: 60 * 1000, // 1분
     ...options,

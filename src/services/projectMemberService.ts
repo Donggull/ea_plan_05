@@ -243,11 +243,18 @@ export class ProjectMemberService {
   static async searchUsers(query: string): Promise<{ id: string; email: string; full_name: string | null }[]> {
     if (!supabase) throw new Error('Supabase client not initialized')
 
-    const { data, error } = await supabase
+    let supabaseQuery = supabase
       .from('profiles')
       .select('id, email, full_name')
-      .or(`email.ilike.%${query}%,full_name.ilike.%${query}%`)
-      .limit(10)
+
+    // 검색어가 있는 경우에만 필터링 적용
+    if (query.trim()) {
+      supabaseQuery = supabaseQuery.or(`email.ilike.%${query}%,full_name.ilike.%${query}%`)
+    }
+
+    const { data, error } = await supabaseQuery
+      .limit(20) // 더 많은 사용자 표시
+      .order('created_at', { ascending: false })
 
     if (error) {
       console.error('Error searching users:', error)

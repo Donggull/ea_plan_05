@@ -13,6 +13,7 @@ import {
 import { useProject } from '../../contexts/ProjectContext'
 import { ProjectService } from '../../services/projectService'
 import { MemberList } from '../../components/projects/members/MemberList'
+import { InviteModal } from '../../components/projects/members/InviteModal'
 import { CollaborativeWorkspace } from '../../components/realtime/CollaborativeWorkspace'
 
 export function ProjectDetailPage() {
@@ -22,6 +23,7 @@ export function ProjectDetailPage() {
   const [project, setProject] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
 
   // 프로젝트 상세 정보 로딩
   useEffect(() => {
@@ -217,7 +219,10 @@ export function ProjectDetailPage() {
                   <FileText className="w-4 h-4" />
                   <span>문서 추가</span>
                 </button>
-                <button className="w-full flex items-center space-x-3 px-3 py-2 text-left text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors">
+                <button
+                  onClick={() => setIsInviteModalOpen(true)}
+                  className="w-full flex items-center space-x-3 px-3 py-2 text-left text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors"
+                >
                   <Users className="w-4 h-4" />
                   <span>멤버 초대</span>
                 </button>
@@ -258,6 +263,18 @@ export function ProjectDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* 멤버 초대 모달 */}
+      {isInviteModalOpen && (
+        <InviteModal
+          projectId={id!}
+          onClose={() => setIsInviteModalOpen(false)}
+          onInvite={() => {
+            setIsInviteModalOpen(false)
+            // 멤버 목록이 자동으로 업데이트됨 (React Query)
+          }}
+        />
+      )}
     </div>
   )
 }
