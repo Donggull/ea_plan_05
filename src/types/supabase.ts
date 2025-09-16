@@ -117,6 +117,130 @@ export type Database = {
           },
         ]
       }
+      ai_model_performance: {
+        Row: {
+          avg_queue_time: number | null
+          avg_response_time: number | null
+          created_at: string | null
+          date: string
+          error_rate: number | null
+          failed_requests: number | null
+          hour: number | null
+          id: string
+          model_id: string
+          successful_requests: number | null
+          total_cost: number | null
+          total_input_tokens: number | null
+          total_output_tokens: number | null
+          total_requests: number | null
+        }
+        Insert: {
+          avg_queue_time?: number | null
+          avg_response_time?: number | null
+          created_at?: string | null
+          date?: string
+          error_rate?: number | null
+          failed_requests?: number | null
+          hour?: number | null
+          id?: string
+          model_id: string
+          successful_requests?: number | null
+          total_cost?: number | null
+          total_input_tokens?: number | null
+          total_output_tokens?: number | null
+          total_requests?: number | null
+        }
+        Update: {
+          avg_queue_time?: number | null
+          avg_response_time?: number | null
+          created_at?: string | null
+          date?: string
+          error_rate?: number | null
+          failed_requests?: number | null
+          hour?: number | null
+          id?: string
+          model_id?: string
+          successful_requests?: number | null
+          total_cost?: number | null
+          total_input_tokens?: number | null
+          total_output_tokens?: number | null
+          total_requests?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_model_performance_model_id_fkey"
+            columns: ["model_id"]
+            isOneToOne: false
+            referencedRelation: "ai_models"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_models: {
+        Row: {
+          api_endpoint: string | null
+          capabilities: string[] | null
+          characteristics: Json | null
+          cost_per_input_token: number
+          cost_per_output_token: number
+          created_at: string | null
+          created_by: string | null
+          id: string
+          max_tokens: number
+          metadata: Json | null
+          model_id: string
+          name: string
+          provider: string
+          rate_limits: Json | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          api_endpoint?: string | null
+          capabilities?: string[] | null
+          characteristics?: Json | null
+          cost_per_input_token?: number
+          cost_per_output_token?: number
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          max_tokens?: number
+          metadata?: Json | null
+          model_id: string
+          name: string
+          provider: string
+          rate_limits?: Json | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          api_endpoint?: string | null
+          capabilities?: string[] | null
+          characteristics?: Json | null
+          cost_per_input_token?: number
+          cost_per_output_token?: number
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          max_tokens?: number
+          metadata?: Json | null
+          model_id?: string
+          name?: string
+          provider?: string
+          rate_limits?: Json | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_models_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_content: {
         Row: {
           confidence_score: number | null
@@ -575,6 +699,57 @@ export type Database = {
         }
         Relationships: []
       }
+      project_ai_settings: {
+        Row: {
+          analysis_model_mappings: Json | null
+          created_at: string | null
+          default_model_id: string | null
+          fallback_models: string[] | null
+          id: string
+          project_id: string
+          settings: Json | null
+          updated_at: string | null
+          workflow_model_mappings: Json | null
+        }
+        Insert: {
+          analysis_model_mappings?: Json | null
+          created_at?: string | null
+          default_model_id?: string | null
+          fallback_models?: string[] | null
+          id?: string
+          project_id: string
+          settings?: Json | null
+          updated_at?: string | null
+          workflow_model_mappings?: Json | null
+        }
+        Update: {
+          analysis_model_mappings?: Json | null
+          created_at?: string | null
+          default_model_id?: string | null
+          fallback_models?: string[] | null
+          id?: string
+          project_id?: string
+          settings?: Json | null
+          updated_at?: string | null
+          workflow_model_mappings?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_ai_settings_default_model_id_fkey"
+            columns: ["default_model_id"]
+            isOneToOne: false
+            referencedRelation: "ai_models"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_ai_settings_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_members: {
         Row: {
           id: string
@@ -746,6 +921,57 @@ export type Database = {
           },
         ]
       }
+      user_ai_settings: {
+        Row: {
+          created_at: string | null
+          fallback_models: string[] | null
+          id: string
+          preferred_model_id: string | null
+          project_model_mappings: Json | null
+          settings: Json | null
+          task_model_mappings: Json | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          fallback_models?: string[] | null
+          id?: string
+          preferred_model_id?: string | null
+          project_model_mappings?: Json | null
+          settings?: Json | null
+          task_model_mappings?: Json | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          fallback_models?: string[] | null
+          id?: string
+          preferred_model_id?: string | null
+          project_model_mappings?: Json | null
+          settings?: Json | null
+          task_model_mappings?: Json | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_ai_settings_preferred_model_id_fkey"
+            columns: ["preferred_model_id"]
+            isOneToOne: false
+            referencedRelation: "ai_models"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_ai_settings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_api_usage: {
         Row: {
           cost: number | null
@@ -809,6 +1035,105 @@ export type Database = {
         }
         Returns: boolean
       }
+      auth_user_exists: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
+      binary_quantize: {
+        Args: { "": string } | { "": unknown }
+        Returns: unknown
+      }
+      gtrgm_compress: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      gtrgm_decompress: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      gtrgm_in: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      gtrgm_options: {
+        Args: { "": unknown }
+        Returns: undefined
+      }
+      gtrgm_out: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      halfvec_avg: {
+        Args: { "": number[] }
+        Returns: unknown
+      }
+      halfvec_out: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      halfvec_send: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      halfvec_typmod_in: {
+        Args: { "": unknown[] }
+        Returns: number
+      }
+      hnsw_bit_support: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      hnsw_halfvec_support: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      hnsw_sparsevec_support: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      hnswhandler: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      is_admin: {
+        Args: { user_id?: string }
+        Returns: boolean
+      }
+      ivfflat_bit_support: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      ivfflat_halfvec_support: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      ivfflathandler: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      l2_norm: {
+        Args: { "": unknown } | { "": unknown }
+        Returns: number
+      }
+      l2_normalize: {
+        Args: { "": string } | { "": unknown } | { "": unknown }
+        Returns: string
+      }
+      match_documents: {
+        Args: {
+          match_count: number
+          match_threshold: number
+          project_uuid?: string
+          query_embedding: string
+        }
+        Returns: {
+          content: string
+          document_id: string
+          id: string
+          metadata: Json
+          similarity: number
+        }[]
+      }
       remove_project_member: {
         Args: { project_id_param: string; user_id_param: string }
         Returns: boolean
@@ -825,6 +1150,54 @@ export type Database = {
           id: string
           similarity: number
         }[]
+      }
+      set_limit: {
+        Args: { "": number }
+        Returns: number
+      }
+      show_limit: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
+      show_trgm: {
+        Args: { "": string }
+        Returns: string[]
+      }
+      sparsevec_out: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      sparsevec_send: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      sparsevec_typmod_in: {
+        Args: { "": unknown[] }
+        Returns: number
+      }
+      vector_avg: {
+        Args: { "": number[] }
+        Returns: string
+      }
+      vector_dims: {
+        Args: { "": string } | { "": unknown }
+        Returns: number
+      }
+      vector_norm: {
+        Args: { "": string }
+        Returns: number
+      }
+      vector_out: {
+        Args: { "": string }
+        Returns: unknown
+      }
+      vector_send: {
+        Args: { "": string }
+        Returns: string
+      }
+      vector_typmod_in: {
+        Args: { "": unknown[] }
+        Returns: number
       }
     }
     Enums: {
@@ -952,3 +1325,9 @@ export type CompositeTypes<
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
     ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never
+
+export const Constants = {
+  public: {
+    Enums: {},
+  },
+} as const

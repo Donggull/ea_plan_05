@@ -29,7 +29,9 @@
       "Bash(npx tsc:*)",
       "mcp__github-mcp__git-diff",
       "mcp__github-mcp__git-log",
-      "Bash(npm run lint)"
+      "Bash(npm run lint)",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__get-library-docs"
     ],
     "deny": [],
     "ask": []
