@@ -59,6 +59,9 @@ export function DocumentUploader({
       }))
 
       setUploadFilesList((prev) => [...prev, ...newFiles])
+
+      // 파일 추가 로그
+      console.log('파일 추가됨:', newFiles.length, '개')
     },
     []
   )
@@ -79,16 +82,26 @@ export function DocumentUploader({
   }
 
   const startUpload = useCallback(async () => {
-    if (!user || uploadFilesList.length === 0) return
+    if (!user) {
+      console.log('업로드 시작 실패: 사용자 인증 없음')
+      return
+    }
 
+    // 현재 pending 상태인 파일들만 처리
+    const currentPendingFiles = uploadFilesList.filter(f => f.status === 'pending')
+    if (currentPendingFiles.length === 0) {
+      console.log('업로드할 파일이 없음')
+      return
+    }
+
+    console.log('업로드 시작:', currentPendingFiles.length, '개 파일')
     setIsUploading(true)
     const completedFiles: any[] = []
 
     try {
       // 모든 파일을 병렬로 업로드
       await Promise.all(
-        uploadFilesList
-          .filter((f) => f.status === 'pending')
+        currentPendingFiles
           .map(async (uploadFile) => {
             try {
               // 상태 업데이트: 업로딩 시작
@@ -160,19 +173,20 @@ export function DocumentUploader({
     } finally {
       setIsUploading(false)
     }
-  }, [user, uploadFilesList, projectId, onUploadComplete])
+  }, [user, projectId, onUploadComplete])
 
   // 파일이 추가되면 자동으로 업로드 시작
   useEffect(() => {
     const pendingFiles = uploadFilesList.filter(f => f.status === 'pending')
     if (pendingFiles.length > 0 && !isUploading && user) {
+      console.log('자동 업로드 시작:', pendingFiles.length, '개 파일')
       const timer = setTimeout(() => {
         startUpload()
-      }, 500)
+      }, 1000) // 1초로 증가
       return () => clearTimeout(timer)
     }
     return undefined
-  }, [uploadFilesList, isUploading, user, startUpload])
+  }, [uploadFilesList.length, isUploading, user, startUpload])
 
   const clearCompleted = () => {
     setUploadFilesList((prev) => prev.filter((f) => f.status !== 'success'))

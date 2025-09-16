@@ -361,19 +361,19 @@ export function DocumentManager({
         <select
           value={filterType}
           onChange={(e) => setFilterType(e.target.value)}
-          className="px-3 py-2 bg-background-secondary border border-border rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent appearance-none cursor-pointer"
+          className="px-3 py-2 bg-background-secondary border border-border rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent appearance-none cursor-pointer hover:bg-background-tertiary transition-colors"
           style={{
-            backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
+            backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23a1a1aa' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
             backgroundPosition: 'right 8px center',
             backgroundRepeat: 'no-repeat',
             backgroundSize: '16px'
           }}
         >
-          <option value="all">모든 파일</option>
-          <option value="pdf">PDF</option>
-          <option value="image">이미지</option>
-          <option value="text">텍스트</option>
-          <option value="office">Office</option>
+          <option value="all" className="bg-background-secondary text-text-primary">모든 파일</option>
+          <option value="pdf" className="bg-background-secondary text-text-primary">PDF</option>
+          <option value="image" className="bg-background-secondary text-text-primary">이미지</option>
+          <option value="text" className="bg-background-secondary text-text-primary">텍스트</option>
+          <option value="office" className="bg-background-secondary text-text-primary">Office</option>
         </select>
 
         <div className="flex items-center space-x-1 border border-border rounded-lg">
