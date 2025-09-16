@@ -194,28 +194,28 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
         {collapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
       </button>
 
-      <div className="flex-1 flex flex-col p-4 space-y-6">
+      <div className="flex-1 flex flex-col p-3 space-y-4 overflow-y-auto">
         {/* 프로젝트 선택기 */}
         {!collapsed && (
-          <div className="space-y-3">
+          <div className="space-y-2">
             <h3 className="text-text-tertiary text-mini font-medium uppercase tracking-wide">
               Current Project
             </h3>
             <div className="relative">
               <button
                 onClick={() => setIsProjectDropdownOpen(!isProjectDropdownOpen)}
-                className="w-full flex items-center justify-between p-3 bg-bg-tertiary rounded-lg hover:bg-bg-elevated transition-colors"
+                className="w-full flex items-center justify-between p-2 bg-bg-tertiary rounded-md hover:bg-bg-elevated transition-colors"
               >
-                <div className="flex items-center space-x-3">
-                  <Building className="w-5 h-5 text-primary-500" />
-                  <span className="text-text-primary text-regular font-medium">
+                <div className="flex items-center space-x-2">
+                  <Building className="w-4 h-4 text-primary-500" />
+                  <span className="text-text-primary text-small font-medium">
                     {projectLoading
                       ? 'Loading...'
                       : currentProject?.name || 'Select Project'
                     }
                   </span>
                 </div>
-                <ChevronDown className="w-4 h-4 text-text-secondary" />
+                <ChevronDown className="w-3 h-3 text-text-secondary" />
               </button>
 
               {/* 프로젝트 드롭다운 */}
@@ -262,7 +262,7 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
         {/* 네비게이션 메뉴 */}
         <nav className="space-y-1">
           {!collapsed && (
-            <h3 className="text-text-tertiary text-mini font-medium uppercase tracking-wide mb-3">
+            <h3 className="text-text-tertiary text-mini font-medium uppercase tracking-wide mb-2">
               Navigation
             </h3>
           )}
@@ -275,7 +275,7 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
                 key={item.path}
                 onClick={() => navigate(item.path)}
                 className={`
-                  w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors group
+                  w-full flex items-center space-x-2 px-2 py-1.5 rounded-md transition-colors group
                   ${isActive
                     ? 'bg-primary-500/10 text-primary-500'
                     : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary'
@@ -283,33 +283,44 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
                 `}
                 title={collapsed ? item.label : undefined}
               >
-                <Icon className="w-5 h-5 flex-shrink-0" />
+                <Icon className="w-4 h-4 flex-shrink-0" />
                 {!collapsed && (
-                  <span className="text-regular font-normal">{item.label}</span>
+                  <span className="text-small font-normal">{item.label}</span>
                 )}
                 {isActive && !collapsed && (
-                  <div className="w-2 h-2 bg-primary-500 rounded-full ml-auto"></div>
+                  <div className="w-1.5 h-1.5 bg-primary-500 rounded-full ml-auto"></div>
                 )}
               </button>
             )
           })}
         </nav>
 
-        {/* AI 모델 선택 - 2단계 */}
-        {!collapsed && (
-          <div className="space-y-3">
+        {/* AI 모델 선택 - 통합된 영역 */}
+        <div className="space-y-2">
+          {!collapsed && (
             <h3 className="text-text-tertiary text-mini font-medium uppercase tracking-wide">
               AI Provider
             </h3>
+          )}
 
-            {loading ? (
+          {loading ? (
+            !collapsed ? (
               <div className="p-3 bg-bg-tertiary rounded-lg">
                 <div className="flex items-center space-x-3">
                   <Cpu className="w-5 h-5 text-accent-orange animate-pulse" />
                   <div className="text-text-secondary text-small">Loading providers...</div>
                 </div>
               </div>
-            ) : error ? (
+            ) : (
+              <button
+                title="Loading AI Models..."
+                className="w-full flex justify-center p-2 bg-bg-tertiary rounded-lg"
+              >
+                <Cpu className="w-5 h-5 text-accent-orange animate-pulse" />
+              </button>
+            )
+          ) : error ? (
+            !collapsed ? (
               <div className="p-3 bg-bg-tertiary rounded-lg">
                 <div className="flex items-center space-x-3">
                   <XCircle className="w-5 h-5 text-accent-red" />
@@ -317,100 +328,98 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
                 </div>
               </div>
             ) : (
-              <>
-                {/* 1차: 프로바이더 선택 */}
-                <div className="relative">
-                  <button
-                    onClick={() => setIsProviderDropdownOpen(!isProviderDropdownOpen)}
-                    className="w-full flex items-center justify-between p-3 bg-bg-tertiary rounded-lg hover:bg-bg-elevated transition-colors"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <Cpu className="w-5 h-5 text-accent-orange" />
-                      <div className="text-left">
-                        <div className="text-text-primary text-small font-medium">
-                          {selectedProviderId
-                            ? selectedProviderId.charAt(0).toUpperCase() + selectedProviderId.slice(1)
-                            : 'Select Provider'
-                          }
-                        </div>
-                        <div className="text-text-tertiary text-mini">
-                          {selectedProviderId && `${getProviderModels(selectedProviderId).length} models available`}
+              <button
+                title={`Error: ${error}`}
+                className="w-full flex justify-center p-2 bg-bg-tertiary rounded-lg"
+              >
+                <XCircle className="w-5 h-5 text-accent-red" />
+              </button>
+            )
+          ) : (
+            <>
+              {!collapsed ? (
+                <div className="bg-bg-tertiary/50 rounded-lg p-2 space-y-2 border border-border-secondary">
+                  {/* 1차: 프로바이더 선택 */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setIsProviderDropdownOpen(!isProviderDropdownOpen)}
+                      className="w-full flex items-center justify-between p-2 bg-bg-tertiary rounded-md hover:bg-bg-elevated transition-colors"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <Cpu className="w-4 h-4 text-accent-orange" />
+                        <div className="text-left">
+                          <div className="text-text-primary text-small font-medium">
+                            {selectedProviderId
+                              ? selectedProviderId.charAt(0).toUpperCase() + selectedProviderId.slice(1)
+                              : 'Provider'
+                            }
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <ChevronDown className="w-4 h-4 text-text-secondary" />
-                  </button>
+                      <ChevronDown className="w-3 h-3 text-text-secondary" />
+                    </button>
 
-                  {/* 프로바이더 드롭다운 */}
-                  {isProviderDropdownOpen && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-bg-elevated border border-border-primary rounded-lg shadow-lg z-50">
-                      <div className="p-1">
-                        {availableProviders.length === 0 ? (
-                          <div className="px-3 py-2 text-text-secondary text-small">
-                            No providers available
-                          </div>
-                        ) : (
-                          availableProviders.map((provider) => (
-                            <button
-                              key={provider}
-                              onClick={() => {
-                                selectProvider(provider)
-                                setIsProviderDropdownOpen(false)
-                              }}
-                              className={`w-full text-left px-3 py-2 hover:bg-bg-tertiary rounded-md transition-colors ${
-                                selectedProviderId === provider ? 'bg-bg-tertiary' : ''
-                              }`}
-                            >
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <div className={`text-small font-medium ${getProviderColor(provider as AIModel['provider'])}`}>
-                                    {provider.charAt(0).toUpperCase() + provider.slice(1)}
-                                  </div>
-                                  <div className="text-text-tertiary text-mini">
-                                    {getProviderModels(provider).length} models
+                    {/* 프로바이더 드롭다운 */}
+                    {isProviderDropdownOpen && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-bg-elevated border border-border-primary rounded-lg shadow-lg z-50">
+                        <div className="p-1">
+                          {availableProviders.length === 0 ? (
+                            <div className="px-3 py-2 text-text-secondary text-small">
+                              No providers available
+                            </div>
+                          ) : (
+                            availableProviders.map((provider) => (
+                              <button
+                                key={provider}
+                                onClick={() => {
+                                  selectProvider(provider)
+                                  setIsProviderDropdownOpen(false)
+                                }}
+                                className={`w-full text-left px-3 py-2 hover:bg-bg-tertiary rounded-md transition-colors ${
+                                  selectedProviderId === provider ? 'bg-bg-tertiary' : ''
+                                }`}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <div className={`text-small font-medium ${getProviderColor(provider as AIModel['provider'])}`}>
+                                      {provider.charAt(0).toUpperCase() + provider.slice(1)}
+                                    </div>
+                                    <div className="text-text-tertiary text-mini">
+                                      {getProviderModels(provider).length} models
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            </button>
-                          ))
-                        )}
+                              </button>
+                            ))
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
 
-                {/* 2차: 모델 선택 (프로바이더가 선택된 경우에만 표시) */}
-                {selectedProviderId && (
-                  <div className="space-y-2">
-                    <h4 className="text-text-tertiary text-mini font-medium">
-                      {selectedProviderId.charAt(0).toUpperCase() + selectedProviderId.slice(1)} Models
-                    </h4>
+                  {/* 2차: 모델 선택 (프로바이더가 선택된 경우에만 표시) */}
+                  {selectedProviderId && (
                     <div className="relative">
                       <button
                         onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
-                        className="w-full flex items-center justify-between p-3 bg-bg-tertiary rounded-lg hover:bg-bg-elevated transition-colors"
+                        className="w-full flex items-center justify-between p-2 bg-bg-tertiary rounded-md hover:bg-bg-elevated transition-colors"
                       >
-                        <div className="flex items-center space-x-3">
-                          <Target className="w-5 h-5 text-primary-500" />
+                        <div className="flex items-center space-x-2">
+                          <Target className="w-4 h-4 text-primary-500" />
                           <div className="text-left">
                             {selectedModelId ? (() => {
                               const model = availableModels.find(m => m.id === selectedModelId)
                               return (
-                                <>
-                                  <div className="text-text-primary text-small font-medium">
-                                    {model?.name || 'Unknown Model'}
-                                  </div>
-                                  <div className="text-text-tertiary text-mini">
-                                    ${((model?.cost_per_input_token || 0) * 1000000).toFixed(3)}/1M tokens
-                                  </div>
-                                </>
+                                <div className="text-text-primary text-small font-medium">
+                                  {model?.name || 'Unknown Model'}
+                                </div>
                               )
                             })() : (
-                              <div className="text-text-secondary text-small">Select Model</div>
+                              <div className="text-text-secondary text-small">Model</div>
                             )}
                           </div>
                         </div>
-                        <ChevronDown className="w-4 h-4 text-text-secondary" />
+                        <ChevronDown className="w-3 h-3 text-text-secondary" />
                       </button>
 
                       {/* 모델 드롭다운 */}
@@ -456,68 +465,101 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
                         </div>
                       )}
                     </div>
+                  )}
+                </div>
+              ) : (
+                /* 축소된 상태에서 선택된 AI 모델 표시 */
+                <button
+                  title={
+                    selectedModelId
+                      ? (() => {
+                          const model = availableModels.find(m => m.id === selectedModelId)
+                          return `${selectedProviderId?.charAt(0).toUpperCase() + selectedProviderId?.slice(1)}: ${model?.name || 'Unknown Model'}`
+                        })()
+                      : selectedProviderId
+                        ? `${selectedProviderId.charAt(0).toUpperCase() + selectedProviderId.slice(1)}: No model selected`
+                        : 'No AI Provider Selected'
+                  }
+                  className="w-full flex justify-center p-2 bg-bg-tertiary rounded-lg hover:bg-bg-elevated transition-colors"
+                >
+                  <div className="flex items-center space-x-1">
+                    <Cpu className={`w-4 h-4 ${selectedProviderId ? getProviderColor(selectedProviderId as AIModel['provider']) : 'text-text-muted'}`} />
+                    {selectedModelId && <Target className="w-3 h-3 text-primary-500" />}
                   </div>
-                )}
-              </>
-            )}
-          </div>
-        )}
+                </button>
+              )}
+            </>
+          )}
+        </div>
 
-        {/* MCP 서버 상태 */}
-        {!collapsed && (
-          <div className="space-y-3">
+        {/* MCP 서버 상태 - 축소된 버전 */}
+        <div className="space-y-2">
+          {!collapsed && (
             <h3 className="text-text-tertiary text-mini font-medium uppercase tracking-wide">
               MCP Servers
             </h3>
-            <div className="space-y-2">
-              {mcpServers.map((server) => (
+          )}
+
+          {!collapsed ? (
+            <div className="space-y-1">
+              {mcpServers.slice(0, 3).map((server) => (
                 <div
                   key={server.name}
-                  className="flex items-center justify-between p-2 bg-bg-tertiary rounded-md"
+                  className="flex items-center justify-between p-1.5 bg-bg-tertiary/30 rounded text-mini"
                 >
                   <div className="flex items-center space-x-2">
                     {getStatusIcon(server.status)}
-                    <div>
-                      <div className="text-text-primary text-small font-medium">{server.name}</div>
-                      <div className="text-text-tertiary text-mini">{server.description}</div>
-                    </div>
+                    <span className="text-text-primary font-medium">{server.name}</span>
                   </div>
                 </div>
               ))}
+              {mcpServers.length > 3 && (
+                <div className="text-center">
+                  <span className="text-text-tertiary text-mini">+{mcpServers.length - 3} more</span>
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          ) : (
+            /* 축소된 상태에서 MCP 상태 표시 */
+            <button
+              title={`MCP Servers: ${mcpServers.filter(s => s.status === 'connected').length}/${mcpServers.length} connected`}
+              className="w-full flex justify-center p-2 bg-bg-tertiary rounded-lg hover:bg-bg-elevated transition-colors"
+            >
+              <div className="flex items-center space-x-1">
+                <Activity className="w-4 h-4 text-accent-green" />
+                <span className="text-mini text-text-primary font-medium">
+                  {mcpServers.filter(s => s.status === 'connected').length}
+                </span>
+              </div>
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* 하단 비용 모니터링 위젯 */}
+      {/* 하단 비용 모니터링 위젯 - 컴팩트 버전 */}
       {!collapsed && (
-        <div className="p-4 border-t border-border-secondary">
-          <div className="space-y-3">
+        <div className="p-3 border-t border-border-secondary">
+          <div className="space-y-2">
             <div className="flex items-center justify-between">
               <h3 className="text-text-tertiary text-mini font-medium uppercase tracking-wide">
-                Usage
+                API Usage
               </h3>
-              <Activity className="w-4 h-4 text-accent-green" />
+              <Activity className="w-3 h-3 text-accent-green" />
             </div>
 
-            <div className="space-y-2">
+            <div className="bg-bg-tertiary/30 rounded-md p-2 space-y-1">
               <div className="flex items-center justify-between">
-                <span className="text-text-secondary text-small">Today</span>
-                <span className="text-text-primary text-small font-medium">{costData.today}</span>
+                <span className="text-text-secondary text-mini">Today</span>
+                <span className="text-text-primary text-mini font-medium">{costData.today}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-text-secondary text-small">This Month</span>
-                <span className="text-text-primary text-small font-medium">{costData.thisMonth}</span>
+                <span className="text-text-secondary text-mini">Month</span>
+                <span className="text-text-primary text-mini font-medium">{costData.thisMonth}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-text-secondary text-small">Tokens</span>
-                <span className="text-text-primary text-small font-medium">{costData.tokens}</span>
+                <span className="text-text-secondary text-mini">Tokens</span>
+                <span className="text-text-primary text-mini font-medium">{costData.tokens}</span>
               </div>
-            </div>
-
-            <div className="flex items-center justify-between pt-2 border-t border-border-secondary">
-              <span className="text-text-tertiary text-mini">Trend</span>
-              <span className="text-accent-green text-mini font-medium">{costData.trend}</span>
             </div>
           </div>
         </div>
@@ -525,12 +567,12 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
 
       {/* 축소된 상태에서의 비용 아이콘 */}
       {collapsed && (
-        <div className="p-4 border-t border-border-secondary">
+        <div className="p-3 border-t border-border-secondary">
           <button
-            title="Usage Monitoring"
+            title={`API Usage - Today: ${costData.today}, Month: ${costData.thisMonth}`}
             className="w-full flex justify-center p-2 text-accent-green hover:bg-bg-tertiary rounded-lg transition-colors"
           >
-            <DollarSign className="w-5 h-5" />
+            <DollarSign className="w-4 h-4" />
           </button>
         </div>
       )}
