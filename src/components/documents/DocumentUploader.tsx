@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { Upload, File, X, AlertCircle, CheckCircle } from 'lucide-react'
 import { fileService } from '@/services/fileService'
@@ -78,7 +78,7 @@ export function DocumentUploader({
     setUploadFilesList((prev) => prev.filter((f) => f.id !== id))
   }
 
-  const startUpload = async () => {
+  const startUpload = useCallback(async () => {
     if (!user || uploadFilesList.length === 0) return
 
     setIsUploading(true)
@@ -160,7 +160,19 @@ export function DocumentUploader({
     } finally {
       setIsUploading(false)
     }
-  }
+  }, [user, uploadFilesList, projectId, onUploadComplete])
+
+  // 파일이 추가되면 자동으로 업로드 시작
+  useEffect(() => {
+    const pendingFiles = uploadFilesList.filter(f => f.status === 'pending')
+    if (pendingFiles.length > 0 && !isUploading && user) {
+      const timer = setTimeout(() => {
+        startUpload()
+      }, 500)
+      return () => clearTimeout(timer)
+    }
+    return undefined
+  }, [uploadFilesList, isUploading, user, startUpload])
 
   const clearCompleted = () => {
     setUploadFilesList((prev) => prev.filter((f) => f.status !== 'success'))

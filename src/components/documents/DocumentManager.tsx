@@ -361,7 +361,13 @@ export function DocumentManager({
         <select
           value={filterType}
           onChange={(e) => setFilterType(e.target.value)}
-          className="linear-select"
+          className="px-3 py-2 bg-background-secondary border border-border rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent appearance-none cursor-pointer"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
+            backgroundPosition: 'right 8px center',
+            backgroundRepeat: 'no-repeat',
+            backgroundSize: '16px'
+          }}
         >
           <option value="all">모든 파일</option>
           <option value="pdf">PDF</option>
@@ -414,8 +420,8 @@ export function DocumentManager({
 
       {/* 업로드 모달 */}
       {showUploadModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-background-primary rounded-lg p-6 max-w-2xl w-full max-h-96 overflow-auto">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-background-primary rounded-lg p-6 max-w-2xl w-full max-h-96 overflow-auto shadow-2xl border border-border">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-text-primary">
                 파일 업로드
