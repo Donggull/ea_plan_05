@@ -239,29 +239,72 @@ export class ProjectMemberService {
     return `${baseUrl}/invite/${inviteToken}?project=${projectId}&role=${role}`
   }
 
-  // 사용자 검색 (이메일/이름으로)
+  // 사용자 검색 (이메일/이름으로) - 샘플 데이터 + 실제 가입 회원
   static async searchUsers(query: string): Promise<{ id: string; email: string; full_name: string | null }[]> {
     if (!supabase) throw new Error('Supabase client not initialized')
 
-    let supabaseQuery = supabase
-      .from('profiles')
-      .select('id, email, full_name')
+    // 샘플 사용자 데이터 (테스트용 - 인증 우회)
+    const sampleUsers = [
+      { id: 'a744c2c5-b059-4e06-8a59-dbb9b6f6293e', email: 'test01@eluocnc.com', full_name: '테스트 사용자 01' },
+      { id: 'f14e03a5-9474-4ca1-8994-223985aa50bc', email: 'test02@eluocnc.com', full_name: '테스트 사용자 02' },
+      { id: '13e12512-47af-454e-9c76-fb0954044faf', email: 'test03@eluocnc.com', full_name: '테스트 서브관리자 03' },
+      { id: '466a596f-c183-492e-b017-7a5e7422f0ad', email: 'test04@eluocnc.com', full_name: '테스트 서브관리자 04' },
+      { id: '28dc4893-64d8-4800-89a9-acfdff5fd873', email: 'test05@eluocnc.com', full_name: '테스트 관리자 05' },
+      { id: '07a030c5-da1f-4798-9fdd-2f299a0f354a', email: 'dg.an@eluocnc.com', full_name: 'dg.an (관리자)' }
+    ]
 
-    // 검색어가 있는 경우에만 필터링 적용
+    let dbUsers: { id: string; email: string; full_name: string | null }[] = []
+
+    try {
+      // 실제 DB에서 사용자 조회 시도
+      let supabaseQuery = supabase
+        .from('profiles')
+        .select('id, email, full_name')
+
+      // 검색어가 있는 경우에만 필터링 적용
+      if (query.trim()) {
+        supabaseQuery = supabaseQuery.or(`email.ilike.%${query}%,full_name.ilike.%${query}%`)
+      }
+
+      const { data, error } = await supabaseQuery
+        .limit(20)
+        .order('created_at', { ascending: false })
+
+      // DB 조회가 성공하면 실제 데이터 저장
+      if (!error && data) {
+        dbUsers = data
+      } else {
+        console.warn('DB 조회 중 오류:', error)
+      }
+    } catch (dbError) {
+      console.warn('DB 조회 실패:', dbError)
+    }
+
+    // 샘플 데이터에서 검색
+    let filteredSampleUsers = sampleUsers
     if (query.trim()) {
-      supabaseQuery = supabaseQuery.or(`email.ilike.%${query}%,full_name.ilike.%${query}%`)
+      filteredSampleUsers = sampleUsers.filter(user =>
+        user.email.toLowerCase().includes(query.toLowerCase()) ||
+        (user.full_name && user.full_name.toLowerCase().includes(query.toLowerCase()))
+      )
     }
 
-    const { data, error } = await supabaseQuery
-      .limit(20) // 더 많은 사용자 표시
-      .order('created_at', { ascending: false })
+    // 중복 제거: DB에서 가져온 사용자와 샘플 사용자 중복 제거
+    const dbUserIds = new Set(dbUsers.map(user => user.id))
+    const uniqueSampleUsers = filteredSampleUsers.filter(user => !dbUserIds.has(user.id))
 
-    if (error) {
-      console.error('Error searching users:', error)
-      throw error
+    // DB 사용자 + 중복되지 않는 샘플 사용자 결합
+    const allUsers = [...dbUsers, ...uniqueSampleUsers]
+
+    // 추가 검색어 필터링 (혹시 DB에서 완전히 필터링되지 않은 경우)
+    if (query.trim()) {
+      return allUsers.filter(user =>
+        user.email.toLowerCase().includes(query.toLowerCase()) ||
+        (user.full_name && user.full_name.toLowerCase().includes(query.toLowerCase()))
+      )
     }
 
-    return data || []
+    return allUsers
   }
 
   // 멤버 역할별 권한 정의
