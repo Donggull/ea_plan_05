@@ -21,6 +21,7 @@ import {
 } from 'lucide-react'
 import { ApiUsageService } from '../../services/apiUsageService'
 import { useAIModel } from '../../contexts/AIModelContext'
+import { useProject } from '../../contexts/ProjectContext'
 
 interface SidebarProps {
   isCollapsed?: boolean
@@ -50,12 +51,21 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
   const navigate = useNavigate()
   const location = useLocation()
   const [collapsed, setCollapsed] = useState(isCollapsed)
-  const [selectedProject, setSelectedProject] = useState('EA Plan 05')
   const [isProjectDropdownOpen, setIsProjectDropdownOpen] = useState(false)
-  const [isAIModelDropdownOpen, setIsAIModelDropdownOpen] = useState(false)
+  const [isProviderDropdownOpen, setIsProviderDropdownOpen] = useState(false)
+  const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false)
 
   // AI 모델 컨텍스트 사용
-  const { state: aiModelState, selectModel } = useAIModel()
+  const {
+    state: aiModelState,
+    selectProvider,
+    selectModel,
+    getProviderModels,
+    getAvailableProviders
+  } = useAIModel()
+
+  // 프로젝트 컨텍스트 사용
+  const { state: projectState, selectProject } = useProject()
 
   // MCP 서버 상태 (실제로는 상태 관리에서 가져와야 함)
   const [mcpServers] = useState<MCPServer[]>([
@@ -66,7 +76,16 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
   ])
 
   // AI 모델 컨텍스트에서 상태 추출
-  const { selectedModelId, availableModels, loading, error } = aiModelState
+  const { selectedProviderId, selectedModelId, availableModels, loading, error } = aiModelState
+
+  // 프로젝트 컨텍스트에서 상태 추출
+  const { currentProject, userProjects, loading: projectLoading } = projectState
+
+  // 사용 가능한 프로바이더 목록
+  const availableProviders = getAvailableProviders()
+
+  // 선택된 프로바이더의 모델 목록
+  const providerModels = selectedProviderId ? getProviderModels(selectedProviderId) : []
 
   // 실시간 비용 데이터
   const [costData, setCostData] = useState({
@@ -189,7 +208,12 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
               >
                 <div className="flex items-center space-x-3">
                   <Building className="w-5 h-5 text-primary-500" />
-                  <span className="text-text-primary text-regular font-medium">{selectedProject}</span>
+                  <span className="text-text-primary text-regular font-medium">
+                    {projectLoading
+                      ? 'Loading...'
+                      : currentProject?.name || 'Select Project'
+                    }
+                  </span>
                 </div>
                 <ChevronDown className="w-4 h-4 text-text-secondary" />
               </button>
@@ -198,24 +222,31 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
               {isProjectDropdownOpen && (
                 <div className="absolute top-full left-0 right-0 mt-1 bg-bg-elevated border border-border-primary rounded-lg shadow-lg z-50">
                   <div className="p-1">
-                    <button
-                      onClick={() => {
-                        setSelectedProject('EA Plan 05')
-                        setIsProjectDropdownOpen(false)
-                      }}
-                      className="w-full text-left px-3 py-2 text-text-primary hover:bg-bg-tertiary rounded-md transition-colors"
-                    >
-                      EA Plan 05
-                    </button>
-                    <button
-                      onClick={() => {
-                        setSelectedProject('Demo Project')
-                        setIsProjectDropdownOpen(false)
-                      }}
-                      className="w-full text-left px-3 py-2 text-text-secondary hover:bg-bg-tertiary rounded-md transition-colors"
-                    >
-                      Demo Project
-                    </button>
+                    {userProjects.length === 0 ? (
+                      <div className="px-3 py-2 text-text-secondary text-small">
+                        No projects available
+                      </div>
+                    ) : (
+                      userProjects.map((project) => (
+                        <button
+                          key={project.id}
+                          onClick={() => {
+                            selectProject(project)
+                            setIsProjectDropdownOpen(false)
+                          }}
+                          className={`w-full text-left px-3 py-2 hover:bg-bg-tertiary rounded-md transition-colors ${
+                            currentProject?.id === project.id ? 'bg-bg-tertiary' : ''
+                          }`}
+                        >
+                          <div className="text-text-primary text-small font-medium">
+                            {project.name}
+                          </div>
+                          <div className="text-text-tertiary text-mini">
+                            {project.description || 'No description'}
+                          </div>
+                        </button>
+                      ))
+                    )}
                     <div className="border-t border-border-secondary my-1"></div>
                     <button className="w-full text-left px-3 py-2 text-accent-blue hover:bg-bg-tertiary rounded-md transition-colors flex items-center space-x-2">
                       <Plus className="w-4 h-4" />
@@ -264,18 +295,18 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
           })}
         </nav>
 
-        {/* AI 모델 선택 */}
+        {/* AI 모델 선택 - 2단계 */}
         {!collapsed && (
           <div className="space-y-3">
             <h3 className="text-text-tertiary text-mini font-medium uppercase tracking-wide">
-              AI Model
+              AI Provider
             </h3>
 
             {loading ? (
               <div className="p-3 bg-bg-tertiary rounded-lg">
                 <div className="flex items-center space-x-3">
                   <Cpu className="w-5 h-5 text-accent-orange animate-pulse" />
-                  <div className="text-text-secondary text-small">Loading models...</div>
+                  <div className="text-text-secondary text-small">Loading providers...</div>
                 </div>
               </div>
             ) : error ? (
@@ -286,75 +317,148 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
                 </div>
               </div>
             ) : (
-              <div className="relative">
-                <button
-                  onClick={() => setIsAIModelDropdownOpen(!isAIModelDropdownOpen)}
-                  className="w-full flex items-center justify-between p-3 bg-bg-tertiary rounded-lg hover:bg-bg-elevated transition-colors"
-                >
-                  <div className="flex items-center space-x-3">
-                    <Cpu className="w-5 h-5 text-accent-orange" />
-                    <div className="text-left">
-                      {selectedModelId ? (() => {
-                        const model = availableModels.find(m => m.id === selectedModelId)
-                        return (
-                          <>
-                            <div className="text-text-primary text-small font-medium">{model?.name || 'Unknown Model'}</div>
-                            <div className="text-text-tertiary text-mini">
-                              ${((model?.cost_per_input_token || 0) * 1000000).toFixed(3)}/1M tokens
-                            </div>
-                          </>
-                        )
-                      })() : (
-                        <div className="text-text-secondary text-small">Select Model</div>
-                      )}
-                    </div>
-                  </div>
-                  <ChevronDown className="w-4 h-4 text-text-secondary" />
-                </button>
-
-                {/* AI 모델 드롭다운 */}
-                {isAIModelDropdownOpen && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-bg-elevated border border-border-primary rounded-lg shadow-lg z-50">
-                    <div className="p-1">
-                      {availableModels.length === 0 ? (
-                        <div className="px-3 py-2 text-text-secondary text-small">
-                          No models available
+              <>
+                {/* 1차: 프로바이더 선택 */}
+                <div className="relative">
+                  <button
+                    onClick={() => setIsProviderDropdownOpen(!isProviderDropdownOpen)}
+                    className="w-full flex items-center justify-between p-3 bg-bg-tertiary rounded-lg hover:bg-bg-elevated transition-colors"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <Cpu className="w-5 h-5 text-accent-orange" />
+                      <div className="text-left">
+                        <div className="text-text-primary text-small font-medium">
+                          {selectedProviderId
+                            ? selectedProviderId.charAt(0).toUpperCase() + selectedProviderId.slice(1)
+                            : 'Select Provider'
+                          }
                         </div>
-                      ) : (
-                        availableModels.map((model) => (
-                          <button
-                            key={model.id}
-                            onClick={() => {
-                              selectModel(model.id)
-                              setIsAIModelDropdownOpen(false)
-                            }}
-                            className={`w-full text-left px-3 py-2 hover:bg-bg-tertiary rounded-md transition-colors ${
-                              selectedModelId === model.id ? 'bg-bg-tertiary' : ''
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <div className={`text-small font-medium ${getProviderColor(model.provider)}`}>
-                                  {model.name}
-                                </div>
-                                <div className="text-text-tertiary text-mini">
-                                  ${((model.cost_per_input_token || 0) * 1000000).toFixed(3)}/1M • {(model.max_tokens || 0).toLocaleString()} tokens
-                                </div>
-                                {model.capabilities.length > 0 && (
-                                  <div className="text-text-muted text-mini mt-1">
-                                    {model.capabilities.slice(0, 2).join(', ')}
+                        <div className="text-text-tertiary text-mini">
+                          {selectedProviderId && `${getProviderModels(selectedProviderId).length} models available`}
+                        </div>
+                      </div>
+                    </div>
+                    <ChevronDown className="w-4 h-4 text-text-secondary" />
+                  </button>
+
+                  {/* 프로바이더 드롭다운 */}
+                  {isProviderDropdownOpen && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-bg-elevated border border-border-primary rounded-lg shadow-lg z-50">
+                      <div className="p-1">
+                        {availableProviders.length === 0 ? (
+                          <div className="px-3 py-2 text-text-secondary text-small">
+                            No providers available
+                          </div>
+                        ) : (
+                          availableProviders.map((provider) => (
+                            <button
+                              key={provider}
+                              onClick={() => {
+                                selectProvider(provider)
+                                setIsProviderDropdownOpen(false)
+                              }}
+                              className={`w-full text-left px-3 py-2 hover:bg-bg-tertiary rounded-md transition-colors ${
+                                selectedProviderId === provider ? 'bg-bg-tertiary' : ''
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <div className={`text-small font-medium ${getProviderColor(provider as AIModel['provider'])}`}>
+                                    {provider.charAt(0).toUpperCase() + provider.slice(1)}
                                   </div>
-                                )}
+                                  <div className="text-text-tertiary text-mini">
+                                    {getProviderModels(provider).length} models
+                                  </div>
+                                </div>
                               </div>
-                              {model.available && <CheckCircle className="w-4 h-4 text-accent-green" />}
-                            </div>
-                          </button>
-                        ))
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 2차: 모델 선택 (프로바이더가 선택된 경우에만 표시) */}
+                {selectedProviderId && (
+                  <div className="space-y-2">
+                    <h4 className="text-text-tertiary text-mini font-medium">
+                      {selectedProviderId.charAt(0).toUpperCase() + selectedProviderId.slice(1)} Models
+                    </h4>
+                    <div className="relative">
+                      <button
+                        onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
+                        className="w-full flex items-center justify-between p-3 bg-bg-tertiary rounded-lg hover:bg-bg-elevated transition-colors"
+                      >
+                        <div className="flex items-center space-x-3">
+                          <Target className="w-5 h-5 text-primary-500" />
+                          <div className="text-left">
+                            {selectedModelId ? (() => {
+                              const model = availableModels.find(m => m.id === selectedModelId)
+                              return (
+                                <>
+                                  <div className="text-text-primary text-small font-medium">
+                                    {model?.name || 'Unknown Model'}
+                                  </div>
+                                  <div className="text-text-tertiary text-mini">
+                                    ${((model?.cost_per_input_token || 0) * 1000000).toFixed(3)}/1M tokens
+                                  </div>
+                                </>
+                              )
+                            })() : (
+                              <div className="text-text-secondary text-small">Select Model</div>
+                            )}
+                          </div>
+                        </div>
+                        <ChevronDown className="w-4 h-4 text-text-secondary" />
+                      </button>
+
+                      {/* 모델 드롭다운 */}
+                      {isModelDropdownOpen && (
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-bg-elevated border border-border-primary rounded-lg shadow-lg z-50">
+                          <div className="p-1">
+                            {providerModels.length === 0 ? (
+                              <div className="px-3 py-2 text-text-secondary text-small">
+                                No models available for this provider
+                              </div>
+                            ) : (
+                              providerModels.map((model) => (
+                                <button
+                                  key={model.id}
+                                  onClick={() => {
+                                    selectModel(model.id)
+                                    setIsModelDropdownOpen(false)
+                                  }}
+                                  className={`w-full text-left px-3 py-2 hover:bg-bg-tertiary rounded-md transition-colors ${
+                                    selectedModelId === model.id ? 'bg-bg-tertiary' : ''
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div>
+                                      <div className="text-text-primary text-small font-medium">
+                                        {model.name}
+                                      </div>
+                                      <div className="text-text-tertiary text-mini">
+                                        ${((model.cost_per_input_token || 0) * 1000000).toFixed(3)}/1M • {(model.max_tokens || 0).toLocaleString()} tokens
+                                      </div>
+                                      {model.capabilities && model.capabilities.length > 0 && (
+                                        <div className="text-text-muted text-mini mt-1">
+                                          {model.capabilities.slice(0, 2).join(', ')}
+                                        </div>
+                                      )}
+                                    </div>
+                                    {model.available && <CheckCircle className="w-4 h-4 text-accent-green" />}
+                                  </div>
+                                </button>
+                              ))
+                            )}
+                          </div>
+                        </div>
                       )}
                     </div>
                   </div>
                 )}
-              </div>
+              </>
             )}
           </div>
         )}

@@ -17,7 +17,8 @@ export interface AIModel {
 
 // 상태 타입 정의
 interface AIModelState {
-  selectedModelId: string | null
+  selectedProviderId: string | null  // 1차 선택: 프로바이더
+  selectedModelId: string | null     // 2차 선택: 세부 모델
   availableModels: AIModel[]
   loading: boolean
   error: string | null
@@ -28,11 +29,13 @@ type AIModelAction =
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_ERROR'; payload: string | null }
   | { type: 'SET_MODELS'; payload: AIModel[] }
+  | { type: 'SELECT_PROVIDER'; payload: string }
   | { type: 'SELECT_MODEL'; payload: string }
   | { type: 'CLEAR_SELECTION' }
 
 // 초기 상태
 const initialState: AIModelState = {
+  selectedProviderId: null,
   selectedModelId: null,
   availableModels: [],
   loading: false,
@@ -48,10 +51,16 @@ function aiModelReducer(state: AIModelState, action: AIModelAction): AIModelStat
       return { ...state, error: action.payload, loading: false }
     case 'SET_MODELS':
       return { ...state, availableModels: action.payload, loading: false }
+    case 'SELECT_PROVIDER':
+      return {
+        ...state,
+        selectedProviderId: action.payload,
+        selectedModelId: null // 프로바이더 변경 시 모델 선택 초기화
+      }
     case 'SELECT_MODEL':
       return { ...state, selectedModelId: action.payload }
     case 'CLEAR_SELECTION':
-      return { ...state, selectedModelId: null }
+      return { ...state, selectedProviderId: null, selectedModelId: null }
     default:
       return state
   }
@@ -60,10 +69,13 @@ function aiModelReducer(state: AIModelState, action: AIModelAction): AIModelStat
 // 컨텍스트 타입 정의
 interface AIModelContextType {
   state: AIModelState
+  selectProvider: (providerId: string) => void
   selectModel: (modelId: string) => void
   clearSelection: () => void
   refreshModels: () => Promise<void>
   getSelectedModel: () => AIModel | null
+  getProviderModels: (providerId: string) => AIModel[]
+  getAvailableProviders: () => string[]
 }
 
 // 컨텍스트 생성
@@ -96,9 +108,11 @@ export function AIModelProvider({ children }: { children: React.ReactNode }) {
 
       dispatch({ type: 'SET_MODELS', payload: formattedModels })
 
-      // 기본 모델 선택 (첫 번째 사용 가능한 모델)
-      if (formattedModels.length > 0 && !state.selectedModelId) {
-        dispatch({ type: 'SELECT_MODEL', payload: formattedModels[0].id })
+      // 기본 프로바이더 및 모델 선택 (첫 번째 사용 가능한 모델)
+      if (formattedModels.length > 0 && !state.selectedProviderId) {
+        const firstModel = formattedModels[0]
+        dispatch({ type: 'SELECT_PROVIDER', payload: firstModel.provider })
+        dispatch({ type: 'SELECT_MODEL', payload: firstModel.id })
       }
     } catch (error) {
       console.error('Failed to load AI models:', error)
@@ -114,6 +128,9 @@ export function AIModelProvider({ children }: { children: React.ReactNode }) {
   // 컨텍스트 값
   const contextValue: AIModelContextType = {
     state,
+    selectProvider: (providerId: string) => {
+      dispatch({ type: 'SELECT_PROVIDER', payload: providerId })
+    },
     selectModel: (modelId: string) => {
       dispatch({ type: 'SELECT_MODEL', payload: modelId })
     },
@@ -123,6 +140,13 @@ export function AIModelProvider({ children }: { children: React.ReactNode }) {
     refreshModels: loadModels,
     getSelectedModel: () => {
       return state.availableModels.find(model => model.id === state.selectedModelId) || null
+    },
+    getProviderModels: (providerId: string) => {
+      return state.availableModels.filter(model => model.provider === providerId)
+    },
+    getAvailableProviders: () => {
+      const providers = [...new Set(state.availableModels.map(model => model.provider))]
+      return providers
     }
   }
 

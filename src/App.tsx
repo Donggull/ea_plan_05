@@ -3,6 +3,7 @@ import { Toaster } from 'sonner'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { AIModelProvider } from '@/contexts/AIModelContext'
+import { ProjectProvider } from '@/contexts/ProjectContext'
 import { HomePage } from '@/pages/HomePage'
 import { LoginPage } from '@/pages/LoginPage'
 import { SignupPage } from '@/pages/SignupPage'
@@ -22,8 +23,9 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <AIModelProvider>
-          <Routes>
+        <ProjectProvider>
+          <AIModelProvider>
+            <Routes>
           {/* Public Routes */}
           <Route path="/" element={<HomePage />} />
 
@@ -51,10 +53,11 @@ function App() {
               <Route path="/profile" element={<ProfilePage />} />
             </Route>
           </Route>
-          </Routes>
+            </Routes>
 
-          <Toaster position="bottom-right" />
-        </AIModelProvider>
+            <Toaster position="bottom-right" />
+          </AIModelProvider>
+        </ProjectProvider>
       </AuthProvider>
     </QueryClientProvider>
   )
