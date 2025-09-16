@@ -1,6 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react'
-import { X, Mail, Link, Copy, Search, Check, ChevronDown, Loader2 } from 'lucide-react'
-import { useInviteMember, useGenerateInviteLink, useMemberRoles, useUserSearch } from '../../../lib/queries/projectMembers'
+import { useState, useRef, useEffect } from 'react'
+import { X, Search, UserPlus, ChevronDown, Loader2, User, CheckCircle } from 'lucide-react'
+import { useInviteMember, useMemberRoles, useUserSearch } from '../../../lib/queries/projectMembers'
 import { useAuth } from '../../../contexts/AuthContext'
 
 interface InviteModalProps {
@@ -12,17 +12,12 @@ interface InviteModalProps {
 export function InviteModal({ projectId, onClose, onInvite }: InviteModalProps) {
   const { user } = useAuth()
   const inviteMemberMutation = useInviteMember()
-  const generateInviteLinkMutation = useGenerateInviteLink()
   const memberRoles = useMemberRoles()
 
-  const [inviteMethod, setInviteMethod] = useState<'email' | 'search' | 'link'>('email')
-  const [email, setEmail] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedRole, setSelectedRole] = useState('viewer')
+  const [selectedUsers, setSelectedUsers] = useState<{ id: string; email: string; full_name: string | null }[]>([])
   const [error, setError] = useState('')
-  const [inviteLink, setInviteLink] = useState('')
-  const [linkCopied, setLinkCopied] = useState(false)
-  const [selectedUser, setSelectedUser] = useState<{ id: string; email: string; full_name: string | null } | null>(null)
 
   const { data: searchResults = [], isLoading: isSearching } = useUserSearch(searchQuery)
 
@@ -40,78 +35,45 @@ export function InviteModal({ projectId, onClose, onInvite }: InviteModalProps) 
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [onClose])
 
-  const handleEmailInvite = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-
-    if (!email.trim()) {
-      setError('이메일을 입력해주세요.')
-      return
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(email)) {
-      setError('올바른 이메일 형식을 입력해주세요.')
-      return
-    }
-
-    try {
-      await inviteMemberMutation.mutateAsync({
-        project_id: projectId,
-        email: email,
-        role: selectedRole,
-        invited_by: user?.id || ''
-      })
-
-      onInvite()
-    } catch (error: any) {
-      setError(error.message || '초대 발송에 실패했습니다.')
-    }
+  const handleUserSelect = (selectedUser: { id: string; email: string; full_name: string | null }) => {
+    setSelectedUsers(prev => {
+      const isAlreadySelected = prev.some(u => u.id === selectedUser.id)
+      if (isAlreadySelected) {
+        return prev.filter(u => u.id !== selectedUser.id)
+      } else {
+        return [...prev, selectedUser]
+      }
+    })
   }
 
-  const handleUserInvite = async () => {
-    if (!selectedUser) return
+  const handleInviteUsers = async () => {
+    if (selectedUsers.length === 0) {
+      setError('초대할 사용자를 선택해주세요.')
+      return
+    }
 
     setError('')
 
     try {
-      await inviteMemberMutation.mutateAsync({
-        project_id: projectId,
-        user_id: selectedUser.id,
-        email: selectedUser.email,
-        role: selectedRole,
-        invited_by: user?.id || ''
-      })
+      // 선택된 사용자들을 순차적으로 초대
+      for (const selectedUser of selectedUsers) {
+        await inviteMemberMutation.mutateAsync({
+          project_id: projectId,
+          user_id: selectedUser.id,
+          email: selectedUser.email,
+          role: selectedRole,
+          invited_by: user?.id || ''
+        })
+      }
 
       onInvite()
     } catch (error: any) {
-      setError(error.message || '초대에 실패했습니다.')
+      setError(error.message || '멤버 초대에 실패했습니다.')
     }
   }
 
-  const handleGenerateInviteLink = async () => {
-    if (!user) return
-
-    try {
-      const link = await generateInviteLinkMutation.mutateAsync({
-        projectId,
-        role: selectedRole,
-        invitedBy: user.id
-      })
-      setInviteLink(link)
-    } catch (error: any) {
-      setError(error.message || '초대 링크 생성에 실패했습니다.')
-    }
-  }
-
-  const copyInviteLink = async () => {
-    try {
-      await navigator.clipboard.writeText(inviteLink)
-      setLinkCopied(true)
-      setTimeout(() => setLinkCopied(false), 2000)
-    } catch (error) {
-      setError('링크 복사에 실패했습니다.')
-    }
+  const isUserSelected = (userId: string) => {
+    return selectedUsers.some(u => u.id === userId)
   }
 
   const filteredRoles = memberRoles.filter(role => role.value !== 'owner')
@@ -124,7 +86,7 @@ export function InviteModal({ projectId, onClose, onInvite }: InviteModalProps) 
           <div>
             <h2 className="text-lg font-semibold text-text-primary">멤버 초대</h2>
             <p className="text-text-secondary text-sm mt-1">
-              프로젝트에 새 멤버를 초대합니다
+              등록된 사용자 중에서 선택하여 프로젝트에 초대합니다
             </p>
           </div>
           <button
@@ -136,45 +98,6 @@ export function InviteModal({ projectId, onClose, onInvite }: InviteModalProps) 
         </div>
 
         <div className="p-6">
-          {/* 초대 방법 선택 */}
-          <div className="mb-6">
-            <div className="flex space-x-1 bg-bg-primary rounded-lg p-1">
-              <button
-                onClick={() => setInviteMethod('email')}
-                className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm transition-colors ${
-                  inviteMethod === 'email'
-                    ? 'bg-primary-500 text-white'
-                    : 'text-text-secondary hover:text-text-primary'
-                }`}
-              >
-                <Mail className="w-4 h-4" />
-                <span>이메일</span>
-              </button>
-              <button
-                onClick={() => setInviteMethod('search')}
-                className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm transition-colors ${
-                  inviteMethod === 'search'
-                    ? 'bg-primary-500 text-white'
-                    : 'text-text-secondary hover:text-text-primary'
-                }`}
-              >
-                <Search className="w-4 h-4" />
-                <span>사용자 검색</span>
-              </button>
-              <button
-                onClick={() => setInviteMethod('link')}
-                className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm transition-colors ${
-                  inviteMethod === 'link'
-                    ? 'bg-primary-500 text-white'
-                    : 'text-text-secondary hover:text-text-primary'
-                }`}
-              >
-                <Link className="w-4 h-4" />
-                <span>초대 링크</span>
-              </button>
-            </div>
-          </div>
-
           {/* 역할 선택 */}
           <div className="mb-6">
             <label className="block text-sm font-medium text-text-primary mb-2">
@@ -199,177 +122,140 @@ export function InviteModal({ projectId, onClose, onInvite }: InviteModalProps) 
             </p>
           </div>
 
-          {/* 이메일 초대 */}
-          {inviteMethod === 'email' && (
-            <form onSubmit={handleEmailInvite} className="space-y-4">
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-text-primary mb-2">
-                  이메일 주소
-                </label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-text-muted" />
-                  <input
-                    type="email"
-                    id="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="사용자의 이메일을 입력하세요"
-                    className="w-full pl-10 pr-4 py-2 bg-bg-primary border border-border-primary rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-text-primary placeholder-text-muted"
-                    disabled={inviteMemberMutation.isPending}
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                disabled={inviteMemberMutation.isPending}
-              >
-                {inviteMemberMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-                <span>{inviteMemberMutation.isPending ? '초대 중...' : '초대 이메일 보내기'}</span>
-              </button>
-            </form>
-          )}
-
           {/* 사용자 검색 */}
-          {inviteMethod === 'search' && (
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="search" className="block text-sm font-medium text-text-primary mb-2">
-                  사용자 검색
-                </label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-text-muted" />
-                  <input
-                    type="text"
-                    id="search"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="이름 또는 이메일로 검색"
-                    className="w-full pl-10 pr-4 py-2 bg-bg-primary border border-border-primary rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-text-primary placeholder-text-muted"
-                  />
-                  {isSearching && (
-                    <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 animate-spin text-text-muted" />
-                  )}
-                </div>
-              </div>
-
-              {/* 검색 결과 */}
-              {searchQuery.length >= 2 && (
-                <div className="max-h-48 overflow-y-auto border border-border-primary rounded-lg">
-                  {searchResults.length > 0 ? (
-                    <div className="space-y-1 p-2">
-                      {searchResults.map((user) => (
-                        <button
-                          key={user.id}
-                          onClick={() => setSelectedUser(user)}
-                          className={`w-full text-left p-3 rounded-lg transition-colors ${
-                            selectedUser?.id === user.id
-                              ? 'bg-primary-500/10 border border-primary-500/20'
-                              : 'hover:bg-bg-tertiary'
-                          }`}
-                        >
-                          <div className="font-medium text-text-primary">
-                            {user.full_name || user.email}
-                          </div>
-                          {user.full_name && (
-                            <div className="text-text-muted text-sm">{user.email}</div>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="p-4 text-center text-text-muted">
-                      검색 결과가 없습니다
-                    </div>
-                  )}
-                </div>
+          <div className="mb-6">
+            <label htmlFor="search" className="block text-sm font-medium text-text-primary mb-2">
+              사용자 검색
+            </label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-text-muted" />
+              <input
+                type="text"
+                id="search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="이름 또는 이메일로 검색"
+                className="w-full pl-10 pr-4 py-2 bg-bg-primary border border-border-primary rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-text-primary placeholder-text-muted"
+              />
+              {isSearching && (
+                <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 animate-spin text-text-muted" />
               )}
+            </div>
+          </div>
 
-              {selectedUser && (
-                <div className="p-4 bg-bg-primary border border-border-primary rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-medium text-text-primary">
-                        {selectedUser.full_name || selectedUser.email}
+          {/* 선택된 사용자 목록 */}
+          {selectedUsers.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-sm font-medium text-text-primary mb-3">
+                선택된 사용자 ({selectedUsers.length}명)
+              </h3>
+              <div className="space-y-2 max-h-32 overflow-y-auto bg-bg-primary rounded-lg p-3">
+                {selectedUsers.map((user) => (
+                  <div key={user.id} className="flex items-center justify-between text-sm">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-6 h-6 rounded-full bg-primary-500/10 flex items-center justify-center">
+                        <User className="w-3 h-3 text-primary-500" />
                       </div>
-                      {selectedUser.full_name && (
-                        <div className="text-text-muted text-sm">{selectedUser.email}</div>
+                      <span className="text-text-primary">{user.full_name || user.email}</span>
+                      {user.full_name && (
+                        <span className="text-text-muted">({user.email})</span>
                       )}
                     </div>
                     <button
-                      onClick={handleUserInvite}
-                      className="flex items-center space-x-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 disabled:opacity-50 transition-colors"
-                      disabled={inviteMemberMutation.isPending}
+                      onClick={() => handleUserSelect(user)}
+                      className="text-accent-red hover:text-accent-red/80 transition-colors"
                     >
-                      {inviteMemberMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-                      <span>{inviteMemberMutation.isPending ? '초대 중...' : '초대하기'}</span>
+                      <X className="w-4 h-4" />
                     </button>
                   </div>
-                </div>
-              )}
+                ))}
+              </div>
             </div>
           )}
 
-          {/* 초대 링크 생성 */}
-          {inviteMethod === 'link' && (
-            <div className="space-y-4">
-              {!inviteLink ? (
-                <button
-                  onClick={handleGenerateInviteLink}
-                  className="w-full flex items-center justify-center space-x-2 px-4 py-2 border border-border-primary text-text-primary rounded-lg hover:bg-bg-tertiary transition-colors"
-                  disabled={generateInviteLinkMutation.isPending}
-                >
-                  {generateInviteLinkMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-                  <span>{generateInviteLinkMutation.isPending ? '생성 중...' : '초대 링크 생성'}</span>
-                </button>
-              ) : (
-                <div className="space-y-3">
-                  <div className="p-4 bg-bg-primary border border-border-primary rounded-lg">
-                    <p className="text-text-secondary text-sm mb-3">초대 링크가 생성되었습니다:</p>
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="text"
-                        value={inviteLink}
-                        readOnly
-                        className="flex-1 px-3 py-2 bg-bg-secondary border border-border-primary rounded text-text-primary text-sm"
-                      />
-                      <button
-                        onClick={copyInviteLink}
-                        className={`flex items-center space-x-1 px-3 py-2 rounded transition-colors ${
-                          linkCopied
-                            ? 'bg-accent-green text-white'
-                            : 'bg-primary-500 text-white hover:bg-primary-600'
-                        }`}
-                      >
-                        {linkCopied ? (
-                          <>
-                            <Check className="w-4 h-4" />
-                            <span>복사됨</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-4 h-4" />
-                            <span>복사</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
+          {/* 검색 결과 */}
+          {searchQuery.length >= 1 && (
+            <div className="mb-6">
+              <h3 className="text-sm font-medium text-text-primary mb-3">검색 결과</h3>
+              <div className="max-h-64 overflow-y-auto border border-border-primary rounded-lg">
+                {searchResults.length > 0 ? (
+                  <div className="divide-y divide-border-secondary">
+                    {searchResults.map((searchUser) => {
+                      const isSelected = isUserSelected(searchUser.id)
+                      return (
+                        <button
+                          key={searchUser.id}
+                          onClick={() => handleUserSelect(searchUser)}
+                          className={`w-full text-left p-4 hover:bg-bg-tertiary transition-colors flex items-center justify-between ${
+                            isSelected ? 'bg-primary-500/10' : ''
+                          }`}
+                        >
+                          <div className="flex items-center space-x-3">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                              isSelected ? 'bg-primary-500' : 'bg-primary-500/10'
+                            }`}>
+                              {isSelected ? (
+                                <CheckCircle className="w-4 h-4 text-white" />
+                              ) : (
+                                <User className="w-4 h-4 text-primary-500" />
+                              )}
+                            </div>
+                            <div>
+                              <div className="font-medium text-text-primary">
+                                {searchUser.full_name || searchUser.email}
+                              </div>
+                              {searchUser.full_name && (
+                                <div className="text-text-muted text-sm">{searchUser.email}</div>
+                              )}
+                            </div>
+                          </div>
+                          {isSelected && (
+                            <div className="text-primary-500 text-sm font-medium">선택됨</div>
+                          )}
+                        </button>
+                      )
+                    })}
                   </div>
-                  <p className="text-text-muted text-sm">
-                    이 링크를 통해 사용자가 {filteredRoles.find(r => r.value === selectedRole)?.label} 권한으로 프로젝트에 참여할 수 있습니다.
-                  </p>
-                </div>
-              )}
+                ) : (
+                  <div className="p-4 text-center text-text-muted">
+                    {isSearching ? '검색 중...' : '검색 결과가 없습니다'}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
           {/* 에러 메시지 */}
           {error && (
-            <div className="mt-4 p-3 bg-accent-red/10 border border-accent-red/20 rounded-lg">
+            <div className="mb-6 p-3 bg-accent-red/10 border border-accent-red/20 rounded-lg">
               <p className="text-accent-red text-sm">{error}</p>
             </div>
           )}
+
+          {/* 버튼 */}
+          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-border-secondary">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-text-secondary hover:text-text-primary border border-border-primary rounded-lg hover:bg-bg-tertiary transition-colors"
+              disabled={inviteMemberMutation.isPending}
+            >
+              취소
+            </button>
+            <button
+              onClick={handleInviteUsers}
+              className="flex items-center space-x-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              disabled={inviteMemberMutation.isPending || selectedUsers.length === 0}
+            >
+              {inviteMemberMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+              <UserPlus className="w-4 h-4" />
+              <span>
+                {inviteMemberMutation.isPending
+                  ? '초대 중...'
+                  : `${selectedUsers.length > 0 ? `${selectedUsers.length}명` : ''} 초대하기`
+                }
+              </span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

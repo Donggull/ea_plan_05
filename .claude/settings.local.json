@@ -31,7 +31,16 @@
       "mcp__github-mcp__git-log",
       "Bash(npm run lint)",
       "mcp__context7__resolve-library-id",
-      "mcp__context7__get-library-docs"
+      "mcp__context7__get-library-docs",
+      "Bash(npm run:*)",
+      "mcp__playwright-stealth__playwright_navigate",
+      "mcp__playwright-stealth__playwright_screenshot",
+      "mcp__playwright-stealth__playwright_get_visible_html",
+      "mcp__playwright-stealth__playwright_evaluate",
+      "mcp__playwright-stealth__playwright_click",
+      "mcp__playwright-stealth__playwright_fill",
+      "mcp__playwright-stealth__playwright_console_logs",
+      "mcp__playwright-stealth__playwright_close"
     ],
     "deny": [],
     "ask": []

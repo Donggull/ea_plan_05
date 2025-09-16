@@ -7,11 +7,13 @@ import {
   Users,
   FileText,
   Activity,
-  MoreHorizontal
+  MoreHorizontal,
+  Zap
 } from 'lucide-react'
 import { useProject } from '../../contexts/ProjectContext'
 import { ProjectService } from '../../services/projectService'
 import { MemberList } from '../../components/projects/members/MemberList'
+import { CollaborativeWorkspace } from '../../components/realtime/CollaborativeWorkspace'
 
 export function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -179,6 +181,18 @@ export function ProjectDetailPage() {
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* 실시간 협업 워크스페이스 */}
+            <div className="bg-bg-secondary rounded-lg border border-border-primary p-6">
+              <div className="flex items-center space-x-2 mb-4">
+                <Zap className="w-5 h-5 text-primary-500" />
+                <h2 className="text-lg font-semibold text-text-primary">실시간 협업</h2>
+                <span className="px-2 py-1 text-xs bg-primary-500/10 text-primary-500 rounded-full">
+                  LIVE
+                </span>
+              </div>
+              <CollaborativeWorkspace projectId={id!} />
             </div>
 
             {/* 프로젝트 멤버 */}

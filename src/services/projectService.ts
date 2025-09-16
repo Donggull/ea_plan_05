@@ -85,7 +85,7 @@ export class ProjectService {
   }
 
   /**
-   * 새 프로젝트 생성
+   * 새 프로젝트 생성 (소유자를 자동으로 멤버로 추가)
    */
   static async createProject(projectData: ProjectInsert): Promise<Project> {
     try {
@@ -93,18 +93,43 @@ export class ProjectService {
         throw new Error('Supabase client not initialized')
       }
 
-      const { data, error } = await supabase
+      // 트랜잭션을 사용하여 프로젝트 생성과 멤버 추가를 동시에 수행
+      const { data: project, error: projectError } = await supabase
         .from('projects')
         .insert(projectData)
         .select()
         .single()
 
-      if (error) {
-        console.error('Failed to create project:', error)
-        throw error
+      if (projectError) {
+        console.error('Failed to create project:', projectError)
+        throw projectError
       }
 
-      return data
+      // 프로젝트 소유자를 자동으로 멤버로 추가
+      const { error: memberError } = await supabase
+        .from('project_members')
+        .insert({
+          project_id: project.id,
+          user_id: projectData.owner_id,
+          role: 'owner',
+          permissions: {
+            read: true,
+            write: true,
+            delete: true,
+            manage_members: true,
+            manage_settings: true,
+          },
+          is_active: true,
+          joined_at: new Date().toISOString(),
+        })
+
+      if (memberError) {
+        console.error('Failed to add project owner as member:', memberError)
+        // 프로젝트는 생성되었지만 멤버 추가에 실패한 경우 경고 로그만 남김
+        console.warn('Project created but owner not added as member. Project ID:', project.id)
+      }
+
+      return project
     } catch (error) {
       console.error('Error in createProject:', error)
       throw error
