@@ -40,7 +40,9 @@
       "mcp__playwright-stealth__playwright_click",
       "mcp__playwright-stealth__playwright_fill",
       "mcp__playwright-stealth__playwright_console_logs",
-      "mcp__playwright-stealth__playwright_close"
+      "mcp__playwright-stealth__playwright_close",
+      "Bash(find:*)",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "ask": []
