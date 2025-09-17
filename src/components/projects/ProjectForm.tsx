@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react'
 import { ChevronDown, Loader2 } from 'lucide-react'
+import { ProjectStageSelector } from './ProjectStageSelector'
+import { ProjectStageSelection } from '../../types/project'
 
 interface ProjectFormData {
   name: string
   description: string
   status: string
+  stageSelection?: ProjectStageSelection
 }
 
 interface ProjectFormProps {
@@ -19,6 +22,11 @@ export function ProjectForm({ mode, initialData, onSubmit, onCancel }: ProjectFo
     name: '',
     description: '',
     status: 'planning',
+    stageSelection: {
+      selectedTypes: [],
+      selectedSteps: [],
+      enableConnectedMode: false
+    }
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -30,9 +38,21 @@ export function ProjectForm({ mode, initialData, onSubmit, onCancel }: ProjectFo
         name: initialData.name || '',
         description: initialData.description || '',
         status: initialData.status || 'planning',
+        stageSelection: initialData.stageSelection || {
+          selectedTypes: [],
+          selectedSteps: [],
+          enableConnectedMode: false
+        }
       })
     }
   }, [mode, initialData])
+
+  const handleStageSelectionChange = (stageSelection: ProjectStageSelection) => {
+    setFormData(prev => ({
+      ...prev,
+      stageSelection
+    }))
+  }
 
   const statusOptions = [
     { value: 'planning', label: '계획 중' },
@@ -74,6 +94,15 @@ export function ProjectForm({ mode, initialData, onSubmit, onCancel }: ProjectFo
 
     if (formData['description'] && formData['description'].length > 500) {
       newErrors['description'] = '프로젝트 설명은 500자를 초과할 수 없습니다.'
+    }
+
+    // 프로젝트 생성 시에만 단계 선택 검증
+    if (mode === 'create' && formData.stageSelection) {
+      if (formData.stageSelection.selectedTypes.length === 0) {
+        newErrors['stageSelection'] = '최소 하나의 프로젝트 타입을 선택해주세요.'
+      } else if (formData.stageSelection.selectedSteps.length === 0) {
+        newErrors['stageSelection'] = '최소 하나의 워크플로우 단계를 선택해주세요.'
+      }
     }
 
     setErrors(newErrors)
@@ -175,6 +204,20 @@ export function ProjectForm({ mode, initialData, onSubmit, onCancel }: ProjectFo
           <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-text-muted pointer-events-none" />
         </div>
       </div>
+
+      {/* 프로젝트 단계 선택 (생성 모드에서만) */}
+      {mode === 'create' && (
+        <div>
+          <ProjectStageSelector
+            selection={formData.stageSelection!}
+            onChange={handleStageSelectionChange}
+            disabled={isSubmitting}
+          />
+          {errors['stageSelection'] && (
+            <p className="text-accent-red text-sm mt-2">{errors['stageSelection']}</p>
+          )}
+        </div>
+      )}
 
       {/* 에러 메시지 */}
       {errors['submit'] && (

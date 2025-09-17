@@ -17,6 +17,8 @@ import { ProjectsPage } from '@/pages/projects/index'
 import { NewProjectPage } from '@/pages/projects/new'
 import { ProjectDetailPage } from '@/pages/projects/[id]'
 import { EditProjectPage } from '@/pages/projects/[id]/edit'
+import { ProposalWorkflowPage } from '@/pages/projects/[id]/proposal/index'
+import { MarketResearchPage } from '@/pages/projects/[id]/proposal/MarketResearch'
 import { DocumentsPage } from '@/pages/DocumentsPage'
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute'
 import { MainLayout } from '@/layouts/MainLayout'
@@ -54,6 +56,8 @@ function App() {
               <Route path="/projects/new" element={<NewProjectPage />} />
               <Route path="/projects/:id" element={<ProjectDetailPage />} />
               <Route path="/projects/:id/edit" element={<EditProjectPage />} />
+              <Route path="/projects/:id/proposal" element={<ProposalWorkflowPage />} />
+              <Route path="/projects/:id/proposal/market-research" element={<MarketResearchPage />} />
               <Route path="/documents" element={<DocumentsPage />} />
               <Route path="/analytics" element={<DashboardPage />} />
               <Route path="/team" element={<DashboardPage />} />

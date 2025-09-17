@@ -16,6 +16,7 @@ import { MemberList } from '../../components/projects/members/MemberList'
 import { InviteModal } from '../../components/projects/members/InviteModal'
 import { CollaborativeWorkspace } from '../../components/realtime/CollaborativeWorkspace'
 import { DocumentManager } from '../../components/documents/DocumentManager'
+import { ProjectWorkflowCard } from '../../components/projects/ProjectWorkflowCard'
 import { useProjectMembers } from '../../lib/queries/projectMembers'
 import { supabase } from '../../lib/supabase'
 
@@ -233,6 +234,9 @@ export function ProjectDetailPage() {
                 </div>
               </div>
             </div>
+
+            {/* 프로젝트 워크플로우 */}
+            <ProjectWorkflowCard projectId={id!} />
 
             {/* 실시간 협업 워크스페이스 */}
             <div className="bg-bg-secondary rounded-lg border border-border-primary p-6">

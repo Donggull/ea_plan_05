@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { ProjectForm } from '../../components/projects/ProjectForm'
 import { useProject } from '../../contexts/ProjectContext'
+import { ProjectTypeService } from '../../services/projectTypeService'
 
 export function NewProjectPage() {
   const navigate = useNavigate()
@@ -9,12 +10,19 @@ export function NewProjectPage() {
 
   const handleCreateProject = async (projectData: any) => {
     try {
-      const newProject = await createProject({
+      // 기본 프로젝트 생성 (추가 필드는 별도 업데이트)
+      const baseProjectData: any = {
         name: projectData.name,
         description: projectData.description,
-        status: 'planning',
-        ...projectData
-      })
+        status: 'planning'
+      }
+
+      const newProject = await createProject(baseProjectData)
+
+      // 프로젝트 타입 설정 업데이트 (추가 설정이 있다면)
+      if (projectData.stageSelection) {
+        await ProjectTypeService.updateProjectTypes(newProject.id, projectData.stageSelection)
+      }
 
       // 성공 시 프로젝트 상세 페이지로 이동
       navigate(`/projects/${newProject.id}`)
