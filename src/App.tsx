@@ -30,6 +30,7 @@ import { DocumentsPage } from '@/pages/DocumentsPage'
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute'
 import { MainLayout } from '@/layouts/MainLayout'
 import { AuthLayout } from '@/layouts/AuthLayout'
+import AdminRoutes from '@/pages/admin/index'
 
 const queryClient = new QueryClient()
 
@@ -77,6 +78,9 @@ function App() {
               <Route path="/team" element={<DashboardPage />} />
               <Route path="/settings" element={<DashboardPage />} />
               <Route path="/profile" element={<ProfilePage />} />
+
+              {/* 관리자 페이지 라우트 */}
+              <Route path="/admin/*" element={<AdminRoutes />} />
             </Route>
           </Route>
             </Routes>

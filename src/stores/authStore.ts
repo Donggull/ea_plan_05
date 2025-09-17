@@ -226,6 +226,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       if (data) {
         set({ profile: data })
+
+        // 프로필이 로드되면 user_metadata에 role 정보도 업데이트
+        const currentUser = get().user
+        if (currentUser) {
+          const updatedUser = {
+            ...currentUser,
+            user_metadata: {
+              ...currentUser.user_metadata,
+              role: data.role,
+              user_level: data.user_level
+            }
+          }
+          set({ user: updatedUser })
+        }
       }
     } catch (error) {
       console.error('Profile load error:', error)
@@ -313,8 +327,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             isAuthenticated: false,
           })
         } else {
+          // 프로필 정보가 있는 경우 user_metadata에 role 정보 포함
+          const currentProfile = get().profile
+          let updatedUser = session?.user ?? null
+
+          if (updatedUser && currentProfile) {
+            updatedUser = {
+              ...updatedUser,
+              user_metadata: {
+                ...updatedUser.user_metadata,
+                role: currentProfile.role,
+                user_level: currentProfile.user_level
+              }
+            }
+          }
+
           set({
-            user: session?.user ?? null,
+            user: updatedUser,
             session,
             isAuthenticated: !!session,
           })

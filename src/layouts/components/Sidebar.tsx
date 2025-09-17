@@ -17,11 +17,13 @@ import {
   CheckCircle,
   XCircle,
   ChevronDown,
-  Building
+  Building,
+  Shield
 } from 'lucide-react'
 import { ApiUsageService } from '../../services/apiUsageService'
 import { useAIModel } from '../../contexts/AIModelContext'
 import { useProject } from '../../contexts/ProjectContext'
+import { usePermissionCheck } from '@/lib/middleware/permissionCheck'
 
 interface SidebarProps {
   isCollapsed?: boolean
@@ -66,6 +68,9 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
 
   // 프로젝트 컨텍스트 사용
   const { state: projectState, selectProject } = useProject()
+
+  // 권한 검증 사용
+  const { isAdminUser, isSubAdminUser } = usePermissionCheck()
 
   // MCP 서버 상태 (실제로는 상태 관리에서 가져와야 함)
   const [mcpServers] = useState<MCPServer[]>([
@@ -178,6 +183,13 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
     { path: '/settings', icon: Settings, label: 'Settings' }
   ]
 
+  // 관리자 권한이 있는 경우 관리자 메뉴 추가
+  const adminNavItems = [
+    ...(isAdminUser() || isSubAdminUser() ? [
+      { path: '/admin', icon: Shield, label: '관리자', isAdmin: true as boolean }
+    ] : [])
+  ]
+
   return (
     <aside
       className={`
@@ -266,7 +278,7 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
               Navigation
             </h3>
           )}
-          {navigationItems.map((item) => {
+          {[...navigationItems, ...adminNavItems].map((item) => {
             const Icon = item.icon
             const isActive = isActiveRoute(item.path)
 
@@ -278,7 +290,9 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
                   w-full flex items-center space-x-2 px-2 py-1.5 rounded-md transition-colors group
                   ${isActive
                     ? 'bg-primary-500/10 text-primary-500'
-                    : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary'
+                    : (item as any).isAdmin
+                      ? 'text-accent-orange hover:text-accent-orange hover:bg-accent-orange/10'
+                      : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary'
                   }
                 `}
                 title={collapsed ? item.label : undefined}

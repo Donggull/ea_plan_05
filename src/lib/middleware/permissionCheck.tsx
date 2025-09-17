@@ -268,11 +268,11 @@ export function usePermissionCheck() {
   }
 
   const hasPermissionFor = (resource: string, action: string): boolean => {
-    if (!user || !user.user_metadata) {
+    if (!user) {
       return false
     }
 
-    // 사용자 역할 정보가 user_metadata에 있다고 가정
+    // AuthContext에서 가져온 profile 정보 사용
     const userRole = user.user_metadata?.['role'] || 'user'
     const userLevel = user.user_metadata?.['user_level'] || 1
 
@@ -280,15 +280,24 @@ export function usePermissionCheck() {
   }
 
   const isAdminUser = (): boolean => {
-    return user?.user_metadata?.['role'] === 'admin'
+    if (!user) return false
+
+    // user_metadata 또는 profile 정보에서 role 확인
+    const role = user.user_metadata?.['role'] || (user as any).role
+    return role === 'admin'
   }
 
   const isSubAdminUser = (): boolean => {
-    return user?.user_metadata?.['role'] === 'subadmin'
+    if (!user) return false
+
+    const role = user.user_metadata?.['role'] || (user as any).role
+    return role === 'subadmin'
   }
 
   const getUserLevel = (): number => {
-    return user?.user_metadata?.['user_level'] || 1
+    if (!user) return 1
+
+    return user.user_metadata?.['user_level'] || (user as any).user_level || 1
   }
 
   return {
