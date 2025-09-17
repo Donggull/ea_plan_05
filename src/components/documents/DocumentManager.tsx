@@ -435,6 +435,7 @@ export function DocumentManager({
             </div>
             <DocumentUploader
               projectId={projectId}
+              allowProjectSelection={!projectId}
               onUploadComplete={(files) => {
                 setShowUploadModal(false)
                 loadDocuments()

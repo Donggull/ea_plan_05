@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 interface Project {
   id: string
   name: string
-  description?: string | null
+  description: string | null
   status: string
   owner_id: string
   created_at: string | null
@@ -274,6 +274,164 @@ export class ProjectService {
     } catch (error) {
       console.error('Error in getProjectsByStatus:', error)
       throw error
+    }
+  }
+
+  /**
+   * 사용자의 권한 기반 업로드 가능한 프로젝트 조회
+   * - 일반 사용자: 본인이 생성한 프로젝트 + 편집 권한이 있는 프로젝트
+   * - 관리자/부관리자: 모든 프로젝트
+   */
+  static async getUploadableProjects(userId: string, userRole: string): Promise<Project[]> {
+    try {
+      if (!supabase) {
+        throw new Error('Supabase client not initialized')
+      }
+
+      console.log('🔍 업로드 가능한 프로젝트 조회:', { userId, userRole })
+
+      // 관리자/부관리자는 모든 프로젝트 접근 가능
+      if (userRole === 'admin' || userRole === 'subadmin') {
+        console.log('👑 관리자 권한으로 모든 프로젝트 조회')
+        const { data, error } = await supabase
+          .from('projects')
+          .select('*')
+          .eq('status', 'active')
+          .order('updated_at', { ascending: false })
+
+        if (error) {
+          console.error('Failed to fetch all projects for admin:', error)
+          throw error
+        }
+
+        console.log(`✅ 관리자용 프로젝트 ${data?.length || 0}개 조회 완료`)
+        return data || []
+      }
+
+      // 일반 사용자: 소유 프로젝트 + 편집 권한 프로젝트
+      console.log('👤 일반 사용자 권한으로 프로젝트 조회')
+
+      // 1. 본인이 생성한 프로젝트 조회
+      const { data: ownedProjects, error: ownedError } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('owner_id', userId)
+        .eq('status', 'active')
+
+      if (ownedError) {
+        console.error('Failed to fetch owned projects:', ownedError)
+        throw ownedError
+      }
+
+      // 2. 편집 권한이 있는 프로젝트 조회
+      const { data: memberProjects, error: memberError } = await supabase
+        .from('project_members')
+        .select(`
+          project_id,
+          role,
+          projects (
+            id,
+            name,
+            description,
+            status,
+            owner_id,
+            created_at,
+            updated_at
+          )
+        `)
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .in('role', ['admin', 'editor'])
+        .eq('projects.status', 'active')
+
+      if (memberError) {
+        console.error('Failed to fetch member projects:', memberError)
+        throw memberError
+      }
+
+      // 3. 결과 통합 (중복 제거)
+      const ownedProjectIds = new Set(ownedProjects?.map(p => p.id) || [])
+      const memberProjectsData = memberProjects
+        ?.map(mp => mp.projects)
+        .filter((project) => {
+          return project !== null && !ownedProjectIds.has(project.id)
+        })
+        .map(project => project as Project) || []
+
+      const allProjects = [
+        ...(ownedProjects || []),
+        ...memberProjectsData
+      ].sort((a, b) => {
+        const dateA = new Date(a.updated_at || a.created_at || '1970-01-01')
+        const dateB = new Date(b.updated_at || b.created_at || '1970-01-01')
+        return dateB.getTime() - dateA.getTime()
+      })
+
+      console.log(`✅ 사용자 프로젝트 조회 완료:`, {
+        owned: ownedProjects?.length || 0,
+        member: memberProjectsData.length,
+        total: allProjects.length
+      })
+
+      return allProjects
+
+    } catch (error) {
+      console.error('Error in getUploadableProjects:', error)
+      throw error
+    }
+  }
+
+  /**
+   * 사용자가 특정 프로젝트에 업로드 권한이 있는지 확인
+   */
+  static async canUploadToProject(userId: string, projectId: string, userRole: string): Promise<boolean> {
+    try {
+      if (!supabase) {
+        throw new Error('Supabase client not initialized')
+      }
+
+      // 관리자/부관리자는 모든 프로젝트에 업로드 가능
+      if (userRole === 'admin' || userRole === 'subadmin') {
+        return true
+      }
+
+      // 1. 프로젝트 소유자인지 확인
+      const { data: project, error: projectError } = await supabase
+        .from('projects')
+        .select('owner_id')
+        .eq('id', projectId)
+        .eq('status', 'active')
+        .single()
+
+      if (projectError) {
+        console.error('Failed to check project ownership:', projectError)
+        return false
+      }
+
+      if (project?.owner_id === userId) {
+        return true
+      }
+
+      // 2. 프로젝트 멤버로서 편집 권한이 있는지 확인
+      const { data: membership, error: memberError } = await supabase
+        .from('project_members')
+        .select('role')
+        .eq('project_id', projectId)
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .in('role', ['admin', 'editor'])
+        .maybeSingle()
+
+      if (memberError) {
+        console.error('Failed to check project membership:', memberError)
+        return false
+      }
+
+      return !!membership
+
+    } catch (error) {
+      console.error('Error in canUploadToProject:', error)
+      return false
     }
   }
 }

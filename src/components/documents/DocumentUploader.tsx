@@ -1,7 +1,8 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useDropzone } from 'react-dropzone'
-import { Upload, File, X, AlertCircle, CheckCircle } from 'lucide-react'
+import { Upload, File, X, AlertCircle, CheckCircle, FolderOpen } from 'lucide-react'
 import { fileService } from '@/services/fileService'
+import { ProjectService } from '@/services/projectService'
 import { useAuthStore } from '@/stores/authStore'
 import { toast } from 'sonner'
 
@@ -15,16 +16,27 @@ interface UploadFile {
   retryCount?: number
 }
 
+interface Project {
+  id: string
+  name: string
+  description?: string | null
+  status: string
+  owner_id: string
+  created_at: string | null
+  updated_at: string | null
+}
+
 interface DocumentUploaderProps {
-  projectId?: string
+  projectId?: string // 특정 프로젝트가 지정된 경우 (선택 불가)
   onUploadComplete?: (files: any[]) => void
   maxFiles?: number
   maxSize?: number
   acceptedTypes?: string[]
+  allowProjectSelection?: boolean // 프로젝트 선택 허용 여부
 }
 
 export function DocumentUploader({
-  projectId,
+  projectId: fixedProjectId,
   onUploadComplete,
   maxFiles = 10,
   maxSize = 100 * 1024 * 1024, // 100MB
@@ -37,11 +49,53 @@ export function DocumentUploader({
     'image/png',
     'image/jpeg',
     'image/gif'
-  ]
+  ],
+  allowProjectSelection = true
 }: DocumentUploaderProps) {
   const { user } = useAuthStore()
   const [uploadFilesList, setUploadFilesList] = useState<UploadFile[]>([])
   const [isUploading, setIsUploading] = useState(false)
+
+  // 프로젝트 관련 state
+  const [projects, setProjects] = useState<Project[]>([])
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(fixedProjectId || '')
+  const [loadingProjects, setLoadingProjects] = useState(false)
+  const [projectsLoaded, setProjectsLoaded] = useState(false)
+
+  // 프로젝트 목록 로드
+  const loadProjects = useCallback(async () => {
+    if (!user || !allowProjectSelection || fixedProjectId) {
+      setProjectsLoaded(true)
+      return
+    }
+
+    try {
+      setLoadingProjects(true)
+      console.log('🔍 업로드 가능한 프로젝트 목록 로드 중...')
+
+      const uploadableProjects = await ProjectService.getUploadableProjects(user.id, user.role || 'user')
+
+      console.log(`✅ 프로젝트 ${uploadableProjects.length}개 로드 완료`)
+      setProjects(uploadableProjects)
+
+      // 프로젝트가 하나도 없으면 경고 표시
+      if (uploadableProjects.length === 0) {
+        toast.warning('업로드 가능한 프로젝트가 없습니다. 먼저 프로젝트를 생성해주세요.')
+      }
+
+    } catch (error) {
+      console.error('프로젝트 목록 로드 실패:', error)
+      toast.error('프로젝트 목록을 불러올 수 없습니다.')
+    } finally {
+      setLoadingProjects(false)
+      setProjectsLoaded(true)
+    }
+  }, [user, allowProjectSelection, fixedProjectId])
+
+  // 컴포넌트 마운트 시 프로젝트 목록 로드
+  useEffect(() => {
+    loadProjects()
+  }, [loadProjects])
 
   const onDrop = useCallback(
     (acceptedFiles: File[], rejectedFiles: any[]) => {
@@ -76,7 +130,7 @@ export function DocumentUploader({
       acc[type] = []
       return acc
     }, {} as Record<string, string[]>),
-    disabled: isUploading || uploadFilesList.length >= maxFiles
+    disabled: isUploading || uploadFilesList.length >= maxFiles || (allowProjectSelection && !fixedProjectId && !selectedProjectId)
   })
 
   const removeFile = (id: string) => {
@@ -119,11 +173,12 @@ export function DocumentUploader({
         )
       }
 
-      // 파일 업로드
+      // 파일 업로드 (현재 선택된 프로젝트 사용)
+      const targetProjectId = fixedProjectId || selectedProjectId
       const result = await fileService.uploadFile(
         uploadFile.file,
         {
-          projectId,
+          projectId: targetProjectId,
           userId: user.id,
           metadata
         },
@@ -160,12 +215,19 @@ export function DocumentUploader({
 
       toast.error(`"${uploadFile.file.name}" 재시도 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`)
     }
-  }, [user, projectId, onUploadComplete])
+  }, [user, fixedProjectId, selectedProjectId, onUploadComplete])
 
   const startUpload = useCallback(async () => {
     if (!user) {
       console.log('❌ 업로드 시작 실패: 사용자 인증 없음')
       toast.error('로그인이 필요합니다.')
+      return
+    }
+
+    // 프로젝트 선택 확인 (고정 프로젝트가 없고 프로젝트 선택이 허용된 경우)
+    if (allowProjectSelection && !fixedProjectId && !selectedProjectId) {
+      console.log('❌ 업로드 시작 실패: 프로젝트 미선택')
+      toast.error('업로드할 프로젝트를 선택해주세요.')
       return
     }
 
@@ -176,6 +238,10 @@ export function DocumentUploader({
       toast.warning('업로드할 파일이 없습니다.')
       return
     }
+
+    // 사용할 프로젝트 ID 결정
+    const targetProjectId = fixedProjectId || selectedProjectId
+    console.log('📁 타겟 프로젝트 ID:', targetProjectId)
 
     console.log('🚀 업로드 시작:', currentPendingFiles.length, '개 파일')
     setIsUploading(true)
@@ -189,7 +255,7 @@ export function DocumentUploader({
           console.log(`📤 파일 업로드 시작: ${uploadFile.file.name}`, {
             fileSize: uploadFile.file.size,
             fileType: uploadFile.file.type,
-            projectId,
+            projectId: fixedProjectId,
             userId: user.id
           })
 
@@ -220,7 +286,7 @@ export function DocumentUploader({
           const result = await fileService.uploadFile(
             uploadFile.file,
             {
-              projectId,
+              projectId: targetProjectId,
               userId: user.id,
               metadata
             },
@@ -279,7 +345,7 @@ export function DocumentUploader({
       setIsUploading(false)
       console.log('🏁 업로드 프로세스 완료')
     }
-  }, [uploadFilesList, user, projectId, onUploadComplete])
+  }, [uploadFilesList, user, fixedProjectId, selectedProjectId, onUploadComplete, allowProjectSelection])
 
   // 자동 업로드 제거 - 사용자가 직접 "업로드 시작" 버튼을 클릭해야 함
 
@@ -292,6 +358,78 @@ export function DocumentUploader({
 
   return (
     <div className="space-y-4">
+      {/* 프로젝트 선택 영역 */}
+      {allowProjectSelection && !fixedProjectId && (
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-text-primary">
+            업로드할 프로젝트 선택 <span className="text-red-500">*</span>
+          </label>
+
+          {loadingProjects ? (
+            <div className="flex items-center space-x-2 p-3 bg-background-secondary border border-border rounded-lg">
+              <div className="animate-spin rounded-full h-4 w-4 border-2 border-accent border-t-transparent"></div>
+              <span className="text-sm text-text-tertiary">프로젝트 목록 로드 중...</span>
+            </div>
+          ) : projects.length > 0 ? (
+            <div className="relative">
+              <select
+                value={selectedProjectId}
+                onChange={(e) => setSelectedProjectId(e.target.value)}
+                className="w-full px-3 py-3 bg-background-secondary border border-border rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent appearance-none cursor-pointer hover:bg-background-tertiary transition-colors"
+                style={{
+                  backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23a1a1aa' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
+                  backgroundPosition: 'right 12px center',
+                  backgroundRepeat: 'no-repeat',
+                  backgroundSize: '16px'
+                }}
+              >
+                <option value="" className="bg-background-secondary text-text-tertiary">
+                  프로젝트를 선택해주세요
+                </option>
+                {projects.map((project) => (
+                  <option
+                    key={project.id}
+                    value={project.id}
+                    className="bg-background-secondary text-text-primary"
+                  >
+                    {project.name}
+                    {project.description && ` - ${project.description.substring(0, 50)}${project.description.length > 50 ? '...' : ''}`}
+                  </option>
+                ))}
+              </select>
+              <FolderOpen className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-text-tertiary pointer-events-none" />
+            </div>
+          ) : projectsLoaded ? (
+            <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
+              <div className="flex items-center space-x-2">
+                <AlertCircle className="h-4 w-4 text-orange-500" />
+                <p className="text-sm text-orange-700">
+                  업로드 가능한 프로젝트가 없습니다. 먼저 프로젝트를 생성하거나 프로젝트 멤버로 초대받아야 합니다.
+                </p>
+              </div>
+            </div>
+          ) : null}
+
+          {selectedProjectId && (
+            <div className="text-xs text-text-tertiary">
+              선택된 프로젝트: {projects.find(p => p.id === selectedProjectId)?.name}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 고정 프로젝트 표시 */}
+      {fixedProjectId && (
+        <div className="p-3 bg-background-secondary border border-border rounded-lg">
+          <div className="flex items-center space-x-2">
+            <FolderOpen className="h-4 w-4 text-accent" />
+            <span className="text-sm text-text-primary">
+              지정된 프로젝트에 업로드됩니다
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* 드래그 앤 드롭 영역 */}
       <div
         {...getRootProps()}
@@ -301,7 +439,7 @@ export function DocumentUploader({
             ? 'border-accent bg-accent/5'
             : 'border-border hover:border-accent/50'
           }
-          ${isUploading || uploadFilesList.length >= maxFiles
+          ${isUploading || uploadFilesList.length >= maxFiles || (allowProjectSelection && !fixedProjectId && !selectedProjectId)
             ? 'opacity-50 cursor-not-allowed'
             : ''
           }
@@ -311,9 +449,12 @@ export function DocumentUploader({
         <Upload className="mx-auto h-12 w-12 text-text-tertiary mb-4" />
         <div className="space-y-2">
           <p className="text-lg font-medium text-text-primary">
-            {isDragActive
+            {allowProjectSelection && !fixedProjectId && !selectedProjectId
+              ? '먼저 프로젝트를 선택해주세요'
+              : isDragActive
               ? '파일을 여기에 놓으세요'
-              : '파일을 드래그하거나 클릭하여 업로드'}
+              : '파일을 드래그하거나 클릭하여 업로드'
+            }
           </p>
           <p className="text-sm text-text-tertiary">
             PDF, Word, 텍스트, 이미지 파일 지원 (최대 {Math.floor(maxSize / (1024 * 1024))}MB)
@@ -321,6 +462,11 @@ export function DocumentUploader({
           <p className="text-xs text-text-tertiary">
             최대 {maxFiles}개 파일 ({uploadFilesList.length}/{maxFiles})
           </p>
+          {allowProjectSelection && !fixedProjectId && !selectedProjectId && (
+            <p className="text-xs text-orange-600 mt-2">
+              ⚠️ 프로젝트를 선택한 후 파일을 업로드할 수 있습니다
+            </p>
+          )}
         </div>
       </div>
 
@@ -348,8 +494,17 @@ export function DocumentUploader({
               {hasPendingFiles && !isUploading && (
                 <button
                   onClick={startUpload}
-                  className="linear-button linear-button-primary text-sm px-4 py-2 font-medium"
-                  disabled={isUploading}
+                  className={`linear-button text-sm px-4 py-2 font-medium ${
+                    (allowProjectSelection && !fixedProjectId && !selectedProjectId)
+                      ? 'linear-button-disabled cursor-not-allowed'
+                      : 'linear-button-primary'
+                  }`}
+                  disabled={isUploading || (allowProjectSelection && !fixedProjectId && !selectedProjectId)}
+                  title={
+                    (allowProjectSelection && !fixedProjectId && !selectedProjectId)
+                      ? '프로젝트를 먼저 선택해주세요'
+                      : undefined
+                  }
                 >
                   📤 업로드 시작 ({uploadFilesList.filter(f => f.status === 'pending').length}개)
                 </button>
