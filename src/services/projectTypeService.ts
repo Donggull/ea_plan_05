@@ -206,4 +206,69 @@ export class ProjectTypeService {
   static getWorkflowStepConfig(step: WorkflowStep) {
     return WORKFLOW_STEP_CONFIGS[step]
   }
+
+  /**
+   * 진행된 워크플로우 단계 목록 조회 (제거 불가능한 단계들)
+   */
+  static async getCompletedSteps(projectId: string): Promise<{
+    completedSteps: WorkflowStep[]
+    inProgressSteps: WorkflowStep[]
+    protectedSteps: WorkflowStep[]
+  }> {
+    try {
+      const projectConfig = await this.getProjectTypes(projectId)
+      const { workflowSteps } = projectConfig
+
+      if (!workflowSteps.length) {
+        return {
+          completedSteps: [],
+          inProgressSteps: [],
+          protectedSteps: []
+        }
+      }
+
+      const completedSteps: WorkflowStep[] = []
+      const inProgressSteps: WorkflowStep[] = []
+
+      // 각 단계별 완료 상태 확인
+      for (const step of workflowSteps) {
+        const completion = await ProposalDataManager.getStepCompletionStatus(projectId, step)
+
+        if (completion.isCompleted) {
+          completedSteps.push(step)
+        } else if (completion.completionRate > 0) {
+          inProgressSteps.push(step)
+        }
+      }
+
+      // 보호된 단계는 완료된 단계 + 진행 중인 단계
+      const protectedSteps = [...completedSteps, ...inProgressSteps]
+
+      return {
+        completedSteps,
+        inProgressSteps,
+        protectedSteps
+      }
+    } catch (error) {
+      console.error('Failed to get completed steps:', error)
+      return {
+        completedSteps: [],
+        inProgressSteps: [],
+        protectedSteps: []
+      }
+    }
+  }
+
+  /**
+   * 특정 단계가 제거 가능한지 확인
+   */
+  static async canRemoveStep(projectId: string, step: WorkflowStep): Promise<boolean> {
+    try {
+      const { protectedSteps } = await this.getCompletedSteps(projectId)
+      return !protectedSteps.includes(step)
+    } catch (error) {
+      console.error('Failed to check if step can be removed:', error)
+      return false
+    }
+  }
 }

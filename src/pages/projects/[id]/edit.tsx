@@ -4,12 +4,16 @@ import { ArrowLeft } from 'lucide-react'
 import { ProjectForm } from '../../../components/projects/ProjectForm'
 import { useProject } from '../../../contexts/ProjectContext'
 import { ProjectService } from '../../../services/projectService'
+import { ProjectTypeService } from '../../../services/projectTypeService'
+import { ProjectStageSelection } from '../../../types/project'
 
 export function EditProjectPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { updateProject } = useProject()
   const [project, setProject] = useState<any>(null)
+  const [projectStageSelection, setProjectStageSelection] = useState<ProjectStageSelection | null>(null)
+  const [protectedSteps, setProtectedSteps] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -22,9 +26,24 @@ export function EditProjectPage() {
         setLoading(true)
         setError(null)
 
-        const projectData = await ProjectService.getProject(id)
+        const [projectData, projectConfig, stepStatus] = await Promise.all([
+          ProjectService.getProject(id),
+          ProjectTypeService.getProjectTypes(id),
+          ProjectTypeService.getCompletedSteps(id)
+        ])
+
         if (projectData) {
           setProject(projectData)
+
+          // 프로젝트의 기존 단계 설정 로드
+          setProjectStageSelection({
+            selectedTypes: projectConfig.projectTypes,
+            selectedSteps: projectConfig.workflowSteps,
+            enableConnectedMode: projectConfig.enableConnectedMode
+          })
+
+          // 보호된 단계 설정 (완료된 단계 + 진행 중인 단계)
+          setProtectedSteps(stepStatus.protectedSteps)
         } else {
           setError('프로젝트를 찾을 수 없습니다.')
         }
@@ -43,13 +62,18 @@ export function EditProjectPage() {
     if (!id) return
 
     try {
+      // 기본 프로젝트 정보 업데이트
       await updateProject(id, {
         name: projectData.name,
         description: projectData.description,
         status: projectData.status,
-        updated_at: new Date().toISOString(),
-        ...projectData
+        updated_at: new Date().toISOString()
       })
+
+      // 프로젝트 단계 설정 업데이트 (변경된 경우)
+      if (projectData.stageSelection) {
+        await ProjectTypeService.updateProjectTypes(id, projectData.stageSelection)
+      }
 
       // 성공 시 프로젝트 상세 페이지로 이동
       navigate(`/projects/${id}`)
@@ -110,7 +134,11 @@ export function EditProjectPage() {
         <div className="bg-bg-secondary rounded-lg border border-border-primary p-6">
           <ProjectForm
             mode="edit"
-            initialData={project}
+            initialData={{
+              ...project,
+              stageSelection: projectStageSelection,
+              protectedSteps: protectedSteps
+            }}
             onSubmit={handleUpdateProject}
             onCancel={() => navigate(`/projects/${id}`)}
           />

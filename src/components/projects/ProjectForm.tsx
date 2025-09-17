@@ -205,19 +205,19 @@ export function ProjectForm({ mode, initialData, onSubmit, onCancel }: ProjectFo
         </div>
       </div>
 
-      {/* 프로젝트 단계 선택 (생성 모드에서만) */}
-      {mode === 'create' && (
-        <div>
-          <ProjectStageSelector
-            selection={formData.stageSelection!}
-            onChange={handleStageSelectionChange}
-            disabled={isSubmitting}
-          />
-          {errors['stageSelection'] && (
-            <p className="text-accent-red text-sm mt-2">{errors['stageSelection']}</p>
-          )}
-        </div>
-      )}
+      {/* 프로젝트 단계 선택 */}
+      <div>
+        <ProjectStageSelector
+          selection={formData.stageSelection!}
+          onChange={handleStageSelectionChange}
+          disabled={isSubmitting}
+          mode={mode}
+          protectedSteps={initialData?.protectedSteps || []}
+        />
+        {errors['stageSelection'] && (
+          <p className="text-accent-red text-sm mt-2">{errors['stageSelection']}</p>
+        )}
+      </div>
 
       {/* 에러 메시지 */}
       {errors['submit'] && (

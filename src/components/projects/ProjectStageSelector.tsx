@@ -13,6 +13,8 @@ interface ProjectStageSelectorProps {
   selection: ProjectStageSelection
   onChange: (selection: ProjectStageSelection) => void
   disabled?: boolean
+  mode?: 'create' | 'edit'
+  protectedSteps?: WorkflowStep[]
 }
 
 const ICON_MAP = {
@@ -24,7 +26,7 @@ const ICON_MAP = {
   DollarSign: FileText // Fallback
 }
 
-export function ProjectStageSelector({ selection, onChange, disabled = false }: ProjectStageSelectorProps) {
+export function ProjectStageSelector({ selection, onChange, disabled = false, mode = 'create', protectedSteps = [] }: ProjectStageSelectorProps) {
   const [expandedType, setExpandedType] = useState<ProjectType | null>('proposal')
 
   const enabledTypes = ProjectTypeService.getEnabledProjectTypes()
@@ -56,6 +58,13 @@ export function ProjectStageSelector({ selection, onChange, disabled = false }: 
 
   const handleStepToggle = (step: WorkflowStep) => {
     const isSelected = selection.selectedSteps.includes(step)
+    const isProtected = protectedSteps.includes(step)
+
+    // 보호된 단계는 제거할 수 없음
+    if (isSelected && isProtected) {
+      return
+    }
+
     const newSelectedSteps = isSelected
       ? selection.selectedSteps.filter(s => s !== step)
       : [...selection.selectedSteps, step].sort((a, b) =>
@@ -84,9 +93,14 @@ export function ProjectStageSelector({ selection, onChange, disabled = false }: 
     <div className="space-y-6">
       {/* 헤더 */}
       <div>
-        <h3 className="text-lg font-semibold text-text-primary mb-2">프로젝트 단계 선택</h3>
+        <h3 className="text-lg font-semibold text-text-primary mb-2">
+          {mode === 'edit' ? '프로젝트 단계 수정' : '프로젝트 단계 선택'}
+        </h3>
         <p className="text-text-secondary text-sm">
-          프로젝트에서 진행할 단계를 선택하세요. 각 단계는 독립적으로 실행하거나 연결된 워크플로우로 진행할 수 있습니다.
+          {mode === 'edit'
+            ? '프로젝트의 워크플로우 단계를 수정할 수 있습니다. 변경사항은 즉시 적용됩니다.'
+            : '프로젝트에서 진행할 단계를 선택하세요. 각 단계는 독립적으로 실행하거나 연결된 워크플로우로 진행할 수 있습니다.'
+          }
         </p>
       </div>
 
@@ -159,20 +173,41 @@ export function ProjectStageSelector({ selection, onChange, disabled = false }: 
                     </p>
                   </div>
 
+                  {mode === 'edit' && protectedSteps.length > 0 && (
+                    <div className="mb-4 p-3 bg-accent-blue/10 border border-accent-blue/20 rounded-lg">
+                      <div className="flex items-start space-x-2">
+                        <Info className="w-4 h-4 text-accent-blue mt-0.5 flex-shrink-0" />
+                        <div>
+                          <p className="text-accent-blue text-sm font-medium">보호된 단계</p>
+                          <p className="text-text-secondary text-xs mt-1">
+                            {protectedSteps.map(step => WORKFLOW_STEP_CONFIGS[step].name).join(', ')} 단계는
+                            이미 진행되어 제거할 수 없습니다. 다른 단계는 자유롭게 추가할 수 있습니다.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {config.availableSteps.map(step => {
                       const stepConfig = WORKFLOW_STEP_CONFIGS[step]
                       const isStepSelected = selection.selectedSteps.includes(step)
+                      const isProtected = protectedSteps.includes(step)
+                      const canClick = !disabled && !(isStepSelected && isProtected)
 
                       return (
                         <div
                           key={step}
-                          className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                          className={`p-3 border rounded-lg transition-colors relative ${
                             isStepSelected
-                              ? 'border-primary-500/50 bg-primary-500/5'
+                              ? isProtected
+                                ? 'border-accent-blue/50 bg-accent-blue/5'
+                                : 'border-primary-500/50 bg-primary-500/5'
                               : 'border-border-secondary hover:border-border-primary hover:bg-bg-secondary'
-                          } ${disabled ? 'cursor-not-allowed opacity-50' : ''}`}
-                          onClick={() => !disabled && handleStepToggle(step)}
+                          } ${
+                            canClick ? 'cursor-pointer' : 'cursor-not-allowed'
+                          } ${disabled ? 'opacity-50' : ''}`}
+                          onClick={() => canClick && handleStepToggle(step)}
                         >
                           <div className="flex items-center justify-between">
                             <div className="flex-1">
@@ -181,7 +216,15 @@ export function ProjectStageSelector({ selection, onChange, disabled = false }: 
                                   {stepConfig.order}. {stepConfig.name}
                                 </span>
                                 {isStepSelected && (
-                                  <Check className="w-4 h-4 text-primary-500" />
+                                  <Check className={`w-4 h-4 ${
+                                    isProtected ? 'text-accent-blue' : 'text-primary-500'
+                                  }`} />
+                                )}
+                                {isProtected && (
+                                  <div className="flex items-center space-x-1">
+                                    <div className="w-2 h-2 bg-accent-blue rounded-full"></div>
+                                    <span className="text-xs text-accent-blue font-medium">보호됨</span>
+                                  </div>
                                 )}
                               </div>
                               <p className="text-text-secondary text-xs leading-relaxed">
@@ -190,6 +233,11 @@ export function ProjectStageSelector({ selection, onChange, disabled = false }: 
                               <p className="text-text-muted text-xs mt-1">
                                 예상 시간: {stepConfig.estimatedTime}
                               </p>
+                              {isProtected && (
+                                <p className="text-accent-blue text-xs mt-1 font-medium">
+                                  이미 진행된 단계로 제거할 수 없습니다
+                                </p>
+                              )}
                             </div>
                           </div>
                         </div>
