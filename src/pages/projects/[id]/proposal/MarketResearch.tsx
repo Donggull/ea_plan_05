@@ -3,19 +3,17 @@ import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft,
   Save,
-  Send,
   Brain,
   CheckCircle,
   AlertCircle,
-  FileText,
   TrendingUp,
   HelpCircle,
   Loader2
 } from 'lucide-react'
-import { AIQuestionGenerator, Question, QuestionResponse } from '../../../../services/proposal/aiQuestionGenerator'
+import { AIQuestionGenerator } from '../../../../services/proposal/aiQuestionGenerator'
 import { ProposalDataManager, ProposalWorkflowQuestion } from '../../../../services/proposal/dataManager'
 import { ProposalAnalysisService } from '../../../../services/proposal/proposalAnalysisService'
-import { useProject } from '../../../../contexts/ProjectContext'
+import { useAuth } from '../../../../contexts/AuthContext'
 
 interface QuestionFormData {
   [questionId: string]: string | string[] | number
@@ -31,7 +29,7 @@ interface QuestionCategory {
 export function MarketResearchPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { state: projectState } = useProject()
+  const { user } = useAuth()
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -145,7 +143,7 @@ export function MarketResearchPage() {
 
   // 임시 저장
   const handleSave = async (isTemporary: boolean = true) => {
-    if (!id || !projectState.currentUser) return
+    if (!id || !user?.id) return
 
     try {
       setSaving(true)
@@ -161,7 +159,7 @@ export function MarketResearchPage() {
           'market_research',
           { answer },
           isTemporary,
-          projectState.currentUser!.id
+          user!.id
         )
       }).filter(Boolean)
 
@@ -194,7 +192,7 @@ export function MarketResearchPage() {
 
   // 최종 제출 및 AI 분석
   const handleSubmitAndAnalyze = async () => {
-    if (!id || !projectState.currentUser) return
+    if (!id || !user?.id) return
 
     try {
       setAnalyzing(true)
@@ -218,7 +216,7 @@ export function MarketResearchPage() {
       await ProposalAnalysisService.analyzeStep(
         id,
         'market_research',
-        projectState.currentUser.id
+        user.id
       )
 
       // 성공 시 결과 페이지로 이동
@@ -300,7 +298,7 @@ export function MarketResearchPage() {
                   <input
                     type="checkbox"
                     checked={isChecked}
-                    onChange={(e) => {
+                    onChange={(_e) => {
                       const newValues = isChecked
                         ? currentValues.filter(v => v !== option)
                         : [...currentValues, option]

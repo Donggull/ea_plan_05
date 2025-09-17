@@ -15,7 +15,7 @@ import {
   MoreHorizontal,
   RefreshCw
 } from 'lucide-react'
-import { useProject } from '../../../../contexts/ProjectContext'
+import { useAuth } from '../../../../contexts/AuthContext'
 import { ProposalAnalysisService } from '../../../../services/proposal/proposalAnalysisService'
 import { ProposalDataManager } from '../../../../services/proposal/dataManager'
 import { WorkflowStep } from '../../../../services/proposal/aiQuestionGenerator'
@@ -75,7 +75,7 @@ const WORKFLOW_STEPS = [
 export function ProposalWorkflowPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { state: projectState } = useProject()
+  const { user } = useAuth()
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -134,14 +134,14 @@ export function ProposalWorkflowPage() {
 
   // AI 분석 실행
   const handleAnalyzeStep = async (step: WorkflowStep) => {
-    if (!id || !projectState.currentUser) return
+    if (!id || !user?.id) return
 
     try {
       setRefreshing(true)
       await ProposalAnalysisService.analyzeStep(
         id,
         step,
-        projectState.currentUser.id,
+        user.id,
         selectedAIModel
       )
       await loadWorkflowProgress()

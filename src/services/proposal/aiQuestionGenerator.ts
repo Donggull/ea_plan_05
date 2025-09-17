@@ -285,18 +285,18 @@ export class AIQuestionGenerator {
   static async generateDynamicQuestions(
     projectId: string,
     step: WorkflowStep,
-    additionalContext?: string
+    _additionalContext?: string
   ): Promise<Question[]> {
     try {
       // 프로젝트 기본 정보 조회
-      const { data: project } = await supabase
+      const { data: project } = await supabase!
         .from('projects')
         .select('name, description, project_types, client_info')
         .eq('id', projectId)
         .single()
 
       // 프로젝트 문서 조회
-      const { data: documents } = await supabase
+      const { data: documents } = await supabase!
         .from('documents')
         .select('file_name, metadata')
         .eq('project_id', projectId)

@@ -345,7 +345,7 @@ export class ProposalAnalysisService {
     workflowStep: WorkflowStep
   ): Promise<AnalysisContext> {
     // 프로젝트 정보 조회
-    const { data: projectInfo, error: projectError } = await supabase
+    const { data: projectInfo, error: projectError } = await supabase!
       .from('projects')
       .select('name, description, project_types, client_info')
       .eq('id', projectId)
@@ -372,7 +372,12 @@ export class ProposalAnalysisService {
 
     return {
       projectId,
-      projectInfo,
+      projectInfo: {
+        name: projectInfo.name,
+        description: projectInfo.description || '',
+        project_types: projectInfo.project_types || [],
+        client_info: projectInfo.client_info
+      },
       documents: documentsWithContent,
       questions,
       responses,
@@ -395,14 +400,16 @@ export class ProposalAnalysisService {
       }
 
       // 2. 프로젝트별 설정 확인
-      const { data: projectSettings } = await supabase
+      const { data: projectSettings } = await supabase!
         .from('project_ai_settings')
         .select('default_model_id, workflow_model_mappings')
         .eq('project_id', projectId)
         .single()
 
-      if (projectSettings?.workflow_model_mappings?.proposal) {
-        return projectSettings.workflow_model_mappings.proposal
+      if (projectSettings?.workflow_model_mappings &&
+          typeof projectSettings.workflow_model_mappings === 'object' &&
+          'proposal' in projectSettings.workflow_model_mappings) {
+        return (projectSettings.workflow_model_mappings as any).proposal
       }
 
       if (projectSettings?.default_model_id) {
@@ -410,7 +417,7 @@ export class ProposalAnalysisService {
       }
 
       // 3. 사용자별 설정 확인
-      const { data: userSettings } = await supabase
+      const { data: userSettings } = await supabase!
         .from('user_ai_settings')
         .select('preferred_model_id')
         .eq('user_id', userId)
