@@ -10,7 +10,6 @@ import {
   MoreHorizontal,
   Zap,
   TrendingUp,
-  Clock,
   UserCheck
 } from 'lucide-react'
 import { useProject } from '../../contexts/ProjectContext'
@@ -252,7 +251,7 @@ export function ProjectDetailPage() {
           </Card>
         </div>
 
-        {/* 메인 기능 카드 3개 */}
+        {/* 프로젝트 워크플로우 + 팀 멤버 */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           {/* 프로젝트 워크플로우 */}
           <Card className="lg:col-span-2">
@@ -265,38 +264,22 @@ export function ProjectDetailPage() {
             <ProjectWorkflowCard projectId={id!} />
           </Card>
 
-          {/* 빠른 액션 */}
-          <Card>
-            <div className="flex items-center space-x-3 mb-4">
-              <div className="p-2 bg-purple-500/10 rounded-lg">
-                <Zap className="w-5 h-5 text-purple-500" />
+          {/* 팀 멤버 */}
+          <Card className="h-fit">
+            <div className="flex items-center space-x-3 mb-3">
+              <div className="p-2 bg-teal-500/10 rounded-lg">
+                <UserCheck className="w-5 h-5 text-teal-500" />
               </div>
-              <h3 className="text-lg font-semibold text-text-primary">빠른 액션</h3>
+              <h3 className="text-lg font-semibold text-text-primary">팀 멤버</h3>
             </div>
-            <div className="space-y-3">
-              <button className="w-full flex items-center space-x-3 px-4 py-3 text-left text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors">
-                <FileText className="w-4 h-4" />
-                <span>문서 추가</span>
-              </button>
-              <button
-                onClick={() => setIsInviteModalOpen(true)}
-                className="w-full flex items-center space-x-3 px-4 py-3 text-left text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors"
-              >
-                <Users className="w-4 h-4" />
-                <span>멤버 초대</span>
-              </button>
-              <button className="w-full flex items-center space-x-3 px-4 py-3 text-left text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors">
-                <Settings className="w-4 h-4" />
-                <span>프로젝트 설정</span>
-              </button>
-            </div>
+            <MemberList projectId={id!} />
           </Card>
         </div>
 
-        {/* 추가 기능 카드 3개 */}
+        {/* 실시간 협업 + 빠른 액션 */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           {/* 실시간 협업 */}
-          <Card>
+          <Card className="lg:col-span-2">
             <div className="flex items-center space-x-3 mb-4">
               <div className="p-2 bg-yellow-500/10 rounded-lg">
                 <Zap className="w-5 h-5 text-yellow-500" />
@@ -309,45 +292,31 @@ export function ProjectDetailPage() {
             <CollaborativeWorkspace projectId={id!} />
           </Card>
 
-          {/* 프로젝트 정보 */}
-          <Card>
-            <div className="flex items-center space-x-3 mb-4">
-              <div className="p-2 bg-indigo-500/10 rounded-lg">
-                <Clock className="w-5 h-5 text-indigo-500" />
+          {/* 빠른 액션 */}
+          <Card className="h-fit">
+            <div className="flex items-center space-x-3 mb-3">
+              <div className="p-2 bg-purple-500/10 rounded-lg">
+                <Zap className="w-5 h-5 text-purple-500" />
               </div>
-              <h3 className="text-lg font-semibold text-text-primary">프로젝트 정보</h3>
+              <h3 className="text-lg font-semibold text-text-primary">빠른 액션</h3>
             </div>
-            <div className="space-y-3">
-              <div>
-                <div className="text-text-muted text-sm mb-1">생성일</div>
-                <div className="text-text-primary">
-                  {project.created_at ? new Date(project.created_at).toLocaleDateString('ko-KR') : '-'}
-                </div>
-              </div>
-              <div>
-                <div className="text-text-muted text-sm mb-1">최근 업데이트</div>
-                <div className="text-text-primary">
-                  {project.updated_at ? new Date(project.updated_at).toLocaleDateString('ko-KR') : '-'}
-                </div>
-              </div>
-              <div>
-                <div className="text-text-muted text-sm mb-1">상태</div>
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(project.status)}`}>
-                  {getStatusLabel(project.status)}
-                </span>
-              </div>
+            <div className="space-y-2">
+              <button className="w-full flex items-center space-x-3 px-3 py-2.5 text-left text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors">
+                <FileText className="w-4 h-4" />
+                <span className="text-sm">문서 추가</span>
+              </button>
+              <button
+                onClick={() => setIsInviteModalOpen(true)}
+                className="w-full flex items-center space-x-3 px-3 py-2.5 text-left text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors"
+              >
+                <Users className="w-4 h-4" />
+                <span className="text-sm">멤버 초대</span>
+              </button>
+              <button className="w-full flex items-center space-x-3 px-3 py-2.5 text-left text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors">
+                <Settings className="w-4 h-4" />
+                <span className="text-sm">프로젝트 설정</span>
+              </button>
             </div>
-          </Card>
-
-          {/* 팀 멤버 */}
-          <Card>
-            <div className="flex items-center space-x-3 mb-4">
-              <div className="p-2 bg-teal-500/10 rounded-lg">
-                <UserCheck className="w-5 h-5 text-teal-500" />
-              </div>
-              <h3 className="text-lg font-semibold text-text-primary">팀 멤버</h3>
-            </div>
-            <MemberList projectId={id!} />
           </Card>
         </div>
 
@@ -365,19 +334,6 @@ export function ProjectDetailPage() {
             viewMode="list"
             onDocumentChange={handleDocumentChange}
           />
-        </Card>
-
-        {/* 최근 활동 (전체 너비) */}
-        <Card>
-          <div className="flex items-center space-x-3 mb-4">
-            <div className="p-2 bg-red-500/10 rounded-lg">
-              <Activity className="w-5 h-5 text-red-500" />
-            </div>
-            <h2 className="text-lg font-semibold text-text-primary">최근 활동</h2>
-          </div>
-          <div className="text-text-muted text-center py-8">
-            아직 활동이 없습니다.
-          </div>
         </Card>
       </PageContent>
 
