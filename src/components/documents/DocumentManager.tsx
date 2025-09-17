@@ -65,22 +65,6 @@ export function DocumentManager({
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null)
   const [showUploadModal, setShowUploadModal] = useState(false)
 
-  // 파일명 표시 개선 함수
-  const formatFileName = (fileName: string, maxLength: number = 30) => {
-    if (fileName.length <= maxLength) return fileName
-
-    const extension = fileName.split('.').pop()
-    const nameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.'))
-
-    if (extension) {
-      const maxNameLength = maxLength - extension.length - 4 // 점과 줄임표 고려
-      if (nameWithoutExt.length > maxNameLength) {
-        return `${nameWithoutExt.substring(0, maxNameLength)}...${extension}`
-      }
-    }
-
-    return fileName.length > maxLength ? `${fileName.substring(0, maxLength - 3)}...` : fileName
-  }
 
   // 파일 타입 필터 옵션
   const filterOptions: DropdownOption[] = [
@@ -239,20 +223,28 @@ export function DocumentManager({
           >
             {/* 썸네일/아이콘 영역 */}
             <div
-              className="aspect-square p-4 flex items-center justify-center bg-background-tertiary rounded-t-lg"
+              className="h-20 p-3 flex items-center justify-center bg-background-tertiary rounded-t-lg"
               onClick={() => setSelectedDocument(document)}
             >
-              <FileIcon className="w-12 h-12 text-text-tertiary" />
+              <FileIcon className="w-8 h-8 text-text-tertiary" />
             </div>
 
             {/* 정보 영역 */}
             <div className="p-3">
               <h4
-                className="font-medium text-text-primary text-sm mb-1 cursor-pointer hover:text-accent"
+                className="font-medium text-text-primary text-sm leading-tight mb-2 cursor-pointer hover:text-accent"
                 onClick={() => setSelectedDocument(document)}
                 title={document.file_name}
+                style={{
+                  wordBreak: 'break-word',
+                  minHeight: '2.5rem',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden'
+                }}
               >
-                {formatFileName(document.file_name, 25)}
+                {document.file_name}
               </h4>
               {document.project && !projectId && (
                 <div className="flex items-center space-x-1 mb-1">
@@ -312,15 +304,16 @@ export function DocumentManager({
             key={document.id}
             className="flex items-center p-3 bg-background-secondary rounded-lg border border-border hover:border-accent/50 transition-colors group"
           >
-            <FileIcon className="w-8 h-8 text-text-tertiary mr-3 flex-shrink-0" />
+            <FileIcon className="w-6 h-6 text-text-tertiary mr-3 flex-shrink-0" />
 
             <div className="flex-1 min-w-0">
               <h4
-                className="font-medium text-text-primary cursor-pointer hover:text-accent"
+                className="font-medium text-text-primary cursor-pointer hover:text-accent break-words"
                 onClick={() => setSelectedDocument(document)}
                 title={document.file_name}
+                style={{ wordBreak: 'break-word' }}
               >
-                {formatFileName(document.file_name, 40)}
+                {document.file_name}
               </h4>
               <div className="flex items-center space-x-4 text-xs text-text-tertiary mt-1">
                 <span>{formatFileSize(document.file_size)}</span>
