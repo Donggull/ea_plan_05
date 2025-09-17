@@ -19,6 +19,13 @@ import { ProjectDetailPage } from '@/pages/projects/[id]'
 import { EditProjectPage } from '@/pages/projects/[id]/edit'
 import { ProposalWorkflowPage } from '@/pages/projects/[id]/proposal/index'
 import { MarketResearchPage } from '@/pages/projects/[id]/proposal/MarketResearch'
+import { MarketResearchResultsPage } from '@/pages/projects/[id]/proposal/MarketResearchResults'
+import { PersonasPage } from '@/pages/projects/[id]/proposal/Personas'
+import { PersonasResultsPage } from '@/pages/projects/[id]/proposal/PersonasResults'
+import { ProposalWriterPage } from '@/pages/projects/[id]/proposal/ProposalWriter'
+import { ProposalWriterResultsPage } from '@/pages/projects/[id]/proposal/ProposalWriterResults'
+import { BudgetPage } from '@/pages/projects/[id]/proposal/Budget'
+import { BudgetResultsPage } from '@/pages/projects/[id]/proposal/BudgetResults'
 import { DocumentsPage } from '@/pages/DocumentsPage'
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute'
 import { MainLayout } from '@/layouts/MainLayout'
@@ -57,7 +64,14 @@ function App() {
               <Route path="/projects/:id" element={<ProjectDetailPage />} />
               <Route path="/projects/:id/edit" element={<EditProjectPage />} />
               <Route path="/projects/:id/proposal" element={<ProposalWorkflowPage />} />
-              <Route path="/projects/:id/proposal/market-research" element={<MarketResearchPage />} />
+              <Route path="/projects/:id/proposal/market_research" element={<MarketResearchPage />} />
+              <Route path="/projects/:id/proposal/market_research/results" element={<MarketResearchResultsPage />} />
+              <Route path="/projects/:id/proposal/personas" element={<PersonasPage />} />
+              <Route path="/projects/:id/proposal/personas/results" element={<PersonasResultsPage />} />
+              <Route path="/projects/:id/proposal/proposal" element={<ProposalWriterPage />} />
+              <Route path="/projects/:id/proposal/proposal/results" element={<ProposalWriterResultsPage />} />
+              <Route path="/projects/:id/proposal/budget" element={<BudgetPage />} />
+              <Route path="/projects/:id/proposal/budget/results" element={<BudgetResultsPage />} />
               <Route path="/documents" element={<DocumentsPage />} />
               <Route path="/analytics" element={<DashboardPage />} />
               <Route path="/team" element={<DashboardPage />} />

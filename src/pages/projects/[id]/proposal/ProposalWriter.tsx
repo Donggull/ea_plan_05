@@ -334,7 +334,7 @@ export function ProposalWriterPage() {
       }
 
       // 성공 시 결과 페이지로 이동
-      navigate(`/projects/${id}/proposal/proposal-writer/results`)
+      navigate(`/projects/${id}/proposal/proposal/results`)
 
     } catch (err) {
       console.error('Failed to analyze:', err)

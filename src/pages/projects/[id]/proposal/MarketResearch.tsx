@@ -241,7 +241,7 @@ export function MarketResearchPage() {
       }
 
       // 성공 시 결과 페이지로 이동
-      navigate(`/projects/${id}/proposal/market-research/results`)
+      navigate(`/projects/${id}/proposal/market_research/results`)
 
     } catch (err) {
       console.error('Failed to analyze:', err)
