@@ -15,6 +15,7 @@ import {
   RefreshCw
 } from 'lucide-react'
 import { useAuth } from '../../../../contexts/AuthContext'
+import { useSelectedAIModel } from '../../../../contexts/AIModelContext'
 import { ProposalAnalysisService } from '../../../../services/proposal/proposalAnalysisService'
 import { ProposalDataManager } from '../../../../services/proposal/dataManager'
 import { WorkflowStep } from '../../../../services/proposal/aiQuestionGenerator'
@@ -77,11 +78,11 @@ export function ProposalWorkflowPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { selectedModel } = useSelectedAIModel()
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [workflowProgress, setWorkflowProgress] = useState<WorkflowProgress | null>(null)
-  const [selectedAIModel, setSelectedAIModel] = useState<string>('gpt-4o')
 
   // AI 분석 모달 상태
   const [analysisModalOpen, setAnalysisModalOpen] = useState(false)
@@ -236,17 +237,18 @@ export function ProposalWorkflowPage() {
         description={`전체 진행률: ${Math.round(workflowProgress?.overallProgress || 0)}% • ${workflowProgress?.completedSteps.length || 0}/${WORKFLOW_STEPS.length} 단계 완료`}
         actions={
           <div className="flex items-center space-x-3">
-            {/* AI 모델 선택 */}
-            <select
-              value={selectedAIModel}
-              onChange={(e) => setSelectedAIModel(e.target.value)}
-              className="px-3 py-2 bg-bg-tertiary border border-border-primary rounded-lg text-text-primary text-sm"
-            >
-              <option value="gpt-4o">GPT-4o</option>
-              <option value="claude-3-opus">Claude 3 Opus</option>
-              <option value="claude-3-sonnet">Claude 3 Sonnet</option>
-              <option value="gemini-pro">Gemini Pro</option>
-            </select>
+            {/* 선택된 AI 모델 표시 */}
+            {selectedModel && (
+              <div className="flex items-center space-x-2 px-3 py-2 bg-bg-tertiary border border-border-primary rounded-lg">
+                <span className="text-text-secondary text-sm">AI 모델:</span>
+                <span className="text-text-primary text-sm font-medium">
+                  {selectedModel.name}
+                </span>
+                <span className="text-text-muted text-xs">
+                  ({selectedModel.provider})
+                </span>
+              </div>
+            )}
 
             <button
               onClick={handleRefresh}
@@ -451,7 +453,7 @@ export function ProposalWorkflowPage() {
           workflowStep={currentAnalysisStep}
           projectId={id!}
           userId={user!.id}
-          modelId={selectedAIModel}
+          modelId={selectedModel?.id || 'gpt-4o'}
           onComplete={handleAnalysisComplete}
           onError={handleAnalysisError}
         />
