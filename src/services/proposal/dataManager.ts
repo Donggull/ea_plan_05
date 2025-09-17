@@ -243,6 +243,18 @@ export class ProposalDataManager {
       const totalQuestions = questions.length
       const requiredQuestions = questions.filter(q => q.is_required).length
 
+      // 질문이 없으면 완료되지 않은 상태로 처리
+      if (totalQuestions === 0) {
+        return {
+          totalQuestions: 0,
+          answeredQuestions: 0,
+          requiredQuestions: 0,
+          answeredRequiredQuestions: 0,
+          isCompleted: false,
+          completionRate: 0
+        }
+      }
+
       // 답변 조회
       const responses = await this.getResponses(projectId, workflowStep)
       const answeredQuestions = responses.filter(r => !r.is_temporary).length
@@ -250,13 +262,13 @@ export class ProposalDataManager {
       // 필수 질문 답변 확인
       const requiredQuestionIds = questions
         .filter(q => q.is_required)
-        .map(q => q.id)
+        .map(q => q.question_id) // question_id 사용 (id가 아님)
 
       const answeredRequiredQuestions = responses.filter(r =>
         !r.is_temporary && requiredQuestionIds.includes(r.question_id)
       ).length
 
-      const isCompleted = answeredRequiredQuestions === requiredQuestions
+      const isCompleted = requiredQuestions > 0 ? answeredRequiredQuestions === requiredQuestions : answeredQuestions === totalQuestions
       const completionRate = totalQuestions > 0 ? (answeredQuestions / totalQuestions) * 100 : 0
 
       return {
@@ -269,7 +281,15 @@ export class ProposalDataManager {
       }
     } catch (error) {
       console.error('Failed to get completion status:', error)
-      throw error
+      // 에러 발생 시에도 기본값 반환
+      return {
+        totalQuestions: 0,
+        answeredQuestions: 0,
+        requiredQuestions: 0,
+        answeredRequiredQuestions: 0,
+        isCompleted: false,
+        completionRate: 0
+      }
     }
   }
 

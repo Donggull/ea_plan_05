@@ -64,10 +64,20 @@ export function ProjectWorkflowCard({ projectId }: ProjectWorkflowCardProps) {
   }
 
   const handleStepClick = (step: WorkflowStep) => {
-    // 해당 단계 페이지로 이동
-    const stepPath = getStepPath(step)
-    if (stepPath) {
-      navigate(`/projects/${projectId}/proposal/${stepPath}`)
+    const status = getStepStatus(step)
+
+    if (status === 'completed') {
+      // 완료된 단계는 결과 페이지로 이동
+      const stepPath = getStepPath(step)
+      if (stepPath) {
+        navigate(`/projects/${projectId}/proposal/${stepPath}/results`)
+      }
+    } else {
+      // 시작되지 않은 단계나 진행 중인 단계는 해당 단계 페이지로 이동
+      const stepPath = getStepPath(step)
+      if (stepPath) {
+        navigate(`/projects/${projectId}/proposal/${stepPath}`)
+      }
     }
   }
 
@@ -87,8 +97,14 @@ export function ProjectWorkflowCard({ projectId }: ProjectWorkflowCardProps) {
 
   const getStepStatus = (step: WorkflowStep) => {
     if (!progress) return 'not_started'
-    return progress.stepStatuses[step] || 'not_started'
+
+    const stepStatus = progress.stepStatuses[step]
+    // 명시적으로 상태가 정의되지 않은 경우 not_started로 처리
+    if (!stepStatus) return 'not_started'
+
+    return stepStatus
   }
+
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -185,10 +201,14 @@ export function ProjectWorkflowCard({ projectId }: ProjectWorkflowCardProps) {
           </div>
           <div className="flex items-center justify-between mt-2 text-xs text-text-muted">
             <span>{progress.completedSteps}/{progress.totalSteps} 단계 완료</span>
-            {progress.currentStep && (
+            {progress.currentStep ? (
               <span>
                 현재: {WORKFLOW_STEP_CONFIGS[progress.currentStep].name}
               </span>
+            ) : progress.completedSteps === 0 ? (
+              <span>아직 시작되지 않음</span>
+            ) : (
+              <span>모든 단계 완료</span>
             )}
           </div>
         </div>
@@ -249,9 +269,9 @@ export function ProjectWorkflowCard({ projectId }: ProjectWorkflowCardProps) {
                         status === 'in_progress' ? 'text-primary-500' :
                         'text-text-muted'
                       }`}>
-                        {status === 'completed' ? '완료' :
+                        {status === 'completed' ? '완료 - 결과 보기' :
                          status === 'in_progress' ? '진행 중' :
-                         '시작 전'}
+                         '시작하기'}
                       </span>
                     </div>
 
