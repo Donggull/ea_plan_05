@@ -6,9 +6,13 @@ import {
   Brain,
   CheckCircle,
   AlertCircle,
-  TrendingUp,
+  FileText,
   HelpCircle,
-  Loader2
+  Loader2,
+  Lightbulb,
+  Zap,
+  Calendar,
+  CheckSquare
 } from 'lucide-react'
 import { ProposalDataManager, ProposalWorkflowQuestion } from '../../../../services/proposal/dataManager'
 import { ProposalAnalysisService } from '../../../../services/proposal/proposalAnalysisService'
@@ -26,7 +30,7 @@ interface QuestionCategory {
   total: number
 }
 
-export function MarketResearchPage() {
+export function ProposalWriterPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -49,7 +53,101 @@ export function MarketResearchPage() {
     completionRate: 0
   })
 
-  // 질문 및 기존 답변 로드
+  // 임시 기본 질문 데이터 (AI 통합 전)
+  const defaultQuestions = [
+    {
+      id: 'proposal_problem_statement',
+      category: '문제 정의',
+      text: '해결하고자 하는 핵심 문제는 무엇인가요?',
+      type: 'textarea' as const,
+      required: true,
+      order: 1,
+      helpText: '고객이 직면한 주요 문제나 과제를 명확히 설명해주세요'
+    },
+    {
+      id: 'proposal_current_situation',
+      category: '문제 정의',
+      text: '현재 상황과 문제의 원인은 무엇인가요?',
+      type: 'textarea' as const,
+      required: true,
+      order: 2,
+      helpText: '현재 상태와 문제가 발생한 배경이나 원인'
+    },
+    {
+      id: 'proposal_solution_overview',
+      category: '솔루션 제안',
+      text: '제안하는 솔루션의 핵심 개념은 무엇인가요?',
+      type: 'textarea' as const,
+      required: true,
+      order: 3,
+      helpText: '문제 해결을 위한 주요 솔루션이나 서비스 개념'
+    },
+    {
+      id: 'proposal_key_features',
+      category: '솔루션 제안',
+      text: '솔루션의 주요 기능과 특징은 무엇인가요?',
+      type: 'textarea' as const,
+      required: true,
+      order: 4,
+      helpText: '핵심 기능, 특별한 장점, 차별화 요소 등'
+    },
+    {
+      id: 'proposal_benefits',
+      category: '솔루션 제안',
+      text: '고객이 얻을 수 있는 주요 혜택은 무엇인가요?',
+      type: 'textarea' as const,
+      required: true,
+      order: 5,
+      helpText: '비용 절감, 효율성 증대, 문제 해결 등 구체적 혜택'
+    },
+    {
+      id: 'proposal_implementation_approach',
+      category: '구현 계획',
+      text: '솔루션 구현 방법과 접근법은 어떻게 되나요?',
+      type: 'textarea' as const,
+      required: true,
+      order: 6,
+      helpText: '기술적 접근법, 구현 방식, 사용 기술 등'
+    },
+    {
+      id: 'proposal_timeline',
+      category: '구현 계획',
+      text: '프로젝트 일정과 주요 마일스톤은 어떻게 되나요?',
+      type: 'textarea' as const,
+      required: true,
+      order: 7,
+      helpText: '전체 기간, 단계별 일정, 주요 중간 목표 등'
+    },
+    {
+      id: 'proposal_team_structure',
+      category: '구현 계획',
+      text: '프로젝트 팀 구성과 역할은 어떻게 되나요?',
+      type: 'textarea' as const,
+      required: false,
+      order: 8,
+      helpText: '팀원 구성, 각자의 역할과 책임, 협업 방식 등'
+    },
+    {
+      id: 'proposal_risk_management',
+      category: '위험 관리',
+      text: '예상되는 위험요소와 대응 방안은 무엇인가요?',
+      type: 'textarea' as const,
+      required: false,
+      order: 9,
+      helpText: '기술적, 일정적, 예산적 위험과 완화 계획'
+    },
+    {
+      id: 'proposal_success_metrics',
+      category: '위험 관리',
+      text: '성공 지표와 평가 기준은 무엇인가요?',
+      type: 'textarea' as const,
+      required: false,
+      order: 10,
+      helpText: '프로젝트 성공을 측정할 수 있는 구체적 지표'
+    }
+  ]
+
+  // 질문과 응답 로드
   const loadQuestionsAndResponses = async () => {
     if (!id) return
 
@@ -57,156 +155,167 @@ export function MarketResearchPage() {
       setLoading(true)
       setError(null)
 
-      // 기존 질문이 있는지 확인
-      let existingQuestions = await ProposalDataManager.getQuestions(id, 'market_research')
+      // 기존 질문 조회 시도
+      let loadedQuestions = await ProposalDataManager.getQuestions(id, 'proposal')
 
-      if (existingQuestions.length === 0) {
-        // AI 모델이 구현되기 전까지 기본 질문들 사용
-        const defaultQuestions = [
-          {
-            id: 'mkt_target_market',
-            category: '목표 시장',
-            text: '주요 목표 시장은 어디인가요?',
-            type: 'textarea' as const,
-            required: true,
-            order: 1,
-            helpText: '지역, 인구 통계, 시장 규모 등을 포함하여 설명해주세요'
-          },
-          {
-            id: 'mkt_competitors',
-            category: '경쟁 분석',
-            text: '주요 경쟁사들은 어떤 회사들인가요?',
-            type: 'textarea' as const,
-            required: true,
-            order: 2,
-            helpText: '직접 경쟁사와 간접 경쟁사를 모두 포함해주세요'
-          },
-          {
-            id: 'mkt_market_size',
-            category: '시장 규모',
-            text: '예상 시장 규모는 얼마나 되나요?',
-            type: 'text' as const,
-            required: false,
-            order: 3,
-            helpText: '금액이나 사용자 수 등으로 표현해주세요'
-          }
-        ]
+      // 질문이 없으면 기본 질문 생성 및 저장
+      if (loadedQuestions.length === 0) {
+        console.log('No questions found, creating default questions')
 
-        // 질문 저장
-        existingQuestions = await ProposalDataManager.saveQuestions(
-          id,
-          'market_research',
-          defaultQuestions
-        )
+        const questionObjects = defaultQuestions.map(q => ({
+          id: q.id,
+          category: q.category,
+          text: q.text,
+          type: q.type,
+          required: q.required,
+          order: q.order,
+          helpText: q.helpText,
+          options: [],
+          validation: {}
+        }))
+
+        try {
+          await ProposalDataManager.saveQuestions(id, 'proposal', questionObjects)
+          loadedQuestions = await ProposalDataManager.getQuestions(id, 'proposal')
+        } catch (saveError) {
+          console.warn('Failed to save default questions, using local questions:', saveError)
+          // 저장 실패 시 임시로 로컬 데이터 사용
+          loadedQuestions = defaultQuestions.map((q, index) => ({
+            id: `temp_${index}`,
+            project_id: id,
+            workflow_step: 'proposal' as const,
+            question_id: q.id,
+            category: q.category,
+            question_text: q.text,
+            question_type: q.type,
+            options: [],
+            is_required: q.required,
+            display_order: q.order,
+            help_text: q.helpText,
+            validation_rules: {},
+            is_dynamic: false,
+            created_at: new Date().toISOString(),
+            metadata: {}
+          }))
+        }
       }
 
-      setQuestions(existingQuestions)
+      setQuestions(loadedQuestions)
 
-      // 기존 답변 로드
-      const existingResponses = await ProposalDataManager.getResponses(id, 'market_research')
+      // 기존 응답 로드
+      const responses = await ProposalDataManager.getResponses(id, 'proposal')
       const responseData: QuestionFormData = {}
-
-      existingResponses.forEach(response => {
-        responseData[response.question_id] = response.answer_data.answer
+      responses.forEach(response => {
+        if (response.answer_data?.answer) {
+          responseData[response.question_id] = response.answer_data.answer
+        }
       })
-
       setFormData(responseData)
 
-      // 카테고리별 분류
-      const categorizedQuestions = existingQuestions.reduce((acc, question) => {
-        const category = question.category || '기타'
-        if (!acc[category]) {
-          acc[category] = []
+      // 카테고리별로 질문 그룹화
+      const categoryMap: { [key: string]: ProposalWorkflowQuestion[] } = {}
+      loadedQuestions.forEach(question => {
+        if (!categoryMap[question.category]) {
+          categoryMap[question.category] = []
         }
-        acc[category].push(question)
-        return acc
-      }, {} as Record<string, ProposalWorkflowQuestion[]>)
-
-      const categoryList: QuestionCategory[] = Object.entries(categorizedQuestions).map(([name, categoryQuestions]) => {
-        const completed = categoryQuestions.filter(q =>
-          responseData[q.question_id] !== undefined && responseData[q.question_id] !== ''
-        ).length
-
-        return {
-          name,
-          questions: categoryQuestions,
-          completed,
-          total: categoryQuestions.length
-        }
+        categoryMap[question.category].push(question)
       })
+
+      const categoryList = Object.entries(categoryMap).map(([name, questions]) => ({
+        name,
+        questions: questions.sort((a, b) => a.display_order - b.display_order),
+        completed: questions.filter(q => responseData[q.question_id] !== undefined && responseData[q.question_id] !== '').length,
+        total: questions.length
+      }))
 
       setCategories(categoryList)
 
       // 완료 상태 업데이트
-      const status = await ProposalDataManager.getStepCompletionStatus(id, 'market_research')
-      setCompletionStatus(status)
+      updateCompletionStatus(loadedQuestions, responseData)
 
     } catch (err) {
-      console.error('Failed to load questions:', err)
+      console.error('Failed to load questions and responses:', err)
       setError('질문을 불러오는데 실패했습니다.')
     } finally {
       setLoading(false)
     }
   }
 
-  // 답변 변경 처리
-  const handleAnswerChange = (questionId: string, value: string | string[] | number) => {
-    setFormData(prev => ({
-      ...prev,
-      [questionId]: value
-    }))
+  // 완료 상태 업데이트
+  const updateCompletionStatus = (questions: ProposalWorkflowQuestion[], formData: QuestionFormData) => {
+    const totalQuestions = questions.length
+    const requiredQuestions = questions.filter(q => q.is_required).length
+    const answeredQuestions = questions.filter(q =>
+      formData[q.question_id] !== undefined && formData[q.question_id] !== ''
+    ).length
+    const answeredRequiredQuestions = questions.filter(q =>
+      q.is_required && formData[q.question_id] !== undefined && formData[q.question_id] !== ''
+    ).length
+
+    const isCompleted = requiredQuestions > 0 ? answeredRequiredQuestions === requiredQuestions : answeredQuestions === totalQuestions
+    const completionRate = totalQuestions > 0 ? (answeredQuestions / totalQuestions) * 100 : 0
+
+    setCompletionStatus({
+      totalQuestions,
+      answeredQuestions,
+      requiredQuestions,
+      answeredRequiredQuestions,
+      isCompleted,
+      completionRate
+    })
   }
 
-  // 임시 저장
-  const handleSave = async (isTemporary: boolean = true) => {
+  // 답변 변경 처리
+  const handleAnswerChange = (questionId: string, value: string | string[] | number) => {
+    const newFormData = { ...formData, [questionId]: value }
+    setFormData(newFormData)
+    updateCompletionStatus(questions, newFormData)
+
+    // 카테고리별 완료 상태 업데이트
+    const updatedCategories = categories.map(category => ({
+      ...category,
+      completed: category.questions.filter(q =>
+        newFormData[q.question_id] !== undefined && newFormData[q.question_id] !== ''
+      ).length
+    }))
+    setCategories(updatedCategories)
+  }
+
+  // 저장 처리
+  const handleSave = async (isTemporary: boolean = false) => {
     if (!id || !user?.id) return
 
     try {
       setSaving(true)
       setError(null)
 
-      // 모든 답변 저장
       const savePromises = Object.entries(formData).map(([questionId, answer]) => {
-        if (answer === undefined || answer === '') return null
-
         return ProposalDataManager.saveResponse(
           id,
           questionId,
-          'market_research',
+          'proposal',
           { answer },
           isTemporary,
-          user!.id
+          user.id
         )
-      }).filter(Boolean)
+      })
 
       await Promise.all(savePromises)
 
-      // 상태 업데이트
-      const status = await ProposalDataManager.getStepCompletionStatus(id, 'market_research')
-      setCompletionStatus(status)
-
-      // 카테고리 완료 상태 업데이트
-      const updatedCategories = categories.map(category => {
-        const completed = category.questions.filter(q =>
-          formData[q.question_id] !== undefined && formData[q.question_id] !== ''
-        ).length
-
-        return {
-          ...category,
-          completed
-        }
-      })
-      setCategories(updatedCategories)
+      if (!isTemporary) {
+        // 정식 저장 시 임시 응답들을 정식으로 변환
+        await ProposalDataManager.commitTemporaryResponses(id, 'proposal', user.id)
+      }
 
     } catch (err) {
       console.error('Failed to save responses:', err)
-      setError('답변 저장에 실패했습니다.')
+      setError('저장에 실패했습니다.')
     } finally {
       setSaving(false)
     }
   }
 
-  // 최종 제출 및 AI 분석
+  // 제출 및 AI 분석
   const handleSubmitAndAnalyze = async () => {
     if (!id || !user?.id) return
 
@@ -214,34 +323,18 @@ export function MarketResearchPage() {
       setAnalyzing(true)
       setError(null)
 
-      // 필수 질문 검증
-      const requiredQuestions = questions.filter(q => q.is_required)
-      const missingRequired = requiredQuestions.filter(q =>
-        !formData[q.question_id] || formData[q.question_id] === ''
-      )
-
-      if (missingRequired.length > 0) {
-        setError(`필수 질문 ${missingRequired.length}개가 답변되지 않았습니다.`)
-        return
-      }
-
-      // 최종 저장 (임시 저장 해제)
+      // 먼저 답변 저장
       await handleSave(false)
 
-      // AI 분석 실행 (임시로 성공으로 처리)
+      // AI 분석 실행 (아직 구현되지 않음)
       try {
-        await ProposalAnalysisService.analyzeStep(
-          id,
-          'market_research',
-          user.id
-        )
-      } catch (error) {
-        // AI 모델이 구현되지 않은 경우 임시 성공 처리
+        await ProposalAnalysisService.analyzeStep(id, 'proposal', user.id, 'gpt-4o')
+      } catch (analysisError) {
         console.warn('AI analysis not implemented, proceeding to results')
       }
 
       // 성공 시 결과 페이지로 이동
-      navigate(`/projects/${id}/proposal/market-research/results`)
+      navigate(`/projects/${id}/proposal/proposal-writer/results`)
 
     } catch (err) {
       console.error('Failed to analyze:', err)
@@ -272,7 +365,7 @@ export function MarketResearchPage() {
           <textarea
             value={value as string}
             onChange={(e) => handleAnswerChange(question.question_id, e.target.value)}
-            rows={4}
+            rows={6}
             className="w-full px-3 py-2 border border-border-primary rounded-lg bg-bg-tertiary text-text-primary focus:outline-none focus:ring-2 focus:ring-primary-500 resize-vertical"
             placeholder="상세한 답변을 입력하세요..."
           />
@@ -300,43 +393,14 @@ export function MarketResearchPage() {
           >
             <option value="">선택해주세요</option>
             {question.options.map((option, index) => (
-              <option key={index} value={option}>
-                {option}
-              </option>
+              <option key={index} value={option}>{option}</option>
             ))}
           </select>
         )
 
-      case 'multiselect':
-        return (
-          <div className="space-y-2">
-            {question.options.map((option, index) => {
-              const currentValues = Array.isArray(value) ? value : []
-              const isChecked = currentValues.includes(option)
-
-              return (
-                <label key={index} className="flex items-center space-x-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={isChecked}
-                    onChange={(_e) => {
-                      const newValues = isChecked
-                        ? currentValues.filter(v => v !== option)
-                        : [...currentValues, option]
-                      handleAnswerChange(question.question_id, newValues)
-                    }}
-                    className="rounded border-border-primary text-primary-500 focus:ring-primary-500"
-                  />
-                  <span className="text-text-primary">{option}</span>
-                </label>
-              )
-            })}
-          </div>
-        )
-
       default:
         return (
-          <div className="text-text-muted italic">
+          <div className="p-3 bg-bg-tertiary rounded-lg text-text-muted text-center">
             지원되지 않는 질문 유형입니다.
           </div>
         )
@@ -377,13 +441,13 @@ export function MarketResearchPage() {
   return (
     <PageContainer>
       <PageHeader
-        title="시장 조사"
-        subtitle="목표 시장 분석 및 경쟁사 조사를 위한 질문에 답변해주세요"
+        title="제안서 작성"
+        subtitle="솔루션 제안 및 구현 계획을 위한 질문에 답변해주세요"
         description={`질문 답변 진행률: ${Math.round(completionStatus.completionRate)}% • ${completionStatus.answeredQuestions}/${completionStatus.totalQuestions} 질문 완료`}
         actions={
           <div className="flex items-center space-x-3">
-            <Badge variant="primary">
-              <TrendingUp className="w-3 h-3 mr-1" />
+            <Badge variant="warning">
+              <FileText className="w-3 h-3 mr-1" />
               {Math.round(completionStatus.completionRate)}% 완료
             </Badge>
 
@@ -442,7 +506,7 @@ export function MarketResearchPage() {
                     onClick={() => setCurrentCategory(index)}
                     className={`w-full text-left p-3 rounded-lg transition-colors ${
                       index === currentCategory
-                        ? 'bg-blue-500/10 border border-blue-500/30 text-blue-500'
+                        ? 'bg-purple-500/10 border border-purple-500/30 text-purple-500'
                         : 'hover:bg-bg-tertiary text-text-secondary hover:text-text-primary'
                     }`}
                   >
@@ -456,7 +520,7 @@ export function MarketResearchPage() {
                     </div>
                     <div className="w-full bg-bg-tertiary rounded-full h-1.5 mt-2">
                       <div
-                        className="bg-blue-500 h-1.5 rounded-full transition-all duration-300"
+                        className="bg-purple-500 h-1.5 rounded-full transition-all duration-300"
                         style={{ width: `${(category.completed / category.total) * 100}%` }}
                       />
                     </div>
@@ -473,7 +537,7 @@ export function MarketResearchPage() {
                 <ProgressBar
                   value={completionStatus.completionRate}
                   max={100}
-                  color="#3B82F6"
+                  color="#8B5CF6"
                 />
                 <div className="text-xs text-text-muted mt-1">
                   {completionStatus.answeredQuestions} / {completionStatus.totalQuestions} 질문 완료
@@ -496,9 +560,17 @@ export function MarketResearchPage() {
             {currentCategoryData && (
               <Card>
                 <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-semibold text-text-primary">
-                    {currentCategoryData.name}
-                  </h2>
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 bg-purple-500/10 rounded-lg">
+                      {currentCategory === 0 && <Lightbulb className="w-5 h-5 text-purple-500" />}
+                      {currentCategory === 1 && <Zap className="w-5 h-5 text-purple-500" />}
+                      {currentCategory === 2 && <Calendar className="w-5 h-5 text-purple-500" />}
+                      {currentCategory === 3 && <CheckSquare className="w-5 h-5 text-purple-500" />}
+                    </div>
+                    <h2 className="text-xl font-semibold text-text-primary">
+                      {currentCategoryData.name}
+                    </h2>
+                  </div>
                   <span className="text-sm text-text-secondary">
                     {currentCategoryData.completed} / {currentCategoryData.total} 질문 완료
                   </span>
@@ -513,9 +585,9 @@ export function MarketResearchPage() {
                         key={question.id}
                         className={`p-4 rounded-lg border-2 transition-all ${
                           isAnswered
-                            ? 'border-green-500/30 bg-green-500/5'
+                            ? 'border-purple-500/30 bg-purple-500/5'
                             : question.is_required
-                            ? 'border-blue-500/30 bg-blue-500/5'
+                            ? 'border-purple-500/30 bg-purple-500/5'
                             : 'border-border-primary'
                         }`}
                       >
@@ -530,14 +602,14 @@ export function MarketResearchPage() {
                               )}
                             </div>
                             {question.help_text && (
-                              <div className="flex items-center space-x-2 mt-1">
-                                <HelpCircle className="w-4 h-4 text-text-muted" />
-                                <span className="text-sm text-text-muted">{question.help_text}</span>
+                              <div className="flex items-start space-x-2 mt-2">
+                                <HelpCircle className="w-4 h-4 text-text-muted mt-0.5 flex-shrink-0" />
+                                <p className="text-text-muted text-sm">{question.help_text}</p>
                               </div>
                             )}
                           </div>
                           {isAnswered && (
-                            <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />
+                            <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 ml-2" />
                           )}
                         </div>
 
@@ -550,7 +622,7 @@ export function MarketResearchPage() {
                 </div>
 
                 {/* 카테고리 네비게이션 */}
-                <div className="flex justify-between mt-8 pt-6 border-t border-border-primary">
+                <div className="flex justify-between items-center mt-8 pt-6 border-t border-border-primary">
                   <button
                     onClick={() => setCurrentCategory(Math.max(0, currentCategory - 1))}
                     disabled={currentCategory === 0}
@@ -559,6 +631,10 @@ export function MarketResearchPage() {
                     <ArrowLeft className="w-4 h-4" />
                     <span>이전 카테고리</span>
                   </button>
+
+                  <div className="text-sm text-text-secondary">
+                    {currentCategory + 1} / {categories.length}
+                  </div>
 
                   <button
                     onClick={() => setCurrentCategory(Math.min(categories.length - 1, currentCategory + 1))}
