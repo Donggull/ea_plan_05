@@ -121,13 +121,15 @@ class FileService {
       await this.validateFile(file)
       console.log('✅ 파일 검증 완료')
 
-      // 파일 경로 생성
+      // 파일 경로 생성 - RLS 정책에 맞게 userId를 첫 번째 폴더로 설정
       const timestamp = Date.now()
       const filename = `${timestamp}-${this.sanitizeFilename(file.name)}`
-      const folder = options.folder || 'documents'
+
+      // Storage RLS 정책: (storage.foldername(name))[1] = auth.uid()
+      // 따라서 경로는 {userId}/{projectId?}/{filename} 형태여야 함
       const filePath = options.projectId
-        ? `${folder}/${options.projectId}/${filename}`
-        : `${folder}/${options.userId}/${filename}`
+        ? `${options.userId}/${options.projectId}/${filename}`
+        : `${options.userId}/${filename}`
 
       console.log('📁 생성된 파일 경로:', filePath)
 
