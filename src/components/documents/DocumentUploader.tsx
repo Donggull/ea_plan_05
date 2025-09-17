@@ -423,16 +423,46 @@ export function DocumentUploader({
                 <option value="" className="text-text-tertiary">
                   프로젝트를 선택해주세요
                 </option>
-                {projects.map((project) => (
-                  <option
-                    key={project.id}
-                    value={project.id}
-                    className="text-text-primary bg-background-secondary"
-                  >
-                    {project.name}
-                    {project.description && ` - ${project.description.substring(0, 50)}${project.description.length > 50 ? '...' : ''}`}
-                  </option>
-                ))}
+                {projects.map((project) => {
+                  // 프로젝트 상태에 따른 스타일과 텍스트 설정
+                  const getProjectDisplay = (project: Project) => {
+                    const baseText = project.name + (project.description ? ` - ${project.description.substring(0, 40)}${project.description.length > 40 ? '...' : ''}` : '')
+
+                    switch (project.status) {
+                      case 'active':
+                        return `✅ ${baseText}`
+                      case 'completed':
+                        return `✔️ ${baseText} (완료)`
+                      case 'inactive':
+                        return `⏸️ ${baseText} (비활성)`
+                      case 'archived':
+                        return `📦 ${baseText} (보관됨)`
+                      default:
+                        return `❓ ${baseText} (${project.status})`
+                    }
+                  }
+
+                  const isInactive = project.status !== 'active'
+
+                  return (
+                    <option
+                      key={project.id}
+                      value={project.id}
+                      className={`bg-background-secondary ${
+                        isInactive
+                          ? 'text-text-tertiary opacity-75'
+                          : 'text-text-primary'
+                      }`}
+                      style={{
+                        backgroundColor: '#191b1f',
+                        color: isInactive ? '#6b7280' : '#f7f8f8',
+                        fontStyle: isInactive ? 'italic' : 'normal'
+                      }}
+                    >
+                      {getProjectDisplay(project)}
+                    </option>
+                  )
+                })}
               </select>
               <FolderOpen className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-text-tertiary pointer-events-none" />
 
@@ -457,8 +487,26 @@ export function DocumentUploader({
           {selectedProjectId && (
             <div className="text-xs text-text-tertiary">
               선택된 프로젝트: {projects.find(p => p.id === selectedProjectId)?.name}
+              {projects.find(p => p.id === selectedProjectId)?.status !== 'active' && (
+                <span className="ml-2 text-orange-500">
+                  ⚠️ 비활성 프로젝트
+                </span>
+              )}
             </div>
           )}
+
+          {/* 관리자에게 상태별 프로젝트 안내 */}
+          {profile?.role === 'admin' || profile?.role === 'subadmin' ? (
+            <div className="text-xs text-text-tertiary bg-background-tertiary px-3 py-2 rounded-lg">
+              <div className="flex items-center space-x-1 mb-1">
+                <span>👑</span>
+                <span className="font-medium">관리자 권한: 모든 프로젝트 표시</span>
+              </div>
+              <div className="space-y-0.5">
+                <div>✅ 활성 프로젝트 | ✔️ 완료 프로젝트 | ⏸️ 비활성 프로젝트 | 📦 보관 프로젝트</div>
+              </div>
+            </div>
+          ) : null}
         </div>
       )}
 
