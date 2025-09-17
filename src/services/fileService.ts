@@ -143,7 +143,7 @@ class FileService {
       // Storage 버킷 접근 가능성 미리 확인
       try {
         console.log('🔍 Storage 버킷 접근 가능성 확인 중...')
-        const { data: bucketData, error: bucketError } = await supabase.storage
+        const { error: bucketError } = await supabase.storage
           .from('documents')
           .list('', { limit: 1 })
 
