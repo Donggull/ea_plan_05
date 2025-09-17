@@ -107,22 +107,42 @@ class FileService {
     options: UploadOptions,
     onProgress?: (progress: number) => void
   ): Promise<UploadResult> {
-    // 파일 검증
-    await this.validateFile(file)
-
-    // 파일 경로 생성
-    const timestamp = Date.now()
-    const filename = `${timestamp}-${this.sanitizeFilename(file.name)}`
-    const folder = options.folder || 'documents'
-    const filePath = options.projectId
-      ? `${folder}/${options.projectId}/${filename}`
-      : `${folder}/${options.userId}/${filename}`
+    console.log('📤 파일 업로드 시작:', {
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
+      projectId: options.projectId,
+      userId: options.userId
+    })
 
     try {
-      if (!supabase) throw new Error('Supabase 클라이언트가 초기화되지 않았습니다.')
+      // 파일 검증
+      console.log('🔍 파일 검증 중...')
+      await this.validateFile(file)
+      console.log('✅ 파일 검증 완료')
+
+      // 파일 경로 생성
+      const timestamp = Date.now()
+      const filename = `${timestamp}-${this.sanitizeFilename(file.name)}`
+      const folder = options.folder || 'documents'
+      const filePath = options.projectId
+        ? `${folder}/${options.projectId}/${filename}`
+        : `${folder}/${options.userId}/${filename}`
+
+      console.log('📁 생성된 파일 경로:', filePath)
+
+      if (!supabase) {
+        console.error('❌ Supabase 클라이언트가 없음')
+        throw new Error('Supabase 클라이언트가 초기화되지 않았습니다.')
+      }
+
+      console.log('☁️ Supabase Storage에 업로드 시작...')
+
+      // 진행률 20% 보고
+      onProgress?.(20)
 
       // Supabase Storage에 업로드
-      const { error: uploadError } = await supabase.storage
+      const uploadResponse = await supabase.storage
         .from('documents')
         .upload(filePath, file, {
           cacheControl: '3600',
@@ -130,55 +150,89 @@ class FileService {
           contentType: file.type
         })
 
-      if (uploadError) {
-        throw new Error(`파일 업로드 실패: ${uploadError.message}`)
+      console.log('📤 Storage 업로드 응답:', {
+        error: uploadResponse.error,
+        data: uploadResponse.data
+      })
+
+      if (uploadResponse.error) {
+        console.error('❌ Storage 업로드 실패:', uploadResponse.error)
+        throw new Error(`파일 업로드 실패: ${uploadResponse.error.message}`)
       }
+
+      console.log('✅ Storage 업로드 성공')
+
+      // 진행률 60% 보고
+      onProgress?.(60)
 
       // 공개 URL 생성
       const { data: urlData } = supabase.storage
         .from('documents')
         .getPublicUrl(filePath)
 
+      console.log('🔗 공개 URL 생성:', urlData.publicUrl)
+
+      // 진행률 80% 보고
+      onProgress?.(80)
+
       // 데이터베이스에 문서 정보 저장
-      const { data: documentData, error: dbError } = await supabase
+      console.log('💾 데이터베이스에 문서 정보 저장 중...')
+
+      const documentData = {
+        file_name: filename,
+        storage_path: filePath,
+        file_size: file.size,
+        mime_type: file.type,
+        file_type: file.type,
+        project_id: options.projectId || null,
+        uploaded_by: options.userId,
+        metadata: options.metadata as any, // JSON 호환을 위해 타입 변환
+        is_processed: false,
+        version: 1
+      }
+
+      console.log('📝 삽입할 문서 데이터:', documentData)
+
+      const dbResponse = await supabase
         .from('documents')
-        .insert({
-          file_name: filename,
-          storage_path: filePath,
-          file_size: file.size,
-          mime_type: file.type,
-          file_type: file.type,
-          project_id: options.projectId,
-          uploaded_by: options.userId,
-          metadata: options.metadata,
-          is_processed: false,
-          version: 1
-        } as any)
+        .insert(documentData as any)
         .select()
         .single()
 
-      if (dbError) {
+      console.log('💾 데이터베이스 삽입 응답:', {
+        error: dbResponse.error,
+        data: dbResponse.data
+      })
+
+      if (dbResponse.error) {
+        console.error('❌ 데이터베이스 저장 실패:', dbResponse.error)
+
         // 업로드된 파일 정리
-        await supabase?.storage
+        console.log('🗑️ 업로드된 파일 정리 중...')
+        await supabase.storage
           .from('documents')
           .remove([filePath])
 
-        throw new Error(`문서 정보 저장 실패: ${dbError.message}`)
+        throw new Error(`문서 정보 저장 실패: ${dbResponse.error.message}`)
       }
 
-      // 썸네일 생성 기능은 향후 구현 예정
+      console.log('✅ 데이터베이스 저장 성공')
 
       // 진행률 100% 보고
       onProgress?.(100)
 
-      return {
-        id: documentData.id,
+      const result = {
+        id: dbResponse.data.id,
         url: urlData.publicUrl,
         path: filePath,
         metadata: options.metadata
       }
+
+      console.log('🎉 파일 업로드 완료:', result)
+
+      return result
     } catch (error) {
-      console.error('File upload error:', error)
+      console.error('💥 파일 업로드 오류:', error)
       throw error
     }
   }

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { Upload, File, X, AlertCircle, CheckCircle } from 'lucide-react'
 import { fileService } from '@/services/fileService'
@@ -83,111 +83,119 @@ export function DocumentUploader({
 
   const startUpload = useCallback(async () => {
     if (!user) {
-      console.log('업로드 시작 실패: 사용자 인증 없음')
+      console.log('❌ 업로드 시작 실패: 사용자 인증 없음')
+      toast.error('로그인이 필요합니다.')
       return
     }
 
     // 현재 pending 상태인 파일들만 처리
     const currentPendingFiles = uploadFilesList.filter(f => f.status === 'pending')
     if (currentPendingFiles.length === 0) {
-      console.log('업로드할 파일이 없음')
+      console.log('❌ 업로드할 파일이 없음')
+      toast.warning('업로드할 파일이 없습니다.')
       return
     }
 
-    console.log('업로드 시작:', currentPendingFiles.length, '개 파일')
+    console.log('🚀 업로드 시작:', currentPendingFiles.length, '개 파일')
     setIsUploading(true)
     const completedFiles: any[] = []
+    let errorCount = 0
 
     try {
-      // 모든 파일을 병렬로 업로드
-      await Promise.all(
-        currentPendingFiles.map(async (uploadFile) => {
-          try {
-            // 상태 업데이트: 업로딩 시작
+      // 모든 파일을 순차적으로 업로드 (디버깅을 위해)
+      for (const uploadFile of currentPendingFiles) {
+        try {
+          console.log(`📤 파일 업로드 시작: ${uploadFile.file.name}`)
+
+          // 상태 업데이트: 업로딩 시작
+          setUploadFilesList((prev) =>
+            prev.map((f) =>
+              f.id === uploadFile.id ? { ...f, status: 'uploading', progress: 0 } : f
+            )
+          )
+
+          // 파일 메타데이터 추출
+          console.log('📋 메타데이터 추출 중...')
+          const metadata = await fileService.extractMetadata(uploadFile.file)
+          console.log('✅ 메타데이터 추출 완료:', metadata)
+
+          // 진행률 콜백
+          const onProgress = (progress: number) => {
+            console.log(`📊 업로드 진행률: ${progress}%`)
             setUploadFilesList((prev) =>
               prev.map((f) =>
-                f.id === uploadFile.id ? { ...f, status: 'uploading', progress: 0 } : f
-              )
-            )
-
-            // 파일 메타데이터 추출
-            const metadata = await fileService.extractMetadata(uploadFile.file)
-
-            // 진행률 콜백
-            const onProgress = (progress: number) => {
-              setUploadFilesList((prev) =>
-                prev.map((f) =>
-                  f.id === uploadFile.id ? { ...f, progress } : f
-                )
-              )
-            }
-
-            // 파일 업로드
-            const result = await fileService.uploadFile(
-              uploadFile.file,
-              {
-                projectId,
-                userId: user.id,
-                metadata
-              },
-              onProgress
-            )
-
-            // 성공 상태로 업데이트
-            setUploadFilesList((prev) =>
-              prev.map((f) =>
-                f.id === uploadFile.id
-                  ? { ...f, status: 'success', progress: 100, url: result.url }
-                  : f
-              )
-            )
-
-            completedFiles.push(result)
-          } catch (error) {
-            console.error('File upload error:', error)
-
-            // 에러 상태로 업데이트
-            setUploadFilesList((prev) =>
-              prev.map((f) =>
-                f.id === uploadFile.id
-                  ? {
-                      ...f,
-                      status: 'error',
-                      error: error instanceof Error ? error.message : '업로드 실패'
-                    }
-                  : f
+                f.id === uploadFile.id ? { ...f, progress } : f
               )
             )
           }
-        })
-      )
 
+          // 파일 업로드
+          console.log('☁️ 파일 업로드 실행...')
+          const result = await fileService.uploadFile(
+            uploadFile.file,
+            {
+              projectId,
+              userId: user.id,
+              metadata
+            },
+            onProgress
+          )
+
+          console.log('✅ 파일 업로드 성공:', result)
+
+          // 성공 상태로 업데이트
+          setUploadFilesList((prev) =>
+            prev.map((f) =>
+              f.id === uploadFile.id
+                ? { ...f, status: 'success', progress: 100, url: result.url }
+                : f
+            )
+          )
+
+          completedFiles.push(result)
+          toast.success(`"${uploadFile.file.name}" 업로드 완료`)
+
+        } catch (error) {
+          console.error('💥 파일 업로드 오류:', error)
+          errorCount++
+
+          // 에러 상태로 업데이트
+          setUploadFilesList((prev) =>
+            prev.map((f) =>
+              f.id === uploadFile.id
+                ? {
+                    ...f,
+                    status: 'error',
+                    error: error instanceof Error ? error.message : '업로드 실패'
+                  }
+                : f
+            )
+          )
+
+          toast.error(`"${uploadFile.file.name}" 업로드 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`)
+        }
+      }
+
+      // 결과 요약
       if (completedFiles.length > 0) {
-        toast.success(`${completedFiles.length}개 파일이 성공적으로 업로드되었습니다.`)
+        toast.success(`총 ${completedFiles.length}개 파일이 성공적으로 업로드되었습니다.`)
         onUploadComplete?.(completedFiles)
       }
+
+      if (errorCount > 0) {
+        toast.error(`${errorCount}개 파일 업로드에 실패했습니다.`)
+      }
+
     } catch (error) {
-      console.error('Upload process error:', error)
+      console.error('💥 업로드 프로세스 오류:', error)
       toast.error('업로드 중 오류가 발생했습니다.')
     } finally {
       setIsUploading(false)
+      console.log('🏁 업로드 프로세스 완료')
     }
   }, [uploadFilesList, user, projectId, onUploadComplete])
 
-  // 파일이 추가되면 자동으로 업로드 시작
-  useEffect(() => {
-    const pendingFiles = uploadFilesList.filter(f => f.status === 'pending')
-    const pendingCount = pendingFiles.length
-
-    if (pendingCount > 0 && !isUploading && user) {
-      console.log('자동 업로드 시작:', pendingCount, '개 파일')
-      const timer = setTimeout(() => {
-        startUpload()
-      }, 1000)
-      return () => clearTimeout(timer)
-    }
-    return undefined
-  }, [uploadFilesList.length, isUploading, user, startUpload])
+  // 자동 업로드 제거 - 사용자가 직접 "업로드 시작" 버튼을 클릭해야 함
 
   const clearCompleted = () => {
     setUploadFilesList((prev) => prev.filter((f) => f.status !== 'success'))
@@ -236,12 +244,17 @@ export function DocumentUploader({
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-medium text-text-primary">
               업로드 파일 ({uploadFilesList.length})
+              {hasPendingFiles && (
+                <span className="ml-2 text-xs text-orange-500">
+                  {uploadFilesList.filter(f => f.status === 'pending').length}개 대기 중
+                </span>
+              )}
             </h3>
             <div className="flex space-x-2">
               {hasSuccessFiles && (
                 <button
                   onClick={clearCompleted}
-                  className="text-xs text-text-tertiary hover:text-text-secondary"
+                  className="text-xs text-text-tertiary hover:text-text-secondary transition-colors"
                 >
                   완료된 파일 제거
                 </button>
@@ -249,10 +262,17 @@ export function DocumentUploader({
               {hasPendingFiles && !isUploading && (
                 <button
                   onClick={startUpload}
-                  className="linear-button linear-button-primary text-xs px-3 py-1"
+                  className="linear-button linear-button-primary text-sm px-4 py-2 font-medium"
+                  disabled={isUploading}
                 >
-                  업로드 시작
+                  📤 업로드 시작 ({uploadFilesList.filter(f => f.status === 'pending').length}개)
                 </button>
+              )}
+              {isUploading && (
+                <div className="flex items-center space-x-2 text-sm text-accent">
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-accent border-t-transparent"></div>
+                  <span>업로드 중...</span>
+                </div>
               )}
             </div>
           </div>
@@ -271,21 +291,40 @@ export function DocumentUploader({
                       {uploadFile.file.name}
                     </p>
                     <div className="flex items-center space-x-2">
-                      {uploadFile.status === 'uploading' && (
-                        <span className="text-xs text-text-tertiary">
-                          {uploadFile.progress}%
+                      {uploadFile.status === 'pending' && (
+                        <span className="text-xs text-orange-500 bg-orange-50 px-2 py-1 rounded">
+                          대기
                         </span>
                       )}
+                      {uploadFile.status === 'uploading' && (
+                        <div className="flex items-center space-x-2">
+                          <div className="animate-spin rounded-full h-3 w-3 border-2 border-accent border-t-transparent"></div>
+                          <span className="text-xs text-accent font-medium">
+                            {uploadFile.progress}%
+                          </span>
+                        </div>
+                      )}
                       {uploadFile.status === 'success' && (
-                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <div className="flex items-center space-x-1">
+                          <CheckCircle className="h-4 w-4 text-green-500" />
+                          <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded">
+                            완료
+                          </span>
+                        </div>
                       )}
                       {uploadFile.status === 'error' && (
-                        <AlertCircle className="h-4 w-4 text-red-500" />
+                        <div className="flex items-center space-x-1">
+                          <AlertCircle className="h-4 w-4 text-red-500" />
+                          <span className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded">
+                            실패
+                          </span>
+                        </div>
                       )}
                       {uploadFile.status !== 'uploading' && (
                         <button
                           onClick={() => removeFile(uploadFile.id)}
-                          className="text-text-tertiary hover:text-red-500"
+                          className="text-text-tertiary hover:text-red-500 transition-colors"
+                          title="파일 제거"
                         >
                           <X className="h-4 w-4" />
                         </button>
