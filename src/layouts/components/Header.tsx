@@ -89,9 +89,9 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border-primary bg-bg-primary/80 backdrop-blur-[20px]">
-      <div className="container mx-auto px-6 h-16 flex items-center justify-between">
-        {/* Logo */}
-        <div className="flex items-center space-x-4">
+      <div className="w-full px-6 h-16 flex items-center justify-between">
+        {/* 좌측 로고 */}
+        <div className="flex items-center space-x-3">
           <button
             onClick={() => navigate('/')}
             className="flex items-center space-x-3 hover:opacity-80 transition-opacity"
@@ -105,30 +105,30 @@ export function Header() {
           </button>
         </div>
 
-        {/* 중앙 네비게이션 (데스크톱) */}
+        {/* 중앙 네비게이션 */}
         {isAuthenticated && (
           <nav className="hidden md:flex items-center space-x-8">
             <button
               onClick={() => navigate('/dashboard')}
-              className="text-text-secondary hover:text-text-primary transition-colors text-regular font-normal"
+              className="text-text-secondary hover:text-text-primary transition-colors text-regular font-normal relative py-2"
             >
               Dashboard
             </button>
             <button
               onClick={() => navigate('/projects')}
-              className="text-text-secondary hover:text-text-primary transition-colors text-regular font-normal"
+              className="text-text-secondary hover:text-text-primary transition-colors text-regular font-normal relative py-2"
             >
               Projects
             </button>
             <button
               onClick={() => navigate('/documents')}
-              className="text-text-secondary hover:text-text-primary transition-colors text-regular font-normal"
+              className="text-text-secondary hover:text-text-primary transition-colors text-regular font-normal relative py-2"
             >
               Documents
             </button>
             <button
               onClick={() => navigate('/analytics')}
-              className="text-text-secondary hover:text-text-primary transition-colors text-regular font-normal"
+              className="text-text-secondary hover:text-text-primary transition-colors text-regular font-normal relative py-2"
             >
               Analytics
             </button>
@@ -136,29 +136,29 @@ export function Header() {
         )}
 
         {/* 우측 액션 버튼들 */}
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-3">
           {/* 검색 버튼 (인증된 사용자만) */}
           {isAuthenticated && (
-            <button className="p-2 text-text-secondary hover:text-text-primary hover:bg-bg-secondary rounded-lg transition-colors">
-              <Search className="w-5 h-5" />
+            <button className="p-2 text-text-secondary hover:text-text-primary hover:bg-bg-secondary rounded-md transition-colors">
+              <Search className="w-4 h-4" />
             </button>
           )}
 
           {/* 알림 버튼 (인증된 사용자만) */}
           {isAuthenticated && (
-            <button className="p-2 text-text-secondary hover:text-text-primary hover:bg-bg-secondary rounded-lg transition-colors relative">
-              <Bell className="w-5 h-5" />
-              <span className="absolute -top-1 -right-1 w-2 h-2 bg-accent-red rounded-full"></span>
+            <button className="p-2 text-text-secondary hover:text-text-primary hover:bg-bg-secondary rounded-md transition-colors relative">
+              <Bell className="w-4 h-4" />
+              <span className="absolute top-1 right-1 w-2 h-2 bg-accent-red rounded-full"></span>
             </button>
           )}
 
           {/* 다크모드 토글 */}
           <button
             onClick={toggleDarkMode}
-            className="p-2 text-text-secondary hover:text-text-primary hover:bg-bg-secondary rounded-lg transition-colors"
+            className="p-2 text-text-secondary hover:text-text-primary hover:bg-bg-secondary rounded-md transition-colors"
             aria-label="Toggle dark mode"
           >
-            {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </button>
 
           {/* 사용자 메뉴 또는 로그인 버튼 */}
@@ -166,20 +166,20 @@ export function Header() {
             <div className="relative">
               <button
                 onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                className="flex items-center space-x-2 p-2 text-text-secondary hover:text-text-primary hover:bg-bg-secondary rounded-lg transition-colors"
+                className="flex items-center space-x-2 p-1 text-text-secondary hover:text-text-primary hover:bg-bg-secondary rounded-md transition-colors"
               >
-                <div className="w-8 h-8 bg-bg-tertiary rounded-full flex items-center justify-center relative">
+                <div className="w-7 h-7 bg-bg-tertiary rounded-full flex items-center justify-center relative">
                   <User className="w-4 h-4" />
                   {/* Role indicator - small icon */}
                   {profile?.role === 'admin' && (
-                    <Crown className="w-2 h-2 absolute -top-1 -right-1 text-amber-500" />
+                    <Crown className="w-2 h-2 absolute -top-0.5 -right-0.5 text-amber-500" />
                   )}
                   {profile?.role === 'subadmin' && (
-                    <Shield className="w-2 h-2 absolute -top-1 -right-1 text-blue-500" />
+                    <Shield className="w-2 h-2 absolute -top-0.5 -right-0.5 text-blue-500" />
                   )}
                 </div>
-                <div className="hidden sm:flex flex-col items-start">
-                  <span className="text-regular font-normal">
+                <div className="hidden lg:flex flex-col items-start">
+                  <span className="text-sm font-normal">
                     {profile?.full_name || user?.email?.split('@')[0] || 'User'}
                   </span>
                   {profile?.role && (
@@ -188,7 +188,7 @@ export function Header() {
                     </span>
                   )}
                 </div>
-                <ChevronDown className="w-4 h-4" />
+                <ChevronDown className="w-3 h-3 hidden lg:block" />
               </button>
 
               {/* 사용자 드롭다운 메뉴 */}
@@ -246,9 +246,9 @@ export function Header() {
           {/* 모바일 메뉴 토글 */}
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="md:hidden p-2 text-text-secondary hover:text-text-primary hover:bg-bg-secondary rounded-lg transition-colors"
+            className="md:hidden p-2 text-text-secondary hover:text-text-primary hover:bg-bg-secondary rounded-md transition-colors"
           >
-            {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            {isMobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
           </button>
         </div>
       </div>
