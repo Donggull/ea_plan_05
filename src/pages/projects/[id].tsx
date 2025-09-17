@@ -15,7 +15,9 @@ import { ProjectService } from '../../services/projectService'
 import { MemberList } from '../../components/projects/members/MemberList'
 import { InviteModal } from '../../components/projects/members/InviteModal'
 import { CollaborativeWorkspace } from '../../components/realtime/CollaborativeWorkspace'
+import { DocumentManager } from '../../components/documents/DocumentManager'
 import { useProjectMembers } from '../../lib/queries/projectMembers'
+import { supabase } from '../../lib/supabase'
 
 export function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -26,8 +28,47 @@ export function ProjectDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
 
+  // 문서 관련 상태
+  const [documentCount, setDocumentCount] = useState(0)
+  const [documentsLoading, setDocumentsLoading] = useState(false)
+
   // 프로젝트 멤버 데이터 조회
   const { data: projectMembers = [] } = useProjectMembers(id || '')
+
+  // 문서 수 로드 함수
+  const loadDocumentCount = async (projectId: string) => {
+    try {
+      setDocumentsLoading(true)
+
+      if (!supabase) {
+        console.error('Supabase 클라이언트가 초기화되지 않았습니다.')
+        return
+      }
+
+      const { count, error } = await supabase
+        .from('documents')
+        .select('*', { count: 'exact', head: true })
+        .eq('project_id', projectId)
+
+      if (error) {
+        console.error('문서 수 조회 실패:', error)
+        return
+      }
+
+      setDocumentCount(count || 0)
+    } catch (error) {
+      console.error('문서 수 조회 중 오류:', error)
+    } finally {
+      setDocumentsLoading(false)
+    }
+  }
+
+  // 문서 변경 시 통계 업데이트
+  const handleDocumentChange = () => {
+    if (id) {
+      loadDocumentCount(id)
+    }
+  }
 
   // 프로젝트 상세 정보 로딩
   useEffect(() => {
@@ -41,6 +82,8 @@ export function ProjectDetailPage() {
         // 현재 프로젝트가 이미 선택된 경우
         if (projectState.currentProject?.id === id) {
           setProject(projectState.currentProject)
+          // 문서 수 로드
+          await loadDocumentCount(id)
           setLoading(false)
           return
         }
@@ -50,6 +93,8 @@ export function ProjectDetailPage() {
         if (projectData) {
           setProject(projectData)
           selectProject(projectData) // 현재 프로젝트로 설정
+          // 문서 수 로드
+          await loadDocumentCount(id)
         } else {
           setError('프로젝트를 찾을 수 없습니다.')
         }
@@ -204,6 +249,17 @@ export function ProjectDetailPage() {
             {/* 프로젝트 멤버 */}
             <MemberList projectId={id!} />
 
+            {/* 프로젝트 문서 */}
+            <div className="bg-bg-secondary rounded-lg border border-border-primary p-6">
+              <h2 className="text-lg font-semibold text-text-primary mb-4">프로젝트 문서</h2>
+              <DocumentManager
+                projectId={id!}
+                showUploader={true}
+                viewMode="list"
+                onDocumentChange={handleDocumentChange}
+              />
+            </div>
+
             {/* 최근 활동 */}
             <div className="bg-bg-secondary rounded-lg border border-border-primary p-6">
               <h2 className="text-lg font-semibold text-text-primary mb-4">최근 활동</h2>
@@ -246,7 +302,9 @@ export function ProjectDetailPage() {
                     <FileText className="w-4 h-4" />
                     <span>문서</span>
                   </div>
-                  <span className="text-text-primary font-medium">0</span>
+                  <span className="text-text-primary font-medium">
+                    {documentsLoading ? '...' : documentCount}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2 text-text-secondary">

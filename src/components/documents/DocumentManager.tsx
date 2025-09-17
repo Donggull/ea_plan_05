@@ -48,12 +48,14 @@ interface DocumentManagerProps {
   projectId?: string
   showUploader?: boolean
   viewMode?: 'grid' | 'list'
+  onDocumentChange?: () => void
 }
 
 export function DocumentManager({
   projectId,
   showUploader = true,
-  viewMode: initialViewMode = 'grid'
+  viewMode: initialViewMode = 'grid',
+  onDocumentChange
 }: DocumentManagerProps) {
   const { user } = useAuthStore()
   const [documents, setDocuments] = useState<Document[]>([])
@@ -109,6 +111,7 @@ export function DocumentManager({
       }
 
       setDocuments(data || [])
+      onDocumentChange?.() // 문서 목록 변경 알림
     } catch (error) {
       console.error('문서 로드 실패:', error)
       toast.error('문서 목록을 불러올 수 없습니다.')
