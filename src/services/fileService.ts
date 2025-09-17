@@ -140,6 +140,23 @@ class FileService {
 
       console.log('☁️ Supabase Storage에 업로드 시작...')
 
+      // Storage 버킷 접근 가능성 미리 확인
+      try {
+        console.log('🔍 Storage 버킷 접근 가능성 확인 중...')
+        const { data: bucketData, error: bucketError } = await supabase.storage
+          .from('documents')
+          .list('', { limit: 1 })
+
+        if (bucketError) {
+          console.error('❌ Storage 버킷 접근 실패:', bucketError)
+          throw new Error(`Storage 버킷 접근 실패: ${bucketError.message}`)
+        }
+        console.log('✅ Storage 버킷 접근 가능')
+      } catch (error) {
+        console.error('❌ Storage 버킷 사전 확인 실패:', error)
+        throw new Error('Storage 버킷에 접근할 수 없습니다. 네트워크 연결을 확인해주세요.')
+      }
+
       // 실제 업로드 진행률 시뮬레이션
       const simulateProgress = () => {
         let progress = 20
@@ -153,7 +170,15 @@ class FileService {
       const progressInterval = simulateProgress()
 
       try {
-        // 타임아웃 설정을 위한 Promise wrapper
+        // 더 긴 타임아웃과 더 자세한 로깅
+        console.log('☁️ Supabase Storage 업로드 시작...', {
+          bucketName: 'documents',
+          filePath,
+          fileSize: file.size,
+          fileType: file.type
+        })
+
+        // 타임아웃을 90초로 연장하고 더 나은 에러 처리
         const uploadWithTimeout = Promise.race([
           supabase.storage
             .from('documents')
@@ -163,10 +188,14 @@ class FileService {
               contentType: file.type
             }),
           new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('업로드 타임아웃 (30초)')), 30000)
+            setTimeout(() => {
+              console.error('❌ Storage 업로드 타임아웃 발생 (90초)')
+              reject(new Error('업로드 타임아웃 (90초) - 네트워크 연결을 확인해주세요'))
+            }, 90000) // 90초로 연장
           })
         ])
 
+        console.log('⏳ Storage 업로드 대기 중...')
         const uploadResponse = await uploadWithTimeout as any
 
         // 진행률 시뮬레이션 정리
@@ -178,16 +207,36 @@ class FileService {
         })
 
         if (uploadResponse.error) {
-          console.error('❌ Storage 업로드 실패:', uploadResponse.error)
+          console.error('❌ Storage 업로드 실패:', {
+            error: uploadResponse.error,
+            errorCode: uploadResponse.error.error,
+            statusCode: uploadResponse.error.statusCode,
+            filePath,
+            fileSize: file.size
+          })
 
-          // 일반적인 오류 케이스별 메시지 개선
+          // 상세한 오류 케이스별 메시지 개선
           let errorMessage = uploadResponse.error.message
+          const errorCode = uploadResponse.error.error || uploadResponse.error.statusCode
+
           if (uploadResponse.error.message?.includes('The resource already exists')) {
             errorMessage = '같은 이름의 파일이 이미 존재합니다.'
           } else if (uploadResponse.error.message?.includes('Invalid file type')) {
             errorMessage = '지원하지 않는 파일 형식입니다.'
           } else if (uploadResponse.error.message?.includes('File too large')) {
             errorMessage = '파일 크기가 너무 큽니다.'
+          } else if (uploadResponse.error.message?.includes('row-level security')) {
+            errorMessage = 'Storage 접근 권한이 없습니다. 프로젝트 설정을 확인해주세요.'
+          } else if (uploadResponse.error.message?.includes('JWT')) {
+            errorMessage = '인증이 만료되었습니다. 다시 로그인해주세요.'
+          } else if (uploadResponse.error.message?.includes('network') || uploadResponse.error.message?.includes('fetch')) {
+            errorMessage = '네트워크 연결 오류입니다. 인터넷 연결을 확인해주세요.'
+          } else if (errorCode === 403) {
+            errorMessage = 'Storage 접근이 거부되었습니다. 권한을 확인해주세요.'
+          } else if (errorCode === 413) {
+            errorMessage = '파일 크기가 허용된 한도를 초과했습니다.'
+          } else if (errorCode === 429) {
+            errorMessage = '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.'
           }
 
           throw new Error(`파일 업로드 실패: ${errorMessage}`)

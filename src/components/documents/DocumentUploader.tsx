@@ -186,7 +186,12 @@ export function DocumentUploader({
       // 모든 파일을 순차적으로 업로드 (디버깅을 위해)
       for (const uploadFile of currentPendingFiles) {
         try {
-          console.log(`📤 파일 업로드 시작: ${uploadFile.file.name}`)
+          console.log(`📤 파일 업로드 시작: ${uploadFile.file.name}`, {
+            fileSize: uploadFile.file.size,
+            fileType: uploadFile.file.type,
+            projectId,
+            userId: user.id
+          })
 
           // 상태 업데이트: 업로딩 시작
           setUploadFilesList((prev) =>
@@ -352,7 +357,9 @@ export function DocumentUploader({
               {isUploading && (
                 <div className="flex items-center space-x-2 text-sm text-accent">
                   <div className="animate-spin rounded-full h-4 w-4 border-2 border-accent border-t-transparent"></div>
-                  <span>업로드 중...</span>
+                  <span>
+                    업로드 중... ({uploadFilesList.filter(f => f.status === 'uploading').length}/{uploadFilesList.filter(f => f.status === 'pending' || f.status === 'uploading').length})
+                  </span>
                 </div>
               )}
             </div>
