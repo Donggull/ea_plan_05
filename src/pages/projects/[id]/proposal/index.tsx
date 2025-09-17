@@ -19,6 +19,7 @@ import { ProposalAnalysisService } from '../../../../services/proposal/proposalA
 import { ProposalDataManager } from '../../../../services/proposal/dataManager'
 import { WorkflowStep } from '../../../../services/proposal/aiQuestionGenerator'
 import { PageContainer, PageHeader, PageContent, Card, Button, ProgressBar, Badge } from '../../../../components/LinearComponents'
+import { AnalysisProgressModal } from '../../../../components/analysis/AnalysisProgressModal'
 
 interface StepStatus {
   questionsCompleted: boolean
@@ -82,6 +83,10 @@ export function ProposalWorkflowPage() {
   const [workflowProgress, setWorkflowProgress] = useState<WorkflowProgress | null>(null)
   const [selectedAIModel, setSelectedAIModel] = useState<string>('gpt-4o')
 
+  // AI 분석 모달 상태
+  const [analysisModalOpen, setAnalysisModalOpen] = useState(false)
+  const [currentAnalysisStep, setCurrentAnalysisStep] = useState<WorkflowStep | null>(null)
+
   // 워크플로우 상태 로드
   const loadWorkflowProgress = async () => {
     if (!id) return
@@ -133,24 +138,27 @@ export function ProposalWorkflowPage() {
   }
 
   // AI 분석 실행
-  const handleAnalyzeStep = async (step: WorkflowStep) => {
+  const handleAnalyzeStep = (step: WorkflowStep) => {
     if (!id || !user?.id) return
 
-    try {
-      setRefreshing(true)
-      await ProposalAnalysisService.analyzeStep(
-        id,
-        step,
-        user.id,
-        selectedAIModel
-      )
-      await loadWorkflowProgress()
-    } catch (err) {
-      console.error('Analysis failed:', err)
-      setError('AI 분석에 실패했습니다.')
-    } finally {
-      setRefreshing(false)
-    }
+    setCurrentAnalysisStep(step)
+    setAnalysisModalOpen(true)
+  }
+
+  // AI 분석 완료 핸들러
+  const handleAnalysisComplete = async (result: any) => {
+    console.log('Analysis completed:', result)
+    setAnalysisModalOpen(false)
+    setCurrentAnalysisStep(null)
+    await loadWorkflowProgress()
+  }
+
+  // AI 분석 에러 핸들러
+  const handleAnalysisError = (errorMessage: string) => {
+    console.error('Analysis failed:', errorMessage)
+    setError(`AI 분석 실패: ${errorMessage}`)
+    setAnalysisModalOpen(false)
+    setCurrentAnalysisStep(null)
   }
 
   // 단계별 상태 아이콘
@@ -425,6 +433,20 @@ export function ProposalWorkflowPage() {
           </div>
         </Card>
       </PageContent>
+
+      {/* AI 분석 진행 모달 */}
+      {currentAnalysisStep && (
+        <AnalysisProgressModal
+          isOpen={analysisModalOpen}
+          onClose={() => setAnalysisModalOpen(false)}
+          workflowStep={currentAnalysisStep}
+          projectId={id!}
+          userId={user!.id}
+          modelId={selectedAIModel}
+          onComplete={handleAnalysisComplete}
+          onError={handleAnalysisError}
+        />
+      )}
     </PageContainer>
   )
 }

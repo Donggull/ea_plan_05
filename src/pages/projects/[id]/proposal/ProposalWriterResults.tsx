@@ -16,12 +16,15 @@ import {
 } from 'lucide-react'
 import { ProposalDataManager } from '../../../../services/proposal/dataManager'
 import { PageContainer, PageHeader, PageContent, Card, Button, Badge } from '../../../../components/LinearComponents'
+import { ReportModal } from '../../../../components/reports/ReportModal'
 
 export function ProposalWriterResultsPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [responses, setResponses] = useState<any[]>([])
+  const [reportModalOpen, setReportModalOpen] = useState(false)
+  const [projectName, setProjectName] = useState<string>('')
 
   useEffect(() => {
     const loadResults = async () => {
@@ -29,10 +32,13 @@ export function ProposalWriterResultsPage() {
 
       try {
         setLoading(true)
-        const [questions, answers] = await Promise.all([
+        const [questions, answers, projectInfo] = await Promise.all([
           ProposalDataManager.getQuestions(id, 'proposal'),
-          ProposalDataManager.getResponses(id, 'proposal')
+          ProposalDataManager.getResponses(id, 'proposal'),
+          ProposalDataManager.getProjectInfo(id)
         ])
+
+        setProjectName(projectInfo?.name || 'Unknown Project')
 
         // 질문과 답변을 매핑
         const combinedData = questions.map(question => {
@@ -90,6 +96,14 @@ export function ProposalWriterResultsPage() {
             <button className="flex items-center space-x-2 px-3 py-2 text-text-secondary hover:text-text-primary border border-border-primary rounded-lg hover:bg-bg-tertiary transition-colors">
               <Eye className="w-4 h-4" />
               <span>미리보기</span>
+            </button>
+
+            <button
+              onClick={() => setReportModalOpen(true)}
+              className="flex items-center space-x-2 px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+            >
+              <FileText className="w-4 h-4" />
+              <span>보고서 생성</span>
             </button>
 
             <button className="flex items-center space-x-2 px-3 py-2 text-text-secondary hover:text-text-primary border border-border-primary rounded-lg hover:bg-bg-tertiary transition-colors">
@@ -262,6 +276,15 @@ export function ProposalWriterResultsPage() {
           </Card>
         </div>
       </PageContent>
+
+      {/* 보고서 생성 모달 */}
+      <ReportModal
+        isOpen={reportModalOpen}
+        onClose={() => setReportModalOpen(false)}
+        projectId={id!}
+        workflowStep="proposal"
+        projectName={projectName}
+      />
     </PageContainer>
   )
 }

@@ -478,4 +478,26 @@ export class ProposalDataManager {
       throw error
     }
   }
+
+  /**
+   * 프로젝트 정보 조회
+   */
+  static async getProjectInfo(projectId: string): Promise<any> {
+    try {
+      const { data: project, error } = await supabase!
+        .from('projects')
+        .select('*')
+        .eq('id', projectId)
+        .single()
+
+      if (error) {
+        throw error
+      }
+
+      return project
+    } catch (error) {
+      console.error('Failed to get project info:', error)
+      throw error
+    }
+  }
 }
