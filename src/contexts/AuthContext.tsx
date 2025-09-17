@@ -33,32 +33,48 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const authStore = useAuthStore()
 
   useEffect(() => {
-    // 앱 시작 시 인증 상태 초기화
+    // 앱 시작 시 인증 상태 초기화 (한 번만 실행)
     if (!authStore.isInitialized) {
       authStore.initialize()
     }
-  }, [authStore.isInitialized])
+  }, []) // 의존성 배열을 빈 배열로 변경하여 한 번만 실행
 
   // 세션 갱신 타이머 설정 (브라우저 창 이동 시 세션 유지)
   useEffect(() => {
-    if (!authStore.session) return
+    if (!authStore.session || !authStore.isAuthenticated) return
+
+    let isRefreshing = false // 중복 갱신 방지 플래그
 
     // 1시간마다 세션 갱신
-    const refreshInterval = setInterval(() => {
-      if (authStore.isAuthenticated) {
-        authStore.refreshSession()
+    const refreshInterval = setInterval(async () => {
+      if (authStore.isAuthenticated && !isRefreshing) {
+        isRefreshing = true
+        try {
+          await authStore.refreshSession()
+        } catch (error) {
+          console.error('Scheduled session refresh failed:', error)
+        } finally {
+          isRefreshing = false
+        }
       }
     }, 60 * 60 * 1000) // 1시간
 
     // 페이지 포커스 시 세션 갱신
-    const handleFocus = () => {
-      if (authStore.isAuthenticated && authStore.session) {
+    const handleFocus = async () => {
+      if (authStore.isAuthenticated && authStore.session && !isRefreshing) {
         const tokenExp = authStore.session.expires_at
         const now = Math.floor(Date.now() / 1000)
 
         // 토큰 만료 10분 전에 갱신
         if (tokenExp && (tokenExp - now) < 600) {
-          authStore.refreshSession()
+          isRefreshing = true
+          try {
+            await authStore.refreshSession()
+          } catch (error) {
+            console.error('Focus session refresh failed:', error)
+          } finally {
+            isRefreshing = false
+          }
         }
       }
     }
@@ -73,24 +89,73 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // 브라우저 종료 시 세션 정리
   useEffect(() => {
+    // 앱 시작 시 이전 세션 정리 플래그 제거
+    window.sessionStorage.removeItem('auth-keep-session')
+
     const handleBeforeUnload = () => {
-      // 브라우저 종료 시에만 세션 종료 (새로고침 제외)
-      if (!window.sessionStorage.getItem('auth-keep-session')) {
-        authStore.signOut()
+      // 브라우저 종료/새로고침 구분 불가능하므로 localStorage 사용
+      localStorage.setItem('auth-unload-time', Date.now().toString())
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        // 탭이 숨겨질 때 (브라우저 종료 가능성)
+        localStorage.setItem('auth-tab-hidden-time', Date.now().toString())
       }
     }
 
-    const handleUnload = () => {
-      // 페이지 이동 시 세션 유지 플래그 설정
-      window.sessionStorage.setItem('auth-keep-session', 'true')
+    // 페이지 로드 시 이전 세션 상태 확인
+    const checkPreviousSession = () => {
+      const unloadTime = localStorage.getItem('auth-unload-time')
+      const tabHiddenTime = localStorage.getItem('auth-tab-hidden-time')
+
+      if (unloadTime || tabHiddenTime) {
+        const lastActivity = Math.max(
+          parseInt(unloadTime || '0'),
+          parseInt(tabHiddenTime || '0')
+        )
+        const now = Date.now()
+        const timeDiff = now - lastActivity
+
+        // 10분 이상 비활성 상태였다면 세션 종료
+        if (timeDiff > 10 * 60 * 1000) {
+          console.log('Previous session expired due to inactivity')
+          authStore.signOut()
+        }
+
+        // 플래그 정리
+        localStorage.removeItem('auth-unload-time')
+        localStorage.removeItem('auth-tab-hidden-time')
+      }
     }
 
+    // 앱 시작 시 이전 세션 상태 확인
+    checkPreviousSession()
+
     window.addEventListener('beforeunload', handleBeforeUnload)
-    window.addEventListener('unload', handleUnload)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
 
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload)
-      window.removeEventListener('unload', handleUnload)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [])
+
+  // 브라우저 탭 간 세션 동기화
+  useEffect(() => {
+    const handleStorageChange = (event: StorageEvent) => {
+      // 다른 탭에서 로그아웃한 경우
+      if (event.key === 'auth-logout-signal' && event.newValue) {
+        console.log('Logout detected in another tab')
+        authStore.signOut()
+        localStorage.removeItem('auth-logout-signal')
+      }
+    }
+
+    window.addEventListener('storage', handleStorageChange)
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
     }
   }, [])
 

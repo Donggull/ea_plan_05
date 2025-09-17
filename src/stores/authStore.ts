@@ -91,8 +91,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true, error: null })
 
     try {
+      // 다른 탭에 로그아웃 신호 보내기
+      localStorage.setItem('auth-logout-signal', Date.now().toString())
+
       const { error } = await supabase.auth.signOut()
       if (error) throw error
+
+      // 세션 관련 localStorage 정리
+      localStorage.removeItem('auth-unload-time')
+      localStorage.removeItem('auth-tab-hidden-time')
 
       set({
         user: null,
@@ -226,6 +233,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   initialize: async () => {
+    const { isInitialized, isLoading } = get()
+
+    // 이미 초기화되었거나 초기화 중인 경우 중복 실행 방지
+    if (isInitialized || isLoading) {
+      return
+    }
+
     set({ isLoading: true, error: null })
 
     try {
