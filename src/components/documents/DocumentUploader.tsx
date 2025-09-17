@@ -376,39 +376,20 @@ export function DocumentUploader({
               <span className="text-sm text-text-tertiary">프로젝트 목록 로드 중...</span>
             </div>
           ) : projects.length > 0 ? (
-            <div className="relative z-10">
+            <div className="relative">
               <select
                 value={selectedProjectId}
                 onChange={(e) => setSelectedProjectId(e.target.value)}
-                className="w-full pl-10 pr-10 py-3 rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent appearance-none cursor-pointer transition-colors relative z-20"
-                style={{
-                  backgroundColor: 'var(--linear-bg-secondary)',
-                  border: '1px solid var(--linear-border-primary)',
-                  color: 'var(--linear-text-primary)',
-                  backgroundImage: `url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%238a8f98' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
-                  backgroundPosition: 'right 16px center',
-                  backgroundRepeat: 'no-repeat'
-                }}
+                className="w-full pl-10 pr-10 py-3 bg-background-secondary border border-border rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent appearance-none cursor-pointer transition-colors"
               >
-                <option
-                  value=""
-                  style={{
-                    backgroundColor: 'var(--linear-bg-secondary)',
-                    color: 'var(--linear-text-tertiary)',
-                    padding: '8px 12px'
-                  }}
-                >
+                <option value="" className="text-text-tertiary">
                   프로젝트를 선택해주세요
                 </option>
                 {projects.map((project) => (
                   <option
                     key={project.id}
                     value={project.id}
-                    style={{
-                      backgroundColor: 'var(--linear-bg-secondary)',
-                      color: 'var(--linear-text-primary)',
-                      padding: '8px 12px'
-                    }}
+                    className="text-text-primary bg-background-secondary"
                   >
                     {project.name}
                     {project.description && ` - ${project.description.substring(0, 50)}${project.description.length > 50 ? '...' : ''}`}
@@ -416,6 +397,13 @@ export function DocumentUploader({
                 ))}
               </select>
               <FolderOpen className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-text-tertiary pointer-events-none" />
+
+              {/* 커스텀 드롭다운 화살표 */}
+              <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                <svg width="12" height="8" viewBox="0 0 12 8" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M1 1.5L6 6.5L11 1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-text-tertiary"/>
+                </svg>
+              </div>
             </div>
           ) : projectsLoaded ? (
             <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
