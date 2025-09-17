@@ -371,26 +371,38 @@ export function DocumentUploader({
               <span className="text-sm text-text-tertiary">프로젝트 목록 로드 중...</span>
             </div>
           ) : projects.length > 0 ? (
-            <div className="relative">
+            <div className="relative z-10">
               <select
                 value={selectedProjectId}
                 onChange={(e) => setSelectedProjectId(e.target.value)}
-                className="w-full px-3 py-3 bg-background-secondary border border-border rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent appearance-none cursor-pointer hover:bg-background-tertiary transition-colors"
+                className="w-full pl-10 pr-10 py-3 bg-background-secondary border border-border rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent appearance-none cursor-pointer hover:bg-background-tertiary transition-colors relative z-20"
                 style={{
-                  backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23a1a1aa' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
+                  backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
                   backgroundPosition: 'right 12px center',
                   backgroundRepeat: 'no-repeat',
                   backgroundSize: '16px'
                 }}
               >
-                <option value="" className="bg-background-secondary text-text-tertiary">
+                <option
+                  value=""
+                  style={{
+                    backgroundColor: '#101113',
+                    color: '#8a8f98',
+                    padding: '8px 12px'
+                  }}
+                >
                   프로젝트를 선택해주세요
                 </option>
                 {projects.map((project) => (
                   <option
                     key={project.id}
                     value={project.id}
-                    className="bg-background-secondary text-text-primary"
+                    style={{
+                      backgroundColor: '#101113',
+                      color: '#f7f8f8',
+                      padding: '8px 12px',
+                      borderBottom: '1px solid #2a2d30'
+                    }}
                   >
                     {project.name}
                     {project.description && ` - ${project.description.substring(0, 50)}${project.description.length > 50 ? '...' : ''}`}
