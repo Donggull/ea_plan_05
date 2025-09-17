@@ -134,7 +134,11 @@ export function ProposalWorkflowPage() {
 
   // 단계 시작
   const handleStartStep = (step: WorkflowStep) => {
-    navigate(`/projects/${id}/proposal/${step}`)
+    // URL 경로에 맞게 키 변환
+    const urlPath = step === 'market_research' ? 'market-research' :
+                   step === 'proposal' ? 'proposal-writer' :
+                   step // personas, budget은 그대로
+    navigate(`/projects/${id}/proposal/${urlPath}`)
   }
 
   // AI 분석 실행
@@ -387,7 +391,12 @@ export function ProposalWorkflowPage() {
 
                   {stepDetail?.analysisCompleted && (
                     <button
-                      onClick={() => navigate(`/projects/${id}/proposal/${step.key}/results`)}
+                      onClick={() => {
+                        const urlPath = step.key === 'market_research' ? 'market-research' :
+                                       step.key === 'proposal' ? 'proposal-writer' :
+                                       step.key // personas, budget은 그대로
+                        navigate(`/projects/${id}/proposal/${urlPath}/results`)
+                      }}
                       className="flex items-center space-x-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
                     >
                       <CheckCircle className="w-4 h-4" />

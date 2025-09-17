@@ -64,12 +64,12 @@ function App() {
               <Route path="/projects/:id" element={<ProjectDetailPage />} />
               <Route path="/projects/:id/edit" element={<EditProjectPage />} />
               <Route path="/projects/:id/proposal" element={<ProposalWorkflowPage />} />
-              <Route path="/projects/:id/proposal/market_research" element={<MarketResearchPage />} />
-              <Route path="/projects/:id/proposal/market_research/results" element={<MarketResearchResultsPage />} />
+              <Route path="/projects/:id/proposal/market-research" element={<MarketResearchPage />} />
+              <Route path="/projects/:id/proposal/market-research/results" element={<MarketResearchResultsPage />} />
               <Route path="/projects/:id/proposal/personas" element={<PersonasPage />} />
               <Route path="/projects/:id/proposal/personas/results" element={<PersonasResultsPage />} />
-              <Route path="/projects/:id/proposal/proposal" element={<ProposalWriterPage />} />
-              <Route path="/projects/:id/proposal/proposal/results" element={<ProposalWriterResultsPage />} />
+              <Route path="/projects/:id/proposal/proposal-writer" element={<ProposalWriterPage />} />
+              <Route path="/projects/:id/proposal/proposal-writer/results" element={<ProposalWriterResultsPage />} />
               <Route path="/projects/:id/proposal/budget" element={<BudgetPage />} />
               <Route path="/projects/:id/proposal/budget/results" element={<BudgetResultsPage />} />
               <Route path="/documents" element={<DocumentsPage />} />
