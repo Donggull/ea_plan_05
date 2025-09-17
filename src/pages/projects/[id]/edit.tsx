@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Edit } from 'lucide-react'
 import { ProjectForm } from '../../../components/projects/ProjectForm'
 import { useProject } from '../../../contexts/ProjectContext'
 import { ProjectService } from '../../../services/projectService'
 import { ProjectTypeService } from '../../../services/projectTypeService'
 import { ProjectStageSelection } from '../../../types/project'
+import { PageContainer, PageHeader, PageContent } from '../../../components/LinearComponents'
 
 export function EditProjectPage() {
   const { id } = useParams<{ id: string }>()
@@ -85,53 +86,68 @@ export function EditProjectPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-bg-primary flex items-center justify-center">
-        <div className="text-text-secondary">프로젝트를 불러오는 중...</div>
-      </div>
+      <PageContainer>
+        <div className="flex items-center justify-center py-12">
+          <div className="text-text-secondary">프로젝트를 불러오는 중...</div>
+        </div>
+      </PageContainer>
     )
   }
 
   if (error || !project) {
     return (
-      <div className="min-h-screen bg-bg-primary flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-accent-red mb-4">{error || '프로젝트를 찾을 수 없습니다.'}</div>
-          <button
-            onClick={() => navigate('/projects')}
-            className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
-          >
-            프로젝트 목록으로 돌아가기
-          </button>
+      <PageContainer>
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="text-accent-red mb-4">{error || '프로젝트를 찾을 수 없습니다.'}</div>
+            <button
+              onClick={() => navigate('/projects')}
+              className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
+            >
+              프로젝트 목록으로 돌아가기
+            </button>
+          </div>
         </div>
-      </div>
+      </PageContainer>
     )
   }
 
   return (
-    <div className="min-h-screen bg-bg-primary">
-      {/* 헤더 */}
-      <div className="border-b border-border-primary bg-bg-secondary">
-        <div className="max-w-4xl mx-auto px-6 py-6">
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={() => navigate(`/projects/${id}`)}
-              className="p-2 text-text-muted hover:text-text-primary rounded-lg hover:bg-bg-tertiary transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
+    <PageContainer>
+      <PageHeader
+        title="프로젝트 편집"
+        subtitle={`${project.name} 프로젝트의 정보를 수정합니다`}
+        description="프로젝트 정보와 워크플로우 설정을 변경할 수 있습니다"
+        actions={
+          <button
+            onClick={() => navigate(`/projects/${id}`)}
+            className="flex items-center space-x-2 px-4 py-2 text-text-muted hover:text-text-primary border border-border-primary rounded-lg hover:bg-bg-tertiary transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>프로젝트로 돌아가기</span>
+          </button>
+        }
+      />
+
+      <PageContent maxWidth="xl">
+        <div className="bg-bg-secondary rounded-lg border border-border-primary p-6">
+          <div className="flex items-center space-x-3 mb-6">
+            <div className="p-2 bg-orange-500/10 rounded-lg">
+              <Edit className="w-5 h-5 text-orange-500" />
+            </div>
             <div>
-              <h1 className="text-2xl font-semibold text-text-primary">프로젝트 편집</h1>
-              <p className="text-text-secondary mt-1">
-                {project.name} 프로젝트의 정보를 수정합니다
+              <h2 className="text-lg font-semibold text-text-primary">프로젝트 정보 수정</h2>
+              <p className="text-text-secondary text-sm">
+                프로젝트 정보를 업데이트하고 워크플로우를 변경하세요
+                {protectedSteps.length > 0 && (
+                  <span className="text-yellow-500 ml-2">
+                    (진행 중인 단계: {protectedSteps.length}개 보호됨)
+                  </span>
+                )}
               </p>
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* 프로젝트 편집 폼 */}
-      <div className="max-w-4xl mx-auto px-6 py-8">
-        <div className="bg-bg-secondary rounded-lg border border-border-primary p-6">
           <ProjectForm
             mode="edit"
             initialData={{
@@ -143,7 +159,7 @@ export function EditProjectPage() {
             onCancel={() => navigate(`/projects/${id}`)}
           />
         </div>
-      </div>
-    </div>
+      </PageContent>
+    </PageContainer>
   )
 }
