@@ -221,7 +221,7 @@ class FileService {
         storage_path: filePath,
         file_size: file.size,
         mime_type: file.type,
-        file_type: file.type,
+        file_type: file.type.length > 255 ? file.type.substring(0, 255) : file.type, // MIME 타입 길이 제한
         project_id: options.projectId || null,
         uploaded_by: options.userId,
         metadata: options.metadata as any, // JSON 호환을 위해 타입 변환
@@ -229,7 +229,12 @@ class FileService {
         version: 1
       }
 
-      console.log('📝 삽입할 문서 데이터:', documentData)
+      console.log('📝 삽입할 문서 데이터:', {
+        ...documentData,
+        file_name_length: filename.length,
+        mime_type_length: file.type.length,
+        file_type_length: documentData.file_type.length
+      })
 
       const dbResponse = await supabase
         .from('documents')
@@ -340,10 +345,21 @@ class FileService {
   }
 
   private sanitizeFilename(filename: string): string {
-    return filename
+    // 파일명을 안전하게 정리하고 길이 제한
+    const sanitized = filename
       .replace(/[^a-zA-Z0-9.-]/g, '_')
       .replace(/_{2,}/g, '_')
       .replace(/^_|_$/g, '')
+
+    // 파일명이 너무 길면 확장자를 보존하면서 줄임
+    if (sanitized.length > 100) {
+      const ext = this.getFileExtension(sanitized)
+      const nameWithoutExt = sanitized.substring(0, sanitized.lastIndexOf('.'))
+      const maxNameLength = 100 - ext.length - 1 // 점(.) 포함
+      return nameWithoutExt.substring(0, maxNameLength) + '.' + ext
+    }
+
+    return sanitized
   }
 
   private async getImageDimensions(file: File): Promise<{ width: number; height: number }> {
