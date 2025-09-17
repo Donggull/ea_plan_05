@@ -101,66 +101,65 @@ export function DocumentUploader({
     try {
       // 모든 파일을 병렬로 업로드
       await Promise.all(
-        currentPendingFiles
-          .map(async (uploadFile) => {
-            try {
-              // 상태 업데이트: 업로딩 시작
+        currentPendingFiles.map(async (uploadFile) => {
+          try {
+            // 상태 업데이트: 업로딩 시작
+            setUploadFilesList((prev) =>
+              prev.map((f) =>
+                f.id === uploadFile.id ? { ...f, status: 'uploading', progress: 0 } : f
+              )
+            )
+
+            // 파일 메타데이터 추출
+            const metadata = await fileService.extractMetadata(uploadFile.file)
+
+            // 진행률 콜백
+            const onProgress = (progress: number) => {
               setUploadFilesList((prev) =>
                 prev.map((f) =>
-                  f.id === uploadFile.id ? { ...f, status: 'uploading', progress: 0 } : f
-                )
-              )
-
-              // 파일 메타데이터 추출
-              const metadata = await fileService.extractMetadata(uploadFile.file)
-
-              // 진행률 콜백
-              const onProgress = (progress: number) => {
-                setUploadFilesList((prev) =>
-                  prev.map((f) =>
-                    f.id === uploadFile.id ? { ...f, progress } : f
-                  )
-                )
-              }
-
-              // 파일 업로드
-              const result = await fileService.uploadFile(
-                uploadFile.file,
-                {
-                  projectId,
-                  userId: user.id,
-                  metadata
-                },
-                onProgress
-              )
-
-              // 성공 상태로 업데이트
-              setUploadFilesList((prev) =>
-                prev.map((f) =>
-                  f.id === uploadFile.id
-                    ? { ...f, status: 'success', progress: 100, url: result.url }
-                    : f
-                )
-              )
-
-              completedFiles.push(result)
-            } catch (error) {
-              console.error('File upload error:', error)
-
-              // 에러 상태로 업데이트
-              setUploadFilesList((prev) =>
-                prev.map((f) =>
-                  f.id === uploadFile.id
-                    ? {
-                        ...f,
-                        status: 'error',
-                        error: error instanceof Error ? error.message : '업로드 실패'
-                      }
-                    : f
+                  f.id === uploadFile.id ? { ...f, progress } : f
                 )
               )
             }
-          })
+
+            // 파일 업로드
+            const result = await fileService.uploadFile(
+              uploadFile.file,
+              {
+                projectId,
+                userId: user.id,
+                metadata
+              },
+              onProgress
+            )
+
+            // 성공 상태로 업데이트
+            setUploadFilesList((prev) =>
+              prev.map((f) =>
+                f.id === uploadFile.id
+                  ? { ...f, status: 'success', progress: 100, url: result.url }
+                  : f
+              )
+            )
+
+            completedFiles.push(result)
+          } catch (error) {
+            console.error('File upload error:', error)
+
+            // 에러 상태로 업데이트
+            setUploadFilesList((prev) =>
+              prev.map((f) =>
+                f.id === uploadFile.id
+                  ? {
+                      ...f,
+                      status: 'error',
+                      error: error instanceof Error ? error.message : '업로드 실패'
+                    }
+                  : f
+              )
+            )
+          }
+        })
       )
 
       if (completedFiles.length > 0) {
@@ -173,16 +172,18 @@ export function DocumentUploader({
     } finally {
       setIsUploading(false)
     }
-  }, [user, projectId, onUploadComplete])
+  }, [uploadFilesList, user, projectId, onUploadComplete])
 
   // 파일이 추가되면 자동으로 업로드 시작
   useEffect(() => {
     const pendingFiles = uploadFilesList.filter(f => f.status === 'pending')
-    if (pendingFiles.length > 0 && !isUploading && user) {
-      console.log('자동 업로드 시작:', pendingFiles.length, '개 파일')
+    const pendingCount = pendingFiles.length
+
+    if (pendingCount > 0 && !isUploading && user) {
+      console.log('자동 업로드 시작:', pendingCount, '개 파일')
       const timer = setTimeout(() => {
         startUpload()
-      }, 1000) // 1초로 증가
+      }, 1000)
       return () => clearTimeout(timer)
     }
     return undefined
