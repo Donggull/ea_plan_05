@@ -292,7 +292,23 @@ export class ProjectService {
 
       // 관리자/부관리자는 모든 프로젝트 접근 가능
       if (userRole === 'admin' || userRole === 'subadmin') {
-        console.log('👑 관리자 권한으로 모든 프로젝트 조회')
+        console.log('👑 관리자 권한으로 모든 프로젝트 조회', {
+          userRole,
+          userId
+        })
+
+        // 먼저 모든 프로젝트 수를 확인
+        const { count: totalCount, error: countError } = await supabase
+          .from('projects')
+          .select('*', { count: 'exact', head: true })
+
+        if (countError) {
+          console.error('❌ 전체 프로젝트 수 조회 실패:', countError)
+        } else {
+          console.log(`📊 데이터베이스 전체 프로젝트 수: ${totalCount}`)
+        }
+
+        // 활성 프로젝트만 조회
         const { data, error } = await supabase
           .from('projects')
           .select('*')
@@ -300,11 +316,19 @@ export class ProjectService {
           .order('updated_at', { ascending: false })
 
         if (error) {
-          console.error('Failed to fetch all projects for admin:', error)
+          console.error('❌ 관리자용 프로젝트 조회 실패:', error)
           throw error
         }
 
-        console.log(`✅ 관리자용 프로젝트 ${data?.length || 0}개 조회 완료`)
+        console.log(`✅ 관리자용 활성 프로젝트 ${data?.length || 0}개 조회 완료`)
+        if (data && data.length > 0) {
+          console.log('📋 조회된 프로젝트 목록:', data.map(p => ({
+            id: p.id,
+            name: p.name,
+            status: p.status,
+            owner_id: p.owner_id
+          })))
+        }
         return data || []
       }
 

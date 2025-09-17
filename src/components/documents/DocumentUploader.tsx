@@ -4,6 +4,7 @@ import { Upload, File, X, AlertCircle, CheckCircle, FolderOpen } from 'lucide-re
 import { fileService } from '@/services/fileService'
 import { ProjectService } from '@/services/projectService'
 import { useAuthStore } from '@/stores/authStore'
+import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 
 interface UploadFile {
@@ -71,16 +72,53 @@ export function DocumentUploader({
 
     try {
       setLoadingProjects(true)
-      console.log('🔍 업로드 가능한 프로젝트 목록 로드 중...', {
-        userId: user.id,
-        userRole: profile?.role,
-        userEmail: user.email,
-        profileData: profile
+
+      // 자세한 사용자 정보 로깅
+      console.log('🔍 사용자 정보 상세 확인:', {
+        user: {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          user_metadata: user.user_metadata,
+          app_metadata: user.app_metadata
+        },
+        profile: profile,
+        profileRole: profile?.role,
+        finalRole: profile?.role || 'user'
       })
 
-      const uploadableProjects = await ProjectService.getUploadableProjects(user.id, profile?.role || 'user')
+      // Profile이 null인 경우 다시 로드 시도
+      if (!profile && supabase) {
+        console.log('⚠️ Profile이 null입니다. 다시 로드를 시도합니다...')
 
-      console.log(`✅ 프로젝트 ${uploadableProjects.length}개 로드 완료`)
+        try {
+          // 현재 사용자의 profile을 직접 조회
+          const { data: userProfile, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', user.id)
+            .single()
+
+          if (profileError) {
+            console.error('❌ Profile 조회 실패:', profileError)
+          } else {
+            console.log('✅ Profile 직접 조회 성공:', userProfile)
+          }
+        } catch (error) {
+          console.error('❌ Profile 직접 조회 중 오류:', error)
+        }
+      }
+
+      const userRole = profile?.role || 'user'
+      console.log('🔍 업로드 가능한 프로젝트 목록 로드 중...', {
+        userId: user.id,
+        userRole: userRole,
+        userEmail: user.email
+      })
+
+      const uploadableProjects = await ProjectService.getUploadableProjects(user.id, userRole)
+
+      console.log(`✅ 프로젝트 ${uploadableProjects.length}개 로드 완료:`, uploadableProjects.map(p => ({ id: p.id, name: p.name })))
       setProjects(uploadableProjects)
 
       // 프로젝트가 하나도 없으면 경고 표시
