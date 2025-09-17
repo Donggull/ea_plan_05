@@ -138,32 +138,68 @@ class FileService {
 
       console.log('☁️ Supabase Storage에 업로드 시작...')
 
-      // 진행률 20% 보고
-      onProgress?.(20)
-
-      // Supabase Storage에 업로드
-      const uploadResponse = await supabase.storage
-        .from('documents')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false,
-          contentType: file.type
-        })
-
-      console.log('📤 Storage 업로드 응답:', {
-        error: uploadResponse.error,
-        data: uploadResponse.data
-      })
-
-      if (uploadResponse.error) {
-        console.error('❌ Storage 업로드 실패:', uploadResponse.error)
-        throw new Error(`파일 업로드 실패: ${uploadResponse.error.message}`)
+      // 실제 업로드 진행률 시뮬레이션
+      const simulateProgress = () => {
+        let progress = 20
+        const interval = setInterval(() => {
+          progress = Math.min(progress + 5, 50) // 최대 50%까지만
+          onProgress?.(progress)
+        }, 300)
+        return interval
       }
 
-      console.log('✅ Storage 업로드 성공')
+      const progressInterval = simulateProgress()
 
-      // 진행률 60% 보고
-      onProgress?.(60)
+      try {
+        // 타임아웃 설정을 위한 Promise wrapper
+        const uploadWithTimeout = Promise.race([
+          supabase.storage
+            .from('documents')
+            .upload(filePath, file, {
+              cacheControl: '3600',
+              upsert: false,
+              contentType: file.type
+            }),
+          new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('업로드 타임아웃 (30초)')), 30000)
+          })
+        ])
+
+        const uploadResponse = await uploadWithTimeout as any
+
+        // 진행률 시뮬레이션 정리
+        clearInterval(progressInterval)
+
+        console.log('📤 Storage 업로드 응답:', {
+          error: uploadResponse.error,
+          data: uploadResponse.data
+        })
+
+        if (uploadResponse.error) {
+          console.error('❌ Storage 업로드 실패:', uploadResponse.error)
+
+          // 일반적인 오류 케이스별 메시지 개선
+          let errorMessage = uploadResponse.error.message
+          if (uploadResponse.error.message?.includes('The resource already exists')) {
+            errorMessage = '같은 이름의 파일이 이미 존재합니다.'
+          } else if (uploadResponse.error.message?.includes('Invalid file type')) {
+            errorMessage = '지원하지 않는 파일 형식입니다.'
+          } else if (uploadResponse.error.message?.includes('File too large')) {
+            errorMessage = '파일 크기가 너무 큽니다.'
+          }
+
+          throw new Error(`파일 업로드 실패: ${errorMessage}`)
+        }
+
+        console.log('✅ Storage 업로드 성공')
+
+        // 진행률 60% 보고
+        onProgress?.(60)
+
+      } catch (error) {
+        clearInterval(progressInterval)
+        throw error
+      }
 
       // 공개 URL 생성
       const { data: urlData } = supabase.storage

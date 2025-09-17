@@ -12,6 +12,7 @@ interface UploadFile {
   status: 'pending' | 'uploading' | 'success' | 'error'
   error?: string
   url?: string
+  retryCount?: number
 }
 
 interface DocumentUploaderProps {
@@ -55,7 +56,8 @@ export function DocumentUploader({
         id: `${Date.now()}-${Math.random()}`,
         file,
         progress: 0,
-        status: 'pending'
+        status: 'pending',
+        retryCount: 0
       }))
 
       setUploadFilesList((prev) => [...prev, ...newFiles])
@@ -80,6 +82,85 @@ export function DocumentUploader({
   const removeFile = (id: string) => {
     setUploadFilesList((prev) => prev.filter((f) => f.id !== id))
   }
+
+  const retryUpload = useCallback(async (uploadFile: UploadFile) => {
+    if (!user) {
+      toast.error('로그인이 필요합니다.')
+      return
+    }
+
+    const maxRetries = 3
+    if ((uploadFile.retryCount || 0) >= maxRetries) {
+      toast.error(`"${uploadFile.file.name}" 최대 재시도 횟수를 초과했습니다.`)
+      return
+    }
+
+    console.log(`🔄 파일 재시도 업로드: ${uploadFile.file.name} (${(uploadFile.retryCount || 0) + 1}/${maxRetries})`)
+
+    // 상태를 다시 업로딩으로 변경
+    setUploadFilesList((prev) =>
+      prev.map((f) =>
+        f.id === uploadFile.id
+          ? { ...f, status: 'uploading', progress: 0, error: undefined, retryCount: (f.retryCount || 0) + 1 }
+          : f
+      )
+    )
+
+    try {
+      // 파일 메타데이터 추출
+      const metadata = await fileService.extractMetadata(uploadFile.file)
+
+      // 진행률 콜백
+      const onProgress = (progress: number) => {
+        setUploadFilesList((prev) =>
+          prev.map((f) =>
+            f.id === uploadFile.id ? { ...f, progress } : f
+          )
+        )
+      }
+
+      // 파일 업로드
+      const result = await fileService.uploadFile(
+        uploadFile.file,
+        {
+          projectId,
+          userId: user.id,
+          metadata
+        },
+        onProgress
+      )
+
+      // 성공 상태로 업데이트
+      setUploadFilesList((prev) =>
+        prev.map((f) =>
+          f.id === uploadFile.id
+            ? { ...f, status: 'success', progress: 100, url: result.url }
+            : f
+        )
+      )
+
+      toast.success(`"${uploadFile.file.name}" 재시도 업로드 성공`)
+      onUploadComplete?.([result])
+
+    } catch (error) {
+      console.error('💥 재시도 업로드 오류:', error)
+
+      // 에러 상태로 업데이트
+      setUploadFilesList((prev) =>
+        prev.map((f) =>
+          f.id === uploadFile.id
+            ? {
+                ...f,
+                status: 'error',
+                error: error instanceof Error ? error.message : '업로드 실패'
+              }
+            : f
+        )
+      )
+
+      toast.error(`"${uploadFile.file.name}" 재시도 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`)
+    }
+  }, [user, projectId, onUploadComplete])
 
   const startUpload = useCallback(async () => {
     if (!user) {
@@ -316,8 +397,17 @@ export function DocumentUploader({
                         <div className="flex items-center space-x-1">
                           <AlertCircle className="h-4 w-4 text-red-500" />
                           <span className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded">
-                            실패
+                            실패 {uploadFile.retryCount ? `(${uploadFile.retryCount}/3)` : ''}
                           </span>
+                          {(uploadFile.retryCount || 0) < 3 && (
+                            <button
+                              onClick={() => retryUpload(uploadFile)}
+                              className="text-xs text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded transition-colors"
+                              title="재시도"
+                            >
+                              🔄 재시도
+                            </button>
+                          )}
                         </div>
                       )}
                       {uploadFile.status !== 'uploading' && (
