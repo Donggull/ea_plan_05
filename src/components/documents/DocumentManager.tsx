@@ -16,6 +16,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { DocumentUploader } from './DocumentUploader'
 import { DocumentViewer } from './DocumentViewer'
+import { LinearDropdown, DropdownOption } from '@/components/ui/LinearDropdown'
 import { fileService } from '@/services/fileService'
 import { toast } from 'sonner'
 import { formatDistanceToNow } from 'date-fns'
@@ -36,6 +37,11 @@ interface Document {
   is_processed?: boolean | null
   version?: number | null
   parent_id?: string | null
+  project?: {
+    id: string
+    name: string
+    description?: string | null
+  }
 }
 
 interface DocumentManagerProps {
@@ -59,6 +65,32 @@ export function DocumentManager({
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null)
   const [showUploadModal, setShowUploadModal] = useState(false)
 
+  // 파일명 표시 개선 함수
+  const formatFileName = (fileName: string, maxLength: number = 30) => {
+    if (fileName.length <= maxLength) return fileName
+
+    const extension = fileName.split('.').pop()
+    const nameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.'))
+
+    if (extension) {
+      const maxNameLength = maxLength - extension.length - 4 // 점과 줄임표 고려
+      if (nameWithoutExt.length > maxNameLength) {
+        return `${nameWithoutExt.substring(0, maxNameLength)}...${extension}`
+      }
+    }
+
+    return fileName.length > maxLength ? `${fileName.substring(0, maxLength - 3)}...` : fileName
+  }
+
+  // 파일 타입 필터 옵션
+  const filterOptions: DropdownOption[] = [
+    { value: 'all', label: '모든 파일', icon: <Folder className="w-4 h-4" /> },
+    { value: 'pdf', label: 'PDF', icon: <FileText className="w-4 h-4" /> },
+    { value: 'image', label: '이미지', icon: <Image className="w-4 h-4" /> },
+    { value: 'text', label: '텍스트', icon: <File className="w-4 h-4" /> },
+    { value: 'office', label: 'Office', icon: <FileText className="w-4 h-4" /> }
+  ]
+
   // 문서 목록 로드
   const loadDocuments = async () => {
     if (!user) return
@@ -70,7 +102,14 @@ export function DocumentManager({
 
       let query = supabase
         .from('documents')
-        .select('*')
+        .select(`
+          *,
+          project:projects(
+            id,
+            name,
+            description
+          )
+        `)
         .order('created_at', { ascending: false })
 
       if (projectId) {
@@ -209,11 +248,20 @@ export function DocumentManager({
             {/* 정보 영역 */}
             <div className="p-3">
               <h4
-                className="font-medium text-text-primary text-sm truncate mb-1 cursor-pointer hover:text-accent"
+                className="font-medium text-text-primary text-sm mb-1 cursor-pointer hover:text-accent"
                 onClick={() => setSelectedDocument(document)}
+                title={document.file_name}
               >
-                {document.file_name}
+                {formatFileName(document.file_name, 25)}
               </h4>
+              {document.project && !projectId && (
+                <div className="flex items-center space-x-1 mb-1">
+                  <Folder className="w-3 h-3 text-accent flex-shrink-0" />
+                  <span className="text-xs text-accent truncate">
+                    {document.project.name}
+                  </span>
+                </div>
+              )}
               <div className="flex items-center justify-between text-xs text-text-tertiary">
                 <span>{formatFileSize(document.file_size)}</span>
                 <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -268,13 +316,24 @@ export function DocumentManager({
 
             <div className="flex-1 min-w-0">
               <h4
-                className="font-medium text-text-primary truncate cursor-pointer hover:text-accent"
+                className="font-medium text-text-primary cursor-pointer hover:text-accent"
                 onClick={() => setSelectedDocument(document)}
+                title={document.file_name}
               >
-                {document.file_name}
+                {formatFileName(document.file_name, 40)}
               </h4>
               <div className="flex items-center space-x-4 text-xs text-text-tertiary mt-1">
                 <span>{formatFileSize(document.file_size)}</span>
+                {document.project && !projectId && (
+                  <>
+                    <div className="flex items-center space-x-1">
+                      <Folder className="w-3 h-3 text-accent" />
+                      <span className="text-accent">
+                        {document.project.name}
+                      </span>
+                    </div>
+                  </>
+                )}
                 <span>
                   {document.created_at && formatDistanceToNow(new Date(document.created_at), {
                     addSuffix: true,
@@ -358,23 +417,13 @@ export function DocumentManager({
           />
         </div>
 
-        <select
+        <LinearDropdown
+          options={filterOptions}
           value={filterType}
-          onChange={(e) => setFilterType(e.target.value)}
-          className="px-3 py-2 bg-background-secondary border border-border rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent appearance-none cursor-pointer hover:bg-background-tertiary transition-colors"
-          style={{
-            backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23a1a1aa' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
-            backgroundPosition: 'right 8px center',
-            backgroundRepeat: 'no-repeat',
-            backgroundSize: '16px'
-          }}
-        >
-          <option value="all" className="bg-background-secondary text-text-primary">모든 파일</option>
-          <option value="pdf" className="bg-background-secondary text-text-primary">PDF</option>
-          <option value="image" className="bg-background-secondary text-text-primary">이미지</option>
-          <option value="text" className="bg-background-secondary text-text-primary">텍스트</option>
-          <option value="office" className="bg-background-secondary text-text-primary">Office</option>
-        </select>
+          onSelect={setFilterType}
+          variant="compact"
+          className="w-32"
+        />
 
         <div className="flex items-center space-x-1 border border-border rounded-lg">
           <button
