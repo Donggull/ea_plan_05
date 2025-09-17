@@ -403,8 +403,7 @@ const PageHeader = ({
     }}
   >
     <div style={{
-      maxWidth: '1280px',
-      margin: '0 auto',
+      width: '100%',
       padding: '24px',
     }}>
       <div style={{
@@ -472,7 +471,7 @@ const maxWidthMap = {
   lg: '1024px',
   xl: '1280px',
   '2xl': '1536px',
-  '7xl': '1280px',
+  '7xl': '100%',
   full: '100%'
 };
 

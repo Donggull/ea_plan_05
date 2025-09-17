@@ -105,10 +105,35 @@ export function Header() {
           </button>
         </div>
 
-        {/* 중앙 영역 - 검색 기능 등을 위해 확장 가능 */}
-        <div className="flex-1 max-w-lg mx-8">
-          {/* 향후 글로벌 검색 기능 추가 예정 */}
-        </div>
+        {/* 중앙 네비게이션 (데스크톱) */}
+        {isAuthenticated && (
+          <nav className="hidden md:flex items-center space-x-8">
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="text-text-secondary hover:text-text-primary transition-colors text-regular font-normal"
+            >
+              Dashboard
+            </button>
+            <button
+              onClick={() => navigate('/projects')}
+              className="text-text-secondary hover:text-text-primary transition-colors text-regular font-normal"
+            >
+              Projects
+            </button>
+            <button
+              onClick={() => navigate('/documents')}
+              className="text-text-secondary hover:text-text-primary transition-colors text-regular font-normal"
+            >
+              Documents
+            </button>
+            <button
+              onClick={() => navigate('/analytics')}
+              className="text-text-secondary hover:text-text-primary transition-colors text-regular font-normal"
+            >
+              Analytics
+            </button>
+          </nav>
+        )}
 
         {/* 우측 액션 버튼들 */}
         <div className="flex items-center space-x-4">
@@ -228,14 +253,47 @@ export function Header() {
         </div>
       </div>
 
-      {/* 모바일 메뉴 - 네비게이션은 사이드바로 이동됨 */}
+      {/* 모바일 메뉴 */}
       {isMobileMenuOpen && isAuthenticated && (
         <div className="md:hidden border-t border-border-secondary bg-bg-primary">
-          <div className="container mx-auto px-6 py-4">
-            <p className="text-text-secondary text-small">
-              메뉴는 좌측 사이드바에서 확인할 수 있습니다.
-            </p>
-          </div>
+          <nav className="container mx-auto px-6 py-4 space-y-2">
+            <button
+              onClick={() => {
+                navigate('/dashboard')
+                setIsMobileMenuOpen(false)
+              }}
+              className="block w-full text-left px-4 py-3 text-text-secondary hover:text-text-primary hover:bg-bg-secondary rounded-lg transition-colors"
+            >
+              Dashboard
+            </button>
+            <button
+              onClick={() => {
+                navigate('/projects')
+                setIsMobileMenuOpen(false)
+              }}
+              className="block w-full text-left px-4 py-3 text-text-secondary hover:text-text-primary hover:bg-bg-secondary rounded-lg transition-colors"
+            >
+              Projects
+            </button>
+            <button
+              onClick={() => {
+                navigate('/documents')
+                setIsMobileMenuOpen(false)
+              }}
+              className="block w-full text-left px-4 py-3 text-text-secondary hover:text-text-primary hover:bg-bg-secondary rounded-lg transition-colors"
+            >
+              Documents
+            </button>
+            <button
+              onClick={() => {
+                navigate('/analytics')
+                setIsMobileMenuOpen(false)
+              }}
+              className="block w-full text-left px-4 py-3 text-text-secondary hover:text-text-primary hover:bg-bg-secondary rounded-lg transition-colors"
+            >
+              Analytics
+            </button>
+          </nav>
         </div>
       )}
 
