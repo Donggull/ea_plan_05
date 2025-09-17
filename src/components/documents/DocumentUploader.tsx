@@ -5,6 +5,7 @@ import { fileService } from '@/services/fileService'
 import { ProjectService } from '@/services/projectService'
 import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
+import { LinearDropdown, type DropdownOption } from '@/components/ui/LinearDropdown'
 import { toast } from 'sonner'
 
 interface UploadFile {
@@ -414,65 +415,65 @@ export function DocumentUploader({
               <span className="text-sm text-text-tertiary">프로젝트 목록 로드 중...</span>
             </div>
           ) : projects.length > 0 ? (
-            <div className="relative">
-              <select
-                value={selectedProjectId}
-                onChange={(e) => setSelectedProjectId(e.target.value)}
-                className="w-full pl-10 pr-10 py-3 bg-background-secondary border border-border rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent appearance-none cursor-pointer transition-colors"
-              >
-                <option value="" className="text-text-tertiary">
-                  프로젝트를 선택해주세요
-                </option>
-                {projects.map((project) => {
-                  // 프로젝트 상태에 따른 스타일과 텍스트 설정
-                  const getProjectDisplay = (project: Project) => {
-                    const baseText = project.name + (project.description ? ` - ${project.description.substring(0, 40)}${project.description.length > 40 ? '...' : ''}` : '')
-
-                    switch (project.status) {
-                      case 'active':
-                        return `✅ ${baseText}`
-                      case 'completed':
-                        return `✔️ ${baseText} (완료)`
-                      case 'inactive':
-                        return `⏸️ ${baseText} (비활성)`
-                      case 'archived':
-                        return `📦 ${baseText} (보관됨)`
-                      default:
-                        return `❓ ${baseText} (${project.status})`
-                    }
+            <LinearDropdown
+              options={projects.map((project): DropdownOption => {
+                // 프로젝트 상태에 따른 아이콘과 스타일 설정
+                const getProjectIcon = (status: string) => {
+                  switch (status) {
+                    case 'active':
+                      return '✅'
+                    case 'completed':
+                      return '✔️'
+                    case 'inactive':
+                      return '⏸️'
+                    case 'archived':
+                      return '📦'
+                    default:
+                      return '❓'
                   }
+                }
 
-                  const isInactive = project.status !== 'active'
+                const getProjectStatus = (status: string) => {
+                  switch (status) {
+                    case 'active':
+                      return ''
+                    case 'completed':
+                      return '(완료)'
+                    case 'inactive':
+                      return '(비활성)'
+                    case 'archived':
+                      return '(보관됨)'
+                    default:
+                      return `(${status})`
+                  }
+                }
 
-                  return (
-                    <option
-                      key={project.id}
-                      value={project.id}
-                      className={`bg-background-secondary ${
-                        isInactive
-                          ? 'text-text-tertiary opacity-75'
-                          : 'text-text-primary'
-                      }`}
-                      style={{
-                        backgroundColor: '#191b1f',
-                        color: isInactive ? '#6b7280' : '#f7f8f8',
-                        fontStyle: isInactive ? 'italic' : 'normal'
-                      }}
-                    >
-                      {getProjectDisplay(project)}
-                    </option>
-                  )
-                })}
-              </select>
-              <FolderOpen className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-text-tertiary pointer-events-none" />
+                const isInactive = project.status !== 'active'
+                const statusText = getProjectStatus(project.status)
+                const description = project.description
+                  ? `${project.description.substring(0, 50)}${project.description.length > 50 ? '...' : ''}`
+                  : undefined
 
-              {/* 커스텀 드롭다운 화살표 */}
-              <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                <svg width="12" height="8" viewBox="0 0 12 8" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M1 1.5L6 6.5L11 1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-text-tertiary"/>
-                </svg>
-              </div>
-            </div>
+                return {
+                  value: project.id,
+                  label: `${getProjectIcon(project.status)} ${project.name} ${statusText}`.trim(),
+                  description: description,
+                  disabled: false, // 관리자는 모든 프로젝트 선택 가능
+                  icon: <FolderOpen className="w-4 h-4" />,
+                  meta: isInactive ? (
+                    <span className="text-xs px-2 py-1 bg-orange-100 text-orange-600 rounded">
+                      비활성
+                    </span>
+                  ) : undefined
+                }
+              })}
+              value={selectedProjectId}
+              placeholder="프로젝트를 선택해주세요"
+              onSelect={setSelectedProjectId}
+              icon={<FolderOpen className="w-4 h-4" />}
+              showSearch={projects.length > 5}
+              maxHeight="max-h-72"
+            />
           ) : projectsLoaded ? (
             <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
               <div className="flex items-center space-x-2">
