@@ -323,34 +323,57 @@ export function ProjectDetailPage() {
 
             {/* 프로젝트 정보 */}
             <Card>
-              <div className="flex items-center space-x-3 mb-3">
+              <div className="flex items-center space-x-3 mb-4">
                 <div className="p-2 bg-indigo-500/10 rounded-lg">
                   <FileText className="w-5 h-5 text-indigo-500" />
                 </div>
                 <h3 className="text-lg font-semibold text-text-primary">프로젝트 정보</h3>
               </div>
-              <div className="space-y-3 text-sm">
-                <div className="flex justify-between py-2">
-                  <span className="text-text-secondary">상태</span>
+              <div className="space-y-4 text-sm">
+                <div className="flex justify-between py-2 border-b border-border-primary/30">
+                  <span className="text-text-secondary font-medium">상태</span>
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(project.status)}`}>
                     {getStatusLabel(project.status)}
                   </span>
                 </div>
-                <div className="flex justify-between py-2">
-                  <span className="text-text-secondary">생성일</span>
+                <div className="flex justify-between py-2 border-b border-border-primary/30">
+                  <span className="text-text-secondary font-medium">생성일</span>
                   <span className="text-text-primary">
                     {project.created_at ? new Date(project.created_at).toLocaleDateString('ko-KR') : '-'}
                   </span>
                 </div>
-                <div className="flex justify-between py-2">
-                  <span className="text-text-secondary">소유자</span>
+                <div className="flex justify-between py-2 border-b border-border-primary/30">
+                  <span className="text-text-secondary font-medium">소유자</span>
                   <span className="text-text-primary">{project.owner_name || '알 수 없음'}</span>
                 </div>
+                <div className="flex justify-between py-2 border-b border-border-primary/30">
+                  <span className="text-text-secondary font-medium">멤버 수</span>
+                  <span className="text-text-primary">{projectMembers.length}명</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-border-primary/30">
+                  <span className="text-text-secondary font-medium">문서 수</span>
+                  <span className="text-text-primary">{documentCount}개</span>
+                </div>
                 {project.description && (
-                  <div className="pt-2 border-t border-border-primary">
-                    <p className="text-text-secondary text-xs leading-relaxed">{project.description}</p>
+                  <div className="pt-3 mt-4">
+                    <div className="text-text-secondary font-medium mb-2">설명</div>
+                    <p className="text-text-secondary text-xs leading-relaxed bg-bg-tertiary p-3 rounded-lg">
+                      {project.description}
+                    </p>
                   </div>
                 )}
+                <div className="pt-3 mt-4">
+                  <div className="text-text-secondary font-medium mb-2">진행률</div>
+                  <div className="w-full bg-bg-tertiary rounded-full h-2">
+                    <div
+                      className="bg-primary-500 h-2 rounded-full transition-all duration-300"
+                      style={{ width: project.status === 'completed' ? '100%' : project.status === 'active' ? '65%' : '30%' }}
+                    ></div>
+                  </div>
+                  <div className="text-xs text-text-secondary mt-1">
+                    {project.status === 'completed' ? '100%' : project.status === 'active' ? '65%' : '30%'} 완료
+                  </div>
+                </div>
               </div>
             </Card>
           </div>
