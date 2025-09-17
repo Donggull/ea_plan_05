@@ -31,16 +31,17 @@ export function MainLayout() {
   }
 
   return (
-    <div className="h-screen bg-bg-primary flex">
-      {/* Sidebar */}
-      <Sidebar
-        isCollapsed={isSidebarCollapsed}
-        onToggleCollapse={handleSidebarToggle}
-      />
+    <div className="h-screen bg-bg-primary flex flex-col">
+      {/* Header - 전체 너비 */}
+      <Header />
 
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <Header />
+      {/* Content Area - Sidebar + Main */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Sidebar */}
+        <Sidebar
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={handleSidebarToggle}
+        />
 
         {/* Main Content Area */}
         <main className="flex-1 overflow-y-auto bg-bg-primary">
