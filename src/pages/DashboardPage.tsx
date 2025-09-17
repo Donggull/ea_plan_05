@@ -3,6 +3,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { useQuery } from '@tanstack/react-query'
 import { getProjectStats, getRecentProjects } from '@/services/projects'
 import { getRecentActivity } from '@/services/analytics'
+import { PageContainer, PageContent } from '@/components/LinearComponents'
 import {
   FolderOpen,
   FileText,
@@ -114,16 +115,17 @@ function DashboardContent() {
   }
 
   return (
-    <div className="space-y-8">
-      {/* 헤더 */}
-      <div>
-        <h1 className="text-title4 font-semibold text-text-primary mb-2">
-          Welcome back, {user?.email?.split('@')[0] || 'User'}
-        </h1>
-        <p className="text-large text-text-secondary">
-          Here's what's happening with your projects today.
-        </p>
-      </div>
+    <PageContainer>
+      <PageContent className="space-y-8">
+        {/* 헤더 */}
+        <div>
+          <h1 className="text-title4 font-semibold text-text-primary mb-2">
+            Welcome back, {user?.email?.split('@')[0] || 'User'}
+          </h1>
+          <p className="text-large text-text-secondary">
+            Here's what's happening with your projects today.
+          </p>
+        </div>
 
       {/* 통계 카드 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -276,72 +278,83 @@ function DashboardContent() {
           </button>
         </div>
       </div>
-    </div>
+      </PageContent>
+    </PageContainer>
   )
 }
 
 // 다른 페이지들의 간단한 구현
 function ProjectsContent() {
   return (
-    <div className="space-y-6">
-      <h1 className="text-title4 font-semibold text-text-primary">Projects</h1>
-      <p className="text-large text-text-secondary">Manage your active projects and track progress.</p>
-      <div className="bg-bg-secondary border border-border-primary rounded-xl p-12 text-center">
-        <FolderOpen className="w-12 h-12 text-text-tertiary mx-auto mb-4" />
-        <p className="text-text-secondary">Projects management coming soon...</p>
-      </div>
-    </div>
+    <PageContainer>
+      <PageContent className="space-y-6">
+        <h1 className="text-title4 font-semibold text-text-primary">Projects</h1>
+        <p className="text-large text-text-secondary">Manage your active projects and track progress.</p>
+        <div className="bg-bg-secondary border border-border-primary rounded-xl p-12 text-center">
+          <FolderOpen className="w-12 h-12 text-text-tertiary mx-auto mb-4" />
+          <p className="text-text-secondary">Projects management coming soon...</p>
+        </div>
+      </PageContent>
+    </PageContainer>
   )
 }
 
 function DocumentsContent() {
   return (
-    <div className="space-y-6">
-      <h1 className="text-title4 font-semibold text-text-primary">Documents</h1>
-      <p className="text-large text-text-secondary">Upload and manage your project documents.</p>
-      <div className="bg-bg-secondary border border-border-primary rounded-xl p-12 text-center">
-        <FileText className="w-12 h-12 text-text-tertiary mx-auto mb-4" />
-        <p className="text-text-secondary">Document management coming soon...</p>
-      </div>
-    </div>
+    <PageContainer>
+      <PageContent className="space-y-6">
+        <h1 className="text-title4 font-semibold text-text-primary">Documents</h1>
+        <p className="text-large text-text-secondary">Upload and manage your project documents.</p>
+        <div className="bg-bg-secondary border border-border-primary rounded-xl p-12 text-center">
+          <FileText className="w-12 h-12 text-text-tertiary mx-auto mb-4" />
+          <p className="text-text-secondary">Document management coming soon...</p>
+        </div>
+      </PageContent>
+    </PageContainer>
   )
 }
 
 function AnalyticsContent() {
   return (
-    <div className="space-y-6">
-      <h1 className="text-title4 font-semibold text-text-primary">Analytics</h1>
-      <p className="text-large text-text-secondary">View detailed analytics and insights.</p>
-      <div className="bg-bg-secondary border border-border-primary rounded-xl p-12 text-center">
-        <TrendingUp className="w-12 h-12 text-text-tertiary mx-auto mb-4" />
-        <p className="text-text-secondary">Analytics dashboard coming soon...</p>
-      </div>
-    </div>
+    <PageContainer>
+      <PageContent className="space-y-6">
+        <h1 className="text-title4 font-semibold text-text-primary">Analytics</h1>
+        <p className="text-large text-text-secondary">View detailed analytics and insights.</p>
+        <div className="bg-bg-secondary border border-border-primary rounded-xl p-12 text-center">
+          <TrendingUp className="w-12 h-12 text-text-tertiary mx-auto mb-4" />
+          <p className="text-text-secondary">Analytics dashboard coming soon...</p>
+        </div>
+      </PageContent>
+    </PageContainer>
   )
 }
 
 function TeamContent() {
   return (
-    <div className="space-y-6">
-      <h1 className="text-title4 font-semibold text-text-primary">Team</h1>
-      <p className="text-large text-text-secondary">Manage team members and collaborations.</p>
-      <div className="bg-bg-secondary border border-border-primary rounded-xl p-12 text-center">
-        <Users className="w-12 h-12 text-text-tertiary mx-auto mb-4" />
-        <p className="text-text-secondary">Team management coming soon...</p>
-      </div>
-    </div>
+    <PageContainer>
+      <PageContent className="space-y-6">
+        <h1 className="text-title4 font-semibold text-text-primary">Team</h1>
+        <p className="text-large text-text-secondary">Manage team members and collaborations.</p>
+        <div className="bg-bg-secondary border border-border-primary rounded-xl p-12 text-center">
+          <Users className="w-12 h-12 text-text-tertiary mx-auto mb-4" />
+          <p className="text-text-secondary">Team management coming soon...</p>
+        </div>
+      </PageContent>
+    </PageContainer>
   )
 }
 
 function SettingsContent() {
   return (
-    <div className="space-y-6">
-      <h1 className="text-title4 font-semibold text-text-primary">Settings</h1>
-      <p className="text-large text-text-secondary">Configure your account and application settings.</p>
-      <div className="bg-bg-secondary border border-border-primary rounded-xl p-12 text-center">
-        <Cpu className="w-12 h-12 text-text-tertiary mx-auto mb-4" />
-        <p className="text-text-secondary">Settings panel coming soon...</p>
-      </div>
-    </div>
+    <PageContainer>
+      <PageContent className="space-y-6">
+        <h1 className="text-title4 font-semibold text-text-primary">Settings</h1>
+        <p className="text-large text-text-secondary">Configure your account and application settings.</p>
+        <div className="bg-bg-secondary border border-border-primary rounded-xl p-12 text-center">
+          <Cpu className="w-12 h-12 text-text-tertiary mx-auto mb-4" />
+          <p className="text-text-secondary">Settings panel coming soon...</p>
+        </div>
+      </PageContent>
+    </PageContainer>
   )
 }

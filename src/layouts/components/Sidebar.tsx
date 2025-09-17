@@ -194,7 +194,22 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
         {collapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
       </button>
 
-      <div className="flex-1 flex flex-col p-3 space-y-4 overflow-y-auto">
+      <div className="flex-1 flex flex-col overflow-y-auto">
+        {/* 로고 및 타이틀 */}
+        {!collapsed && (
+          <div className="p-4 border-b border-border-primary">
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center">
+                <span className="text-white font-semibold text-sm">EL</span>
+              </div>
+              <span className="text-text-primary font-medium text-regular tracking-tight">
+                ELUO project
+              </span>
+            </div>
+          </div>
+        )}
+
+        <div className="flex-1 flex flex-col p-3 space-y-4">
         {/* 프로젝트 선택기 */}
         {!collapsed && (
           <div className="space-y-2">
@@ -535,6 +550,7 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
             </button>
           )}
         </div>
+      </div>
       </div>
 
       {/* 하단 비용 모니터링 위젯 - 컴팩트 버전 */}

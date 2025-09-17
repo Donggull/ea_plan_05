@@ -4,6 +4,7 @@ import { Plus, Search, Filter, Grid3X3, List } from 'lucide-react'
 import { useProject } from '../../contexts/ProjectContext'
 import { ProjectGrid } from '../../components/projects/ProjectGrid'
 import { ProjectFilters } from '../../components/projects/ProjectFilters'
+import { PageContainer, PageHeader, PageContent, SearchInput, FilterButton, ViewModeToggle } from '../../components/LinearComponents'
 
 export function ProjectsPage() {
   const navigate = useNavigate()
@@ -42,82 +43,46 @@ export function ProjectsPage() {
   })
 
   return (
-    <div className="min-h-screen bg-bg-primary">
-      {/* 헤더 */}
-      <div className="border-b border-border-primary bg-bg-secondary">
-        <div className="max-w-7xl mx-auto px-6 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-semibold text-text-primary">프로젝트</h1>
-              <p className="text-text-secondary mt-1">
-                {userProjects.length}개의 프로젝트
-              </p>
-            </div>
+    <PageContainer>
+      <PageHeader
+        title="프로젝트"
+        subtitle={`${userProjects.length}개의 프로젝트`}
+        actions={
+          <button
+            onClick={() => navigate('/projects/new')}
+            className="flex items-center space-x-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            <span>새 프로젝트</span>
+          </button>
+        }
+      />
 
-            <button
-              onClick={() => navigate('/projects/new')}
-              className="flex items-center space-x-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              <span>새 프로젝트</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* 검색 및 필터 */}
-      <div className="max-w-7xl mx-auto px-6 py-6">
+      <PageContent>
+        {/* 검색 및 필터 */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-4 flex-1 max-w-2xl">
-            {/* 검색 */}
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-text-muted" />
-              <input
-                type="text"
-                placeholder="프로젝트 검색..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-bg-secondary border border-border-primary rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-text-primary placeholder-text-muted"
-              />
-            </div>
-
-            {/* 필터 버튼 */}
-            <button
+            <SearchInput
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="프로젝트 검색..."
+              icon={<Search className="w-4 h-4" />}
+            />
+            <FilterButton
+              active={showFilters}
               onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center space-x-2 px-3 py-2 rounded-lg border transition-colors ${
-                showFilters
-                  ? 'bg-primary-500 text-white border-primary-500'
-                  : 'bg-bg-secondary text-text-secondary border-border-primary hover:text-text-primary'
-              }`}
+              icon={<Filter className="w-4 h-4" />}
             >
-              <Filter className="w-4 h-4" />
-              <span>필터</span>
-            </button>
+              필터
+            </FilterButton>
           </div>
 
-          {/* 뷰 모드 토글 */}
-          <div className="flex items-center space-x-1 bg-bg-secondary rounded-lg p-1 border border-border-primary">
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`p-2 rounded-md transition-colors ${
-                viewMode === 'grid'
-                  ? 'bg-primary-500 text-white'
-                  : 'text-text-muted hover:text-text-primary'
-              }`}
-            >
-              <Grid3X3 className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className={`p-2 rounded-md transition-colors ${
-                viewMode === 'list'
-                  ? 'bg-primary-500 text-white'
-                  : 'text-text-muted hover:text-text-primary'
-              }`}
-            >
-              <List className="w-4 h-4" />
-            </button>
-          </div>
+          <ViewModeToggle
+            mode={viewMode}
+            onChange={setViewMode}
+            gridIcon={<Grid3X3 className="w-4 h-4" />}
+            listIcon={<List className="w-4 h-4" />}
+          />
         </div>
 
         {/* 필터 패널 */}
@@ -163,7 +128,7 @@ export function ProjectsPage() {
             viewMode={viewMode}
           />
         )}
-      </div>
-    </div>
+      </PageContent>
+    </PageContainer>
   )
 }
