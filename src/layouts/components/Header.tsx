@@ -105,38 +105,41 @@ export function Header() {
           </button>
         </div>
 
-        {/* 중앙 네비게이션 */}
-        {isAuthenticated && (
-          <nav className="hidden md:flex items-center space-x-8">
-            <button
-              onClick={() => navigate('/dashboard')}
-              className="text-text-secondary hover:text-text-primary transition-colors text-regular font-normal relative py-2"
-            >
-              Dashboard
-            </button>
-            <button
-              onClick={() => navigate('/projects')}
-              className="text-text-secondary hover:text-text-primary transition-colors text-regular font-normal relative py-2"
-            >
-              Projects
-            </button>
-            <button
-              onClick={() => navigate('/documents')}
-              className="text-text-secondary hover:text-text-primary transition-colors text-regular font-normal relative py-2"
-            >
-              Documents
-            </button>
-            <button
-              onClick={() => navigate('/analytics')}
-              className="text-text-secondary hover:text-text-primary transition-colors text-regular font-normal relative py-2"
-            >
-              Analytics
-            </button>
-          </nav>
-        )}
+        {/* 빈 공간 (중앙) */}
+        <div className="flex-1"></div>
 
-        {/* 우측 액션 버튼들 */}
+        {/* 우측 네비게이션 + 액션 버튼들 */}
         <div className="flex items-center space-x-3">
+          {/* GNB 메뉴 (인증된 사용자만) */}
+          {isAuthenticated && (
+            <nav className="hidden md:flex items-center space-x-6 mr-4">
+              <button
+                onClick={() => navigate('/dashboard')}
+                className="text-text-secondary hover:text-text-primary transition-colors text-regular font-normal relative py-2"
+              >
+                Dashboard
+              </button>
+              <button
+                onClick={() => navigate('/projects')}
+                className="text-text-secondary hover:text-text-primary transition-colors text-regular font-normal relative py-2"
+              >
+                Projects
+              </button>
+              <button
+                onClick={() => navigate('/documents')}
+                className="text-text-secondary hover:text-text-primary transition-colors text-regular font-normal relative py-2"
+              >
+                Documents
+              </button>
+              <button
+                onClick={() => navigate('/analytics')}
+                className="text-text-secondary hover:text-text-primary transition-colors text-regular font-normal relative py-2"
+              >
+                Analytics
+              </button>
+            </nav>
+          )}
+
           {/* 검색 버튼 (인증된 사용자만) */}
           {isAuthenticated && (
             <button className="p-2 text-text-secondary hover:text-text-primary hover:bg-bg-secondary rounded-md transition-colors">
