@@ -52,7 +52,7 @@ export function DocumentUploader({
   ],
   allowProjectSelection = true
 }: DocumentUploaderProps) {
-  const { user } = useAuthStore()
+  const { user, profile } = useAuthStore()
   const [uploadFilesList, setUploadFilesList] = useState<UploadFile[]>([])
   const [isUploading, setIsUploading] = useState(false)
 
@@ -71,9 +71,14 @@ export function DocumentUploader({
 
     try {
       setLoadingProjects(true)
-      console.log('🔍 업로드 가능한 프로젝트 목록 로드 중...')
+      console.log('🔍 업로드 가능한 프로젝트 목록 로드 중...', {
+        userId: user.id,
+        userRole: profile?.role,
+        userEmail: user.email,
+        profileData: profile
+      })
 
-      const uploadableProjects = await ProjectService.getUploadableProjects(user.id, user.role || 'user')
+      const uploadableProjects = await ProjectService.getUploadableProjects(user.id, profile?.role || 'user')
 
       console.log(`✅ 프로젝트 ${uploadableProjects.length}개 로드 완료`)
       setProjects(uploadableProjects)
@@ -90,7 +95,7 @@ export function DocumentUploader({
       setLoadingProjects(false)
       setProjectsLoaded(true)
     }
-  }, [user, allowProjectSelection, fixedProjectId])
+  }, [user, profile, allowProjectSelection, fixedProjectId])
 
   // 컴포넌트 마운트 시 프로젝트 목록 로드
   useEffect(() => {
@@ -375,19 +380,21 @@ export function DocumentUploader({
               <select
                 value={selectedProjectId}
                 onChange={(e) => setSelectedProjectId(e.target.value)}
-                className="w-full pl-10 pr-10 py-3 bg-background-secondary border border-border rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent appearance-none cursor-pointer hover:bg-background-tertiary transition-colors relative z-20"
+                className="w-full pl-10 pr-10 py-3 rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent appearance-none cursor-pointer transition-colors relative z-20"
                 style={{
-                  backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
-                  backgroundPosition: 'right 12px center',
-                  backgroundRepeat: 'no-repeat',
-                  backgroundSize: '16px'
+                  backgroundColor: 'var(--linear-bg-secondary)',
+                  border: '1px solid var(--linear-border-primary)',
+                  color: 'var(--linear-text-primary)',
+                  backgroundImage: `url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%238a8f98' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
+                  backgroundPosition: 'right 16px center',
+                  backgroundRepeat: 'no-repeat'
                 }}
               >
                 <option
                   value=""
                   style={{
-                    backgroundColor: '#101113',
-                    color: '#8a8f98',
+                    backgroundColor: 'var(--linear-bg-secondary)',
+                    color: 'var(--linear-text-tertiary)',
                     padding: '8px 12px'
                   }}
                 >
@@ -398,10 +405,9 @@ export function DocumentUploader({
                     key={project.id}
                     value={project.id}
                     style={{
-                      backgroundColor: '#101113',
-                      color: '#f7f8f8',
-                      padding: '8px 12px',
-                      borderBottom: '1px solid #2a2d30'
+                      backgroundColor: 'var(--linear-bg-secondary)',
+                      color: 'var(--linear-text-primary)',
+                      padding: '8px 12px'
                     }}
                   >
                     {project.name}
