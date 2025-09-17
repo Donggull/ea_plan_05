@@ -29,7 +29,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   session: null,
   profile: null,
-  isLoading: true,
+  isLoading: false, // 초기 로딩 상태를 false로 변경
   isAuthenticated: false,
   isInitialized: false,
   error: null,
@@ -233,13 +233,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   initialize: async () => {
-    const { isInitialized, isLoading } = get()
+    const { isInitialized } = get()
 
-    // 이미 초기화되었거나 초기화 중인 경우 중복 실행 방지
-    if (isInitialized || isLoading) {
+    // 이미 초기화된 경우만 중복 실행 방지
+    if (isInitialized) {
+      console.log('🔄 Auth already initialized, skipping...')
       return
     }
 
+    console.log('🚀 Starting auth initialization...')
     set({ isLoading: true, error: null })
 
     try {
@@ -284,6 +286,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isAuthenticated: !!session,
         isLoading: false,
         isInitialized: true,
+      })
+
+      console.log('✅ Auth initialization completed successfully')
+      console.log('Auth state:', {
+        hasUser: !!session?.user,
+        hasSession: !!session,
+        isAuthenticated: !!session
       })
 
       // Auth 상태 변경 리스너

@@ -32,12 +32,32 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const authStore = useAuthStore()
 
+  // 디버깅용 상태 로그
   useEffect(() => {
-    // 앱 시작 시 인증 상태 초기화 (한 번만 실행)
-    if (!authStore.isInitialized) {
+    console.log('🏗️ AuthProvider state update:', {
+      isInitialized: authStore.isInitialized,
+      isLoading: authStore.isLoading,
+      isAuthenticated: authStore.isAuthenticated,
+      hasUser: !!authStore.user,
+      hasSession: !!authStore.session,
+      hasError: !!authStore.error
+    })
+  }, [
+    authStore.isInitialized,
+    authStore.isLoading,
+    authStore.isAuthenticated,
+    authStore.user,
+    authStore.session,
+    authStore.error
+  ])
+
+  useEffect(() => {
+    // 인증 상태 초기화 - 초기화되지 않았고 로딩 중이 아닐 때만 실행
+    if (!authStore.isInitialized && !authStore.isLoading) {
+      console.log('🔄 AuthContext: Triggering auth initialization...')
       authStore.initialize()
     }
-  }, []) // 의존성 배열을 빈 배열로 변경하여 한 번만 실행
+  }, [authStore.isInitialized, authStore.isLoading]) // 초기화 상태와 로딩 상태를 모니터링
 
   // 세션 갱신 타이머 설정 (브라우저 창 이동 시 세션 유지)
   useEffect(() => {
