@@ -142,19 +142,20 @@ export function LinearDropdown({
       {isOpen && (
         <div className={cn(
           "absolute top-full left-0 right-0 mt-1 z-50",
-          "bg-background-primary/95 backdrop-blur-sm border border-border rounded-lg",
-          "shadow-2xl ring-1 ring-black/10",
+          "bg-background-primary border border-border rounded-lg",
+          "shadow-2xl drop-shadow-2xl ring-1 ring-black/20",
+          "backdrop-blur-md",
           "overflow-hidden"
         )}>
           {/* 검색 입력 */}
           {showSearch && (
-            <div className="p-3 border-b border-border bg-background-primary/98">
+            <div className="p-3 border-b border-border bg-background-primary">
               <input
                 type="text"
                 placeholder="검색..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-3 py-2 bg-background-secondary/90 border border-border rounded text-text-primary placeholder-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent backdrop-blur-sm"
+                className="w-full px-3 py-2 bg-background-secondary border border-border rounded text-text-primary placeholder-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
                 autoFocus
               />
             </div>
@@ -163,7 +164,7 @@ export function LinearDropdown({
           {/* 옵션 목록 */}
           <div className={cn("overflow-y-auto", maxHeight)}>
             {filteredOptions.length === 0 ? (
-              <div className="p-4 text-center text-text-tertiary bg-background-primary/90 backdrop-blur-sm">
+              <div className="p-4 text-center text-text-tertiary bg-background-primary">
                 {showSearch ? '검색 결과가 없습니다' : '옵션이 없습니다'}
               </div>
             ) : (
@@ -179,10 +180,10 @@ export function LinearDropdown({
                     disabled={isDisabled}
                     className={cn(
                       "w-full flex items-center gap-3 p-3 text-left transition-colors",
-                      "border-b border-border last:border-b-0 backdrop-blur-sm",
+                      "border-b border-border last:border-b-0 bg-background-primary",
                       isSelected
-                        ? "bg-accent/15 text-accent border-accent/20"
-                        : "text-text-primary hover:bg-background-secondary/80",
+                        ? "bg-accent/20 text-accent border-accent/30"
+                        : "text-text-primary hover:bg-background-secondary",
                       isDisabled && "opacity-50 cursor-not-allowed"
                     )}
                   >
