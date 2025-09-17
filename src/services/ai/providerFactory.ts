@@ -125,41 +125,12 @@ class OpenAIProvider extends BaseAIProvider {
         await this.checkRateLimit(options.user_id)
       }
 
-      // API 요청 시뮬레이션 (실제로는 OpenAI API 호출)
-      await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000))
-
-      // Mock 응답 생성
-      const inputText = options.messages.map(m => m.content).join(' ')
-      const inputTokens = this.estimateTokens(inputText)
-      const outputTokens = Math.floor(Math.random() * 500) + 100
-      const mockContent = `OpenAI ${this.config.model_id} response to: ${inputText.substring(0, 50)}...`
-
-      const response: AIResponse = {
-        content: mockContent,
-        model: this.config.model_id,
-        usage: {
-          input_tokens: inputTokens,
-          output_tokens: outputTokens,
-          total_tokens: inputTokens + outputTokens
-        },
-        cost: this.calculateCost(inputTokens, outputTokens),
-        response_time: Date.now() - startTime,
-        finish_reason: 'stop'
+      // API 키가 있으면 실제 API 호출, 없으면 Mock
+      if (this.config.api_key && this.config.api_key !== 'sk-your-openai-key-here') {
+        return await this.callOpenAIAPI(options, startTime)
+      } else {
+        return await this.generateMockResponse(options, startTime)
       }
-
-      // 사용량 기록
-      if (options.user_id) {
-        const cost = this.calculateCost(inputTokens, outputTokens)
-        await ApiUsageService.recordUsageBatch([{
-          userId: options.user_id!,
-          model: this.config.model_id,
-          inputTokens: inputTokens,
-          outputTokens: outputTokens,
-          cost
-        }])
-      }
-
-      return response
 
     } catch (error) {
       throw new AIProviderError(
@@ -170,6 +141,102 @@ class OpenAIProvider extends BaseAIProvider {
         true
       )
     }
+  }
+
+  private async callOpenAIAPI(options: AIRequestOptions, startTime: number): Promise<AIResponse> {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.config.api_key}`
+      },
+      body: JSON.stringify({
+        model: this.config.model_id,
+        messages: options.messages,
+        max_tokens: options.max_tokens || this.config.max_tokens,
+        temperature: options.temperature || 0.7,
+        top_p: options.top_p || 1.0
+      })
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(`HTTP ${response.status}: ${errorData.error?.message || response.statusText}`)
+    }
+
+    const data = await response.json()
+    const usage = data.usage || {}
+    const cost = this.calculateCost(usage.prompt_tokens || 0, usage.completion_tokens || 0)
+
+    const aiResponse: AIResponse = {
+      content: data.choices?.[0]?.message?.content || 'No response content',
+      model: this.config.model_id,
+      usage: {
+        input_tokens: usage.prompt_tokens || 0,
+        output_tokens: usage.completion_tokens || 0,
+        total_tokens: usage.total_tokens || 0
+      },
+      cost,
+      response_time: Date.now() - startTime,
+      finish_reason: data.choices?.[0]?.finish_reason || 'stop'
+    }
+
+    // 사용량 기록
+    if (options.user_id) {
+      await ApiUsageService.recordUsageBatch([{
+        userId: options.user_id!,
+        model: this.config.model_id,
+        inputTokens: aiResponse.usage.input_tokens,
+        outputTokens: aiResponse.usage.output_tokens,
+        cost: aiResponse.cost
+      }])
+    }
+
+    return aiResponse
+  }
+
+  private async generateMockResponse(options: AIRequestOptions, startTime: number): Promise<AIResponse> {
+    // Mock API 응답 시뮬레이션
+    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000))
+
+    const inputText = options.messages.map(m => m.content).join(' ')
+    const inputTokens = this.estimateTokens(inputText)
+    const outputTokens = Math.floor(Math.random() * 500) + 100
+    const mockContent = `[MOCK] OpenAI ${this.config.model_id} 응답 예시:
+
+요청하신 분석을 진행했습니다. 다음과 같은 주요 내용들을 확인할 수 있습니다:
+
+1. **핵심 분석 결과**: 제공된 정보를 바탕으로 종합적인 분석을 수행했습니다.
+2. **권장사항**: 데이터 기반의 실행 가능한 권장사항을 제시합니다.
+3. **다음 단계**: 구체적인 실행 계획과 우선순위를 제안합니다.
+
+※ 이는 Mock 응답입니다. 실제 OpenAI API 키를 설정하면 정확한 AI 분석 결과를 받을 수 있습니다.`
+
+    const response: AIResponse = {
+      content: mockContent,
+      model: this.config.model_id,
+      usage: {
+        input_tokens: inputTokens,
+        output_tokens: outputTokens,
+        total_tokens: inputTokens + outputTokens
+      },
+      cost: this.calculateCost(inputTokens, outputTokens),
+      response_time: Date.now() - startTime,
+      finish_reason: 'stop'
+    }
+
+    // 사용량 기록
+    if (options.user_id) {
+      await ApiUsageService.recordUsageBatch([{
+        userId: options.user_id!,
+        model: this.config.model_id,
+        inputTokens: inputTokens,
+        outputTokens: outputTokens,
+        cost: response.cost
+      }])
+    }
+
+    return response
   }
 }
 
@@ -530,70 +597,119 @@ export class AIProviderFactory {
 
 // 기본 모델들 등록
 export function initializeDefaultModels(): void {
-  const defaultModels: AIModelConfig[] = [
-    {
-      id: 'gpt-4o',
-      name: 'GPT-4o',
+  // 환경 변수에서 API 키 읽기
+  const openaiApiKey = import.meta.env.VITE_OPENAI_API_KEY
+  const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
+  const googleApiKey = import.meta.env.VITE_GOOGLE_AI_API_KEY
+
+  console.log('🔑 AI API 키 확인:')
+  console.log('OpenAI:', openaiApiKey ? '✅ 설정됨' : '❌ 누락')
+  console.log('Anthropic:', anthropicApiKey ? '✅ 설정됨' : '❌ 누락')
+  console.log('Google:', googleApiKey ? '✅ 설정됨' : '❌ 누락')
+
+  const defaultModels: AIModelConfig[] = []
+
+  // OpenAI 모델들 (API 키가 있을 때만 등록)
+  if (openaiApiKey && openaiApiKey !== 'sk-your-openai-key-here') {
+    defaultModels.push(
+      {
+        id: 'gpt-4o',
+        name: 'GPT-4o',
+        provider: 'openai',
+        model_id: 'gpt-4o',
+        api_key: openaiApiKey,
+        max_tokens: 128000,
+        cost_per_input_token: 0.000005,
+        cost_per_output_token: 0.000015,
+        rate_limits: { requests_per_minute: 500, tokens_per_minute: 30000 }
+      },
+      {
+        id: 'gpt-4-turbo',
+        name: 'GPT-4 Turbo',
+        provider: 'openai',
+        model_id: 'gpt-4-turbo-preview',
+        api_key: openaiApiKey,
+        max_tokens: 4096,
+        cost_per_input_token: 0.00001,
+        cost_per_output_token: 0.00003,
+        rate_limits: { requests_per_minute: 500, tokens_per_minute: 30000 }
+      }
+    )
+  }
+
+  // Anthropic 모델들 (API 키가 있을 때만 등록)
+  if (anthropicApiKey && anthropicApiKey !== 'your-anthropic-key-here') {
+    defaultModels.push(
+      {
+        id: 'claude-3-opus',
+        name: 'Claude 3 Opus',
+        provider: 'anthropic',
+        model_id: 'claude-3-opus-20240229',
+        api_key: anthropicApiKey,
+        max_tokens: 4096,
+        cost_per_input_token: 0.000015,
+        cost_per_output_token: 0.000075,
+        rate_limits: { requests_per_minute: 100, tokens_per_minute: 10000 }
+      },
+      {
+        id: 'claude-3-sonnet',
+        name: 'Claude 3 Sonnet',
+        provider: 'anthropic',
+        model_id: 'claude-3-sonnet-20240229',
+        api_key: anthropicApiKey,
+        max_tokens: 4096,
+        cost_per_input_token: 0.000003,
+        cost_per_output_token: 0.000015,
+        rate_limits: { requests_per_minute: 300, tokens_per_minute: 20000 }
+      }
+    )
+  }
+
+  // Google 모델들 (API 키가 있을 때만 등록)
+  if (googleApiKey && googleApiKey !== 'your-google-ai-key-here') {
+    defaultModels.push({
+      id: 'gemini-pro',
+      name: 'Gemini Pro',
+      provider: 'google',
+      model_id: 'gemini-pro',
+      api_key: googleApiKey,
+      max_tokens: 2048,
+      cost_per_input_token: 0.0000005,
+      cost_per_output_token: 0.0000015,
+      rate_limits: { requests_per_minute: 60, tokens_per_minute: 5000 }
+    })
+  }
+
+  // 모델이 없으면 경고 메시지
+  if (defaultModels.length === 0) {
+    console.warn('⚠️ AI API 키가 설정되지 않았습니다. Mock 모드로 실행됩니다.')
+    // Mock 모델 추가 (개발용)
+    defaultModels.push({
+      id: 'mock-gpt-4o',
+      name: 'GPT-4o (Mock)',
       provider: 'openai',
       model_id: 'gpt-4o',
       max_tokens: 128000,
       cost_per_input_token: 0.000005,
       cost_per_output_token: 0.000015,
       rate_limits: { requests_per_minute: 500, tokens_per_minute: 30000 }
-    },
-    {
-      id: 'gpt-4-turbo',
-      name: 'GPT-4 Turbo',
-      provider: 'openai',
-      model_id: 'gpt-4-turbo-preview',
-      max_tokens: 4096,
-      cost_per_input_token: 0.00001,
-      cost_per_output_token: 0.00003,
-      rate_limits: { requests_per_minute: 500, tokens_per_minute: 30000 }
-    },
-    {
-      id: 'claude-3-opus',
-      name: 'Claude 3 Opus',
-      provider: 'anthropic',
-      model_id: 'claude-3-opus-20240229',
-      max_tokens: 4096,
-      cost_per_input_token: 0.000015,
-      cost_per_output_token: 0.000075,
-      rate_limits: { requests_per_minute: 100, tokens_per_minute: 10000 }
-    },
-    {
-      id: 'claude-3-sonnet',
-      name: 'Claude 3 Sonnet',
-      provider: 'anthropic',
-      model_id: 'claude-3-sonnet-20240229',
-      max_tokens: 4096,
-      cost_per_input_token: 0.000003,
-      cost_per_output_token: 0.000015,
-      rate_limits: { requests_per_minute: 300, tokens_per_minute: 20000 }
-    },
-    {
-      id: 'gemini-pro',
-      name: 'Gemini Pro',
-      provider: 'google',
-      model_id: 'gemini-pro',
-      max_tokens: 2048,
-      cost_per_input_token: 0.0000005,
-      cost_per_output_token: 0.0000015,
-      rate_limits: { requests_per_minute: 60, tokens_per_minute: 5000 }
-    }
-  ]
+    })
+  }
 
   defaultModels.forEach(model => {
     AIProviderFactory.registerModel(model)
   })
 
-  // 폴백 체인 설정 (성능과 비용을 고려한 순서)
+  // 폴백 체인 설정 (등록된 모델들로만 구성)
+  const availableModelIds = defaultModels.map(model => model.id)
   AIProviderFactory.setFallbackConfig({
     enabled: true,
-    models: ['gpt-4o', 'claude-3-sonnet', 'gpt-4-turbo', 'gemini-pro'],
+    models: availableModelIds,
     max_retries: 3,
     retry_delay: 1000
   })
+
+  console.log(`✅ ${defaultModels.length}개의 AI 모델이 등록되었습니다:`, availableModelIds)
 }
 
 // 팩토리 인스턴스를 기본 내보내기
