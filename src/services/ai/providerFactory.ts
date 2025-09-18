@@ -125,14 +125,23 @@ class OpenAIProvider extends BaseAIProvider {
         await this.checkRateLimit(options.user_id)
       }
 
-      // API 키가 있으면 실제 API 호출, 없으면 Mock
-      if (this.config.api_key && this.config.api_key !== 'sk-your-openai-key-here') {
-        return await this.callOpenAIAPI(options, startTime)
-      } else {
-        return await this.generateMockResponse(options, startTime)
+      // API 키 확인 - 반드시 실제 API 키가 있어야 함
+      if (!this.config.api_key || this.config.api_key === 'sk-your-openai-key-here') {
+        throw new AIProviderError(
+          'OpenAI API 키가 설정되지 않았습니다. 환경 변수 VITE_OPENAI_API_KEY를 설정해주세요.',
+          'openai',
+          this.config.model_id,
+          401,
+          false
+        )
       }
 
+      return await this.callOpenAIAPI(options, startTime)
+
     } catch (error) {
+      if (error instanceof AIProviderError) {
+        throw error
+      }
       throw new AIProviderError(
         `OpenAI API Error: ${error}`,
         'openai',
@@ -195,49 +204,6 @@ class OpenAIProvider extends BaseAIProvider {
     return aiResponse
   }
 
-  private async generateMockResponse(options: AIRequestOptions, startTime: number): Promise<AIResponse> {
-    // Mock API 응답 시뮬레이션
-    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000))
-
-    const inputText = options.messages.map(m => m.content).join(' ')
-    const inputTokens = this.estimateTokens(inputText)
-    const outputTokens = Math.floor(Math.random() * 500) + 100
-    const mockContent = `[MOCK] OpenAI ${this.config.model_id} 응답 예시:
-
-요청하신 분석을 진행했습니다. 다음과 같은 주요 내용들을 확인할 수 있습니다:
-
-1. **핵심 분석 결과**: 제공된 정보를 바탕으로 종합적인 분석을 수행했습니다.
-2. **권장사항**: 데이터 기반의 실행 가능한 권장사항을 제시합니다.
-3. **다음 단계**: 구체적인 실행 계획과 우선순위를 제안합니다.
-
-※ 이는 Mock 응답입니다. 실제 OpenAI API 키를 설정하면 정확한 AI 분석 결과를 받을 수 있습니다.`
-
-    const response: AIResponse = {
-      content: mockContent,
-      model: this.config.model_id,
-      usage: {
-        input_tokens: inputTokens,
-        output_tokens: outputTokens,
-        total_tokens: inputTokens + outputTokens
-      },
-      cost: this.calculateCost(inputTokens, outputTokens),
-      response_time: Date.now() - startTime,
-      finish_reason: 'stop'
-    }
-
-    // 사용량 기록
-    if (options.user_id) {
-      await ApiUsageService.recordUsageBatch([{
-        userId: options.user_id!,
-        model: this.config.model_id,
-        inputTokens: inputTokens,
-        outputTokens: outputTokens,
-        cost: response.cost
-      }])
-    }
-
-    return response
-  }
 }
 
 // Anthropic 제공업체
@@ -251,42 +217,23 @@ class AnthropicProvider extends BaseAIProvider {
         await this.checkRateLimit(options.user_id)
       }
 
-      // API 요청 시뮬레이션
-      await new Promise(resolve => setTimeout(resolve, 1500 + Math.random() * 2500))
-
-      const inputText = options.messages.map(m => m.content).join(' ')
-      const inputTokens = this.estimateTokens(inputText)
-      const outputTokens = Math.floor(Math.random() * 400) + 80
-      const mockContent = `Anthropic ${this.config.model_id} response to: ${inputText.substring(0, 50)}...`
-
-      const response: AIResponse = {
-        content: mockContent,
-        model: this.config.model_id,
-        usage: {
-          input_tokens: inputTokens,
-          output_tokens: outputTokens,
-          total_tokens: inputTokens + outputTokens
-        },
-        cost: this.calculateCost(inputTokens, outputTokens),
-        response_time: Date.now() - startTime,
-        finish_reason: 'stop'
+      // API 키 확인 - 반드시 실제 API 키가 있어야 함
+      if (!this.config.api_key || this.config.api_key === 'your-anthropic-key-here') {
+        throw new AIProviderError(
+          'Anthropic API 키가 설정되지 않았습니다. 환경 변수 VITE_ANTHROPIC_API_KEY를 설정해주세요.',
+          'anthropic',
+          this.config.model_id,
+          401,
+          false
+        )
       }
 
-      // 사용량 기록
-      if (options.user_id) {
-        const cost = this.calculateCost(inputTokens, outputTokens)
-        await ApiUsageService.recordUsageBatch([{
-          userId: options.user_id!,
-          model: this.config.model_id,
-          inputTokens: inputTokens,
-          outputTokens: outputTokens,
-          cost
-        }])
-      }
-
-      return response
+      return await this.callAnthropicAPI(options, startTime)
 
     } catch (error) {
+      if (error instanceof AIProviderError) {
+        throw error
+      }
       throw new AIProviderError(
         `Anthropic API Error: ${error}`,
         'anthropic',
@@ -296,6 +243,68 @@ class AnthropicProvider extends BaseAIProvider {
       )
     }
   }
+
+  private async callAnthropicAPI(options: AIRequestOptions, startTime: number): Promise<AIResponse> {
+    // Anthropic API 메시지 형식 변환
+    const anthropicMessages = options.messages.filter(m => m.role !== 'system').map(m => ({
+      role: m.role,
+      content: m.content
+    }))
+
+    const systemMessage = options.messages.find(m => m.role === 'system')?.content || ''
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': this.config.api_key!,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: this.config.model_id,
+        max_tokens: options.max_tokens || this.config.max_tokens,
+        temperature: options.temperature || 0.7,
+        system: systemMessage,
+        messages: anthropicMessages
+      })
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(`HTTP ${response.status}: ${errorData.error?.message || response.statusText}`)
+    }
+
+    const data = await response.json()
+    const usage = data.usage || {}
+    const cost = this.calculateCost(usage.input_tokens || 0, usage.output_tokens || 0)
+
+    const aiResponse: AIResponse = {
+      content: data.content?.[0]?.text || 'No response content',
+      model: this.config.model_id,
+      usage: {
+        input_tokens: usage.input_tokens || 0,
+        output_tokens: usage.output_tokens || 0,
+        total_tokens: (usage.input_tokens || 0) + (usage.output_tokens || 0)
+      },
+      cost,
+      response_time: Date.now() - startTime,
+      finish_reason: data.stop_reason === 'end_turn' ? 'stop' : data.stop_reason || 'stop'
+    }
+
+    // 사용량 기록
+    if (options.user_id) {
+      await ApiUsageService.recordUsageBatch([{
+        userId: options.user_id!,
+        model: this.config.model_id,
+        inputTokens: aiResponse.usage.input_tokens,
+        outputTokens: aiResponse.usage.output_tokens,
+        cost: aiResponse.cost
+      }])
+    }
+
+    return aiResponse
+  }
+
 }
 
 // Google 제공업체
@@ -309,50 +318,108 @@ class GoogleProvider extends BaseAIProvider {
         await this.checkRateLimit(options.user_id)
       }
 
-      // API 요청 시뮬레이션
-      await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 3000))
-
-      const inputText = options.messages.map(m => m.content).join(' ')
-      const inputTokens = this.estimateTokens(inputText)
-      const outputTokens = Math.floor(Math.random() * 300) + 60
-      const mockContent = `Google ${this.config.model_id} response to: ${inputText.substring(0, 50)}...`
-
-      const response: AIResponse = {
-        content: mockContent,
-        model: this.config.model_id,
-        usage: {
-          input_tokens: inputTokens,
-          output_tokens: outputTokens,
-          total_tokens: inputTokens + outputTokens
-        },
-        cost: this.calculateCost(inputTokens, outputTokens),
-        response_time: Date.now() - startTime,
-        finish_reason: 'stop'
+      // API 키 확인 - 반드시 실제 API 키가 있어야 함
+      if (!this.config.api_key || this.config.api_key === 'your-google-ai-key-here') {
+        throw new AIProviderError(
+          'Google AI API 키가 설정되지 않았습니다. 환경 변수 VITE_GOOGLE_AI_API_KEY를 설정해주세요.',
+          'google',
+          this.config.model_id,
+          401,
+          false
+        )
       }
 
-      // 사용량 기록
-      if (options.user_id) {
-        const cost = this.calculateCost(inputTokens, outputTokens)
-        await ApiUsageService.recordUsageBatch([{
-          userId: options.user_id!,
-          model: this.config.model_id,
-          inputTokens: inputTokens,
-          outputTokens: outputTokens,
-          cost
-        }])
-      }
-
-      return response
+      return await this.callGoogleAIAPI(options, startTime)
 
     } catch (error) {
+      if (error instanceof AIProviderError) {
+        throw error
+      }
       throw new AIProviderError(
-        `Google API Error: ${error}`,
+        `Google AI API Error: ${error}`,
         'google',
         this.config.model_id,
         500,
         true
       )
     }
+  }
+
+  private async callGoogleAIAPI(options: AIRequestOptions, startTime: number): Promise<AIResponse> {
+    // Google AI API 메시지 형식 변환
+    const parts = options.messages
+      .filter(m => m.role !== 'system')
+      .map(m => ({ text: m.content }))
+
+    const systemMessage = options.messages.find(m => m.role === 'system')?.content
+
+    const requestBody = {
+      contents: [{
+        parts: parts
+      }],
+      generationConfig: {
+        temperature: options.temperature || 0.7,
+        topP: options.top_p || 1.0,
+        maxOutputTokens: options.max_tokens || this.config.max_tokens,
+      }
+    }
+
+    // 시스템 메시지가 있으면 추가
+    if (systemMessage) {
+      requestBody.contents.unshift({
+        parts: [{ text: systemMessage }]
+      })
+    }
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${this.config.model_id}:generateContent?key=${this.config.api_key}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody)
+      }
+    )
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(`HTTP ${response.status}: ${errorData.error?.message || response.statusText}`)
+    }
+
+    const data = await response.json()
+
+    // Google AI API 응답 구조 처리
+    const content = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response content'
+    const inputTokens = data.usageMetadata?.promptTokenCount || 0
+    const outputTokens = data.usageMetadata?.candidatesTokenCount || 0
+    const cost = this.calculateCost(inputTokens, outputTokens)
+
+    const aiResponse: AIResponse = {
+      content,
+      model: this.config.model_id,
+      usage: {
+        input_tokens: inputTokens,
+        output_tokens: outputTokens,
+        total_tokens: inputTokens + outputTokens
+      },
+      cost,
+      response_time: Date.now() - startTime,
+      finish_reason: data.candidates?.[0]?.finishReason === 'STOP' ? 'stop' : 'length'
+    }
+
+    // 사용량 기록
+    if (options.user_id) {
+      await ApiUsageService.recordUsageBatch([{
+        userId: options.user_id!,
+        model: this.config.model_id,
+        inputTokens: aiResponse.usage.input_tokens,
+        outputTokens: aiResponse.usage.output_tokens,
+        cost: aiResponse.cost
+      }])
+    }
+
+    return aiResponse
   }
 }
 
@@ -680,20 +747,16 @@ export function initializeDefaultModels(): void {
     })
   }
 
-  // 모델이 없으면 경고 메시지
+  // 모델이 없으면 에러 메시지
   if (defaultModels.length === 0) {
-    console.warn('⚠️ AI API 키가 설정되지 않았습니다. Mock 모드로 실행됩니다.')
-    // Mock 모델 추가 (개발용)
-    defaultModels.push({
-      id: 'mock-gpt-4o',
-      name: 'GPT-4o (Mock)',
-      provider: 'openai',
-      model_id: 'gpt-4o',
-      max_tokens: 128000,
-      cost_per_input_token: 0.000005,
-      cost_per_output_token: 0.000015,
-      rate_limits: { requests_per_minute: 500, tokens_per_minute: 30000 }
-    })
+    console.error('❌ AI API 키가 설정되지 않았습니다.')
+    console.error('다음 환경 변수 중 하나 이상을 설정해주세요:')
+    console.error('- VITE_OPENAI_API_KEY: OpenAI API 키')
+    console.error('- VITE_ANTHROPIC_API_KEY: Anthropic API 키')
+    console.error('- VITE_GOOGLE_AI_API_KEY: Google AI API 키')
+    console.error('설정 후 애플리케이션을 다시 시작해주세요.')
+    // 모델이 없으면 아무것도 등록하지 않음
+    return
   }
 
   defaultModels.forEach(model => {

@@ -12,7 +12,8 @@ import {
   FileText,
   DollarSign,
   Settings,
-  RefreshCw
+  RefreshCw,
+  TestTube
 } from 'lucide-react'
 import { useAuth } from '../../../../contexts/AuthContext'
 import { useSelectedAIModel } from '../../../../contexts/AIModelContext'
@@ -21,6 +22,7 @@ import { ProposalDataManager } from '../../../../services/proposal/dataManager'
 import { WorkflowStep } from '../../../../services/proposal/aiQuestionGenerator'
 import { PageContainer, PageHeader, PageContent, Card, Button, ProgressBar, Badge } from '../../../../components/LinearComponents'
 import { AnalysisProgressModal } from '../../../../components/analysis/AnalysisProgressModal'
+import { AIModelTest } from '../../../../components/proposal/AIModelTest'
 
 interface StepStatus {
   questionsCompleted: boolean
@@ -83,6 +85,7 @@ export function ProposalWorkflowPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [workflowProgress, setWorkflowProgress] = useState<WorkflowProgress | null>(null)
+  const [showAITest, setShowAITest] = useState(false)
 
   // AI 분석 모달 상태
   const [analysisModalOpen, setAnalysisModalOpen] = useState(false)
@@ -251,6 +254,14 @@ export function ProposalWorkflowPage() {
             )}
 
             <button
+              onClick={() => setShowAITest(!showAITest)}
+              className="flex items-center space-x-2 px-3 py-2 text-text-secondary hover:text-text-primary border border-border-primary rounded-lg hover:bg-bg-tertiary transition-colors"
+            >
+              <TestTube className="w-4 h-4" />
+              <span>AI 테스트</span>
+            </button>
+
+            <button
               onClick={handleRefresh}
               disabled={refreshing}
               className="flex items-center space-x-2 px-3 py-2 text-text-secondary hover:text-text-primary border border-border-primary rounded-lg hover:bg-bg-tertiary transition-colors disabled:opacity-50"
@@ -276,6 +287,13 @@ export function ProposalWorkflowPage() {
       />
 
       <PageContent>
+        {/* AI 모델 테스트 패널 */}
+        {showAITest && (
+          <div className="mb-8">
+            <AIModelTest />
+          </div>
+        )}
+
         {/* 전체 진행률 */}
         <Card className="mb-8">
           <div className="flex items-center justify-between mb-4">

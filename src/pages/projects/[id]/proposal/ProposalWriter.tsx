@@ -53,99 +53,6 @@ export function ProposalWriterPage() {
     completionRate: 0
   })
 
-  // 임시 기본 질문 데이터 (AI 통합 전)
-  const defaultQuestions = [
-    {
-      id: 'proposal_problem_statement',
-      category: '문제 정의',
-      text: '해결하고자 하는 핵심 문제는 무엇인가요?',
-      type: 'textarea' as const,
-      required: true,
-      order: 1,
-      helpText: '고객이 직면한 주요 문제나 과제를 명확히 설명해주세요'
-    },
-    {
-      id: 'proposal_current_situation',
-      category: '문제 정의',
-      text: '현재 상황과 문제의 원인은 무엇인가요?',
-      type: 'textarea' as const,
-      required: true,
-      order: 2,
-      helpText: '현재 상태와 문제가 발생한 배경이나 원인'
-    },
-    {
-      id: 'proposal_solution_overview',
-      category: '솔루션 제안',
-      text: '제안하는 솔루션의 핵심 개념은 무엇인가요?',
-      type: 'textarea' as const,
-      required: true,
-      order: 3,
-      helpText: '문제 해결을 위한 주요 솔루션이나 서비스 개념'
-    },
-    {
-      id: 'proposal_key_features',
-      category: '솔루션 제안',
-      text: '솔루션의 주요 기능과 특징은 무엇인가요?',
-      type: 'textarea' as const,
-      required: true,
-      order: 4,
-      helpText: '핵심 기능, 특별한 장점, 차별화 요소 등'
-    },
-    {
-      id: 'proposal_benefits',
-      category: '솔루션 제안',
-      text: '고객이 얻을 수 있는 주요 혜택은 무엇인가요?',
-      type: 'textarea' as const,
-      required: true,
-      order: 5,
-      helpText: '비용 절감, 효율성 증대, 문제 해결 등 구체적 혜택'
-    },
-    {
-      id: 'proposal_implementation_approach',
-      category: '구현 계획',
-      text: '솔루션 구현 방법과 접근법은 어떻게 되나요?',
-      type: 'textarea' as const,
-      required: true,
-      order: 6,
-      helpText: '기술적 접근법, 구현 방식, 사용 기술 등'
-    },
-    {
-      id: 'proposal_timeline',
-      category: '구현 계획',
-      text: '프로젝트 일정과 주요 마일스톤은 어떻게 되나요?',
-      type: 'textarea' as const,
-      required: true,
-      order: 7,
-      helpText: '전체 기간, 단계별 일정, 주요 중간 목표 등'
-    },
-    {
-      id: 'proposal_team_structure',
-      category: '구현 계획',
-      text: '프로젝트 팀 구성과 역할은 어떻게 되나요?',
-      type: 'textarea' as const,
-      required: false,
-      order: 8,
-      helpText: '팀원 구성, 각자의 역할과 책임, 협업 방식 등'
-    },
-    {
-      id: 'proposal_risk_management',
-      category: '위험 관리',
-      text: '예상되는 위험요소와 대응 방안은 무엇인가요?',
-      type: 'textarea' as const,
-      required: false,
-      order: 9,
-      helpText: '기술적, 일정적, 예산적 위험과 완화 계획'
-    },
-    {
-      id: 'proposal_success_metrics',
-      category: '위험 관리',
-      text: '성공 지표와 평가 기준은 무엇인가요?',
-      type: 'textarea' as const,
-      required: false,
-      order: 10,
-      helpText: '프로젝트 성공을 측정할 수 있는 구체적 지표'
-    }
-  ]
 
   // 질문과 응답 로드
   const loadQuestionsAndResponses = async () => {
@@ -156,48 +63,13 @@ export function ProposalWriterPage() {
       setError(null)
 
       // 기존 질문 조회 시도
-      let loadedQuestions = await ProposalDataManager.getQuestions(id, 'proposal')
+      const loadedQuestions = await ProposalDataManager.getQuestions(id, 'proposal')
 
-      // 질문이 없으면 기본 질문 생성 및 저장
+      // 질문이 없으면 에러 상태로 설정
       if (loadedQuestions.length === 0) {
-        console.log('No questions found, creating default questions')
-
-        const questionObjects = defaultQuestions.map(q => ({
-          id: q.id,
-          category: q.category,
-          text: q.text,
-          type: q.type,
-          required: q.required,
-          order: q.order,
-          helpText: q.helpText,
-          options: [],
-          validation: {}
-        }))
-
-        try {
-          await ProposalDataManager.saveQuestions(id, 'proposal', questionObjects)
-          loadedQuestions = await ProposalDataManager.getQuestions(id, 'proposal')
-        } catch (saveError) {
-          console.warn('Failed to save default questions, using local questions:', saveError)
-          // 저장 실패 시 임시로 로컬 데이터 사용
-          loadedQuestions = defaultQuestions.map((q, index) => ({
-            id: `temp_${index}`,
-            project_id: id,
-            workflow_step: 'proposal' as const,
-            question_id: q.id,
-            category: q.category,
-            question_text: q.text,
-            question_type: q.type,
-            options: [],
-            is_required: q.required,
-            display_order: q.order,
-            help_text: q.helpText,
-            validation_rules: {},
-            is_dynamic: false,
-            created_at: new Date().toISOString(),
-            metadata: {}
-          }))
-        }
+        console.error('No questions found for proposal step')
+        setError('제안서 작성을 위한 질문이 생성되지 않았습니다. AI 질문 생성기를 먼저 실행해주세요.')
+        return
       }
 
       setQuestions(loadedQuestions)
