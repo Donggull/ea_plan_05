@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, ReactNode } from 'react'
+import { createContext, useContext, useEffect, ReactNode, useState } from 'react'
 import { useAuthStore } from '@/stores/authStore'
 import { User, Session } from '@supabase/supabase-js'
 import type { Database } from '@/types/supabase'
@@ -32,8 +32,18 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const authStore = useAuthStore()
 
-  // 디버깅용 상태 로그
+  // SSR Hydration 불일치 방지를 위한 클라이언트 상태 관리
+  const [isClient, setIsClient] = useState(false)
+
+  // 클라이언트 사이드에서만 실행
   useEffect(() => {
+    setIsClient(true)
+  }, [])
+
+  // 디버깅용 상태 로그 (클라이언트에서만)
+  useEffect(() => {
+    if (!isClient) return
+
     console.log('🏗️ AuthProvider state update:', {
       isInitialized: authStore.isInitialized,
       isLoading: authStore.isLoading,
@@ -43,6 +53,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       hasError: !!authStore.error
     })
   }, [
+    isClient,
     authStore.isInitialized,
     authStore.isLoading,
     authStore.isAuthenticated,
@@ -52,16 +63,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
   ])
 
   useEffect(() => {
+    // 클라이언트에서만 인증 상태 초기화
+    if (!isClient) return
+
     // 인증 상태 초기화 - 초기화되지 않았고 로딩 중이 아닐 때만 실행
     if (!authStore.isInitialized && !authStore.isLoading) {
       console.log('🔄 AuthContext: Triggering auth initialization...')
       authStore.initialize()
     }
-  }, [authStore.isInitialized, authStore.isLoading]) // 초기화 상태와 로딩 상태를 모니터링
+  }, [isClient, authStore.isInitialized, authStore.isLoading]) // 클라이언트 상태와 초기화 상태 모니터링
 
-  // 세션 갱신 타이머 설정 (브라우저 창 이동 시 세션 유지)
+  // 세션 갱신 타이머 설정 (브라우저 창 이동 시 세션 유지) - 클라이언트에서만
   useEffect(() => {
-    if (!authStore.session || !authStore.isAuthenticated) return
+    if (!isClient || !authStore.session || !authStore.isAuthenticated) return
 
     let isRefreshing = false // 중복 갱신 방지 플래그
 
@@ -99,16 +113,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
     }
 
-    window.addEventListener('focus', handleFocus)
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', handleFocus)
+    }
 
     return () => {
       clearInterval(refreshInterval)
-      window.removeEventListener('focus', handleFocus)
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('focus', handleFocus)
+      }
     }
-  }, [authStore.session, authStore.isAuthenticated])
+  }, [isClient, authStore.session, authStore.isAuthenticated])
 
-  // 브라우저 종료 시 세션 정리
+  // 브라우저 종료 시 세션 정리 - 클라이언트에서만
   useEffect(() => {
+    if (!isClient || typeof window === 'undefined') return
+
     // 앱 시작 시 이전 세션 정리 플래그 제거
     window.sessionStorage.removeItem('auth-keep-session')
 
@@ -159,10 +179,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       window.removeEventListener('beforeunload', handleBeforeUnload)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-  }, [])
+  }, [isClient])
 
-  // 브라우저 탭 간 세션 동기화
+  // 브라우저 탭 간 세션 동기화 - 클라이언트에서만
   useEffect(() => {
+    if (!isClient || typeof window === 'undefined') return
+
     const handleStorageChange = (event: StorageEvent) => {
       // 다른 탭에서 로그아웃한 경우
       if (event.key === 'auth-logout-signal' && event.newValue) {
@@ -177,7 +199,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return () => {
       window.removeEventListener('storage', handleStorageChange)
     }
-  }, [])
+  }, [isClient])
 
   const contextValue: AuthContextType = {
     user: authStore.user,
@@ -220,9 +242,28 @@ interface AuthGuardProps {
 }
 
 export function AuthGuard({ children, fallback = null, requireAuth = true }: AuthGuardProps) {
-  const { isAuthenticated, isLoading } = useAuth()
+  const { isAuthenticated, isLoading, isInitialized } = useAuth()
+  const [isClientReady, setIsClientReady] = useState(false)
 
-  if (isLoading) {
+  // 클라이언트 준비 상태 관리 (SSR 호환성)
+  useEffect(() => {
+    setIsClientReady(true)
+  }, [])
+
+  // SSR에서는 로딩 상태를 표시하지 않음 (hydration 불일치 방지)
+  if (!isClientReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-bg-primary">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-text-secondary">페이지를 준비하는 중...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // 클라이언트에서 인증이 초기화되지 않았거나 로딩 중인 경우
+  if (!isInitialized || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-bg-primary">
         <div className="flex flex-col items-center space-y-4">

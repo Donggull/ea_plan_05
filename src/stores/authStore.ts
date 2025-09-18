@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { User, Session } from '@supabase/supabase-js'
-import { supabase } from '@/lib/supabase'
+import { getSupabaseClient } from '@/lib/supabase'
 import type { Database } from '@/types/supabase'
 
 type Profile = Database['public']['Tables']['profiles']['Row']
@@ -37,13 +37,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   clearError: () => set({ error: null }),
 
   signIn: async (email: string, password: string) => {
-    if (!supabase) {
-      throw new Error('Supabase client not initialized. Please check your environment variables.')
-    }
-
     set({ isLoading: true, error: null })
 
     try {
+      const supabase = getSupabaseClient()
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -59,13 +56,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   signUp: async (email: string, password: string, metadata?: { full_name?: string }) => {
-    if (!supabase) {
-      throw new Error('Supabase client not initialized. Please check your environment variables.')
-    }
-
     set({ isLoading: true, error: null })
 
     try {
+      const supabase = getSupabaseClient()
       const { error } = await supabase.auth.signUp({
         email,
         password,
@@ -84,22 +78,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   signOut: async () => {
-    if (!supabase) {
-      throw new Error('Supabase client not initialized. Please check your environment variables.')
-    }
-
     set({ isLoading: true, error: null })
 
     try {
-      // 다른 탭에 로그아웃 신호 보내기
-      localStorage.setItem('auth-logout-signal', Date.now().toString())
+      // 다른 탭에 로그아웃 신호 보내기 (클라이언트에서만)
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('auth-logout-signal', Date.now().toString())
+      }
 
+      const supabase = getSupabaseClient()
       const { error } = await supabase.auth.signOut()
       if (error) throw error
 
-      // 세션 관련 localStorage 정리
-      localStorage.removeItem('auth-unload-time')
-      localStorage.removeItem('auth-tab-hidden-time')
+      // 세션 관련 localStorage 정리 (클라이언트에서만)
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('auth-unload-time')
+        localStorage.removeItem('auth-tab-hidden-time')
+      }
 
       set({
         user: null,
@@ -115,15 +110,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   resetPassword: async (email: string) => {
-    if (!supabase) {
-      throw new Error('Supabase client not initialized. Please check your environment variables.')
-    }
-
     set({ isLoading: true, error: null })
 
     try {
+      const supabase = getSupabaseClient()
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`
+        redirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/reset-password`
       })
 
       if (error) throw error
@@ -135,13 +127,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   updatePassword: async (newPassword: string) => {
-    if (!supabase) {
-      throw new Error('Supabase client not initialized. Please check your environment variables.')
-    }
-
     set({ isLoading: true, error: null })
 
     try {
+      const supabase = getSupabaseClient()
       const { error } = await supabase.auth.updateUser({
         password: newPassword
       })
@@ -155,11 +144,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   refreshSession: async () => {
-    if (!supabase) {
-      throw new Error('Supabase client not initialized. Please check your environment variables.')
-    }
-
     try {
+      const supabase = getSupabaseClient()
       const { data, error } = await supabase.auth.refreshSession()
       if (error) throw error
 
@@ -177,16 +163,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   updateProfile: async (updates: Partial<Profile>) => {
-    if (!supabase) {
-      throw new Error('Supabase client not initialized. Please check your environment variables.')
-    }
-
     const { profile } = get()
     if (!profile) throw new Error('No profile to update')
 
     set({ isLoading: true, error: null })
 
     try {
+      const supabase = getSupabaseClient()
       const { data, error } = await supabase
         .from('profiles')
         .update({
@@ -210,9 +193,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   loadProfile: async (userId: string) => {
-    if (!supabase) return
-
     try {
+      const supabase = getSupabaseClient()
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -259,18 +241,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true, error: null })
 
     try {
-      if (!supabase) {
-        console.error('❌ Supabase client not initialized')
-        set({
-          user: null,
-          session: null,
-          profile: null,
-          isAuthenticated: false,
-          isLoading: false,
-          isInitialized: true,
-        })
-        return
-      }
+      const supabase = getSupabaseClient()
 
       // 현재 세션 확인
       const { data: { session }, error } = await supabase.auth.getSession()
@@ -309,46 +280,48 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isAuthenticated: !!session
       })
 
-      // Auth 상태 변경 리스너
-      supabase.auth.onAuthStateChange(async (event, session) => {
-        console.log('Auth state changed:', event, session?.user?.email)
+      // Auth 상태 변경 리스너 (클라이언트에서만)
+      if (typeof window !== 'undefined') {
+        supabase.auth.onAuthStateChange(async (event, session) => {
+          console.log('Auth state changed:', event, session?.user?.email)
 
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-          if (session?.user) {
-            await get().loadProfile(session.user.id)
-          }
-        }
-
-        if (event === 'SIGNED_OUT') {
-          set({
-            user: null,
-            session: null,
-            profile: null,
-            isAuthenticated: false,
-          })
-        } else {
-          // 프로필 정보가 있는 경우 user_metadata에 role 정보 포함
-          const currentProfile = get().profile
-          let updatedUser = session?.user ?? null
-
-          if (updatedUser && currentProfile) {
-            updatedUser = {
-              ...updatedUser,
-              user_metadata: {
-                ...updatedUser.user_metadata,
-                role: currentProfile.role,
-                user_level: currentProfile.user_level
-              }
+          if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+            if (session?.user) {
+              await get().loadProfile(session.user.id)
             }
           }
 
-          set({
-            user: updatedUser,
-            session,
-            isAuthenticated: !!session,
-          })
-        }
-      })
+          if (event === 'SIGNED_OUT') {
+            set({
+              user: null,
+              session: null,
+              profile: null,
+              isAuthenticated: false,
+            })
+          } else {
+            // 프로필 정보가 있는 경우 user_metadata에 role 정보 포함
+            const currentProfile = get().profile
+            let updatedUser = session?.user ?? null
+
+            if (updatedUser && currentProfile) {
+              updatedUser = {
+                ...updatedUser,
+                user_metadata: {
+                  ...updatedUser.user_metadata,
+                  role: currentProfile.role,
+                  user_level: currentProfile.user_level
+                }
+              }
+            }
+
+            set({
+              user: updatedUser,
+              session,
+              isAuthenticated: !!session,
+            })
+          }
+        })
+      }
 
     } catch (error: any) {
       console.error('❌ Auth initialization error:', error)

@@ -42,7 +42,9 @@
       "mcp__playwright-stealth__playwright_console_logs",
       "mcp__playwright-stealth__playwright_close",
       "Bash(find:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "mcp__supabase__list_extensions",
+      "Bash(copy \"D:\\ea_plan_05\\src\\lib\\supabase.ts\" \"D:\\ea_plan_05\\src\\lib\\supabase.ts.backup\")"
     ],
     "deny": [],
     "ask": []
