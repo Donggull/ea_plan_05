@@ -16,31 +16,21 @@ export function ProtectedRoute() {
     })
   }, [isInitialized, isLoading, isAuthenticated, session, error])
 
-  // 세션 유효성 정기 검사
+  // 세션 유효성 확인 (AuthContext에서 관리하므로 여기서는 간단한 확인만)
   useEffect(() => {
     if (!isAuthenticated || !session) return
 
-    const checkSessionValidity = () => {
-      const now = Math.floor(Date.now() / 1000)
-      const expiresAt = session.expires_at
+    // 현재 세션이 이미 만료된 경우에만 즉시 새로고침 요청
+    const now = Math.floor(Date.now() / 1000)
+    const expiresAt = session.expires_at
 
-      // 세션이 만료되었거나 5분 이내에 만료될 예정인 경우
-      if (expiresAt && (expiresAt <= now || expiresAt - now < 300)) {
-        console.log('Session expired or expiring soon, refreshing...')
-        refreshSession().catch((error) => {
-          console.error('Session refresh failed in ProtectedRoute:', error)
-        })
-      }
+    if (expiresAt && expiresAt <= now) {
+      console.log('Session already expired, requesting refresh...')
+      refreshSession().catch((error) => {
+        console.error('Session refresh failed in ProtectedRoute:', error)
+      })
     }
-
-    // 초기 검사
-    checkSessionValidity()
-
-    // 5분마다 세션 유효성 검사
-    const interval = setInterval(checkSessionValidity, 5 * 60 * 1000)
-
-    return () => clearInterval(interval)
-  }, [isAuthenticated, session, refreshSession])
+  }, [isAuthenticated, session]) // refreshSession 의존성 제거로 중복 실행 방지
 
   // 에러가 있고 초기화되지 않은 경우 로그인으로 리다이렉트
   if (error && !isInitialized) {

@@ -229,11 +229,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   initialize: async () => {
-    const { isInitialized } = get()
+    const { isInitialized, isLoading } = get()
 
-    // 이미 초기화된 경우만 중복 실행 방지
+    // 이미 초기화되었거나 진행 중인 경우 중복 실행 방지
     if (isInitialized) {
       console.log('🔄 Auth already initialized, skipping...')
+      return
+    }
+
+    if (isLoading) {
+      console.log('🔄 Auth initialization already in progress, skipping...')
       return
     }
 
@@ -243,8 +248,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const supabase = getSupabaseClient()
 
-      // 현재 세션 확인
-      const { data: { session }, error } = await supabase.auth.getSession()
+      // 현재 세션 확인 - 타임아웃 추가
+      const sessionPromise = supabase.auth.getSession()
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Session check timeout')), 10000)
+      )
+
+      const { data: { session }, error } = await Promise.race([
+        sessionPromise,
+        timeoutPromise
+      ]) as any
 
       if (error) {
         console.error('❌ Session get error:', error)
@@ -262,7 +275,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       // 프로필 로드
       if (session?.user) {
-        await get().loadProfile(session.user.id)
+        try {
+          await get().loadProfile(session.user.id)
+        } catch (profileError) {
+          console.warn('⚠️ Profile load failed, continuing without profile:', profileError)
+        }
       }
 
       set({
@@ -271,6 +288,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isAuthenticated: !!session,
         isLoading: false,
         isInitialized: true,
+        error: null // 성공 시 에러 클리어
       })
 
       console.log('✅ Auth initialization completed successfully')
@@ -280,14 +298,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isAuthenticated: !!session
       })
 
-      // Auth 상태 변경 리스너 (클라이언트에서만)
-      if (typeof window !== 'undefined') {
+      // Auth 상태 변경 리스너 (클라이언트에서만, 한 번만 설정)
+      if (typeof window !== 'undefined' && !window.__supabaseAuthListenerSet) {
+        window.__supabaseAuthListenerSet = true
+
         supabase.auth.onAuthStateChange(async (event, session) => {
           console.log('Auth state changed:', event, session?.user?.email)
 
           if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
             if (session?.user) {
-              await get().loadProfile(session.user.id)
+              try {
+                await get().loadProfile(session.user.id)
+              } catch (error) {
+                console.warn('Profile load failed during auth state change:', error)
+              }
             }
           }
 
@@ -332,7 +356,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isAuthenticated: false,
         isLoading: false,
         isInitialized: true,
-        error: error.message
+        error: error.message || 'Authentication initialization failed'
       })
     }
   },

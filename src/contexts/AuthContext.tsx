@@ -66,22 +66,36 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // 클라이언트에서만 인증 상태 초기화
     if (!isClient) return
 
-    // 인증 상태 초기화 - 초기화되지 않았고 로딩 중이 아닐 때만 실행
+    // 인증 상태 초기화 - 한 번만 실행되도록 보장
     if (!authStore.isInitialized && !authStore.isLoading) {
       console.log('🔄 AuthContext: Triggering auth initialization...')
-      authStore.initialize()
-    }
-  }, [isClient, authStore.isInitialized, authStore.isLoading]) // 클라이언트 상태와 초기화 상태 모니터링
 
-  // 세션 갱신 타이머 설정 (브라우저 창 이동 시 세션 유지) - 클라이언트에서만
+      // Promise 체인으로 초기화 상태 보장 (AuthStore에서 자체적으로 에러 처리함)
+      authStore.initialize().catch((error) => {
+        console.error('❌ AuthContext initialization failed:', error)
+        // AuthStore에서 이미 에러 처리하므로 추가 처리는 불필요
+      })
+    }
+  }, [isClient]) // isClient만 의존성으로 설정하여 중복 실행 방지
+
+  // 세션 갱신 타이머 설정 (브라우저 창 이동 시 세션 유지) - 클라이언트에서만, 한 번만 설정
   useEffect(() => {
-    if (!isClient || !authStore.session || !authStore.isAuthenticated) return
+    if (!isClient || !authStore.isAuthenticated || !authStore.session) return
+
+    // 중복 타이머 설정 방지
+    if (typeof window !== 'undefined' && window.__sessionRefreshTimer) {
+      clearInterval(window.__sessionRefreshTimer)
+      if (window.__sessionFocusHandler) {
+        window.removeEventListener('focus', window.__sessionFocusHandler)
+      }
+    }
 
     let isRefreshing = false // 중복 갱신 방지 플래그
 
     // 1시간마다 세션 갱신
     const refreshInterval = setInterval(async () => {
-      if (authStore.isAuthenticated && !isRefreshing) {
+      const currentState = useAuthStore.getState()
+      if (currentState.isAuthenticated && !isRefreshing) {
         isRefreshing = true
         try {
           await authStore.refreshSession()
@@ -95,8 +109,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     // 페이지 포커스 시 세션 갱신
     const handleFocus = async () => {
-      if (authStore.isAuthenticated && authStore.session && !isRefreshing) {
-        const tokenExp = authStore.session.expires_at
+      const currentState = useAuthStore.getState()
+      if (currentState.isAuthenticated && currentState.session && !isRefreshing) {
+        const tokenExp = currentState.session.expires_at
         const now = Math.floor(Date.now() / 1000)
 
         // 토큰 만료 10분 전에 갱신
@@ -115,15 +130,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     if (typeof window !== 'undefined') {
       window.addEventListener('focus', handleFocus)
+      // 전역 참조로 중복 설정 방지
+      window.__sessionRefreshTimer = refreshInterval
+      window.__sessionFocusHandler = handleFocus
     }
 
     return () => {
       clearInterval(refreshInterval)
       if (typeof window !== 'undefined') {
         window.removeEventListener('focus', handleFocus)
+        window.__sessionRefreshTimer = null
+        window.__sessionFocusHandler = null
       }
     }
-  }, [isClient, authStore.session, authStore.isAuthenticated])
+  }, [isClient, authStore.isAuthenticated]) // session 의존성 제거로 중복 실행 방지
 
   // 브라우저 종료 시 세션 정리 - 클라이언트에서만
   useEffect(() => {
