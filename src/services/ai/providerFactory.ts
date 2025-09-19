@@ -295,7 +295,6 @@ class AnthropicProvider extends BaseAIProvider {
 
       // 환경에 따른 API 엔드포인트 결정 - 프로덕션 대응 강화
       const isDev = import.meta.env.DEV
-      const isProd = import.meta.env.PROD
 
       let apiUrl: string
       if (isDev) {
@@ -383,14 +382,14 @@ class AnthropicProvider extends BaseAIProvider {
           usage: data.usage,
           stopReason: data.stop_reason,
           modelUsed: this.config.model_id,
-          responseTime: endTime - startTime
+          responseTime: Date.now() - startTime
         })
 
         return data
       } catch (fetchError) {
         clearTimeout(timeoutId)
 
-        if (fetchError.name === 'AbortError') {
+        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
           console.error('❌ Anthropic API 타임아웃')
           throw new AIProviderError(
             'Anthropic API 요청이 60초 후 타임아웃되었습니다',
@@ -402,13 +401,13 @@ class AnthropicProvider extends BaseAIProvider {
         }
 
         console.error('🚨 Anthropic API Fetch 오류:', {
-          name: fetchError.name,
-          message: fetchError.message,
-          stack: fetchError.stack
+          name: fetchError instanceof Error ? fetchError.name : 'Unknown',
+          message: fetchError instanceof Error ? fetchError.message : String(fetchError),
+          stack: fetchError instanceof Error ? fetchError.stack : undefined
         })
 
         throw new AIProviderError(
-          `Anthropic API 연결 오류: ${fetchError.message}`,
+          `Anthropic API 연결 오류: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`,
           'anthropic',
           this.config.model_id,
           0,
@@ -416,7 +415,6 @@ class AnthropicProvider extends BaseAIProvider {
         )
       }
     } catch (error) {
-      const endTime = Date.now()
       console.error('❌ Anthropic 전체 오류:', error)
 
       if (error instanceof AIProviderError) {
@@ -424,71 +422,14 @@ class AnthropicProvider extends BaseAIProvider {
       }
 
       throw new AIProviderError(
-        `Anthropic API 처리 오류: ${error.message}`,
+        `Anthropic API 처리 오류: ${error instanceof Error ? error.message : String(error)}`,
         'anthropic',
         this.config.model_id,
         0,
         false
       )
     }
-
-    // 응답 데이터 처리
-    const data = await this.makeAnthropicRequest(requestBody, startTime)
-    const endTime = Date.now()
-
-    const usage = data.usage || {}
-    const cost = this.calculateCost(usage.input_tokens || 0, usage.output_tokens || 0)
-
-    const aiResponse: AIResponse = {
-      content: data.content?.[0]?.text || 'No response content',
-      model: this.config.model_id,
-      usage: {
-          input_tokens: usage.input_tokens || 0,
-          output_tokens: usage.output_tokens || 0,
-          total_tokens: (usage.input_tokens || 0) + (usage.output_tokens || 0)
-        },
-        cost,
-        response_time: Date.now() - startTime,
-        finish_reason: data.stop_reason === 'end_turn' ? 'stop' : data.stop_reason || 'stop'
-      }
-
-      // 사용량 기록
-      if (options.user_id) {
-        await ApiUsageService.recordUsageBatch([{
-          userId: options.user_id!,
-          model: this.config.model_id,
-          inputTokens: aiResponse.usage.input_tokens,
-          outputTokens: aiResponse.usage.output_tokens,
-          cost: aiResponse.cost
-        }])
-      }
-
-      return aiResponse
-
-    } catch (error) {
-      console.error('🚨 Anthropic API 호출 실패 - 상세 진단:', {
-        error: error,
-        errorMessage: error instanceof Error ? error.message : String(error),
-        errorName: error instanceof Error ? error.name : 'Unknown',
-        errorStack: error instanceof Error ? error.stack : undefined,
-        apiKey: this.config.api_key?.substring(0, 15) + '...',
-        modelId: this.config.model_id
-      })
-
-      // 네트워크 오류인지 확인
-      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-        throw new Error('네트워크 연결 오류: Anthropic API에 연결할 수 없습니다. 인터넷 연결이나 방화벽 설정을 확인해주세요.')
-      }
-
-      // CORS 오류인지 확인
-      if (error instanceof Error && error.message.includes('CORS')) {
-        throw new Error('CORS 오류: 브라우저에서 Anthropic API에 직접 접근할 수 없습니다. 프록시 서버가 필요할 수 있습니다.')
-      }
-
-      throw error
-    }
   }
-
 }
 
 // Google 제공업체
