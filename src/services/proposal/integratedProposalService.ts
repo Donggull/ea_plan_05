@@ -1,8 +1,9 @@
 import { supabase } from '../../lib/supabase'
 import { ProposalAnalysisService, AnalysisResult } from './proposalAnalysisService'
-import { DocumentAnalysisService, IntegratedAnalysisResult, WorkflowStep } from '../analysis/documentAnalysisService'
-import { AIProviderFactory, AIMessage, AIResponse } from '../ai/providerFactory'
+import { DocumentAnalysisService } from '../analysis/documentAnalysisService'
+import { AIMessage, AIResponse } from '../ai/providerFactory'
 import { ProposalDataManager } from './dataManager'
+import { WorkflowStep, IntegratedAnalysisResult } from '../../types/documentAnalysis'
 
 export interface EnhancedAnalysisContext {
   projectId: string
@@ -240,17 +241,16 @@ export class IntegratedProposalService {
       // 기존 분석 결과 확인
       if (!forceReanalysis) {
         const { data: existingAnalysis } = await supabase!
-          .from('proposal_workflow_analysis')
+          .from('ai_analysis')
           .select('*')
           .eq('project_id', projectId)
-          .eq('workflow_step', 'document_analysis')
-          .eq('analysis_type', 'integrated_document_analysis')
+          .eq('analysis_type', 'document_analysis')
           .eq('status', 'completed')
           .order('created_at', { ascending: false })
           .limit(1)
 
         if (existingAnalysis && existingAnalysis.length > 0) {
-          return JSON.parse(existingAnalysis[0].analysis_result)
+          return JSON.parse(existingAnalysis[0].structured_data as string)
         }
       }
 
@@ -276,7 +276,7 @@ export class IntegratedProposalService {
     documentAnalysisResults: IntegratedAnalysisResult | null
   ): Promise<EnhancedAnalysisContext> {
     // 사용자 응답 조회
-    const userResponses = await ProposalDataManager.getResponses(projectId, workflowStep)
+    const userResponses = await ProposalDataManager.getResponses(projectId, workflowStep as any)
 
     // 이전 단계 분석 결과 조회
     const previousSteps = this.getPreviousSteps(workflowStep)
@@ -284,9 +284,9 @@ export class IntegratedProposalService {
 
     for (const step of previousSteps) {
       try {
-        const analysis = await ProposalDataManager.getAnalysis(projectId, step, 'integrated_analysis')
+        const analysis = await ProposalDataManager.getAnalysis(projectId, step as any, 'integrated_analysis')
         if (analysis.length > 0) {
-          previousStepResults[step] = JSON.parse(analysis[0].analysis_result)
+          previousStepResults[step] = JSON.parse(analysis[0].analysis_result as string)
         } else {
           previousStepResults[step] = null
         }
@@ -329,7 +329,7 @@ export class IntegratedProposalService {
     const dataCompleteness = this.calculateDataCompleteness(context)
 
     // 통합 점수 계산
-    const integrationScore = this.calculateIntegrationScore(context, parsedResult)
+    const integrationScore = this.calculateIntegrationScore(context)
 
     return {
       ...parsedResult,
@@ -371,7 +371,7 @@ export class IntegratedProposalService {
 
     // 사용자 응답 정리
     const userResponsesText = userResponses.length > 0
-      ? userResponses.map(r =>
+      ? userResponses.map((r: any) =>
           `Q: ${r.question_text || 'Unknown question'}\nA: ${r.answer_text || JSON.stringify(r.answer_data)}`
         ).join('\n\n')
       : '사용자 응답 없음'
@@ -390,7 +390,7 @@ export class IntegratedProposalService {
 
     // 단계별 특화 대체
     if (workflowStep === 'personas') {
-      const marketResult = previousStepResults.market_research
+      const marketResult = previousStepResults['market_research']
       userPrompt = userPrompt.replace(
         '{marketAnalysisResults}',
         marketResult ? JSON.stringify(marketResult, null, 2) : '시장 분석 결과 없음'
@@ -399,25 +399,25 @@ export class IntegratedProposalService {
       userPrompt = userPrompt
         .replace(
           '{marketAnalysisResults}',
-          previousStepResults.market_research ? JSON.stringify(previousStepResults.market_research, null, 2) : '시장 분석 결과 없음'
+          previousStepResults['market_research'] ? JSON.stringify(previousStepResults['market_research'], null, 2) : '시장 분석 결과 없음'
         )
         .replace(
           '{personaAnalysisResults}',
-          previousStepResults.personas ? JSON.stringify(previousStepResults.personas, null, 2) : '페르소나 분석 결과 없음'
+          previousStepResults['personas'] ? JSON.stringify(previousStepResults['personas'], null, 2) : '페르소나 분석 결과 없음'
         )
     } else if (workflowStep === 'budget') {
       userPrompt = userPrompt
         .replace(
           '{marketAnalysisResults}',
-          previousStepResults.market_research ? JSON.stringify(previousStepResults.market_research, null, 2) : '시장 분석 결과 없음'
+          previousStepResults['market_research'] ? JSON.stringify(previousStepResults['market_research'], null, 2) : '시장 분석 결과 없음'
         )
         .replace(
           '{personaAnalysisResults}',
-          previousStepResults.personas ? JSON.stringify(previousStepResults.personas, null, 2) : '페르소나 분석 결과 없음'
+          previousStepResults['personas'] ? JSON.stringify(previousStepResults['personas'], null, 2) : '페르소나 분석 결과 없음'
         )
         .replace(
           '{proposalAnalysisResults}',
-          previousStepResults.proposal ? JSON.stringify(previousStepResults.proposal, null, 2) : '제안서 분석 결과 없음'
+          previousStepResults['proposal'] ? JSON.stringify(previousStepResults['proposal'], null, 2) : '제안서 분석 결과 없음'
         )
     }
 
@@ -458,8 +458,7 @@ export class IntegratedProposalService {
    * 통합 점수 계산
    */
   private static calculateIntegrationScore(
-    context: EnhancedAnalysisContext,
-    result: any
+    context: EnhancedAnalysisContext
   ): number {
     let score = 0.5 // 기본 점수
 
@@ -528,11 +527,11 @@ export class IntegratedProposalService {
 
   private static async selectAIModel(projectId: string, userId: string, preferredModelId?: string): Promise<string> {
     // ProposalAnalysisService의 selectAIModel과 동일한 로직
-    return ProposalAnalysisService['selectAIModel'](projectId, userId, preferredModelId)
+    return (ProposalAnalysisService as any)['selectAIModel'](projectId, userId, preferredModelId)
   }
 
   private static async executeAIAnalysis(modelId: string, messages: AIMessage[], userId: string): Promise<AIResponse> {
-    return ProposalAnalysisService['executeAIAnalysis'](modelId, messages, userId)
+    return (ProposalAnalysisService as any)['executeAIAnalysis'](modelId, messages, userId)
   }
 
   private static async saveIntegratedResult(
@@ -541,15 +540,12 @@ export class IntegratedProposalService {
     userId: string
   ): Promise<void> {
     try {
-      await supabase!.from('proposal_workflow_analysis').insert({
+      await supabase!.from('ai_analysis').insert({
         project_id: context.projectId,
-        workflow_step: context.workflowStep,
-        analysis_type: 'integrated_enhanced_analysis',
+        analysis_type: `${context.workflowStep}_integrated_analysis`,
         ai_provider: 'multiple',
         ai_model: 'integrated',
         analysis_result: JSON.stringify(result),
-        structured_output: result.structuredData,
-        recommendations: result.enhancedRecommendations,
         confidence_score: result.confidence,
         status: 'completed',
         created_by: userId,
@@ -557,6 +553,7 @@ export class IntegratedProposalService {
           integrationScore: result.integrationScore,
           dataCompleteness: result.dataCompleteness,
           documentAnalysisIncluded: !!context.documentAnalysisResults,
+          workflowStep: context.workflowStep,
           timestamp: new Date().toISOString()
         }
       })
@@ -579,10 +576,10 @@ export class IntegratedProposalService {
     try {
       // 문서 분석 상태 확인
       const { data: documentAnalysis } = await supabase!
-        .from('proposal_workflow_analysis')
+        .from('ai_analysis')
         .select('*')
         .eq('project_id', projectId)
-        .eq('workflow_step', 'document_analysis')
+        .eq('analysis_type', 'document_analysis')
         .eq('status', 'completed')
         .order('created_at', { ascending: false })
         .limit(1)
@@ -596,18 +593,18 @@ export class IntegratedProposalService {
 
       for (const step of allSteps) {
         const { data: stepAnalysis } = await supabase!
-          .from('proposal_workflow_analysis')
+          .from('ai_analysis')
           .select('*')
           .eq('project_id', projectId)
-          .eq('workflow_step', step)
-          .eq('analysis_type', 'integrated_enhanced_analysis')
+          .eq('analysis_type', `${step}_integrated_analysis`)
           .eq('status', 'completed')
           .order('created_at', { ascending: false })
           .limit(1)
 
         if (stepAnalysis && stepAnalysis.length > 0) {
           completedSteps.push(step)
-          integrationScores[step] = stepAnalysis[0].metadata?.integrationScore || 0.5
+          const metadata = stepAnalysis[0].metadata as any
+          integrationScores[step] = metadata?.integrationScore || 0.5
         } else {
           integrationScores[step] = 0
         }

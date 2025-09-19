@@ -4,12 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useProject } from '../contexts/ProjectContext'
 import {
   DocumentAnalysisState,
-  DocumentAnalysisActions,
-  IntegratedAnalysisResult,
-  WorkflowStep,
-  DocumentAnalysisResult,
-  WorkflowDocumentInsights,
-  DocumentAnalysisStats
+  WorkflowStep
 } from '../types/documentAnalysis'
 
 export function useDocumentAnalysis(projectId?: string) {
@@ -188,7 +183,7 @@ export function useDocumentAnalysis(projectId?: string) {
 
     // 계산된 값들
     hasDocuments: state.projectStatus?.hasDocuments || false,
-    analysisProgress: state.projectStatus?.totalDocuments > 0
+    analysisProgress: state.projectStatus?.totalDocuments && state.projectStatus.totalDocuments > 0
       ? (state.projectStatus.documentsAnalyzed / state.projectStatus.totalDocuments) * 100
       : 0,
     isAnalysisComplete: state.projectStatus?.documentsAnalyzed === state.projectStatus?.totalDocuments,
@@ -234,7 +229,7 @@ export function useDocumentAnalysisStats() {
     pendingDocuments: (projectStatus?.totalDocuments || 0) - (projectStatus?.documentsAnalyzed || 0),
 
     // 진행률
-    analysisProgress: projectStatus?.totalDocuments > 0
+    analysisProgress: projectStatus?.totalDocuments && projectStatus.totalDocuments > 0
       ? (projectStatus.documentsAnalyzed / projectStatus.totalDocuments) * 100
       : 0,
 

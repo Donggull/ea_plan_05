@@ -30,7 +30,6 @@ export function DocumentAnalysisWidget({
   const [showDetails, setShowDetails] = useState(false)
 
   const {
-    projectStatus,
     analysisResult,
     isAnalyzing,
     isLoading,
@@ -38,8 +37,7 @@ export function DocumentAnalysisWidget({
     progress,
     hasDocuments,
     analyzeDocuments,
-    refreshStatus,
-    getWorkflowReadiness
+    refreshStatus
   } = useDocumentAnalysis()
 
   const stats = useDocumentAnalysisStats()
@@ -240,6 +238,7 @@ export function DocumentAnalysisWidget({
                 <div className="text-mini text-text-tertiary font-medium">워크플로우 준비도</div>
                 {Object.entries(stats.workflowReadiness.byStep).map(([step, readiness]) => {
                   const Icon = getWorkflowIcon(step as WorkflowStep)
+                  const readinessNum = typeof readiness === 'number' ? readiness : 0
                   return (
                     <div key={step} className="flex items-center justify-between text-mini">
                       <div className="flex items-center space-x-1">
@@ -248,8 +247,8 @@ export function DocumentAnalysisWidget({
                           {getWorkflowLabel(step as WorkflowStep)}
                         </span>
                       </div>
-                      <span className={`font-medium ${getReadinessColor(readiness)}`}>
-                        {Math.round(readiness * 100)}%
+                      <span className={`font-medium ${getReadinessColor(readinessNum)}`}>
+                        {Math.round(readinessNum * 100)}%
                       </span>
                     </div>
                   )

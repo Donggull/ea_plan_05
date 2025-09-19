@@ -343,8 +343,8 @@ export class DocumentAnalysisService {
         .replace('{workflowStatus}', JSON.stringify(workflowStatus, null, 2))
 
       const prompt = [
-        { role: 'system', content: template.system },
-        { role: 'user', content: userPrompt }
+        { role: 'system' as const, content: template.system },
+        { role: 'user' as const, content: userPrompt }
       ]
 
       // AI 분석 실행
@@ -388,8 +388,10 @@ export class DocumentAnalysisService {
         .eq('project_id', projectId)
         .single()
 
-      if (projectSettings?.analysis_model_mappings?.document_analysis) {
-        return projectSettings.analysis_model_mappings.document_analysis
+      if (projectSettings?.analysis_model_mappings &&
+          typeof projectSettings.analysis_model_mappings === 'object' &&
+          'document_analysis' in projectSettings.analysis_model_mappings) {
+        return (projectSettings.analysis_model_mappings as any).document_analysis
       }
 
       if (projectSettings?.default_model_id) {
@@ -433,13 +435,13 @@ export class DocumentAnalysisService {
       })
 
       // API 사용량 기록
-      await ApiUsageService.recordUsage({
+      await ApiUsageService.recordUsageBatch([{
         userId,
         model: modelId,
         inputTokens: response.usage.input_tokens,
         outputTokens: response.usage.output_tokens,
         cost: response.cost
-      })
+      }])
 
       return response
     } catch (error) {
@@ -508,7 +510,7 @@ export class DocumentAnalysisService {
       if (error || !data || data.length === 0) return null
 
       const analysis = data[0]
-      return JSON.parse(analysis.structured_data)
+      return JSON.parse(analysis.structured_data as string)
 
     } catch (error) {
       console.error('Failed to get existing document analysis:', error)
@@ -527,10 +529,10 @@ export class DocumentAnalysisService {
 
       for (const step of steps) {
         const { data: analysis } = await supabase!
-          .from('proposal_workflow_analysis')
+          .from('ai_analysis')
           .select('*')
           .eq('project_id', projectId)
-          .eq('workflow_step', step)
+          .eq('analysis_type', `${step}_analysis`)
           .eq('status', 'completed')
           .order('created_at', { ascending: false })
           .limit(1)
@@ -570,7 +572,7 @@ export class DocumentAnalysisService {
         ai_model: modelId,
         prompt: JSON.stringify([]),
         response: aiResponse.content,
-        structured_data: result,
+        structured_data: JSON.stringify(result),
         input_tokens: aiResponse.usage.input_tokens,
         output_tokens: aiResponse.usage.output_tokens,
         total_cost: aiResponse.cost,
@@ -599,20 +601,21 @@ export class DocumentAnalysisService {
     userId: string
   ): Promise<void> {
     try {
-      await supabase!.from('proposal_workflow_analysis').insert({
+      await supabase!.from('ai_analysis').insert({
         project_id: result.projectId,
-        workflow_step: 'document_analysis',
         analysis_type: 'integrated_document_analysis',
+        workflow_step: 'document_analysis',
+        workflow_type: 'proposal',
         ai_provider: 'multiple',
         ai_model: result.costSummary.modelUsed,
-        analysis_result: JSON.stringify(result),
-        structured_output: result.workflowRecommendations,
-        recommendations: result.nextSteps,
-        processing_time: result.totalProcessingTime,
+        prompt: JSON.stringify({}),
+        response: JSON.stringify(result),
+        structured_data: JSON.stringify(result.workflowRecommendations),
         input_tokens: result.costSummary.tokenUsage,
         output_tokens: 0,
-        cost: result.costSummary.totalCost,
+        total_cost: result.costSummary.totalCost,
         status: 'completed',
+        processing_time: result.totalProcessingTime,
         created_by: userId,
         metadata: {
           documentCount: result.documentInsights.length,
@@ -653,8 +656,8 @@ export class DocumentAnalysisService {
 
       // 최근 통합 분석 결과 조회
       const { data: recentAnalysis, error: recentError } = await supabase!
-        .from('proposal_workflow_analysis')
-        .select('created_at, structured_output')
+        .from('ai_analysis')
+        .select('created_at, structured_data')
         .eq('project_id', projectId)
         .eq('workflow_step', 'document_analysis')
         .eq('analysis_type', 'integrated_document_analysis')
@@ -673,13 +676,17 @@ export class DocumentAnalysisService {
       }
 
       if (recentAnalysis && recentAnalysis.length > 0) {
-        const structured = recentAnalysis[0].structured_output
-        if (structured) {
-          Object.keys(workflowReadiness).forEach(step => {
-            if (structured[step]?.readiness) {
-              workflowReadiness[step as WorkflowStep] = structured[step].readiness
-            }
-          })
+        try {
+          const structured = JSON.parse(recentAnalysis[0].structured_data as string)
+          if (structured) {
+            Object.keys(workflowReadiness).forEach(step => {
+              if (structured[step]?.readiness) {
+                workflowReadiness[step as WorkflowStep] = structured[step].readiness
+              }
+            })
+          }
+        } catch (error) {
+          console.warn('Failed to parse structured data:', error)
         }
       }
 
@@ -687,7 +694,7 @@ export class DocumentAnalysisService {
         hasDocuments: (allDocs?.length || 0) > 0,
         documentsAnalyzed: analyzedDocs?.length || 0,
         totalDocuments: allDocs?.length || 0,
-        lastAnalysis: recentAnalysis?.[0]?.created_at || null,
+        lastAnalysis: recentAnalysis && recentAnalysis.length > 0 ? recentAnalysis[0].created_at : null,
         workflowReadiness
       }
 
