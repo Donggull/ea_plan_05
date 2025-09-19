@@ -26,6 +26,7 @@ import { ProposalWriterPage } from '@/pages/projects/[id]/proposal/ProposalWrite
 import { ProposalWriterResultsPage } from '@/pages/projects/[id]/proposal/ProposalWriterResults'
 import { BudgetPage } from '@/pages/projects/[id]/proposal/Budget'
 import { BudgetResultsPage } from '@/pages/projects/[id]/proposal/BudgetResults'
+import { DocumentAnalysisPage } from '@/pages/projects/[id]/DocumentAnalysis'
 import { DocumentsPage } from '@/pages/DocumentsPage'
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute'
 import { MainLayout } from '@/layouts/MainLayout'
@@ -73,6 +74,7 @@ function App() {
               <Route path="/projects/:id/proposal/proposal-writer/results" element={<ProposalWriterResultsPage />} />
               <Route path="/projects/:id/proposal/budget" element={<BudgetPage />} />
               <Route path="/projects/:id/proposal/budget/results" element={<BudgetResultsPage />} />
+              <Route path="/projects/:id/document-analysis" element={<DocumentAnalysisPage />} />
               <Route path="/documents" element={<DocumentsPage />} />
               <Route path="/analytics" element={<DashboardPage />} />
               <Route path="/team" element={<DashboardPage />} />

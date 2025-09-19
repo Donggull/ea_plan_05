@@ -24,7 +24,6 @@ import { ApiUsageService } from '../../services/apiUsageService'
 import { useAIModel } from '../../contexts/AIModelContext'
 import { useProject } from '../../contexts/ProjectContext'
 import { usePermissionCheck } from '@/lib/middleware/permissionCheck'
-import { DocumentAnalysisWidget } from '../../components/analysis/DocumentAnalysisWidget'
 
 interface SidebarProps {
   isCollapsed?: boolean
@@ -508,20 +507,6 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
           )}
         </div>
 
-        {/* 문서 분석 위젯 */}
-        <div className="space-y-2">
-          {!collapsed && (
-            <h3 className="text-text-tertiary text-mini font-medium uppercase tracking-wide">
-              Document Analysis
-            </h3>
-          )}
-
-          {!collapsed ? (
-            <DocumentAnalysisWidget variant="sidebar" />
-          ) : (
-            <DocumentAnalysisWidget variant="compact" />
-          )}
-        </div>
 
         {/* MCP 서버 상태 - 축소된 버전 */}
         <div className="space-y-2">
