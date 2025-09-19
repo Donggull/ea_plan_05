@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { useDocumentAnalysis, useDocumentAnalysisStats } from '../../hooks/useDocumentAnalysis'
 import { WorkflowStep } from '../../types/documentAnalysis'
+import { useAIModel } from '../../contexts/AIModelContext'
 
 interface DocumentAnalysisWidgetProps {
   variant?: 'compact' | 'detailed' | 'sidebar'
@@ -28,6 +29,7 @@ export function DocumentAnalysisWidget({
 }: DocumentAnalysisWidgetProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [showDetails, setShowDetails] = useState(false)
+  const { getSelectedModel } = useAIModel()
 
   const {
     analysisResult,
@@ -43,7 +45,11 @@ export function DocumentAnalysisWidget({
   const stats = useDocumentAnalysisStats()
 
   const handleAnalyze = async () => {
+    const selectedModel = getSelectedModel()
+    const modelId = selectedModel?.id
+
     await analyzeDocuments({
+      modelId,
       forceReanalysis: false
     })
   }
