@@ -50,21 +50,43 @@ export function AuthProvider({ children }: AuthProviderProps) {
     })
   }, [isClient, authStore.isInitialized])
 
-  // 세션 갱신 관리 (단순화)
+  // 세션 갱신 관리 (보수적 접근)
   useEffect(() => {
-    if (!isClient || !authStore.isAuthenticated) return
+    if (!isClient || !authStore.isAuthenticated || !authStore.session) return
 
-    // 1시간마다 세션 갱신
-    const refreshInterval = setInterval(async () => {
+    // 토큰 만료 시간 확인
+    const session = authStore.session
+    const expiresAt = session.expires_at
+    if (!expiresAt) return
+
+    const now = Math.floor(Date.now() / 1000)
+    const timeUntilExpiry = expiresAt - now
+
+    // 만료까지 2시간 이상 남았으면 갱신하지 않음
+    if (timeUntilExpiry > 2 * 60 * 60) {
+      console.log('⏭️ Token has plenty of time left, skipping refresh setup')
+      return
+    }
+
+    // 만료 30분 전에 갱신하도록 타이머 설정
+    const refreshTime = Math.max(timeUntilExpiry - 30 * 60, 5 * 60) * 1000 // 최소 5분 후
+
+    console.log(`⏰ Setting up token refresh in ${Math.round(refreshTime / 60000)} minutes`)
+
+    const refreshTimeout = setTimeout(async () => {
       try {
+        console.log('🔄 Scheduled token refresh starting...')
         await authStore.refreshSession()
       } catch (error) {
-        console.error('Session refresh failed:', error)
+        console.error('Scheduled session refresh failed:', error)
       }
-    }, 60 * 60 * 1000)
+    }, refreshTime)
 
-    return () => clearInterval(refreshInterval)
-  }, [isClient, authStore.isAuthenticated])
+    return () => {
+      clearTimeout(refreshTimeout)
+      console.log('🧹 Cleared token refresh timeout')
+    }
+  }, [isClient, authStore.isAuthenticated, authStore.session?.expires_at])
 
   // 브라우저 창 간 세션 유지 관리 (개선)
   useEffect(() => {

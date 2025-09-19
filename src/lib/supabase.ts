@@ -72,29 +72,21 @@ export const createSupabaseBrowserClient = () => {
       },
       auth: {
         persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
+        autoRefreshToken: false, // 수동 관리로 변경
+        detectSessionInUrl: false, // URL 감지 비활성화
         flowType: 'pkce',
         storage: {
           getItem: (key: string) => {
             if (typeof window === 'undefined') return null
-            return getCookie(key) || localStorage.getItem(key)
+            return localStorage.getItem(key) // localStorage만 사용
           },
           setItem: (key: string, value: string) => {
             if (typeof window === 'undefined') return
-            setCookie(key, value, {
-              maxAge: 60 * 60 * 24 * 7, // 7일
-              httpOnly: false,
-              secure: window.location.protocol === 'https:',
-              sameSite: 'lax',
-              path: '/'
-            })
-            localStorage.setItem(key, value)
+            localStorage.setItem(key, value) // localStorage만 사용
           },
           removeItem: (key: string) => {
             if (typeof window === 'undefined') return
-            deleteCookie(key)
-            localStorage.removeItem(key)
+            localStorage.removeItem(key) // localStorage만 사용
           },
         },
       },

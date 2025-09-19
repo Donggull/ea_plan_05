@@ -13,6 +13,7 @@ interface AuthState {
   isAuthenticated: boolean
   isInitialized: boolean
   error: string | null
+  _authListenerActive: boolean // 내부 상태로 관리
   signIn: (email: string, password: string) => Promise<void>
   signUp: (email: string, password: string, metadata?: { full_name?: string }) => Promise<void>
   signOut: () => Promise<void>
@@ -34,6 +35,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isAuthenticated: false,
   isInitialized: false,
   error: null,
+  _authListenerActive: false, // 리스너 상태 초기화
 
   clearError: () => set({ error: null }),
 
@@ -319,22 +321,42 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  // Auth 상태 변경 리스너를 별도 함수로 분리
+  // Auth 상태 변경 리스너를 별도 함수로 분리 (개선)
   setupAuthListener: () => {
     if (typeof window === 'undefined') return
+
+    const { _authListenerActive } = get()
+
+    // 이미 리스너가 설정되어 있으면 스킵
+    if (_authListenerActive) {
+      console.log('⏭️ Auth listener already active, skipping setup')
+      return
+    }
 
     const supabase = getSupabaseClient()
 
     // 기존 리스너 정리
     if (window.__supabaseAuthUnsubscribe) {
       console.log('🧹 Cleaning up existing auth listener')
-      window.__supabaseAuthUnsubscribe()
+      try {
+        window.__supabaseAuthUnsubscribe()
+      } catch (error) {
+        console.warn('Error cleaning up auth listener:', error)
+      }
       window.__supabaseAuthUnsubscribe = null
     }
 
+    console.log('🎯 Setting up new auth listener')
+
     // 새 리스너 등록
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('🔄 Auth state changed:', event)
+      console.log('🔄 Auth state changed:', event, session?.user?.email)
+
+      // INITIAL_SESSION은 무시 (초기 로딩에서 불필요한 상태 변경 방지)
+      if (event === 'INITIAL_SESSION') {
+        console.log('⏭️ Ignoring INITIAL_SESSION event')
+        return
+      }
 
       // 간단한 상태 업데이트만 수행
       if (event === 'SIGNED_OUT') {
@@ -344,12 +366,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           profile: null,
           isAuthenticated: false,
         })
-      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        console.log('👋 User signed out')
+      } else if (event === 'SIGNED_IN') {
         set({
           user: session?.user ?? null,
           session,
           isAuthenticated: !!session,
         })
+        console.log('👤 User signed in:', session?.user?.email)
 
         // 프로필 로드는 백그라운드에서
         if (session?.user) {
@@ -357,10 +381,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             console.warn('Background profile load failed:', error)
           })
         }
+      } else if (event === 'TOKEN_REFRESHED') {
+        // 토큰 갱신은 조용히 처리
+        set({
+          user: session?.user ?? null,
+          session,
+          isAuthenticated: !!session,
+        })
+        console.log('🔄 Token refreshed silently')
       }
     })
 
-    // cleanup 함수 저장
-    window.__supabaseAuthUnsubscribe = subscription.unsubscribe
+    // 활성화 상태 업데이트
+    set({ _authListenerActive: true })
+
+    // cleanup 함수 개선
+    const originalUnsubscribe = subscription.unsubscribe
+    window.__supabaseAuthUnsubscribe = () => {
+      console.log('🧹 Unsubscribing auth listener')
+      originalUnsubscribe()
+      set({ _authListenerActive: false })
+      window.__supabaseAuthUnsubscribe = null
+    }
   },
 }))
