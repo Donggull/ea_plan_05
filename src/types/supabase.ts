@@ -873,6 +873,237 @@ export type Database = {
           },
         ]
       }
+      proposal_workflow_analysis: {
+        Row: {
+          ai_model: string
+          ai_provider: string
+          analysis_prompt: string | null
+          analysis_result: string | null
+          analysis_type: string
+          completed_at: string | null
+          confidence_score: number | null
+          cost: number | null
+          created_at: string | null
+          created_by: string | null
+          error_message: string | null
+          id: string
+          input_documents: string[] | null
+          input_responses: string[] | null
+          input_tokens: number | null
+          metadata: Json | null
+          next_questions: Json | null
+          output_tokens: number | null
+          processing_time: number | null
+          project_id: string
+          prompt_template: string | null
+          recommendations: Json | null
+          status: string | null
+          structured_output: Json | null
+          workflow_step: string
+        }
+        Insert: {
+          ai_model: string
+          ai_provider: string
+          analysis_prompt?: string | null
+          analysis_result?: string | null
+          analysis_type: string
+          completed_at?: string | null
+          confidence_score?: number | null
+          cost?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          input_documents?: string[] | null
+          input_responses?: string[] | null
+          input_tokens?: number | null
+          metadata?: Json | null
+          next_questions?: Json | null
+          output_tokens?: number | null
+          processing_time?: number | null
+          project_id: string
+          prompt_template?: string | null
+          recommendations?: Json | null
+          status?: string | null
+          structured_output?: Json | null
+          workflow_step: string
+        }
+        Update: {
+          ai_model?: string
+          ai_provider?: string
+          analysis_prompt?: string | null
+          analysis_result?: string | null
+          analysis_type?: string
+          completed_at?: string | null
+          confidence_score?: number | null
+          cost?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          input_documents?: string[] | null
+          input_responses?: string[] | null
+          input_tokens?: number | null
+          metadata?: Json | null
+          next_questions?: Json | null
+          output_tokens?: number | null
+          processing_time?: number | null
+          project_id?: string
+          prompt_template?: string | null
+          recommendations?: Json | null
+          status?: string | null
+          structured_output?: Json | null
+          workflow_step?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "proposal_workflow_analysis_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proposal_workflow_analysis_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      proposal_workflow_questions: {
+        Row: {
+          category: string
+          created_at: string | null
+          display_order: number
+          help_text: string | null
+          id: string
+          is_dynamic: boolean | null
+          is_required: boolean | null
+          metadata: Json | null
+          options: Json | null
+          project_id: string
+          question_id: string
+          question_text: string
+          question_type: string
+          validation_rules: Json | null
+          workflow_step: string
+        }
+        Insert: {
+          category: string
+          created_at?: string | null
+          display_order: number
+          help_text?: string | null
+          id?: string
+          is_dynamic?: boolean | null
+          is_required?: boolean | null
+          metadata?: Json | null
+          options?: Json | null
+          project_id: string
+          question_id: string
+          question_text: string
+          question_type: string
+          validation_rules?: Json | null
+          workflow_step: string
+        }
+        Update: {
+          category?: string
+          created_at?: string | null
+          display_order?: number
+          help_text?: string | null
+          id?: string
+          is_dynamic?: boolean | null
+          is_required?: boolean | null
+          metadata?: Json | null
+          options?: Json | null
+          project_id?: string
+          question_id?: string
+          question_text?: string
+          question_type?: string
+          validation_rules?: Json | null
+          workflow_step?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "proposal_workflow_questions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      proposal_workflow_responses: {
+        Row: {
+          answer_data: Json | null
+          answer_text: string | null
+          confidence_score: number | null
+          id: string
+          is_temporary: boolean | null
+          metadata: Json | null
+          notes: string | null
+          project_id: string
+          question_id: string
+          responded_at: string | null
+          responded_by: string | null
+          updated_at: string | null
+          workflow_step: string
+        }
+        Insert: {
+          answer_data?: Json | null
+          answer_text?: string | null
+          confidence_score?: number | null
+          id?: string
+          is_temporary?: boolean | null
+          metadata?: Json | null
+          notes?: string | null
+          project_id: string
+          question_id: string
+          responded_at?: string | null
+          responded_by?: string | null
+          updated_at?: string | null
+          workflow_step: string
+        }
+        Update: {
+          answer_data?: Json | null
+          answer_text?: string | null
+          confidence_score?: number | null
+          id?: string
+          is_temporary?: boolean | null
+          metadata?: Json | null
+          notes?: string | null
+          project_id?: string
+          question_id?: string
+          responded_at?: string | null
+          responded_by?: string | null
+          updated_at?: string | null
+          workflow_step?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "proposal_workflow_responses_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proposal_workflow_responses_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "proposal_workflow_questions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proposal_workflow_responses_responded_by_fkey"
+            columns: ["responded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ticket_comments: {
         Row: {
           comment: string

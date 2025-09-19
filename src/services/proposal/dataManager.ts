@@ -91,13 +91,13 @@ export class ProposalDataManager {
 
       // 기존 질문 삭제 후 새로 저장 (단계별로)
       await supabase!!
-        .from('proposal_workflow_questions' as any)
+        .from('proposal_workflow_questions')
         .delete()
         .eq('project_id', projectId)
         .eq('workflow_step', workflowStep)
 
       const { data, error } = await supabase!
-        .from('proposal_workflow_questions' as any)
+        .from('proposal_workflow_questions')
         .insert(questionsData)
         .select()
 
@@ -118,7 +118,7 @@ export class ProposalDataManager {
   ): Promise<ProposalWorkflowQuestion[]> {
     try {
       const { data, error } = await supabase!
-        .from('proposal_workflow_questions' as any)
+        .from('proposal_workflow_questions')
         .select('*')
         .eq('project_id', projectId)
         .eq('workflow_step', workflowStep)
@@ -146,7 +146,7 @@ export class ProposalDataManager {
     try {
       // questionId(문자열)로 실제 질문의 UUID를 찾기
       const { data: questionData, error: questionError } = await supabase!
-        .from('proposal_workflow_questions' as any)
+        .from('proposal_workflow_questions')
         .select('id')
         .eq('project_id', projectId)
         .eq('question_id', questionId)
@@ -157,7 +157,7 @@ export class ProposalDataManager {
         throw new Error(`Question not found: ${questionId}`)
       }
 
-      const questionUuid = questionData.id
+      const questionUuid = (questionData as any).id
 
       const responseData = {
         project_id: projectId,
@@ -178,7 +178,7 @@ export class ProposalDataManager {
 
       // 기존 답변이 있는지 확인
       const { data: existing } = await supabase!
-        .from('proposal_workflow_responses' as any)
+        .from('proposal_workflow_responses')
         .select('id')
         .eq('project_id', projectId)
         .eq('question_id', questionUuid)
@@ -188,7 +188,7 @@ export class ProposalDataManager {
       if (existing && 'id' in existing) {
         // 업데이트
         const { data, error } = await supabase!
-          .from('proposal_workflow_responses' as any)
+          .from('proposal_workflow_responses')
           .update({ ...responseData, updated_at: new Date().toISOString() })
           .eq('id', (existing as any).id)
           .select()
@@ -199,7 +199,7 @@ export class ProposalDataManager {
       } else {
         // 새로 생성
         const { data, error } = await supabase!
-          .from('proposal_workflow_responses' as any)
+          .from('proposal_workflow_responses')
           .insert(responseData)
           .select()
           .single()
@@ -225,7 +225,7 @@ export class ProposalDataManager {
     try {
       // JOIN을 통해 질문 정보와 함께 답변 조회
       const { data, error } = await supabase!
-        .from('proposal_workflow_responses' as any)
+        .from('proposal_workflow_responses')
         .select(`
           *,
           proposal_workflow_questions!inner(question_id)
@@ -359,13 +359,13 @@ export class ProposalDataManager {
   ): Promise<ProposalWorkflowAnalysis> {
     try {
       const { data, error } = await supabase!
-        .from('proposal_workflow_analysis' as any)
+        .from('proposal_workflow_analysis')
         .insert(analysisData)
         .select()
         .single()
 
       if (error) throw error
-      return data as any
+      return data as unknown as ProposalWorkflowAnalysis
     } catch (error) {
       console.error('Failed to save analysis:', error)
       throw error
@@ -382,7 +382,7 @@ export class ProposalDataManager {
   ): Promise<ProposalWorkflowAnalysis[]> {
     try {
       let query = supabase!
-        .from('proposal_workflow_analysis' as any)
+        .from('proposal_workflow_analysis')
         .select('*')
         .eq('project_id', projectId)
         .eq('workflow_step', workflowStep)
@@ -394,7 +394,7 @@ export class ProposalDataManager {
       const { data, error } = await query.order('created_at', { ascending: false })
 
       if (error) throw error
-      return (data as any) || []
+      return (data as unknown as ProposalWorkflowAnalysis[]) || []
     } catch (error) {
       console.error('Failed to get analysis:', error)
       throw error
@@ -473,7 +473,7 @@ export class ProposalDataManager {
   ): Promise<void> {
     try {
       await supabase!
-        .from('proposal_workflow_responses' as any)
+        .from('proposal_workflow_responses')
         .update({
           is_temporary: false,
           updated_at: new Date().toISOString()
@@ -496,7 +496,7 @@ export class ProposalDataManager {
   ): Promise<void> {
     try {
       await supabase!
-        .from('proposal_workflow_responses' as any)
+        .from('proposal_workflow_responses')
         .delete()
         .eq('project_id', projectId)
         .eq('workflow_step', workflowStep)
