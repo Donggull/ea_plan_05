@@ -24,6 +24,7 @@ import {
 import { useDocumentAnalysis, useDocumentAnalysisStats } from '../../../hooks/useDocumentAnalysis'
 import { WorkflowStep } from '../../../types/documentAnalysis'
 import { useAuth } from '../../../contexts/AuthContext'
+import { useAIModel } from '../../../contexts/AIModelContext'
 import { PageContainer, PageHeader, PageContent, Card } from '../../../components/LinearComponents'
 import { DocumentAnalysisDetailModal } from '../../../components/analysis/DocumentAnalysisDetailModal'
 import { ProjectNavigationHeader } from '../../../components/projects/ProjectNavigationHeader'
@@ -53,7 +54,7 @@ export function DocumentAnalysisPage({}: DocumentAnalysisPageProps) {
   const { id: projectId } = useParams<{ id: string }>()
   const { user } = useAuth()
   const navigate = useNavigate()
-  // const { selectedModel } = useSelectedAIModel() // 현재 사용하지 않음
+  const { getSelectedModel } = useAIModel()
 
   const [selectedView, setSelectedView] = useState<'overview' | 'documents' | 'workflow' | 'insights'>('overview')
 
@@ -115,7 +116,12 @@ export function DocumentAnalysisPage({}: DocumentAnalysisPageProps) {
   const handleAnalyzeAll = async () => {
     if (!projectId || !user) return
 
+    // 현재 선택된 AI 모델 가져오기
+    const selectedModel = getSelectedModel()
+    console.log('🎯 분석 시작 - 선택된 모델:', selectedModel?.id, selectedModel?.name)
+
     await analyzeDocuments({
+      modelId: selectedModel?.id, // 선택된 모델 ID 전달
       forceReanalysis: false,
       targetSteps: ['market_research', 'personas', 'proposal', 'budget']
     })
@@ -126,10 +132,13 @@ export function DocumentAnalysisPage({}: DocumentAnalysisPageProps) {
     if (!projectId || !user) return
 
     try {
-      console.log('Analyzing document:', documentId)
-      // 개별 문서 분석 로직 추가 필요
-      // 예시: 특정 문서만 분석하는 API 호출
+      // 현재 선택된 AI 모델 가져오기
+      const selectedModel = getSelectedModel()
+      console.log('🎯 개별 문서 분석 시작 - 선택된 모델:', selectedModel?.id, selectedModel?.name)
+      console.log('분석 대상 문서:', documentId)
+
       await analyzeDocuments({
+        modelId: selectedModel?.id, // 선택된 모델 ID 전달
         forceReanalysis: false,
         targetSteps: ['market_research', 'personas', 'proposal', 'budget'],
         documentIds: [documentId] // 특정 문서만 분석

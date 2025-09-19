@@ -183,8 +183,19 @@ export class DocumentAnalysisService {
       return result
 
     } catch (error) {
-      console.error('Document analysis failed:', error)
-      throw error
+      console.error('📊 문서 분석 실패:', {
+        projectId,
+        userId,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      })
+
+      // 사용자 친화적인 오류 메시지로 변환
+      const userFriendlyMessage = error instanceof Error
+        ? error.message
+        : '문서 분석 중 오류가 발생했습니다.'
+
+      throw new Error(userFriendlyMessage)
     }
   }
 
@@ -235,8 +246,19 @@ export class DocumentAnalysisService {
       return result
 
     } catch (error) {
-      console.error(`Document analysis failed for ${document.file_name}:`, error)
-      throw error
+      console.error(`📄 개별 문서 분석 실패 (${document.file_name}):`, {
+        documentId: document.id,
+        fileName: document.file_name,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      })
+
+      // 사용자 친화적인 오류 메시지로 변환
+      const userFriendlyMessage = error instanceof Error
+        ? `문서 "${document.file_name}" 분석 실패: ${error.message}`
+        : `문서 "${document.file_name}" 분석 중 오류가 발생했습니다.`
+
+      throw new Error(userFriendlyMessage)
     }
   }
 
