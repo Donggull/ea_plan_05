@@ -126,9 +126,14 @@ class OpenAIProvider extends BaseAIProvider {
       }
 
       // API 키 확인 - 반드시 실제 API 키가 있어야 함
-      if (!this.config.api_key || this.config.api_key === 'sk-your-openai-key-here') {
+      if (!this.config.api_key || this.config.api_key === 'sk-your-openai-key-here' || !this.config.api_key.startsWith('sk-')) {
+        console.error('❌ OpenAI API 키 오류:', {
+          hasKey: !!this.config.api_key,
+          keyPrefix: this.config.api_key?.substring(0, 10),
+          keyLength: this.config.api_key?.length
+        })
         throw new AIProviderError(
-          'OpenAI API 키가 설정되지 않았습니다. 환경 변수 VITE_OPENAI_API_KEY를 설정해주세요.',
+          'OpenAI API 키가 설정되지 않았거나 잘못되었습니다. 환경 변수 VITE_OPENAI_API_KEY를 확인해주세요.',
           'openai',
           this.config.model_id,
           401,
@@ -153,7 +158,14 @@ class OpenAIProvider extends BaseAIProvider {
   }
 
   private async callOpenAIAPI(options: AIRequestOptions, startTime: number): Promise<AIResponse> {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    // 개발 환경에서는 프록시 사용, 프로덕션에서는 직접 호출
+    const apiUrl = import.meta.env.DEV
+      ? '/api/openai/v1/chat/completions'
+      : 'https://api.openai.com/v1/chat/completions'
+
+    console.log('🌐 OpenAI API URL:', apiUrl, '(dev mode:', import.meta.env.DEV, ')')
+
+    const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -269,14 +281,30 @@ class AnthropicProvider extends BaseAIProvider {
         ...(systemMessage && { system: systemMessage })
       }
 
-      console.log('🔍 Anthropic API 요청:', {
+      console.log('🔍 Anthropic API 요청 세부정보:', {
+        url: 'https://api.anthropic.com/v1/messages',
+        method: 'POST',
         model: this.config.model_id,
         messageCount: anthropicMessages.length,
         hasSystem: !!systemMessage,
-        apiKeyPrefix: this.config.api_key?.substring(0, 10) + '...'
+        apiKeyPrefix: this.config.api_key?.substring(0, 10) + '...',
+        apiKeyLength: this.config.api_key?.length,
+        requestBodySize: JSON.stringify(requestBody).length
       })
 
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      // Anthropic API 키 유효성 재확인
+      if (!this.config.api_key || this.config.api_key === 'your-anthropic-key-here' || !this.config.api_key.startsWith('sk-ant-')) {
+        throw new Error(`잘못된 Anthropic API 키입니다. 키 형식: ${this.config.api_key?.substring(0, 10)}...`)
+      }
+
+      // 개발 환경에서는 프록시 사용, 프로덕션에서는 직접 호출
+      const apiUrl = import.meta.env.DEV
+        ? '/api/anthropic/v1/messages'
+        : 'https://api.anthropic.com/v1/messages'
+
+      console.log('🌐 API URL:', apiUrl, '(dev mode:', import.meta.env.DEV, ')')
+
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -284,9 +312,17 @@ class AnthropicProvider extends BaseAIProvider {
           'anthropic-version': '2023-06-01'
         },
         body: JSON.stringify(requestBody)
+      }).catch(fetchError => {
+        console.error('🚨 Fetch 오류 상세:', fetchError)
+        throw fetchError
       })
 
-      console.log('📡 Anthropic API 응답 상태:', response.status, response.statusText)
+      console.log('📡 Anthropic API 응답 상태:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        headers: Object.fromEntries(response.headers.entries())
+      })
 
       if (!response.ok) {
         const errorText = await response.text()
@@ -344,7 +380,25 @@ class AnthropicProvider extends BaseAIProvider {
       return aiResponse
 
     } catch (error) {
-      console.error('🚨 Anthropic API 호출 실패:', error)
+      console.error('🚨 Anthropic API 호출 실패 - 상세 진단:', {
+        error: error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorName: error instanceof Error ? error.name : 'Unknown',
+        errorStack: error instanceof Error ? error.stack : undefined,
+        apiKey: this.config.api_key?.substring(0, 15) + '...',
+        modelId: this.config.model_id
+      })
+
+      // 네트워크 오류인지 확인
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        throw new Error('네트워크 연결 오류: Anthropic API에 연결할 수 없습니다. 인터넷 연결이나 방화벽 설정을 확인해주세요.')
+      }
+
+      // CORS 오류인지 확인
+      if (error instanceof Error && error.message.includes('CORS')) {
+        throw new Error('CORS 오류: 브라우저에서 Anthropic API에 직접 접근할 수 없습니다. 프록시 서버가 필요할 수 있습니다.')
+      }
+
       throw error
     }
   }
@@ -364,6 +418,11 @@ class GoogleProvider extends BaseAIProvider {
 
       // API 키 확인 - 반드시 실제 API 키가 있어야 함
       if (!this.config.api_key || this.config.api_key === 'your-google-ai-key-here') {
+        console.error('❌ Google AI API 키 오류:', {
+          hasKey: !!this.config.api_key,
+          keyPrefix: this.config.api_key?.substring(0, 10),
+          keyLength: this.config.api_key?.length
+        })
         throw new AIProviderError(
           'Google AI API 키가 설정되지 않았습니다. 환경 변수 VITE_GOOGLE_AI_API_KEY를 설정해주세요.',
           'google',
@@ -415,16 +474,22 @@ class GoogleProvider extends BaseAIProvider {
       })
     }
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${this.config.model_id}:generateContent?key=${this.config.api_key}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody)
-      }
-    )
+    // 개발 환경에서는 프록시 사용, 프로덕션에서는 직접 호출
+    const baseUrl = import.meta.env.DEV
+      ? '/api/google'
+      : 'https://generativelanguage.googleapis.com'
+
+    const apiUrl = `${baseUrl}/v1beta/models/${this.config.model_id}:generateContent?key=${this.config.api_key}`
+
+    console.log('🌐 Google AI API URL:', apiUrl, '(dev mode:', import.meta.env.DEV, ')')
+
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody)
+    })
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
@@ -714,12 +779,24 @@ export function initializeDefaultModels(): void {
   const googleApiKey = import.meta.env.VITE_GOOGLE_AI_API_KEY
 
   console.log('🔑 AI API 키 상세 확인:')
-  console.log('OpenAI:', openaiApiKey ?
-    `✅ 설정됨 (${openaiApiKey.substring(0, 7)}...)` : '❌ 누락')
-  console.log('Anthropic:', anthropicApiKey ?
-    `✅ 설정됨 (${anthropicApiKey.substring(0, 10)}...)` : '❌ 누락')
-  console.log('Google:', googleApiKey ?
-    `✅ 설정됨 (${googleApiKey.substring(0, 7)}...)` : '❌ 누락')
+  console.log('OpenAI:', {
+    present: !!openaiApiKey,
+    valid: openaiApiKey && openaiApiKey !== 'sk-your-openai-key-here' && openaiApiKey.startsWith('sk-'),
+    prefix: openaiApiKey?.substring(0, 7) + '...',
+    length: openaiApiKey?.length
+  })
+  console.log('Anthropic:', {
+    present: !!anthropicApiKey,
+    valid: anthropicApiKey && anthropicApiKey !== 'your-anthropic-key-here' && anthropicApiKey.startsWith('sk-ant-'),
+    prefix: anthropicApiKey?.substring(0, 10) + '...',
+    length: anthropicApiKey?.length
+  })
+  console.log('Google:', {
+    present: !!googleApiKey,
+    valid: googleApiKey && googleApiKey !== 'your-google-ai-key-here',
+    prefix: googleApiKey?.substring(0, 7) + '...',
+    length: googleApiKey?.length
+  })
 
   // 환경 변수 디버깅 정보
   console.log('📊 환경 변수 상태:')
