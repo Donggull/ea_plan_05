@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Users, Circle, Clock, Eye } from 'lucide-react'
 import type { UserPresence } from '../../services/realtimeService'
-import { useAuth } from '@/components/providers/AuthProvider'
+import { useAuth } from '../../contexts/AuthContext'
 
 interface PresenceIndicatorProps {
   presenceList: UserPresence[]

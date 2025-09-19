@@ -2,7 +2,6 @@ import { supabase } from '../../lib/supabase'
 import { AIProviderFactory, AIMessage, AIResponse } from '../ai/providerFactory'
 import { ProposalDataManager, ProposalWorkflowResponse, ProposalWorkflowQuestion } from './dataManager'
 import { WorkflowStep } from './aiQuestionGenerator'
-import { StepIntegrationService } from './stepIntegrationService'
 
 export interface AnalysisContext {
   projectId: string
@@ -35,48 +34,6 @@ export interface AnalysisResult {
 
 // 단계별 분석 프롬프트 템플릿
 const ANALYSIS_PROMPTS = {
-  document_analysis: {
-    system: `당신은 프로젝트 문서 분석 전문가입니다. 업로드된 문서들을 종합적으로 분석하여 프로젝트의 전체적인 맥락과 목표를 파악해주세요.
-
-분석 시 다음 사항들을 고려해주세요:
-- 프로젝트의 핵심 목표와 의도
-- 비즈니스 도메인 및 산업 분야
-- 주요 기능 요구사항
-- 기술적 요구사항 및 제약사항
-- 타겟 사용자 및 고객층
-- 프로젝트 범위 및 제약조건
-
-결과는 다음 JSON 형식으로 제공해주세요:
-{
-  "summary": "문서 분석 종합 요약 (3-4문장)",
-  "keyFindings": ["주요 발견사항 1", "주요 발견사항 2", ...],
-  "recommendations": ["권장사항 1", "권장사항 2", ...],
-  "structuredData": {
-    "projectDomain": "프로젝트 도메인/산업분야",
-    "primaryObjectives": ["주요 목표 1", "주요 목표 2"],
-    "targetUsers": ["대상 사용자 1", "대상 사용자 2"],
-    "keyRequirements": ["핵심 요구사항 1", "핵심 요구사항 2"],
-    "technicalConstraints": ["기술적 제약 1", "기술적 제약 2"],
-    "businessConstraints": ["비즈니스 제약 1", "비즈니스 제약 2"],
-    "suggestedKeywords": ["시장조사 키워드 1", "시장조사 키워드 2"]
-  },
-  "nextSteps": ["다음 단계 가이드라인 1", "다음 단계 가이드라인 2", ...],
-  "confidence": 0.9,
-  "warnings": ["주의사항이 있다면 나열"]
-}`,
-
-    user: `프로젝트명: {projectName}
-프로젝트 설명: {projectDescription}
-
-=== 업로드된 문서 내용 ===
-{documentContents}
-
-=== 추가 질문-답변 ===
-{questionResponses}
-
-위 정보를 바탕으로 프로젝트의 종합적인 분석을 수행해주세요.`
-  },
-
   market_research: {
     system: `당신은 경험이 풍부한 시장 조사 전문가입니다. 제공된 프로젝트 문서와 질문-답변을 바탕으로 시장 분석을 수행해주세요.
 
@@ -505,32 +462,17 @@ export class ProposalAnalysisService {
       return `Q: ${question.question_text}\nA: ${answer}`
     }).join('\n\n')
 
-    // 이전 단계 분석 결과 조회 (StepIntegrationService 사용)
+    // 이전 단계 분석 결과 조회
     let previousAnalysisContext = ''
-    const integratedContext = await StepIntegrationService.getIntegratedContext(context.projectId)
-
-    // 단계별 맞춤형 이전 분석 결과 컨텍스트 생성
-    switch (workflowStep) {
-      case 'market_research':
-        if (integratedContext.document_analysis) {
-          previousAnalysisContext = StepIntegrationService.generateMarketResearchContext(integratedContext.document_analysis)
+    if (workflowStep !== 'market_research') {
+      const previousSteps = this.getPreviousSteps(workflowStep)
+      for (const step of previousSteps) {
+        const previousAnalysis = await ProposalDataManager.getAnalysis(context.projectId, step, 'integrated_analysis')
+        if (previousAnalysis.length > 0) {
+          const result = previousAnalysis[0]
+          previousAnalysisContext += `\n=== ${step.toUpperCase()} 분석 결과 ===\n${result.analysis_result}\n`
         }
-        break
-      case 'personas':
-        previousAnalysisContext = StepIntegrationService.generatePersonaContext(
-          integratedContext.document_analysis,
-          integratedContext.market_research
-        )
-        break
-      case 'proposal':
-        previousAnalysisContext = StepIntegrationService.generateProposalContext(integratedContext)
-        break
-      case 'budget':
-        previousAnalysisContext = StepIntegrationService.generateBudgetContext(integratedContext)
-        break
-      case 'document_analysis':
-        // 문서 분석은 첫 단계이므로 이전 맥락 없음
-        break
+      }
     }
 
     // 프롬프트 템플릿에 데이터 삽입
@@ -540,15 +482,16 @@ export class ProposalAnalysisService {
       .replace('{documentContents}', documentContents || '업로드된 문서 없음')
       .replace('{questionResponses}', questionResponses || '답변 없음')
 
-    // 이전 단계 분석 결과 맥락 추가
-    if (previousAnalysisContext) {
-      userPrompt += '\n\n' + previousAnalysisContext
-    }
-
-    // 연계 강도 정보 추가
-    const integrationStrength = StepIntegrationService.calculateIntegrationStrength(integratedContext)
-    if (integrationStrength > 0) {
-      userPrompt += `\n\n** 참고: 이전 단계들과의 연계 강도는 ${Math.round(integrationStrength)}%입니다. 위 정보들을 적극 활용하여 일관성 있는 분석을 제공해주세요. **`
+    // 단계별 추가 컨텍스트
+    if (workflowStep === 'personas') {
+      userPrompt = userPrompt.replace('{previousAnalysis}', previousAnalysisContext)
+    } else if (workflowStep === 'proposal') {
+      userPrompt = userPrompt.replace('{marketAnalysis}', previousAnalysisContext.includes('MARKET_RESEARCH') ? 'Market analysis data...' : '시장 분석 결과 없음')
+      userPrompt = userPrompt.replace('{personaAnalysis}', previousAnalysisContext.includes('PERSONAS') ? 'Persona analysis data...' : '페르소나 분석 결과 없음')
+    } else if (workflowStep === 'budget') {
+      userPrompt = userPrompt.replace('{marketAnalysis}', 'Market analysis...')
+      userPrompt = userPrompt.replace('{personaAnalysis}', 'Persona analysis...')
+      userPrompt = userPrompt.replace('{proposalAnalysis}', 'Proposal analysis...')
     }
 
     return [
@@ -561,7 +504,7 @@ export class ProposalAnalysisService {
    * 이전 단계들 반환
    */
   private static getPreviousSteps(currentStep: WorkflowStep): WorkflowStep[] {
-    const allSteps: WorkflowStep[] = ['document_analysis', 'market_research', 'personas', 'proposal', 'budget']
+    const allSteps: WorkflowStep[] = ['market_research', 'personas', 'proposal', 'budget']
     const currentIndex = allSteps.indexOf(currentStep)
     return allSteps.slice(0, currentIndex)
   }
@@ -716,7 +659,7 @@ export class ProposalAnalysisService {
     }>
   }> {
     try {
-      const allSteps: WorkflowStep[] = ['document_analysis', 'market_research', 'personas', 'proposal', 'budget']
+      const allSteps: WorkflowStep[] = ['market_research', 'personas', 'proposal', 'budget']
       const stepDetails: any = {}
       const completedSteps: WorkflowStep[] = []
 

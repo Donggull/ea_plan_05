@@ -13,18 +13,16 @@ import {
   DollarSign,
   Settings,
   RefreshCw,
-  TestTube,
-  FileSearch
+  TestTube
 } from 'lucide-react'
-import { useAuth } from '@/components/providers/AuthProvider'
+import { useAuth } from '../../../../contexts/AuthContext'
 import { useSelectedAIModel } from '../../../../contexts/AIModelContext'
 import { ProposalAnalysisService } from '../../../../services/proposal/proposalAnalysisService'
 import { ProposalDataManager } from '../../../../services/proposal/dataManager'
-import { WorkflowStep } from '../../../../types/project'
+import { WorkflowStep } from '../../../../services/proposal/aiQuestionGenerator'
 import { PageContainer, PageHeader, PageContent, Card, Button, ProgressBar, Badge } from '../../../../components/LinearComponents'
 import { AnalysisProgressModal } from '../../../../components/analysis/AnalysisProgressModal'
 import { AIModelTest } from '../../../../components/proposal/AIModelTest'
-import { StepIntegrationIndicator } from '../../../../components/proposal/StepIntegrationIndicator'
 
 interface StepStatus {
   questionsCompleted: boolean
@@ -44,14 +42,6 @@ interface WorkflowProgress {
 }
 
 const WORKFLOW_STEPS = [
-  {
-    key: 'document_analysis' as WorkflowStep,
-    title: '문서 종합 분석',
-    description: '업로드된 문서의 종합적 분석 및 프로젝트 맥락 파악',
-    icon: FileSearch,
-    color: 'purple',
-    estimatedTime: '15-30분'
-  },
   {
     key: 'market_research' as WorkflowStep,
     title: '시장 조사',
@@ -73,7 +63,7 @@ const WORKFLOW_STEPS = [
     title: '제안서 작성',
     description: '솔루션 제안 및 구현 계획',
     icon: FileText,
-    color: 'indigo',
+    color: 'purple',
     estimatedTime: '40-60분'
   },
   {
@@ -149,8 +139,7 @@ export function ProposalWorkflowPage() {
   // 단계 시작
   const handleStartStep = (step: WorkflowStep) => {
     // URL 경로에 맞게 키 변환
-    const urlPath = step === 'document_analysis' ? 'document-analysis' :
-                   step === 'market_research' ? 'market-research' :
+    const urlPath = step === 'market_research' ? 'market-research' :
                    step === 'proposal' ? 'proposal-writer' :
                    step // personas, budget은 그대로
     navigate(`/projects/${id}/proposal/${urlPath}`)
@@ -208,7 +197,6 @@ export function ProposalWorkflowPage() {
       blue: isActive ? 'bg-blue-500/10 border-blue-500/30' : 'border-blue-500/20',
       green: isActive ? 'bg-green-500/10 border-green-500/30' : 'border-green-500/20',
       purple: isActive ? 'bg-purple-500/10 border-purple-500/30' : 'border-purple-500/20',
-      indigo: isActive ? 'bg-indigo-500/10 border-indigo-500/30' : 'border-indigo-500/20',
       orange: isActive ? 'bg-orange-500/10 border-orange-500/30' : 'border-orange-500/20'
     }[color]
 
@@ -322,13 +310,6 @@ export function ProposalWorkflowPage() {
           />
         </Card>
 
-        {/* 단계 간 연계 정보 */}
-        <StepIntegrationIndicator
-          projectId={id!}
-          currentStep={workflowProgress?.currentStep || 'document_analysis'}
-          className="mb-8"
-        />
-
         {/* 워크플로우 단계들 */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {WORKFLOW_STEPS.map((step, index) => {
@@ -380,7 +361,6 @@ export function ProposalWorkflowPage() {
                       step.color === 'blue' ? '#3B82F6' :
                       step.color === 'green' ? '#10B981' :
                       step.color === 'purple' ? '#8B5CF6' :
-                      step.color === 'indigo' ? '#6366F1' :
                       step.color === 'orange' ? '#F59E0B' : '#3B82F6'
                     }
                   />
@@ -432,8 +412,7 @@ export function ProposalWorkflowPage() {
                   {stepDetail?.analysisCompleted && (
                     <button
                       onClick={() => {
-                        const urlPath = step.key === 'document_analysis' ? 'document-analysis' :
-                                       step.key === 'market_research' ? 'market-research' :
+                        const urlPath = step.key === 'market_research' ? 'market-research' :
                                        step.key === 'proposal' ? 'proposal-writer' :
                                        step.key // personas, budget은 그대로
                         navigate(`/projects/${id}/proposal/${urlPath}/results`)

@@ -663,7 +663,6 @@ export class ReportGenerator {
    */
   private static getStepTitle(step: WorkflowStep): string {
     const titles = {
-      document_analysis: '문서 종합 분석',
       market_research: '시장 조사 분석',
       personas: '페르소나 분석',
       proposal: '제안서',

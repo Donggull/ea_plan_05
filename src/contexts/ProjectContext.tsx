@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react'
 import { ProjectService } from '../services/projectService'
-import { useAuth } from '@/components/providers/AuthProvider'
+import { useAuth } from './AuthContext'
 
 // 프로젝트 타입 정의 (실제 Supabase 스키마에 맞춰 수정)
 interface Project {

@@ -10,8 +10,7 @@ import {
   Users,
   DollarSign,
   ArrowRight,
-  Settings,
-  FileSearch
+  Settings
 } from 'lucide-react'
 import {
   ProjectType,
@@ -26,7 +25,6 @@ interface ProjectWorkflowCardProps {
 }
 
 const STEP_ICONS = {
-  document_analysis: FileSearch,
   market_research: TrendingUp,
   personas: Users,
   proposal: FileText,
@@ -89,7 +87,6 @@ export function ProjectWorkflowCard({ projectId }: ProjectWorkflowCardProps) {
 
   const getStepPath = (step: WorkflowStep): string => {
     switch (step) {
-      case 'document_analysis': return 'document-analysis'
       case 'market_research': return 'market-research'
       case 'personas': return 'personas'
       case 'proposal': return 'proposal-writer'

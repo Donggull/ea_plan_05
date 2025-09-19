@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useAuth } from '@/components/providers/AuthProvider'
+import { useAuth } from '@/contexts/AuthContext'
 import { ApiUsageService, type ApiUsageMetrics } from '@/services/apiUsageService'
 import { ApiUsageWidget } from '@/components/widgets/ApiUsageWidget'
 import { cn } from '@/utils/cn'

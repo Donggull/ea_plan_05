@@ -1,10 +1,10 @@
-import { createBrowserClient } from '@supabase/ssr'
+import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/supabase'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-// 환경 변수 검증
+// 환경 변수 검증을 더 안전하게 처리
 export const validateSupabaseEnv = () => {
   console.log('🔍 Checking Supabase environment variables...')
   console.log('Environment mode:', import.meta.env.MODE)
@@ -44,134 +44,33 @@ export const validateSupabaseEnv = () => {
   return { valid: true, error: null }
 }
 
-// SSR 지원 브라우저 클라이언트 생성
-export const createSupabaseBrowserClient = () => {
-  const envValidation = validateSupabaseEnv()
-  if (!envValidation.valid) {
-    throw new Error(`Supabase environment validation failed: ${envValidation.error}`)
-  }
-
-  if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error('Supabase URL and Anon Key are required')
-  }
-
-  return createBrowserClient<Database>(
-    supabaseUrl,
-    supabaseAnonKey,
-    {
-      cookies: {
-        get(name: string) {
-          return getCookie(name)
+// Supabase 클라이언트를 안전하게 생성
+export const supabase = supabaseUrl && supabaseAnonKey
+  ? createClient<Database>(
+      supabaseUrl,
+      supabaseAnonKey,
+      {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true,
+          storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+          storageKey: 'eluo-auth-token',
+          flowType: 'pkce'
         },
-        set(name: string, value: string, options: any) {
-          setCookie(name, value, options)
+        realtime: {
+          params: {
+            eventsPerSecond: 10
+          }
         },
-        remove(name: string, options: any) {
-          deleteCookie(name, options)
-        },
-      },
-      auth: {
-        persistSession: true,
-        autoRefreshToken: false, // 수동 관리로 변경
-        detectSessionInUrl: false, // URL 감지 비활성화
-        flowType: 'pkce',
-        storage: {
-          getItem: (key: string) => {
-            if (typeof window === 'undefined') return null
-            return localStorage.getItem(key) // localStorage만 사용
-          },
-          setItem: (key: string, value: string) => {
-            if (typeof window === 'undefined') return
-            localStorage.setItem(key, value) // localStorage만 사용
-          },
-          removeItem: (key: string) => {
-            if (typeof window === 'undefined') return
-            localStorage.removeItem(key) // localStorage만 사용
-          },
-        },
-      },
-      realtime: {
-        params: {
-          eventsPerSecond: 10
-        }
-      },
-      global: {
-        headers: {
-          'X-Client-Info': 'eluo-web@0.0.1'
+        global: {
+          headers: {
+            'X-Client-Info': 'eluo-web@0.0.1'
+          }
         }
       }
-    }
-  )
-}
-
-// 쿠키 유틸리티 함수들
-function getCookie(name: string): string | undefined {
-  if (typeof document === 'undefined') return undefined
-
-  const value = `; ${document.cookie}`
-  const parts = value.split(`; ${name}=`)
-  if (parts.length === 2) {
-    return parts.pop()?.split(';').shift()
-  }
-  return undefined
-}
-
-function setCookie(name: string, value: string, options: any = {}) {
-  if (typeof document === 'undefined') return
-
-  let cookieString = `${name}=${value}`
-
-  if (options.maxAge) {
-    cookieString += `; Max-Age=${options.maxAge}`
-  }
-
-  if (options.secure) {
-    cookieString += '; Secure'
-  }
-
-  if (options.sameSite) {
-    cookieString += `; SameSite=${options.sameSite}`
-  }
-
-  if (options.path) {
-    cookieString += `; Path=${options.path}`
-  }
-
-  if (options.httpOnly) {
-    cookieString += '; HttpOnly'
-  }
-
-  document.cookie = cookieString
-}
-
-function deleteCookie(name: string, options: any = {}) {
-  if (typeof document === 'undefined') return
-
-  setCookie(name, '', {
-    ...options,
-    maxAge: 0
-  })
-}
-
-// 전역 Supabase 클라이언트 인스턴스 (지연 생성)
-let supabaseClient: ReturnType<typeof createSupabaseBrowserClient> | null = null
-
-export const getSupabaseClient = () => {
-  if (!supabaseClient) {
-    supabaseClient = createSupabaseBrowserClient()
-  }
-  return supabaseClient
-}
-
-// 기존 API와 호환성을 위한 기본 export
-export const supabase = (() => {
-  try {
-    return getSupabaseClient()
-  } catch (error) {
-    console.error('Failed to create Supabase client:', error)
-    return null
-  }
-})()
+    )
+  : null
 
 // Health check function with improved error handling
 export const checkSupabaseConnection = async (): Promise<{
@@ -191,9 +90,8 @@ export const checkSupabaseConnection = async (): Promise<{
       }
     }
 
-    // Supabase 클라이언트 생성
-    const client = getSupabaseClient()
-    if (!client) {
+    // Supabase 클라이언트가 없으면 실패
+    if (!supabase) {
       console.error('❌ Supabase client not initialized')
       return {
         success: false,
@@ -204,8 +102,8 @@ export const checkSupabaseConnection = async (): Promise<{
 
     console.log('🔄 Testing Supabase connection...')
 
-    // 연결 테스트 - auth 엔드포인트 사용
-    const { data, error } = await client.auth.getSession()
+    // 더 간단한 연결 테스트 - auth 엔드포인트 사용
+    const { data, error } = await supabase.auth.getSession()
 
     if (error) {
       // auth 관련 오류도 연결 실패로 간주하지 않음 (세션이 없을 수 있음)
@@ -250,11 +148,11 @@ export const checkSupabaseConnection = async (): Promise<{
   }
 }
 
-// Auth helpers - SSR 호환
+// Auth helpers - null 체크 추가
 export const auth = {
   signUp: (email: string, password: string, metadata?: Record<string, any>) => {
-    const client = getSupabaseClient()
-    return client.auth.signUp({
+    if (!supabase) throw new Error('Supabase client not initialized')
+    return supabase.auth.signUp({
       email,
       password,
       options: {
@@ -264,52 +162,49 @@ export const auth = {
   },
 
   signIn: (email: string, password: string) => {
-    const client = getSupabaseClient()
-    return client.auth.signInWithPassword({ email, password })
+    if (!supabase) throw new Error('Supabase client not initialized')
+    return supabase.auth.signInWithPassword({ email, password })
   },
 
   signOut: () => {
-    const client = getSupabaseClient()
-    return client.auth.signOut()
+    if (!supabase) throw new Error('Supabase client not initialized')
+    return supabase.auth.signOut()
   },
 
   getSession: () => {
-    const client = getSupabaseClient()
-    return client.auth.getSession()
+    if (!supabase) throw new Error('Supabase client not initialized')
+    return supabase.auth.getSession()
   },
 
   getUser: () => {
-    const client = getSupabaseClient()
-    return client.auth.getUser()
+    if (!supabase) throw new Error('Supabase client not initialized')
+    return supabase.auth.getUser()
   },
 
   onAuthStateChange: (callback: (event: string, session: any) => void) => {
-    const client = getSupabaseClient()
-    return client.auth.onAuthStateChange(callback)
+    if (!supabase) throw new Error('Supabase client not initialized')
+    return supabase.auth.onAuthStateChange(callback)
   },
 
   resetPassword: (email: string) => {
-    const client = getSupabaseClient()
-    return client.auth.resetPasswordForEmail(email, {
+    if (!supabase) throw new Error('Supabase client not initialized')
+    return supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/reset-password`
     })
   }
 }
 
-// Database helpers - SSR 호환
+// Database helpers - null 체크 추가
 export const db = {
   from: (table: keyof Database['public']['Tables']) => {
-    const client = getSupabaseClient()
-    return client.from(table)
+    if (!supabase) throw new Error('Supabase client not initialized')
+    return supabase.from(table)
   },
   rpc: (...args: any[]) => {
-    const client = getSupabaseClient()
-    return (client.rpc as any)(...args)
+    if (!supabase) throw new Error('Supabase client not initialized')
+    return (supabase.rpc as any)(...args)
   },
-  get storage() {
-    const client = getSupabaseClient()
-    return client.storage
-  }
+  storage: supabase?.storage || null
 }
 
 export default supabase

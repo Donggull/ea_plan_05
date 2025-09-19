@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { useAuth } from '@/components/providers/AuthProvider'
+import { useAuth } from '../contexts/AuthContext'
 import { RealtimeService, type UserPresence, type CursorPosition, type TextEdit } from '../services/realtimeService'
 
 export interface UseRealtimeOptions {

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { X, Search, UserPlus, ChevronDown, Loader2, User, CheckCircle } from 'lucide-react'
 import { useInviteMember, useMemberRoles, useUserSearch, useProjectMembers } from '../../../lib/queries/projectMembers'
-import { useAuth } from '@/components/providers/AuthProvider'
+import { useAuth } from '../../../contexts/AuthContext'
 
 interface InviteModalProps {
   projectId: string

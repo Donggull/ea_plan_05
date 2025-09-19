@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Play, CheckCircle, AlertCircle, Settings, Loader2 } from 'lucide-react'
 import { Card, Button } from '../LinearComponents'
 import { AIProviderFactory, initializeDefaultModels } from '../../services/ai/providerFactory'
-import { useAuth } from '@/components/providers/AuthProvider'
+import { useAuth } from '../../contexts/AuthContext'
 
 interface TestResult {
   modelId: string

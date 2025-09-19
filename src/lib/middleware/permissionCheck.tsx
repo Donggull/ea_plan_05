@@ -1,5 +1,5 @@
 import React from 'react'
-import { useAuth } from '@/components/providers/AuthProvider'
+import { useAuth } from '@/contexts/AuthContext'
 import { UserService } from '@/services/userService'
 import { hasPermission, canAccessAllProjects, isAdmin, isSubAdmin } from '@/types/user'
 import type { Database } from '@/types/supabase'
