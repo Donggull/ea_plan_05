@@ -44,17 +44,16 @@
       "Bash(find:*)",
       "Bash(grep:*)",
       "mcp__supabase__list_extensions",
-      "Bash(copy \"D:\\ea_plan_05\\src\\lib\\supabase.ts\" \"D:\\ea_plan_05\\src\\lib\\supabase.ts.backup\")",
-      "mcp__github-mcp__git-pull"
+      "Bash(copy \"D:\\ea_plan_05\\src\\lib\\supabase.ts\" \"D:\\ea_plan_05\\src\\lib\\supabase.ts.backup\")"
     ],
     "deny": [],
     "ask": []
   },
-  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "context7",
     "playwright-stealth",
     "supabase",
     "github-mcp"
-  ]
+  ],
+  "enableAllProjectMcpServers": true
 }
