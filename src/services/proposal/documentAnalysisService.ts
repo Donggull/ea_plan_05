@@ -260,9 +260,11 @@ ${doc.content}
 
     // 질문-답변 정리
     const questionResponses = questions.map(question => {
-      const response = responses.find(r => r.question_id === question.id)
+      // question_id로 매핑 (question.question_id는 문자열 ID)
+      const response = responses.find(r => r.question_id === question.question_id)
       const answer = response ?
-        (response.answer_text || JSON.stringify(response.answer_data.answer)) :
+        (response.answer_text ||
+         (typeof response.answer_data?.answer === 'string' ? response.answer_data.answer : JSON.stringify(response.answer_data.answer))) :
         '답변 없음'
 
       return `Q: ${question.question_text}\nA: ${answer}`

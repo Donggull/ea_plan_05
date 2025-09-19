@@ -429,7 +429,7 @@ export function DocumentAnalysisPage() {
 
             <Button.Primary
               onClick={handleSubmitAndAnalyze}
-              disabled={analyzing || documents.length === 0 || !completionStatus.isCompleted}
+              disabled={analyzing || documents.length === 0 || completionStatus.answeredRequiredQuestions < completionStatus.requiredQuestions}
             >
               {analyzing ? (
                 <>
