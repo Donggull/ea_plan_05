@@ -126,142 +126,142 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const hasLoadedProjectsRef = useRef(false);
 
   const loadUserProjects = async (options?: { silent?: boolean }) => {
-    if (!user) return
+    if (!user) return;
 
-    const shouldShowLoading = !(options?.silent && hasLoadedProjectsRef.current)
+    const shouldShowLoading = !(options?.silent && hasLoadedProjectsRef.current);
 
     try {
       if (shouldShowLoading) {
-        dispatch({ type: 'SET_LOADING', payload: true })
+        dispatch({ type: 'SET_LOADING', payload: true });
       }
-      dispatch({ type: 'SET_ERROR', payload: null })
+      dispatch({ type: 'SET_ERROR', payload: null });
 
-      const projects = await ProjectService.getUserProjects(user.id)
-      dispatch({ type: 'SET_USER_PROJECTS', payload: projects })
+      const projects = await ProjectService.getUserProjects(user.id);
+      dispatch({ type: 'SET_USER_PROJECTS', payload: projects });
 
       if (!state.currentProject && projects.length > 0) {
-        dispatch({ type: 'SET_CURRENT_PROJECT', payload: projects[0] })
+        dispatch({ type: 'SET_CURRENT_PROJECT', payload: projects[0] });
       }
 
-      hasLoadedProjectsRef.current = true
+      hasLoadedProjectsRef.current = true;
     } catch (error) {
-      console.error('Failed to load user projects:', error)
-      dispatch({ type: 'SET_ERROR', payload: '프로젝트를 불러오는데 실패했습니다.' })
+      console.error('Failed to load user projects:', error);
+      dispatch({ type: 'SET_ERROR', payload: '프로젝트를 불러오는데 실패했습니다.' });
     }
-  }
+  };
 
   const loadRecentProjects = async () => {
-    if (!user) return
+    if (!user) return;
 
     try {
-      const recentProjects = await ProjectService.getRecentProjects(user.id, 5)
-      dispatch({ type: 'SET_RECENT_PROJECTS', payload: recentProjects })
+      const recentProjects = await ProjectService.getRecentProjects(user.id, 5);
+      dispatch({ type: 'SET_RECENT_PROJECTS', payload: recentProjects });
     } catch (error) {
-      console.error('Failed to load recent projects:', error)
+      console.error('Failed to load recent projects:', error);
     }
-  }
+  };
 
   const createProject = async (projectData: ProjectInsert): Promise<Project> => {
-    if (!user) throw new Error('사용자가 인증되지 않았습니다.')
+    if (!user) throw new Error('사용자가 인증되지 않았습니다.');
 
     try {
       const newProject = await ProjectService.createProject({
         ...projectData,
         owner_id: user.id
-      })
+      });
 
-      dispatch({ type: 'ADD_PROJECT', payload: newProject })
-      return newProject
+      dispatch({ type: 'ADD_PROJECT', payload: newProject });
+      return newProject;
     } catch (error) {
-      console.error('Failed to create project:', error)
-      throw error
+      console.error('Failed to create project:', error);
+      throw error;
     }
-  }
+  };
 
   const updateProject = async (projectId: string, updates: ProjectUpdate): Promise<Project> => {
     try {
-      const updatedProject = await ProjectService.updateProject(projectId, updates)
-      dispatch({ type: 'UPDATE_PROJECT', payload: updatedProject })
-      return updatedProject
+      const updatedProject = await ProjectService.updateProject(projectId, updates);
+      dispatch({ type: 'UPDATE_PROJECT', payload: updatedProject });
+      return updatedProject;
     } catch (error) {
-      console.error('Failed to update project:', error)
-      throw error
+      console.error('Failed to update project:', error);
+      throw error;
     }
-  }
+  };
 
   const deleteProject = async (projectId: string): Promise<void> => {
     try {
-      await ProjectService.deleteProject(projectId)
-      dispatch({ type: 'REMOVE_PROJECT', payload: projectId })
+      await ProjectService.deleteProject(projectId);
+      dispatch({ type: 'REMOVE_PROJECT', payload: projectId });
     } catch (error) {
-      console.error('Failed to delete project:', error)
-      throw error
+      console.error('Failed to delete project:', error);
+      throw error;
     }
-  }
+  };
 
   const selectProject = (project: Project) => {
-    dispatch({ type: 'SET_CURRENT_PROJECT', payload: project })
+    dispatch({ type: 'SET_CURRENT_PROJECT', payload: project });
 
     try {
-      localStorage.setItem('currentProject', JSON.stringify(project))
+      localStorage.setItem('currentProject', JSON.stringify(project));
     } catch (error) {
-      console.error('Failed to save current project to localStorage:', error)
+      console.error('Failed to save current project to localStorage:', error);
     }
-  }
+  };
 
   const getCurrentProject = (): Project | null => {
-    return state.currentProject
-  }
+    return state.currentProject;
+  };
 
   const clearProjects = () => {
-    hasLoadedProjectsRef.current = false
-    lastLoadedUserIdRef.current = null
-    dispatch({ type: 'CLEAR_PROJECTS' })
+    hasLoadedProjectsRef.current = false;
+    lastLoadedUserIdRef.current = null;
+    dispatch({ type: 'CLEAR_PROJECTS' });
 
     try {
-      localStorage.removeItem('currentProject')
+      localStorage.removeItem('currentProject');
     } catch (error) {
-      console.error('Failed to clear current project from localStorage:', error)
+      console.error('Failed to clear current project from localStorage:', error);
     }
-  }
+  };
 
   useEffect(() => {
     if (!isAuthenticated || !user) {
-      clearProjects()
-      return
+      clearProjects();
+      return;
     }
 
-    const isSameUser = lastLoadedUserIdRef.current === user.id
-    const shouldUseSilentMode = isSameUser && hasLoadedProjectsRef.current
+    const isSameUser = lastLoadedUserIdRef.current === user.id;
+    const shouldUseSilentMode = isSameUser && hasLoadedProjectsRef.current;
 
     const restoreCurrentProject = () => {
       try {
-        const savedProject = localStorage.getItem('currentProject')
+        const savedProject = localStorage.getItem('currentProject');
         if (savedProject) {
-          const parsedProject: Project = JSON.parse(savedProject)
-          dispatch({ type: 'SET_CURRENT_PROJECT', payload: parsedProject })
+          const parsedProject: Project = JSON.parse(savedProject);
+          dispatch({ type: 'SET_CURRENT_PROJECT', payload: parsedProject });
         }
       } catch (error) {
-        console.error('Failed to restore current project from localStorage:', error)
+        console.error('Failed to restore current project from localStorage:', error);
       }
-    }
+    };
 
     const syncData = async () => {
       try {
-        await loadUserProjects({ silent: shouldUseSilentMode })
-        await loadRecentProjects()
-        lastLoadedUserIdRef.current = user.id
+        await loadUserProjects({ silent: shouldUseSilentMode });
+        await loadRecentProjects();
+        lastLoadedUserIdRef.current = user.id;
       } catch (error) {
-        console.error('Failed to load project data:', error)
+        console.error('Failed to load project data:', error);
       }
-    }
+    };
 
     if (!shouldUseSilentMode) {
-      restoreCurrentProject()
+      restoreCurrentProject();
     }
 
-    syncData()
-  }, [isAuthenticated, user?.id])
+    syncData();
+  }, [isAuthenticated, user?.id]);
 
   const contextValue: ProjectContextType = {
     state,
@@ -273,30 +273,30 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     deleteProject,
     getCurrentProject,
     clearProjects
-  }
+  };
 
   return (
     <ProjectContext.Provider value={contextValue}>
       {children}
     </ProjectContext.Provider>
-  )
+  );
 }
 
 export function useProject() {
-  const context = useContext(ProjectContext)
+  const context = useContext(ProjectContext);
   if (context === undefined) {
-    throw new Error('useProject must be used within a ProjectProvider')
+    throw new Error('useProject must be used within a ProjectProvider');
   }
-  return context
+  return context;
 }
 
 export function useCurrentProject() {
-  const { state, getCurrentProject } = useProject()
+  const { state, getCurrentProject } = useProject();
   return {
     currentProject: getCurrentProject(),
     loading: state.loading,
     error: state.error
-  }
+  };
 }
 
 export function useUserProjects() {
@@ -308,4 +308,3 @@ export function useUserProjects() {
     error: state.error
   };
 };
-
