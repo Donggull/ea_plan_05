@@ -18,6 +18,7 @@ import { useAuth } from '@/components/providers/AuthProvider'
 import { useAIModel, useSelectedAIModel } from '../../../../contexts/AIModelContext'
 import { ModelSelector } from '../../../../components/ai/ModelSelector'
 import { PageContainer, PageHeader, PageContent, Card, Button, Badge, ProgressBar } from '../../../../components/LinearComponents'
+import { DocumentUploader } from '../../../../components/documents/DocumentUploader'
 
 interface QuestionFormData {
   [questionId: string]: string | string[] | number
@@ -36,6 +37,9 @@ interface DocumentInfo {
   file_type: string
   file_size: number
   upload_date: string
+  hasContent?: boolean
+  contentPreview?: string
+  is_processed?: boolean
 }
 
 export function DocumentAnalysisPage() {
@@ -64,6 +68,13 @@ export function DocumentAnalysisPage() {
     completionRate: 0
   })
 
+  // 문서 업로드 완료 시 처리
+  const handleDocumentUploadComplete = async (uploadedFiles: any[]) => {
+    console.log('✅ Document upload completed:', uploadedFiles)
+    // 문서 목록 새로고침
+    await loadDocumentsAndQuestions()
+  }
+
   // 문서 목록 및 질문 로드
   const loadDocumentsAndQuestions = async () => {
     if (!id) return
@@ -89,7 +100,10 @@ export function DocumentAnalysisPage() {
         file_name: doc.file_name,
         file_type: doc.file_type || 'unknown',
         file_size: doc.file_size || 0,
-        upload_date: doc.created_at
+        upload_date: doc.created_at,
+        hasContent: doc.hasContent || false,
+        contentPreview: doc.contentPreview || '텍스트 추출 대기 중...',
+        is_processed: doc.is_processed || false
       }))
       setDocuments(documentList)
 
@@ -285,6 +299,13 @@ export function DocumentAnalysisPage() {
         return
       }
 
+      // 내용이 있는 문서 확인
+      const documentsWithContent = documents.filter(doc => doc.hasContent)
+      if (documentsWithContent.length === 0) {
+        setError('텍스트 내용이 추출된 문서가 없습니다. 문서 처리가 완료될 때까지 기다려주세요.')
+        return
+      }
+
       // 필수 질문 검증
       const requiredQuestions = questions.filter(q => q.is_required)
       const missingRequired = requiredQuestions.filter(q =>
@@ -398,7 +419,7 @@ export function DocumentAnalysisPage() {
       <PageHeader
         title="문서 종합 분석"
         subtitle="업로드된 문서를 AI가 종합적으로 분석하여 프로젝트 맥락을 파악합니다"
-        description={`문서 ${documents.length}개 • 질문 답변 진행률: ${Math.round(completionStatus.completionRate)}%`}
+        description={`문서 ${documents.length}개 (분석 가능: ${documents.filter(doc => doc.hasContent).length}개) • 질문 답변 진행률: ${Math.round(completionStatus.completionRate)}%`}
         actions={
           <div className="flex items-center space-x-3">
             <Badge variant="primary">
@@ -429,7 +450,12 @@ export function DocumentAnalysisPage() {
 
             <Button.Primary
               onClick={handleSubmitAndAnalyze}
-              disabled={analyzing || documents.length === 0 || completionStatus.answeredRequiredQuestions < completionStatus.requiredQuestions}
+              disabled={
+                analyzing ||
+                documents.length === 0 ||
+                documents.filter(doc => doc.hasContent).length === 0 ||
+                completionStatus.answeredRequiredQuestions < completionStatus.requiredQuestions
+              }
             >
               {analyzing ? (
                 <>
@@ -456,36 +482,70 @@ export function DocumentAnalysisPage() {
               <h3 className="text-lg font-semibold text-text-primary mb-4">업로드된 문서</h3>
 
               {documents.length === 0 ? (
-                <div className="text-center py-6">
-                  <Upload className="w-8 h-8 text-text-muted mx-auto mb-2" />
-                  <p className="text-text-secondary text-sm">아직 업로드된 문서가 없습니다</p>
-                  <button
-                    onClick={() => navigate(`/projects/${id}`)}
-                    className="mt-2 text-primary-500 hover:text-primary-600 text-sm"
-                  >
-                    문서 업로드하기
-                  </button>
+                <div className="space-y-4">
+                  <div className="text-center py-4">
+                    <Upload className="w-8 h-8 text-text-muted mx-auto mb-2" />
+                    <p className="text-text-secondary text-sm mb-2">분석할 RFP 문서를 업로드해주세요</p>
+                    <p className="text-text-muted text-xs">PDF, DOCX, XLSX, PPTX 파일 지원</p>
+                  </div>
+                  <DocumentUploader
+                    projectId={id}
+                    allowProjectSelection={false}
+                    onUploadComplete={handleDocumentUploadComplete}
+                    maxFiles={5}
+                  />
                 </div>
               ) : (
                 <div className="space-y-3">
                   {documents.map((doc) => (
-                    <div key={doc.id} className="flex items-center space-x-3 p-3 bg-bg-tertiary rounded-lg">
-                      <File className="w-4 h-4 text-text-muted flex-shrink-0" />
+                    <div key={doc.id} className="flex items-start space-x-3 p-3 bg-bg-tertiary rounded-lg">
+                      <File className="w-4 h-4 text-text-muted flex-shrink-0 mt-0.5" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-text-primary text-sm font-medium truncate">
-                          {doc.file_name}
-                        </p>
-                        <p className="text-text-muted text-xs">
+                        <div className="flex items-center space-x-2 mb-1">
+                          <p className="text-text-primary text-sm font-medium truncate">
+                            {doc.file_name}
+                          </p>
+                          {doc.hasContent ? (
+                            <CheckCircle className="w-3 h-3 text-green-500 flex-shrink-0" />
+                          ) : (
+                            <AlertCircle className="w-3 h-3 text-yellow-500 flex-shrink-0" />
+                          )}
+                        </div>
+                        <p className="text-text-muted text-xs mb-1">
                           {formatFileSize(doc.file_size)} • {doc.file_type}
                         </p>
+                        {doc.hasContent ? (
+                          <p className="text-text-secondary text-xs line-clamp-2">
+                            {doc.contentPreview}
+                          </p>
+                        ) : (
+                          <p className="text-yellow-600 text-xs">
+                            텍스트 추출 필요 - AI 분석 제한됨
+                          </p>
+                        )}
                       </div>
                     </div>
                   ))}
 
-                  <div className="pt-2 border-t border-border-primary">
-                    <p className="text-text-secondary text-xs">
-                      총 {documents.length}개 문서 ({formatFileSize(documents.reduce((sum, doc) => sum + doc.file_size, 0))})
-                    </p>
+                  <div className="pt-2 border-t border-border-primary space-y-3">
+                    <div className="space-y-1">
+                      <p className="text-text-secondary text-xs">
+                        총 {documents.length}개 문서 ({formatFileSize(documents.reduce((sum, doc) => sum + doc.file_size, 0))})
+                      </p>
+                      <p className="text-text-muted text-xs">
+                        분석 가능: {documents.filter(doc => doc.hasContent).length}개 •
+                        처리 대기: {documents.filter(doc => !doc.hasContent).length}개
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-text-muted text-xs mb-2">추가 문서 업로드</p>
+                      <DocumentUploader
+                        projectId={id}
+                        allowProjectSelection={false}
+                        onUploadComplete={handleDocumentUploadComplete}
+                        maxFiles={3}
+                      />
+                    </div>
                   </div>
                 </div>
               )}

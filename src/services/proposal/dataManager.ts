@@ -325,8 +325,8 @@ export class ProposalDataManager {
    */
   static async getProjectDocuments(projectId: string): Promise<any[]> {
     try {
-      // 문서 기본 정보와 내용을 함께 조회
-      const { data, error } = await supabase!
+      // 먼저 모든 문서를 조회
+      const { data: allDocuments, error } = await supabase!
         .from('documents')
         .select(`
           id,
@@ -345,19 +345,34 @@ export class ProposalDataManager {
           )
         `)
         .eq('project_id', projectId)
-        .eq('is_processed', true)
+        .order('created_at', { ascending: false })
 
       if (error) throw error
 
-      console.log('Project documents loaded:', data?.length || 0)
+      console.log('📁 Total project documents:', allDocuments?.length || 0)
 
-      // 문서 내용이 있는 문서들만 반환
-      const documentsWithContent = (data as any)?.filter((doc: any) =>
+      // 문서가 없으면 빈 배열 반환
+      if (!allDocuments || allDocuments.length === 0) {
+        console.log('❌ No documents found for project:', projectId)
+        return []
+      }
+
+      // 문서 내용이 있는 문서와 없는 문서 구분
+      const documentsWithContent = allDocuments.filter((doc: any) =>
         doc.document_content && doc.document_content.length > 0
-      ) || []
+      )
 
-      console.log('Documents with content:', documentsWithContent.length)
-      return documentsWithContent
+      console.log('📄 Documents with content:', documentsWithContent.length)
+      console.log('📑 Documents without content:', allDocuments.length - documentsWithContent.length)
+
+      // 분석용으로는 모든 문서를 반환하되, 내용이 없는 문서는 표시만 함
+      return allDocuments.map((doc: any) => ({
+        ...doc,
+        hasContent: doc.document_content && doc.document_content.length > 0,
+        contentPreview: doc.document_content?.[0]?.processed_text?.substring(0, 200) ||
+                       doc.document_content?.[0]?.raw_text?.substring(0, 200) ||
+                       '텍스트 추출 대기 중...'
+      }))
     } catch (error) {
       console.error('Failed to get project documents:', error)
       // 오류가 발생해도 빈 배열을 반환하여 페이지가 정상적으로 로드되도록 함
