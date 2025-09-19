@@ -144,9 +144,24 @@ export class ProposalDataManager {
     userId?: string
   ): Promise<ProposalWorkflowResponse> {
     try {
+      // questionId(문자열)로 실제 질문의 UUID를 찾기
+      const { data: questionData, error: questionError } = await supabase!
+        .from('proposal_workflow_questions' as any)
+        .select('id')
+        .eq('project_id', projectId)
+        .eq('question_id', questionId)
+        .eq('workflow_step', workflowStep)
+        .single()
+
+      if (questionError || !questionData) {
+        throw new Error(`Question not found: ${questionId}`)
+      }
+
+      const questionUuid = questionData.id
+
       const responseData = {
         project_id: projectId,
-        question_id: questionId,
+        question_id: questionUuid, // UUID 사용
         workflow_step: workflowStep,
         answer_text: typeof response.answer === 'string' ? response.answer : null,
         answer_data: {
@@ -166,7 +181,7 @@ export class ProposalDataManager {
         .from('proposal_workflow_responses' as any)
         .select('id')
         .eq('project_id', projectId)
-        .eq('question_id', questionId)
+        .eq('question_id', questionUuid)
         .single()
 
       let result
@@ -208,15 +223,26 @@ export class ProposalDataManager {
     workflowStep: WorkflowStep
   ): Promise<ProposalWorkflowResponse[]> {
     try {
+      // JOIN을 통해 질문 정보와 함께 답변 조회
       const { data, error } = await supabase!
         .from('proposal_workflow_responses' as any)
-        .select('*')
+        .select(`
+          *,
+          proposal_workflow_questions!inner(question_id)
+        `)
         .eq('project_id', projectId)
         .eq('workflow_step', workflowStep)
         .order('responded_at')
 
       if (error) throw error
-      return (data as any) || []
+
+      // 응답 데이터를 정리하여 반환
+      const responses = (data as any)?.map((item: any) => ({
+        ...item,
+        question_id: item.proposal_workflow_questions?.question_id || item.question_id
+      })) || []
+
+      return responses
     } catch (error) {
       console.error('Failed to get responses:', error)
       throw error
@@ -259,14 +285,15 @@ export class ProposalDataManager {
       const responses = await this.getResponses(projectId, workflowStep)
       const answeredQuestions = responses.filter(r => !r.is_temporary).length
 
-      // 필수 질문 답변 확인
+      // 필수 질문 답변 확인 - question_id (문자열) 기준으로 매핑
       const requiredQuestionIds = questions
         .filter(q => q.is_required)
-        .map(q => q.question_id) // question_id 사용 (id가 아님)
+        .map(q => q.question_id) // question_id 사용 (문자열)
 
-      const answeredRequiredQuestions = responses.filter(r =>
-        !r.is_temporary && requiredQuestionIds.includes(r.question_id)
-      ).length
+      const answeredRequiredQuestions = responses.filter(r => {
+        // 응답의 question_id는 이제 문자열로 매핑되어 있음
+        return !r.is_temporary && requiredQuestionIds.includes(r.question_id)
+      }).length
 
       const isCompleted = requiredQuestions > 0 ? answeredRequiredQuestions === requiredQuestions : answeredQuestions === totalQuestions
       const completionRate = totalQuestions > 0 ? (answeredQuestions / totalQuestions) * 100 : 0
