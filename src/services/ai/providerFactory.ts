@@ -158,10 +158,8 @@ class OpenAIProvider extends BaseAIProvider {
   }
 
   private async callOpenAIAPI(options: AIRequestOptions, startTime: number): Promise<AIResponse> {
-    // 개발 환경에서는 프록시 사용, 프로덕션에서는 직접 호출
-    const apiUrl = import.meta.env.DEV
-      ? '/api/openai/v1/chat/completions'
-      : 'https://api.openai.com/v1/chat/completions'
+    // 개발 환경과 Vercel 환경 모두 프록시/API Routes 사용
+    const apiUrl = '/api/openai/v1/chat/completions'
 
     console.log('🌐 OpenAI API URL:', apiUrl, '(dev mode:', import.meta.env.DEV, ')')
 
@@ -297,10 +295,8 @@ class AnthropicProvider extends BaseAIProvider {
         throw new Error(`잘못된 Anthropic API 키입니다. 키 형식: ${this.config.api_key?.substring(0, 10)}...`)
       }
 
-      // 개발 환경에서는 프록시 사용, 프로덕션에서는 직접 호출
-      const apiUrl = import.meta.env.DEV
-        ? '/api/anthropic/v1/messages'
-        : 'https://api.anthropic.com/v1/messages'
+      // 개발 환경과 Vercel 환경 모두 프록시/API Routes 사용
+      const apiUrl = '/api/anthropic/v1/messages'
 
       console.log('🌐 API URL:', apiUrl, '(dev mode:', import.meta.env.DEV, ')')
 
@@ -474,12 +470,8 @@ class GoogleProvider extends BaseAIProvider {
       })
     }
 
-    // 개발 환경에서는 프록시 사용, 프로덕션에서는 직접 호출
-    const baseUrl = import.meta.env.DEV
-      ? '/api/google'
-      : 'https://generativelanguage.googleapis.com'
-
-    const apiUrl = `${baseUrl}/v1beta/models/${this.config.model_id}:generateContent?key=${this.config.api_key}`
+    // 개발 환경과 Vercel 환경 모두 프록시/API Routes 사용
+    const apiUrl = `/api/google/v1beta/models/${this.config.model_id}:generateContent?key=${this.config.api_key}`
 
     console.log('🌐 Google AI API URL:', apiUrl, '(dev mode:', import.meta.env.DEV, ')')
 

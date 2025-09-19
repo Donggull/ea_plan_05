@@ -13,10 +13,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    // Authorization 헤더 확인
+    // API 키 확인 - Vercel 환경 변수에서 가져오기 (VITE_ 접두사 제거)
+    const apiKey = process.env.VITE_OPENAI_API_KEY
     const authHeader = req.headers.authorization as string
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'Bearer token is required' })
+
+    // Vercel 환경 변수가 있으면 우선 사용, 없으면 헤더에서 가져오기
+    const finalApiKey = apiKey || (authHeader?.startsWith('Bearer ') ? authHeader.replace('Bearer ', '') : null)
+
+    if (!finalApiKey) {
+      return res.status(401).json({ error: 'OpenAI API key is not configured' })
     }
 
     // 경로 재구성
@@ -38,7 +43,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       method: req.method,
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': authHeader
+        'Authorization': `Bearer ${finalApiKey}`
       },
       body: req.method !== 'GET' ? JSON.stringify(req.body) : undefined
     })

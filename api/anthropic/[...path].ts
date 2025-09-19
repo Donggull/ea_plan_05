@@ -13,10 +13,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    // API 키 확인
-    const apiKey = req.headers['x-api-key'] as string
+    // API 키 확인 - Vercel 환경 변수에서 가져오기 (VITE_ 접두사 제거)
+    const apiKey = process.env.VITE_ANTHROPIC_API_KEY || req.headers['x-api-key'] as string
     if (!apiKey) {
-      return res.status(401).json({ error: 'API key is required' })
+      return res.status(401).json({ error: 'Anthropic API key is not configured' })
     }
 
     // 경로 재구성
@@ -31,7 +31,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       method: req.method,
       url: anthropicUrl,
       headers: Object.keys(req.headers),
-      bodyLength: JSON.stringify(req.body).length
+      bodyLength: JSON.stringify(req.body).length,
+      hasEnvApiKey: !!process.env.VITE_ANTHROPIC_API_KEY,
+      hasHeaderApiKey: !!req.headers['x-api-key'],
+      apiKeySource: process.env.VITE_ANTHROPIC_API_KEY ? 'environment' : 'header',
+      apiKeyLength: apiKey?.length
     })
 
     const response = await fetch(anthropicUrl, {
