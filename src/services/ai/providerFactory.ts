@@ -293,70 +293,156 @@ class AnthropicProvider extends BaseAIProvider {
         throw new Error(`잘못된 Anthropic API 키입니다. 키 형식: ${this.config.api_key?.substring(0, 10)}...`)
       }
 
-      // 개발 환경에서는 Vite 프록시 사용, 프로덕션에서는 API Routes 사용
+      // 환경에 따른 API 엔드포인트 결정 - 프로덕션 대응 강화
       const isDev = import.meta.env.DEV
-      const apiUrl = isDev
-        ? '/proxy/anthropic'
-        : '/api/anthropic'
+      const isProd = import.meta.env.PROD
 
-      console.log('🌐 API URL:', apiUrl, '(dev mode:', isDev, ')')
+      let apiUrl: string
+      if (isDev) {
+        // 개발 환경: Vite 프록시 사용
+        apiUrl = '/proxy/anthropic'
+      } else {
+        // 프로덕션 환경: Vercel API Routes 사용
+        apiUrl = '/api/anthropic'
+      }
+
+      console.log('🌐 Anthropic API 호출 설정:', {
+        environment: isDev ? 'development' : 'production',
+        apiUrl,
+        modelId: this.config.model_id,
+        requestSize: JSON.stringify(requestBody).length
+      })
 
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'x-api-key': this.config.api_key!,
-        'anthropic-version': '2023-06-01'
+        'anthropic-version': '2023-06-01',
+        'User-Agent': 'ELUO-Project/1.0'
       }
 
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(requestBody)
-      }).catch(fetchError => {
-        console.error('🚨 Fetch 오류 상세:', fetchError)
-        throw fetchError
-      })
+      // 타임아웃 및 재시도 로직 추가
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => {
+        console.warn('⚠️ Anthropic API 타임아웃 발생')
+        controller.abort()
+      }, 60000) // 60초 타임아웃
 
-      console.log('📡 Anthropic API 응답 상태:', {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok,
-        headers: Object.fromEntries(response.headers.entries())
-      })
+      try {
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(requestBody),
+          signal: controller.signal
+        })
 
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error('❌ Anthropic API 에러 응답:', errorText)
+        clearTimeout(timeoutId)
 
-        let errorData
-        try {
-          errorData = JSON.parse(errorText)
-        } catch {
-          errorData = { error: { message: errorText } }
+        console.log('📡 Anthropic API 응답 수신:', {
+          status: response.status,
+          statusText: response.statusText,
+          ok: response.ok,
+          contentType: response.headers.get('content-type')
+        })
+
+        if (!response.ok) {
+          const errorText = await response.text()
+          console.error('❌ Anthropic API 에러 응답:', {
+            status: response.status,
+            statusText: response.statusText,
+            errorBody: errorText,
+            headers: Object.fromEntries(response.headers.entries())
+          })
+
+          let errorData
+          try {
+            errorData = JSON.parse(errorText)
+          } catch (parseError) {
+            console.error('❌ 에러 응답 파싱 실패:', parseError)
+            errorData = { error: { message: errorText || '알 수 없는 에러' } }
+          }
+
+          // 상세한 에러 메시지 생성
+          const errorMessage = errorData.error?.message ||
+                             errorData.message ||
+                             `Anthropic API 오류 (HTTP ${response.status}): ${response.statusText}`
+
+          const isRetryable = [429, 500, 502, 503, 504].includes(response.status)
+
+          throw new AIProviderError(
+            errorMessage,
+            'anthropic',
+            this.config.model_id,
+            response.status,
+            isRetryable
+          )
         }
 
-        // 구체적인 에러 메시지 생성
-        const errorMessage = errorData.error?.message ||
-                           errorData.message ||
-                           `HTTP ${response.status}: ${response.statusText}`
+        const data = await response.json()
+        console.log('✅ Anthropic API 성공 응답:', {
+          contentLength: data.content?.[0]?.text?.length || 0,
+          usage: data.usage,
+          stopReason: data.stop_reason,
+          modelUsed: this.config.model_id,
+          responseTime: endTime - startTime
+        })
 
-        throw new Error(errorMessage)
+        return data
+      } catch (fetchError) {
+        clearTimeout(timeoutId)
+
+        if (fetchError.name === 'AbortError') {
+          console.error('❌ Anthropic API 타임아웃')
+          throw new AIProviderError(
+            'Anthropic API 요청이 60초 후 타임아웃되었습니다',
+            'anthropic',
+            this.config.model_id,
+            408,
+            true
+          )
+        }
+
+        console.error('🚨 Anthropic API Fetch 오류:', {
+          name: fetchError.name,
+          message: fetchError.message,
+          stack: fetchError.stack
+        })
+
+        throw new AIProviderError(
+          `Anthropic API 연결 오류: ${fetchError.message}`,
+          'anthropic',
+          this.config.model_id,
+          0,
+          true
+        )
+      }
+    } catch (error) {
+      const endTime = Date.now()
+      console.error('❌ Anthropic 전체 오류:', error)
+
+      if (error instanceof AIProviderError) {
+        throw error
       }
 
-      const data = await response.json()
-      console.log('✅ Anthropic API 성공 응답:', {
-        contentLength: data.content?.[0]?.text?.length || 0,
-        usage: data.usage,
-        stopReason: data.stop_reason,
-        modelUsed: this.config.model_id
-      })
+      throw new AIProviderError(
+        `Anthropic API 처리 오류: ${error.message}`,
+        'anthropic',
+        this.config.model_id,
+        0,
+        false
+      )
+    }
 
-      const usage = data.usage || {}
-      const cost = this.calculateCost(usage.input_tokens || 0, usage.output_tokens || 0)
+    // 응답 데이터 처리
+    const data = await this.makeAnthropicRequest(requestBody, startTime)
+    const endTime = Date.now()
 
-      const aiResponse: AIResponse = {
-        content: data.content?.[0]?.text || 'No response content',
-        model: this.config.model_id,
-        usage: {
+    const usage = data.usage || {}
+    const cost = this.calculateCost(usage.input_tokens || 0, usage.output_tokens || 0)
+
+    const aiResponse: AIResponse = {
+      content: data.content?.[0]?.text || 'No response content',
+      model: this.config.model_id,
+      usage: {
           input_tokens: usage.input_tokens || 0,
           output_tokens: usage.output_tokens || 0,
           total_tokens: (usage.input_tokens || 0) + (usage.output_tokens || 0)
