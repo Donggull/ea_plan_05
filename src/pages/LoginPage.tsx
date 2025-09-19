@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { useAuth } from '@/components/providers/AuthProvider'
+import { useAuth } from '@/contexts/AuthContext'
 import { Mail, Lock, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react'
 
 export function LoginPage() {
   const navigate = useNavigate()
-  const { signIn, isLoading, error, clearError } = useAuth()
+  const { signIn, isLoading, isInitializing, error, clearError } = useAuth()
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -34,6 +34,8 @@ export function LoginPage() {
     if (error) clearError()
   }
 
+  const isBusy = isLoading || isInitializing
+
   return (
     <>
       <div className="text-center mb-8">
@@ -49,9 +51,7 @@ export function LoginPage() {
       {error && (
         <div className="mb-6 p-4 bg-accent-red/10 border border-accent-red/20 rounded-lg flex items-center space-x-3">
           <AlertCircle className="w-5 h-5 text-accent-red flex-shrink-0" />
-          <span className="text-accent-red text-small">
-            {typeof error === 'string' ? error : error?.message || '로그인 중 문제가 발생했습니다'}
-          </span>
+          <span className="text-accent-red text-small">{error}</span>
         </div>
       )}
 
@@ -132,10 +132,10 @@ export function LoginPage() {
         {/* 로그인 버튼 */}
         <button
           type="submit"
-          disabled={isLoading || !formData.email || !formData.password}
+          disabled={isBusy || !formData.email || !formData.password}
           className="w-full flex items-center justify-center py-3 px-4 bg-primary-500 text-white rounded-lg hover:bg-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
         >
-          {isLoading ? (
+          {isBusy ? (
             <>
               <Loader2 className="w-5 h-5 mr-2 animate-spin" />
               Signing in...

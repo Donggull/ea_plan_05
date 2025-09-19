@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useAuth } from '@/components/providers/AuthProvider'
+import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card } from '@/components/ui/Card'
@@ -23,7 +23,7 @@ interface FormErrors {
 
 export function SignupPage() {
   const navigate = useNavigate()
-  const { signUp, isLoading, clearError } = useAuth()
+  const { signUp, isLoading, isInitializing, clearError } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [formData, setFormData] = useState<FormData>({
@@ -144,6 +144,7 @@ export function SignupPage() {
   }
 
   const passwordStrength = getPasswordStrength(formData.password)
+  const isBusy = isLoading || isInitializing
 
   return (
     <div className="min-h-screen bg-bg-primary flex items-center justify-center p-4">
@@ -172,7 +173,7 @@ export function SignupPage() {
                   value={formData.fullName}
                   onChange={handleChange('fullName')}
                   className={`pl-10 ${errors.fullName ? 'border-error' : ''}`}
-                  disabled={isLoading}
+                  disabled={isBusy}
                 />
                 <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-text-tertiary" />
               </div>
@@ -197,7 +198,7 @@ export function SignupPage() {
                   value={formData.email}
                   onChange={handleChange('email')}
                   className={`pl-10 ${errors.email ? 'border-error' : ''}`}
-                  disabled={isLoading}
+                  disabled={isBusy}
                 />
                 <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-text-tertiary" />
               </div>
@@ -222,7 +223,7 @@ export function SignupPage() {
                   value={formData.password}
                   onChange={handleChange('password')}
                   className={`pl-10 pr-10 ${errors.password ? 'border-error' : ''}`}
-                  disabled={isLoading}
+                  disabled={isBusy}
                 />
                 <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-text-tertiary" />
                 <button
@@ -277,7 +278,7 @@ export function SignupPage() {
                   value={formData.confirmPassword}
                   onChange={handleChange('confirmPassword')}
                   className={`pl-10 pr-10 ${errors.confirmPassword ? 'border-error' : ''}`}
-                  disabled={isLoading}
+                  disabled={isBusy}
                 />
                 <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-text-tertiary" />
                 <button
@@ -321,9 +322,9 @@ export function SignupPage() {
             <Button
               type="submit"
               className="w-full"
-              disabled={isLoading}
+              disabled={isBusy}
             >
-              {isLoading ? '계정 생성 중...' : '계정 생성'}
+              {isBusy ? '계정 생성 중...' : '계정 생성'}
             </Button>
           </form>
 

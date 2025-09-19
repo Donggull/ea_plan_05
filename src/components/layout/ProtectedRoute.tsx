@@ -1,79 +1,59 @@
 import { Navigate, Outlet } from 'react-router-dom'
-import { useAuthStore } from '@/stores/authStore'
+import { useAuth } from '@/contexts/AuthContext'
+import { useEffect } from 'react'
 
 export function ProtectedRoute() {
-  const {
-    isAuthenticated,
-    isLoading,
-    isInitialized,
-    isHydrated,
-    error
-  } = useAuthStore()
+  const { isAuthenticated, isLoading, isInitialized, isInitializing, session, refreshSession, error } = useAuth()
 
-  // SSR 호환성: hydration 대기
-  if (!isHydrated) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-bg-primary">
-        <div className="flex flex-col items-center space-y-4">
-          <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary-500 border-t-transparent"></div>
-          <p className="text-text-secondary text-regular">앱을 시작하는 중...</p>
-        </div>
-      </div>
-    )
-  }
+  // 디버깅용 로그
+  useEffect(() => {
+    console.log('🔒 ProtectedRoute state:', {
+      isInitialized,
+      isLoading,
+      isInitializing,
+      isAuthenticated,
+      hasSession: !!session,
+      hasError: !!error
+    })
+  }, [isInitialized, isInitializing, isLoading, isAuthenticated, session, error])
 
-  // 초기화 또는 로딩 중
-  if (!isInitialized || isLoading) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-bg-primary">
-        <div className="flex flex-col items-center space-y-4">
-          <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary-500 border-t-transparent"></div>
-          <p className="text-text-secondary text-regular">인증 상태를 확인하는 중...</p>
-          {error && (
-            <p className="text-red-400 text-sm mt-2">
-              문제 발생: {typeof error === 'string' ? error : error.message}
-            </p>
-          )}
-        </div>
-      </div>
-    )
-  }
+  // 세션 유효성 확인 (AuthContext에서 관리하므로 여기서는 간단한 확인만)
+  useEffect(() => {
+    if (!isAuthenticated || !session) return
 
-  // 인증되지 않은 경우 로그인 페이지로 리다이렉트
-  if (!isAuthenticated) {
+    // 현재 세션이 이미 만료된 경우에만 즉시 새로고침 요청
+    const now = Math.floor(Date.now() / 1000)
+    const expiresAt = session.expires_at
+
+    if (expiresAt && expiresAt <= now) {
+      console.log('Session already expired, requesting refresh...')
+      refreshSession().catch((error) => {
+        console.error('Session refresh failed in ProtectedRoute:', error)
+      })
+    }
+  }, [isAuthenticated, session]) // refreshSession 의존성 제거로 중복 실행 방지
+
+  // 에러가 있고 초기화되지 않은 경우 로그인으로 리다이렉트
+  if (error && !isInitialized) {
+    console.error('🚨 Auth error, redirecting to login:', error)
     return <Navigate to="/login" replace />
   }
 
-  // 인증된 사용자는 보호된 라우트 접근 허용
-  return <Outlet />
-}
-
-// 역방향 보호 라우트 (이미 로그인한 사용자가 로그인 페이지 접근 방지)
-export function GuestOnlyRoute() {
-  const {
-    isAuthenticated,
-    isLoading,
-    isInitialized,
-    isHydrated
-  } = useAuthStore()
-
-  // SSR 호환성
-  if (!isHydrated || !isInitialized || isLoading) {
+  // 아직 초기화되지 않았거나 로딩 중인 경우
+  if (!isInitialized || isInitializing || isLoading) {
+    console.log('⏳ ProtectedRoute: Showing loading state')
     return (
       <div className="flex h-screen items-center justify-center bg-bg-primary">
         <div className="flex flex-col items-center space-y-4">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary-500 border-t-transparent"></div>
-          <p className="text-text-secondary text-regular">인증 상태를 확인하는 중...</p>
+          <p className="text-text-secondary text-regular">
+            인증 상태를 확인하는 중...
+            {error && <span className="block text-xs text-red-400 mt-2">오류: {error}</span>}
+          </p>
         </div>
       </div>
     )
   }
 
-  // 이미 인증된 사용자는 대시보드로 리다이렉트
-  if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />
-  }
-
-  // 게스트 사용자는 접근 허용
-  return <Outlet />
+  return isAuthenticated ? <Outlet /> : <Navigate to="/login" replace />
 }

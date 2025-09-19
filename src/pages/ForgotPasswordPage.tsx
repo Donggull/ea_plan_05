@@ -5,10 +5,10 @@ import { Input } from '@/components/ui/Input'
 import { Card } from '@/components/ui/Card'
 import { Mail, ArrowLeft, AlertCircle, CheckCircle } from 'lucide-react'
 import { toast } from 'sonner'
-import { useAuth } from '@/components/providers/AuthProvider'
+import { useAuth } from '@/contexts/AuthContext'
 
 export function ForgotPasswordPage() {
-  const { resetPassword, isLoading, clearError } = useAuth()
+  const { resetPassword, isLoading, isInitializing, clearError } = useAuth()
   const [email, setEmail] = useState('')
   const [isEmailSent, setIsEmailSent] = useState(false)
   const [error, setError] = useState('')
@@ -91,6 +91,8 @@ export function ForgotPasswordPage() {
     }
   }
 
+  const isBusy = isLoading || isInitializing
+
   if (isEmailSent) {
     return (
       <div className="min-h-screen bg-bg-primary flex items-center justify-center p-4">
@@ -149,7 +151,7 @@ export function ForgotPasswordPage() {
 
               <Button
                 onClick={handleResendEmail}
-                disabled={isLoading}
+                disabled={isBusy}
                 className="w-full"
                 variant="secondary"
               >
@@ -211,7 +213,7 @@ export function ForgotPasswordPage() {
                   value={email}
                   onChange={handleEmailChange}
                   className={`pl-10 ${error ? 'border-error' : ''}`}
-                  disabled={isLoading}
+                disabled={isBusy}
                 />
                 <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-text-tertiary" />
               </div>
@@ -226,7 +228,7 @@ export function ForgotPasswordPage() {
             <Button
               type="submit"
               className="w-full"
-              disabled={isLoading}
+              disabled={isBusy}
             >
               {isLoading ? '전송 중...' : '비밀번호 재설정 이메일 보내기'}
             </Button>
