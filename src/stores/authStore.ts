@@ -36,6 +36,8 @@ interface AuthState {
   _setHydrated: () => void
   _cleanup: () => void
   _setupAuthListener: () => void
+  _isListenerActive: boolean // 리스너 활성 상태 추적
+  _authSubscription: any // 인증 구독 참조
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -49,6 +51,8 @@ export const useAuthStore = create<AuthState>()(
     isInitialized: false,
     isHydrated: false,
     error: null,
+    _isListenerActive: false,
+    _authSubscription: null,
 
     // SSR Hydration 완료 표시
     _setHydrated: () => {
@@ -323,13 +327,30 @@ export const useAuthStore = create<AuthState>()(
       }
     },
 
-    // Auth 리스너 설정 (내부 메소드)
+    // Auth 리스너 설정 (내부 메소드) - 중복 방지 로직 추가
     _setupAuthListener: () => {
       if (typeof window === 'undefined') return
 
-      const supabase = getSupabaseClient()
+      const { _isListenerActive, _authSubscription } = get()
 
-      console.log('🎯 Setting up auth state listener')
+      // 이미 리스너가 활성화된 경우 중복 방지
+      if (_isListenerActive) {
+        console.log('⏭️ Auth listener already active, skipping setup')
+        return
+      }
+
+      // 기존 구독 정리
+      if (_authSubscription) {
+        console.log('🧹 Cleaning up existing auth subscription')
+        try {
+          _authSubscription.unsubscribe()
+        } catch (error) {
+          console.warn('Error cleaning up auth subscription:', error)
+        }
+      }
+
+      const supabase = getSupabaseClient()
+      console.log('🎯 Setting up new auth state listener')
 
       const { data: { subscription } } = supabase.auth.onAuthStateChange(
         async (event: string, session: Session | null) => {
@@ -404,29 +425,97 @@ export const useAuthStore = create<AuthState>()(
         }
       )
 
-      // 정리 함수 저장
-      set({ _cleanup: () => subscription.unsubscribe() })
+      // 리스너 상태 및 구독 참조 업데이트
+      set({
+        _isListenerActive: true,
+        _authSubscription: subscription
+      })
+
+      console.log('✅ Auth listener setup completed')
     },
 
-    // 정리 함수
+    // 정리 함수 - 개선된 리스너 정리
     _cleanup: () => {
-      // 기본 정리 함수 (리스너에서 덮어쓸 수 있음)
-      console.log('🧹 Auth cleanup called')
+      console.log('🧹 Starting auth cleanup...')
+
+      const { _authSubscription, _isListenerActive } = get()
+
+      if (_authSubscription && _isListenerActive) {
+        try {
+          _authSubscription.unsubscribe()
+          console.log('✅ Auth subscription unsubscribed')
+        } catch (error) {
+          console.warn('⚠️ Error during auth subscription cleanup:', error)
+        }
+
+        set({
+          _isListenerActive: false,
+          _authSubscription: null
+        })
+      }
+
+      console.log('🧹 Auth cleanup completed')
     }
   }))
 )
 
-// 브라우저에서만 hydration 설정
+// 브라우저에서만 hydration 설정 및 탭 전환 안정성 확보
 if (typeof window !== 'undefined') {
   // 페이지 로드 시 hydration 표시
   setTimeout(() => {
     useAuthStore.getState()._setHydrated()
   }, 0)
 
+  // 브라우저 탭 전환 시 세션 안정성을 위한 이벤트 리스너
+  let isPageVisible = !document.hidden
+
+  // 페이지 가시성 변경 시
+  const handleVisibilityChange = () => {
+    const wasVisible = isPageVisible
+    isPageVisible = !document.hidden
+
+    if (!wasVisible && isPageVisible) {
+      // 탭이 다시 활성화됨 - 세션 상태 확인하지만 재인증 강요하지 않음
+      console.log('📱 Tab became visible - maintaining session stability')
+
+      const store = useAuthStore.getState()
+
+      // 현재 인증 상태가 있고 초기화된 경우에만 부드러운 세션 확인
+      if (store.isAuthenticated && store.isInitialized && !store.isLoading) {
+        // 백그라운드에서 조용히 세션 유효성 확인 (재인증 강요 X)
+        setTimeout(() => {
+          if (store.session && store.session.expires_at) {
+            const now = Math.floor(Date.now() / 1000)
+            const expiresAt = store.session.expires_at
+
+            // 세션이 실제로 만료된 경우에만 갱신
+            if (expiresAt <= now) {
+              console.log('🔄 Session expired, attempting refresh...')
+              store.refreshSession().catch(() => {
+                console.log('Session refresh failed - user may need to re-login')
+              })
+            }
+          }
+        }, 1000)
+      }
+    }
+  }
+
   // 페이지 언로드 시 정리
-  window.addEventListener('beforeunload', () => {
+  const handleBeforeUnload = () => {
     useAuthStore.getState()._cleanup()
-  })
+  }
+
+  // 이벤트 리스너 등록
+  document.addEventListener('visibilitychange', handleVisibilityChange)
+  window.addEventListener('beforeunload', handleBeforeUnload)
+
+  // 정리 함수 (필요시 사용)
+  ;(window as any).__authCleanup = () => {
+    document.removeEventListener('visibilitychange', handleVisibilityChange)
+    window.removeEventListener('beforeunload', handleBeforeUnload)
+    useAuthStore.getState()._cleanup()
+  }
 }
 
 // 인증 상태 구독 훅
