@@ -280,8 +280,6 @@ class AnthropicProvider extends BaseAIProvider {
       }
 
       console.log('🔍 Anthropic API 요청 세부정보:', {
-        url: 'https://api.anthropic.com/v1/messages',
-        method: 'POST',
         model: this.config.model_id,
         messageCount: anthropicMessages.length,
         hasSystem: !!systemMessage,
@@ -295,18 +293,23 @@ class AnthropicProvider extends BaseAIProvider {
         throw new Error(`잘못된 Anthropic API 키입니다. 키 형식: ${this.config.api_key?.substring(0, 10)}...`)
       }
 
-      // 간단한 API Routes 경로 사용
-      const apiUrl = '/api/anthropic'
+      // 개발 환경에서는 Vite 프록시 사용, 프로덕션에서는 API Routes 사용
+      const isDev = import.meta.env.DEV
+      const apiUrl = isDev
+        ? '/proxy/anthropic'
+        : '/api/anthropic'
 
-      console.log('🌐 API URL:', apiUrl, '(dev mode:', import.meta.env.DEV, ')')
+      console.log('🌐 API URL:', apiUrl, '(dev mode:', isDev, ')')
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'x-api-key': this.config.api_key!,
+        'anthropic-version': '2023-06-01'
+      }
 
       const response = await fetch(apiUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': this.config.api_key!,
-          'anthropic-version': '2023-06-01'
-        },
+        headers,
         body: JSON.stringify(requestBody)
       }).catch(fetchError => {
         console.error('🚨 Fetch 오류 상세:', fetchError)

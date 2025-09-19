@@ -20,28 +20,24 @@ export default defineConfig({
         host: true,
         open: true,
         proxy: {
-            '/api/anthropic': {
+            '/proxy/anthropic': {
                 target: 'https://api.anthropic.com',
                 changeOrigin: true,
-                rewrite: function (path) { return path.replace(/^\/api\/anthropic/, ''); },
-                headers: {
-                    'Origin': 'https://api.anthropic.com'
+                rewrite: (path) => path.replace(/^\/proxy\/anthropic/, '/v1/messages'),
+                configure: (proxy, options) => {
+                    proxy.on('proxyReq', (proxyReq, req, res) => {
+                        proxyReq.setHeader('Origin', 'https://api.anthropic.com')
+                    })
                 }
             },
-            '/api/openai': {
+            '/proxy/openai': {
                 target: 'https://api.openai.com',
                 changeOrigin: true,
-                rewrite: function (path) { return path.replace(/^\/api\/openai/, ''); },
-                headers: {
-                    'Origin': 'https://api.openai.com'
-                }
-            },
-            '/api/google': {
-                target: 'https://generativelanguage.googleapis.com',
-                changeOrigin: true,
-                rewrite: function (path) { return path.replace(/^\/api\/google/, ''); },
-                headers: {
-                    'Origin': 'https://generativelanguage.googleapis.com'
+                rewrite: (path) => path.replace(/^\/proxy\/openai/, '/v1/chat/completions'),
+                configure: (proxy, options) => {
+                    proxy.on('proxyReq', (proxyReq, req, res) => {
+                        proxyReq.setHeader('Origin', 'https://api.openai.com')
+                    })
                 }
             }
         }
