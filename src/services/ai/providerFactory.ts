@@ -158,8 +158,8 @@ class OpenAIProvider extends BaseAIProvider {
   }
 
   private async callOpenAIAPI(options: AIRequestOptions, startTime: number): Promise<AIResponse> {
-    // 개발 환경과 Vercel 환경 모두 프록시/API Routes 사용
-    const apiUrl = '/api/openai/v1/chat/completions'
+    // 간단한 API Routes 경로 사용
+    const apiUrl = '/api/openai'
 
     console.log('🌐 OpenAI API URL:', apiUrl, '(dev mode:', import.meta.env.DEV, ')')
 
@@ -295,8 +295,8 @@ class AnthropicProvider extends BaseAIProvider {
         throw new Error(`잘못된 Anthropic API 키입니다. 키 형식: ${this.config.api_key?.substring(0, 10)}...`)
       }
 
-      // 개발 환경과 Vercel 환경 모두 프록시/API Routes 사용
-      const apiUrl = '/api/anthropic/v1/messages'
+      // 간단한 API Routes 경로 사용
+      const apiUrl = '/api/anthropic'
 
       console.log('🌐 API URL:', apiUrl, '(dev mode:', import.meta.env.DEV, ')')
 
