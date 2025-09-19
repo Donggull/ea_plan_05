@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useEffect } from 'react'
+import React, { createContext, useContext, useReducer, useEffect, useCallback, useMemo } from 'react'
 import { ProjectService } from '../services/projectService'
 import { useAuth } from './AuthContext'
 
@@ -133,7 +133,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth()
 
   // 사용자 프로젝트 로딩
-  const loadUserProjects = async () => {
+  const loadUserProjects = useCallback(async () => {
     if (!user) return
 
     try {
@@ -151,10 +151,10 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       console.error('Failed to load user projects:', error)
       dispatch({ type: 'SET_ERROR', payload: '프로젝트를 불러오는데 실패했습니다.' })
     }
-  }
+  }, [state.currentProject, user])
 
   // 최근 프로젝트 로딩
-  const loadRecentProjects = async () => {
+  const loadRecentProjects = useCallback(async () => {
     if (!user) return
 
     try {
@@ -163,10 +163,10 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Failed to load recent projects:', error)
     }
-  }
+  }, [user])
 
   // 프로젝트 생성
-  const createProject = async (
+  const createProject = useCallback(async (
     projectData: ProjectInsert
   ): Promise<Project> => {
     if (!user) throw new Error('사용자가 인증되지 않았습니다.')
@@ -183,10 +183,10 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       console.error('Failed to create project:', error)
       throw error
     }
-  }
+  }, [user])
 
   // 프로젝트 업데이트
-  const updateProject = async (
+  const updateProject = useCallback(async (
     projectId: string,
     updates: ProjectUpdate
   ): Promise<Project> => {
@@ -198,10 +198,10 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       console.error('Failed to update project:', error)
       throw error
     }
-  }
+  }, [])
 
   // 프로젝트 삭제
-  const deleteProject = async (projectId: string): Promise<void> => {
+  const deleteProject = useCallback(async (projectId: string): Promise<void> => {
     try {
       await ProjectService.deleteProject(projectId)
       dispatch({ type: 'REMOVE_PROJECT', payload: projectId })
@@ -209,10 +209,10 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       console.error('Failed to delete project:', error)
       throw error
     }
-  }
+  }, [])
 
   // 프로젝트 선택
-  const selectProject = (project: Project) => {
+  const selectProject = useCallback((project: Project) => {
     dispatch({ type: 'SET_CURRENT_PROJECT', payload: project })
 
     // 로컬 스토리지에 현재 프로젝트 저장
@@ -221,22 +221,22 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Failed to save current project to localStorage:', error)
     }
-  }
+  }, [])
 
   // 현재 프로젝트 가져오기
-  const getCurrentProject = (): Project | null => {
+  const getCurrentProject = useCallback((): Project | null => {
     return state.currentProject
-  }
+  }, [state.currentProject])
 
   // 프로젝트 정리
-  const clearProjects = () => {
+  const clearProjects = useCallback(() => {
     dispatch({ type: 'CLEAR_PROJECTS' })
     try {
       localStorage.removeItem('currentProject')
     } catch (error) {
       console.error('Failed to clear current project from localStorage:', error)
     }
-  }
+  }, [])
 
   // 컴포넌트 마운트 시 사용자 프로젝트 로딩
   useEffect(() => {
@@ -265,10 +265,10 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       clearProjects()
     }
     // user가 undefined인 경우 (로딩 중)에는 아무것도 하지 않음
-  }, [user])
+  }, [user, loadUserProjects, loadRecentProjects])
 
   // 컨텍스트 값
-  const contextValue: ProjectContextType = {
+  const contextValue: ProjectContextType = useMemo(() => ({
     state,
     selectProject,
     loadUserProjects,
@@ -278,7 +278,17 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     deleteProject,
     getCurrentProject,
     clearProjects
-  }
+  }), [
+    state,
+    selectProject,
+    loadUserProjects,
+    loadRecentProjects,
+    createProject,
+    updateProject,
+    deleteProject,
+    getCurrentProject,
+    clearProjects
+  ])
 
   return (
     <ProjectContext.Provider value={contextValue}>

@@ -24,6 +24,7 @@ import { ApiUsageService } from '../../services/apiUsageService'
 import { useAIModel } from '../../contexts/AIModelContext'
 import { useProject } from '../../contexts/ProjectContext'
 import { usePermissionCheck } from '@/lib/middleware/permissionCheck'
+import { DocumentAnalysisWidget } from '../../components/analysis/DocumentAnalysisWidget'
 
 interface SidebarProps {
   isCollapsed?: boolean
@@ -504,6 +505,21 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
                 </button>
               )}
             </>
+          )}
+        </div>
+
+        {/* 문서 분석 위젯 */}
+        <div className="space-y-2">
+          {!collapsed && (
+            <h3 className="text-text-tertiary text-mini font-medium uppercase tracking-wide">
+              Document Analysis
+            </h3>
+          )}
+
+          {!collapsed ? (
+            <DocumentAnalysisWidget variant="sidebar" />
+          ) : (
+            <DocumentAnalysisWidget variant="compact" />
           )}
         </div>
 
