@@ -18,6 +18,8 @@ import { NewProjectPage } from '@/pages/projects/new'
 import { ProjectDetailPage } from '@/pages/projects/[id]'
 import { EditProjectPage } from '@/pages/projects/[id]/edit'
 import { ProposalWorkflowPage } from '@/pages/projects/[id]/proposal/index'
+import { DocumentAnalysisPage } from '@/pages/projects/[id]/proposal/DocumentAnalysis'
+import { DocumentAnalysisResultsPage } from '@/pages/projects/[id]/proposal/DocumentAnalysisResults'
 import { MarketResearchPage } from '@/pages/projects/[id]/proposal/MarketResearch'
 import { MarketResearchResultsPage } from '@/pages/projects/[id]/proposal/MarketResearchResults'
 import { PersonasPage } from '@/pages/projects/[id]/proposal/Personas'
@@ -65,6 +67,8 @@ function App() {
               <Route path="/projects/:id" element={<ProjectDetailPage />} />
               <Route path="/projects/:id/edit" element={<EditProjectPage />} />
               <Route path="/projects/:id/proposal" element={<ProposalWorkflowPage />} />
+              <Route path="/projects/:id/proposal/document-analysis" element={<DocumentAnalysisPage />} />
+              <Route path="/projects/:id/proposal/document-analysis/results" element={<DocumentAnalysisResultsPage />} />
               <Route path="/projects/:id/proposal/market-research" element={<MarketResearchPage />} />
               <Route path="/projects/:id/proposal/market-research/results" element={<MarketResearchResultsPage />} />
               <Route path="/projects/:id/proposal/personas" element={<PersonasPage />} />

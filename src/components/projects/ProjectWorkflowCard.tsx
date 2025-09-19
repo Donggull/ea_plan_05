@@ -89,6 +89,7 @@ export function ProjectWorkflowCard({ projectId }: ProjectWorkflowCardProps) {
 
   const getStepPath = (step: WorkflowStep): string => {
     switch (step) {
+      case 'document_analysis': return 'document-analysis'
       case 'market_research': return 'market-research'
       case 'personas': return 'personas'
       case 'proposal': return 'proposal-writer'
