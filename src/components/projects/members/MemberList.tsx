@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { UserPlus, MoreHorizontal, Crown, Shield, Edit, Eye, Trash2, AlertTriangle, Clock } from 'lucide-react'
 import { useProjectMembers, useUpdateMember, useRemoveMember, useMemberRoles, useUserMembership } from '../../../lib/queries/projectMembers'
-import { useAuth } from '../../../contexts/AuthContext'
+import { useAuth } from '@/components/providers/AuthProvider'
 import { InviteModal } from './InviteModal'
 import type { ProjectMember } from '../../../services/projectMemberService'
 

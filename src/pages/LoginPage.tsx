@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { useAuth } from '@/contexts/AuthContext'
+import { useAuth } from '@/components/providers/AuthProvider'
 import { Mail, Lock, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react'
 
 export function LoginPage() {
@@ -49,7 +49,9 @@ export function LoginPage() {
       {error && (
         <div className="mb-6 p-4 bg-accent-red/10 border border-accent-red/20 rounded-lg flex items-center space-x-3">
           <AlertCircle className="w-5 h-5 text-accent-red flex-shrink-0" />
-          <span className="text-accent-red text-small">{error}</span>
+          <span className="text-accent-red text-small">
+            {typeof error === 'string' ? error : error?.message || '로그인 중 문제가 발생했습니다'}
+          </span>
         </div>
       )}
 

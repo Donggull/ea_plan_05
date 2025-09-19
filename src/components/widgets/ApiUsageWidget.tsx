@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { ApiQuotaService, type ApiQuotaInfo } from '@/services/apiQuotaService'
 import { ApiUsageService, type RealTimeUsageData, type ApiUsageMetrics } from '@/services/apiUsageService'
-import { useAuth } from '@/contexts/AuthContext'
+import { useAuth } from '@/components/providers/AuthProvider'
 import { cn } from '@/utils/cn'
 import {
   AlertTriangle,

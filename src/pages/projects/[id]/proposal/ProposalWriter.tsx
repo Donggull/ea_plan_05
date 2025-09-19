@@ -16,7 +16,7 @@ import {
 } from 'lucide-react'
 import { ProposalDataManager, ProposalWorkflowQuestion } from '../../../../services/proposal/dataManager'
 import { ProposalAnalysisService } from '../../../../services/proposal/proposalAnalysisService'
-import { useAuth } from '../../../../contexts/AuthContext'
+import { useAuth } from '@/components/providers/AuthProvider'
 import { PageContainer, PageHeader, PageContent, Card, Button, Badge, ProgressBar } from '../../../../components/LinearComponents'
 
 interface QuestionFormData {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ApiQuotaService, type ApiQuotaInfo } from '@/services/apiQuotaService'
-import { useAuth } from '@/contexts/AuthContext'
+import { useAuth } from '@/components/providers/AuthProvider'
 import { cn } from '@/utils/cn'
 import { AlertTriangle, TrendingUp, Zap } from 'lucide-react'
 

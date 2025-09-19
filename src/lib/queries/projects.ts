@@ -1,7 +1,7 @@
 import React from 'react'
 import { useQuery, useMutation, useQueryClient, UseQueryOptions } from '@tanstack/react-query'
 import { ProjectService } from '../../services/projectService'
-import { useAuth } from '../../contexts/AuthContext'
+import { useAuth } from '@/components/providers/AuthProvider'
 
 // 프로젝트 타입 정의
 interface Project {

@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/Input'
 import { Card } from '@/components/ui/Card'
 import { Mail, ArrowLeft, AlertCircle, CheckCircle } from 'lucide-react'
 import { toast } from 'sonner'
-import { useAuth } from '@/contexts/AuthContext'
+import { useAuth } from '@/components/providers/AuthProvider'
 
 export function ForgotPasswordPage() {
   const { resetPassword, isLoading, clearError } = useAuth()

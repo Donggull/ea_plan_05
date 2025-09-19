@@ -17,7 +17,7 @@ import {
   Calendar
 } from 'lucide-react'
 import { DocumentAnalysisService, DocumentAnalysisResult } from '../../../../services/proposal/documentAnalysisService'
-import { useAuth } from '../../../../contexts/AuthContext'
+import { useAuth } from '@/components/providers/AuthProvider'
 import { PageContainer, PageHeader, PageContent, Card, Button, Badge } from '../../../../components/LinearComponents'
 
 interface AnalysisStats {

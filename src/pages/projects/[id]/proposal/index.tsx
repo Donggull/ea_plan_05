@@ -16,7 +16,7 @@ import {
   TestTube,
   FileSearch
 } from 'lucide-react'
-import { useAuth } from '../../../../contexts/AuthContext'
+import { useAuth } from '@/components/providers/AuthProvider'
 import { useSelectedAIModel } from '../../../../contexts/AIModelContext'
 import { ProposalAnalysisService } from '../../../../services/proposal/proposalAnalysisService'
 import { ProposalDataManager } from '../../../../services/proposal/dataManager'

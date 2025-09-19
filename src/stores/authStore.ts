@@ -1,274 +1,124 @@
 import { create } from 'zustand'
-import { User, Session } from '@supabase/supabase-js'
+import { subscribeWithSelector } from 'zustand/middleware'
+import { User, Session, AuthError } from '@supabase/supabase-js'
 import { getSupabaseClient } from '@/lib/supabase'
 import type { Database } from '@/types/supabase'
 
 type Profile = Database['public']['Tables']['profiles']['Row']
 
 interface AuthState {
+  // 핵심 상태
   user: User | null
   session: Session | null
   profile: Profile | null
+
+  // 상태 플래그
   isLoading: boolean
   isAuthenticated: boolean
   isInitialized: boolean
-  error: string | null
-  _authListenerActive: boolean // 내부 상태로 관리
+  isHydrated: boolean // SSR hydration 상태
+
+  // 에러 관리
+  error: AuthError | string | null
+
+  // 액션들
+  initialize: () => Promise<void>
   signIn: (email: string, password: string) => Promise<void>
-  signUp: (email: string, password: string, metadata?: { full_name?: string }) => Promise<void>
+  signUp: (email: string, password: string, metadata?: Record<string, any>) => Promise<void>
   signOut: () => Promise<void>
   resetPassword: (email: string) => Promise<void>
   updatePassword: (newPassword: string) => Promise<void>
   refreshSession: () => Promise<void>
   updateProfile: (updates: Partial<Profile>) => Promise<void>
-  loadProfile: (userId: string) => Promise<void>
-  initialize: () => Promise<void>
-  setupAuthListener: () => void
   clearError: () => void
+
+  // 내부 상태 관리
+  _setHydrated: () => void
+  _cleanup: () => void
+  _setupAuthListener: () => void
 }
 
-export const useAuthStore = create<AuthState>((set, get) => ({
-  user: null,
-  session: null,
-  profile: null,
-  isLoading: false, // 초기 로딩 상태를 false로 변경
-  isAuthenticated: false,
-  isInitialized: false,
-  error: null,
-  _authListenerActive: false, // 리스너 상태 초기화
+export const useAuthStore = create<AuthState>()(
+  subscribeWithSelector((set, get) => ({
+    // 초기 상태
+    user: null,
+    session: null,
+    profile: null,
+    isLoading: false,
+    isAuthenticated: false,
+    isInitialized: false,
+    isHydrated: false,
+    error: null,
 
-  clearError: () => set({ error: null }),
+    // SSR Hydration 완료 표시
+    _setHydrated: () => {
+      set({ isHydrated: true })
+    },
 
-  signIn: async (email: string, password: string) => {
-    set({ isLoading: true, error: null })
+    // 에러 제거
+    clearError: () => set({ error: null }),
 
-    try {
-      const supabase = getSupabaseClient()
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
+    // 인증 초기화 (SSR 최적화)
+    initialize: async () => {
+      const { isInitialized, isLoading } = get()
 
-      if (error) throw error
-
-      set({ isLoading: false })
-    } catch (error: any) {
-      set({ isLoading: false, error: error.message })
-      throw error
-    }
-  },
-
-  signUp: async (email: string, password: string, metadata?: { full_name?: string }) => {
-    set({ isLoading: true, error: null })
-
-    try {
-      const supabase = getSupabaseClient()
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: metadata
-        }
-      })
-
-      if (error) throw error
-
-      set({ isLoading: false })
-    } catch (error: any) {
-      set({ isLoading: false, error: error.message })
-      throw error
-    }
-  },
-
-  signOut: async () => {
-    set({ isLoading: true, error: null })
-
-    try {
-      // 다른 탭에 로그아웃 신호 보내기 (클라이언트에서만)
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('auth-logout-signal', Date.now().toString())
-      }
-
-      const supabase = getSupabaseClient()
-      const { error } = await supabase.auth.signOut()
-      if (error) throw error
-
-      // 세션 관련 localStorage 정리 (클라이언트에서만)
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('auth-unload-time')
-        localStorage.removeItem('auth-tab-hidden-time')
-      }
-
-      set({
-        user: null,
-        session: null,
-        profile: null,
-        isAuthenticated: false,
-        isLoading: false,
-      })
-    } catch (error: any) {
-      set({ isLoading: false, error: error.message })
-      throw error
-    }
-  },
-
-  resetPassword: async (email: string) => {
-    set({ isLoading: true, error: null })
-
-    try {
-      const supabase = getSupabaseClient()
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/reset-password`
-      })
-
-      if (error) throw error
-      set({ isLoading: false })
-    } catch (error: any) {
-      set({ isLoading: false, error: error.message })
-      throw error
-    }
-  },
-
-  updatePassword: async (newPassword: string) => {
-    set({ isLoading: true, error: null })
-
-    try {
-      const supabase = getSupabaseClient()
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword
-      })
-
-      if (error) throw error
-      set({ isLoading: false })
-    } catch (error: any) {
-      set({ isLoading: false, error: error.message })
-      throw error
-    }
-  },
-
-  refreshSession: async () => {
-    const { session, isAuthenticated } = get()
-
-    // 세션이 없거나 인증되지 않은 경우 스킵
-    if (!session || !isAuthenticated) {
-      console.log('⏭️ Skipping refresh - no active session')
-      return
-    }
-
-    // 토큰 만료 시간 확인 - 30분 이상 남았으면 스킵
-    const now = Math.floor(Date.now() / 1000)
-    const expiresAt = session.expires_at
-    if (expiresAt && (expiresAt - now) > 1800) { // 30분
-      console.log('⏭️ Skipping refresh - token still valid for 30+ minutes')
-      return
-    }
-
-    try {
-      console.log('🔄 Refreshing session token...')
-      const supabase = getSupabaseClient()
-      const { data, error } = await supabase.auth.refreshSession()
-      if (error) throw error
-
-      if (data.session) {
-        set({
-          user: data.session.user,
-          session: data.session,
-          isAuthenticated: true,
-        })
-        console.log('✅ Session refreshed successfully')
-      }
-    } catch (error: any) {
-      console.error('❌ Session refresh error:', error)
-      set({ error: error.message })
-    }
-  },
-
-  updateProfile: async (updates: Partial<Profile>) => {
-    const { profile } = get()
-    if (!profile) throw new Error('No profile to update')
-
-    set({ isLoading: true, error: null })
-
-    try {
-      const supabase = getSupabaseClient()
-      const { data, error } = await supabase
-        .from('profiles')
-        .update({
-          ...updates,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', profile.id)
-        .select()
-        .single()
-
-      if (error) throw error
-
-      set({
-        profile: data,
-        isLoading: false
-      })
-    } catch (error: any) {
-      set({ isLoading: false, error: error.message })
-      throw error
-    }
-  },
-
-  loadProfile: async (userId: string) => {
-    try {
-      const supabase = getSupabaseClient()
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single()
-
-      if (error && error.code !== 'PGRST116') { // 데이터 없음 에러가 아닌 경우
-        console.error('Profile load error:', error)
+      if (isInitialized || isLoading) {
+        console.log('🔄 Auth already initialized, skipping...')
         return
       }
 
-      if (data) {
-        set({ profile: data })
+      console.log('🚀 Initializing SSR-optimized auth...')
+      set({ isLoading: true, error: null })
 
-        // 프로필이 로드되면 user_metadata에 role 정보도 업데이트
-        const currentUser = get().user
-        if (currentUser) {
-          const updatedUser = {
-            ...currentUser,
-            user_metadata: {
-              ...currentUser.user_metadata,
-              role: data.role,
-              user_level: data.user_level
-            }
-          }
-          set({ user: updatedUser })
+      try {
+        const supabase = getSupabaseClient()
+
+        // 현재 세션 가져오기
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+
+        if (sessionError) {
+          // 세션 에러는 로그만 남기고 계속 진행
+          console.warn('⚠️ Session retrieval warning:', sessionError.message)
         }
-      }
-    } catch (error) {
-      console.error('Profile load error:', error)
-    }
-  },
 
-  initialize: async () => {
-    const { isInitialized, isLoading } = get()
+        // 프로필 로드 (세션이 있을 때만)
+        let profile: Profile | null = null
+        if (session?.user) {
+          try {
+            const { data: profileData } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', session.user.id)
+              .single()
 
-    // 이미 초기화되었거나 진행 중인 경우 중복 실행 방지
-    if (isInitialized || isLoading) {
-      console.log('🔄 Auth already initialized or loading, skipping...')
-      return
-    }
+            profile = profileData
+          } catch (profileError) {
+            console.warn('⚠️ Profile load failed:', profileError)
+          }
+        }
 
-    console.log('🚀 Starting auth initialization...')
-    set({ isLoading: true, error: null })
+        // 상태 업데이트
+        set({
+          user: session?.user ?? null,
+          session,
+          profile,
+          isAuthenticated: !!session,
+          isLoading: false,
+          isInitialized: true,
+          error: sessionError || null
+        })
 
-    try {
-      const supabase = getSupabaseClient()
+        console.log('✅ Auth initialized:', {
+          hasUser: !!session?.user,
+          hasSession: !!session,
+          hasProfile: !!profile
+        })
 
-      // 현재 세션 확인 (단순화)
-      const { data: { session }, error } = await supabase.auth.getSession()
+        // Auth 상태 변경 리스너 설정 (한 번만)
+        get()._setupAuthListener()
 
-      if (error) {
-        console.error('❌ Session get error:', error)
+      } catch (error: any) {
+        console.error('❌ Auth initialization failed:', error)
         set({
           user: null,
           session: null,
@@ -276,132 +126,319 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           isAuthenticated: false,
           isLoading: false,
           isInitialized: true,
-          error: error.message
+          error: error.message || 'Authentication failed'
         })
-        return
       }
+    },
 
-      // 프로필 로드 (세션이 있을 때만)
-      if (session?.user) {
-        try {
-          await get().loadProfile(session.user.id)
-        } catch (profileError) {
-          console.warn('⚠️ Profile load failed, continuing without profile:', profileError)
-        }
-      }
+    // 로그인
+    signIn: async (email: string, password: string) => {
+      set({ isLoading: true, error: null })
 
-      set({
-        user: session?.user ?? null,
-        session,
-        isAuthenticated: !!session,
-        isLoading: false,
-        isInitialized: true,
-        error: null
-      })
-
-      console.log('✅ Auth initialization completed:', {
-        hasUser: !!session?.user,
-        hasSession: !!session
-      })
-
-      // Auth 상태 변경 리스너 설정 (한 번만)
-      get().setupAuthListener()
-
-    } catch (error: any) {
-      console.error('❌ Auth initialization error:', error)
-      set({
-        user: null,
-        session: null,
-        profile: null,
-        isAuthenticated: false,
-        isLoading: false,
-        isInitialized: true,
-        error: error.message || 'Authentication initialization failed'
-      })
-    }
-  },
-
-  // Auth 상태 변경 리스너를 별도 함수로 분리 (개선)
-  setupAuthListener: () => {
-    if (typeof window === 'undefined') return
-
-    const { _authListenerActive } = get()
-
-    // 이미 리스너가 설정되어 있으면 스킵
-    if (_authListenerActive) {
-      console.log('⏭️ Auth listener already active, skipping setup')
-      return
-    }
-
-    const supabase = getSupabaseClient()
-
-    // 기존 리스너 정리
-    if (window.__supabaseAuthUnsubscribe) {
-      console.log('🧹 Cleaning up existing auth listener')
       try {
-        window.__supabaseAuthUnsubscribe()
-      } catch (error) {
-        console.warn('Error cleaning up auth listener:', error)
+        const supabase = getSupabaseClient()
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        })
+
+        if (error) throw error
+
+        // 로그인 성공 시 상태는 리스너에서 자동 업데이트
+        set({ isLoading: false })
+
+        console.log('✅ Sign in successful')
+      } catch (error: any) {
+        console.error('❌ Sign in failed:', error)
+        set({
+          isLoading: false,
+          error: error.message || 'Login failed'
+        })
+        throw error
       }
-      window.__supabaseAuthUnsubscribe = null
-    }
+    },
 
-    console.log('🎯 Setting up new auth listener')
+    // 회원가입
+    signUp: async (email: string, password: string, metadata?: Record<string, any>) => {
+      set({ isLoading: true, error: null })
 
-    // 새 리스너 등록
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('🔄 Auth state changed:', event, session?.user?.email)
+      try {
+        const supabase = getSupabaseClient()
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: metadata
+          }
+        })
 
-      // INITIAL_SESSION은 무시 (초기 로딩에서 불필요한 상태 변경 방지)
-      if (event === 'INITIAL_SESSION') {
-        console.log('⏭️ Ignoring INITIAL_SESSION event')
-        return
+        if (error) throw error
+
+        set({ isLoading: false })
+        console.log('✅ Sign up successful')
+      } catch (error: any) {
+        console.error('❌ Sign up failed:', error)
+        set({
+          isLoading: false,
+          error: error.message || 'Registration failed'
+        })
+        throw error
       }
+    },
 
-      // 간단한 상태 업데이트만 수행
-      if (event === 'SIGNED_OUT') {
+    // 로그아웃
+    signOut: async () => {
+      set({ isLoading: true, error: null })
+
+      try {
+        const supabase = getSupabaseClient()
+        const { error } = await supabase.auth.signOut()
+
+        if (error) throw error
+
+        // 로그아웃 시 상태 즉시 정리
         set({
           user: null,
           session: null,
           profile: null,
           isAuthenticated: false,
+          isLoading: false,
         })
-        console.log('👋 User signed out')
-      } else if (event === 'SIGNED_IN') {
-        set({
-          user: session?.user ?? null,
-          session,
-          isAuthenticated: !!session,
-        })
-        console.log('👤 User signed in:', session?.user?.email)
 
-        // 프로필 로드는 백그라운드에서
-        if (session?.user) {
-          get().loadProfile(session.user.id).catch(error => {
-            console.warn('Background profile load failed:', error)
-          })
-        }
-      } else if (event === 'TOKEN_REFRESHED') {
-        // 토큰 갱신은 조용히 처리
+        console.log('✅ Sign out successful')
+      } catch (error: any) {
+        console.error('❌ Sign out failed:', error)
         set({
-          user: session?.user ?? null,
-          session,
-          isAuthenticated: !!session,
+          isLoading: false,
+          error: error.message || 'Logout failed'
         })
-        console.log('🔄 Token refreshed silently')
+        throw error
       }
-    })
+    },
 
-    // 활성화 상태 업데이트
-    set({ _authListenerActive: true })
+    // 비밀번호 재설정
+    resetPassword: async (email: string) => {
+      set({ isLoading: true, error: null })
 
-    // cleanup 함수 개선
-    const originalUnsubscribe = subscription.unsubscribe
-    window.__supabaseAuthUnsubscribe = () => {
-      console.log('🧹 Unsubscribing auth listener')
-      originalUnsubscribe()
-      set({ _authListenerActive: false })
-      window.__supabaseAuthUnsubscribe = null
+      try {
+        const supabase = getSupabaseClient()
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/reset-password`
+        })
+
+        if (error) throw error
+
+        set({ isLoading: false })
+        console.log('✅ Password reset email sent')
+      } catch (error: any) {
+        console.error('❌ Password reset failed:', error)
+        set({
+          isLoading: false,
+          error: error.message || 'Password reset failed'
+        })
+        throw error
+      }
+    },
+
+    // 비밀번호 업데이트
+    updatePassword: async (newPassword: string) => {
+      set({ isLoading: true, error: null })
+
+      try {
+        const supabase = getSupabaseClient()
+        const { error } = await supabase.auth.updateUser({
+          password: newPassword
+        })
+
+        if (error) throw error
+
+        set({ isLoading: false })
+        console.log('✅ Password updated successfully')
+      } catch (error: any) {
+        console.error('❌ Password update failed:', error)
+        set({
+          isLoading: false,
+          error: error.message || 'Password update failed'
+        })
+        throw error
+      }
+    },
+
+    // 세션 갱신 (단순화)
+    refreshSession: async () => {
+      try {
+        const supabase = getSupabaseClient()
+        const { data, error } = await supabase.auth.refreshSession()
+
+        if (error) throw error
+
+        if (data.session) {
+          set({
+            user: data.session.user,
+            session: data.session,
+            isAuthenticated: true,
+          })
+          console.log('✅ Session refreshed')
+        }
+      } catch (error: any) {
+        console.error('❌ Session refresh failed:', error)
+        set({ error: error.message })
+      }
+    },
+
+    // 프로필 업데이트
+    updateProfile: async (updates: Partial<Profile>) => {
+      const { profile, user } = get()
+      if (!profile || !user) throw new Error('No profile to update')
+
+      set({ isLoading: true, error: null })
+
+      try {
+        const supabase = getSupabaseClient()
+        const { data, error } = await supabase
+          .from('profiles')
+          .update({
+            ...updates,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', profile.id)
+          .select()
+          .single()
+
+        if (error) throw error
+
+        set({
+          profile: data,
+          isLoading: false
+        })
+
+        console.log('✅ Profile updated')
+      } catch (error: any) {
+        console.error('❌ Profile update failed:', error)
+        set({
+          isLoading: false,
+          error: error.message || 'Profile update failed'
+        })
+        throw error
+      }
+    },
+
+    // Auth 리스너 설정 (내부 메소드)
+    _setupAuthListener: () => {
+      if (typeof window === 'undefined') return
+
+      const supabase = getSupabaseClient()
+
+      console.log('🎯 Setting up auth state listener')
+
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(
+        async (event: string, session: Session | null) => {
+          console.log('🔄 Auth state change:', event)
+
+          switch (event) {
+            case 'INITIAL_SESSION':
+              // 초기 세션은 이미 initialize에서 처리됨
+              console.log('⏭️ Initial session (already handled)')
+              break
+
+            case 'SIGNED_IN':
+              console.log('✅ User signed in')
+
+              // 프로필 로드
+              let profile: Profile | null = null
+              if (session?.user) {
+                try {
+                  const { data: profileData } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('id', session.user.id)
+                    .single()
+                  profile = profileData
+                } catch (error) {
+                  console.warn('Profile load failed after sign in:', error)
+                }
+              }
+
+              set({
+                user: session?.user ?? null,
+                session,
+                profile,
+                isAuthenticated: !!session,
+                error: null
+              })
+              break
+
+            case 'SIGNED_OUT':
+              console.log('👋 User signed out')
+              set({
+                user: null,
+                session: null,
+                profile: null,
+                isAuthenticated: false,
+                error: null
+              })
+              break
+
+            case 'TOKEN_REFRESHED':
+              console.log('🔄 Token refreshed')
+              set({
+                user: session?.user ?? null,
+                session,
+                isAuthenticated: !!session,
+              })
+              break
+
+            case 'USER_UPDATED':
+              console.log('👤 User updated')
+              if (session) {
+                set({
+                  user: session.user,
+                  session,
+                })
+              }
+              break
+
+            default:
+              console.log('🔄 Auth event:', event)
+          }
+        }
+      )
+
+      // 정리 함수 저장
+      set({ _cleanup: () => subscription.unsubscribe() })
+    },
+
+    // 정리 함수
+    _cleanup: () => {
+      // 기본 정리 함수 (리스너에서 덮어쓸 수 있음)
+      console.log('🧹 Auth cleanup called')
     }
-  },
-}))
+  }))
+)
+
+// 브라우저에서만 hydration 설정
+if (typeof window !== 'undefined') {
+  // 페이지 로드 시 hydration 표시
+  setTimeout(() => {
+    useAuthStore.getState()._setHydrated()
+  }, 0)
+
+  // 페이지 언로드 시 정리
+  window.addEventListener('beforeunload', () => {
+    useAuthStore.getState()._cleanup()
+  })
+}
+
+// 인증 상태 구독 훅
+export function useAuthStateChange(callback: (state: AuthState) => void) {
+  return useAuthStore.subscribe(callback)
+}
+
+// 간편한 인증 상태 선택자들
+export const selectAuthUser = (state: AuthState) => state.user
+export const selectAuthSession = (state: AuthState) => state.session
+export const selectAuthProfile = (state: AuthState) => state.profile
+export const selectAuthLoading = (state: AuthState) => state.isLoading
+export const selectAuthAuthenticated = (state: AuthState) => state.isAuthenticated
+export const selectAuthInitialized = (state: AuthState) => state.isInitialized
+export const selectAuthError = (state: AuthState) => state.error

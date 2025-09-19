@@ -14,7 +14,7 @@ import {
 } from 'lucide-react'
 import { ProposalDataManager, ProposalWorkflowQuestion } from '../../../../services/proposal/dataManager'
 import { DocumentAnalysisService } from '../../../../services/proposal/documentAnalysisService'
-import { useAuth } from '../../../../contexts/AuthContext'
+import { useAuth } from '@/components/providers/AuthProvider'
 import { useSelectedAIModel } from '../../../../contexts/AIModelContext'
 import { PageContainer, PageHeader, PageContent, Card, Button, Badge, ProgressBar } from '../../../../components/LinearComponents'
 
