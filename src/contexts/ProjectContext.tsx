@@ -241,22 +241,30 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   // 컴포넌트 마운트 시 사용자 프로젝트 로딩
   useEffect(() => {
     if (user) {
+      // 사용자가 로그인된 상태에서만 프로젝트 로딩
       loadUserProjects()
       loadRecentProjects()
 
-      // 로컬 스토리지에서 현재 프로젝트 복원
+      // 로컬 스토리지에서 현재 프로젝트 복원 (사용자가 로그인된 경우에만)
       try {
         const savedProject = localStorage.getItem('currentProject')
         if (savedProject) {
           const project = JSON.parse(savedProject)
-          dispatch({ type: 'SET_CURRENT_PROJECT', payload: project })
+          // 현재 프로젝트가 없거나 다른 프로젝트인 경우에만 복원
+          if (!state.currentProject || state.currentProject.id !== project.id) {
+            dispatch({ type: 'SET_CURRENT_PROJECT', payload: project })
+          }
         }
       } catch (error) {
         console.error('Failed to restore current project from localStorage:', error)
       }
-    } else {
+    } else if (user === null) {
+      // user가 명시적으로 null인 경우에만 프로젝트 정리 (로그아웃)
+      // user가 undefined인 경우는 아직 로딩 중이므로 정리하지 않음
+      console.log('🔄 User logged out, clearing projects...')
       clearProjects()
     }
+    // user가 undefined인 경우 (로딩 중)에는 아무것도 하지 않음
   }, [user])
 
   // 컨텍스트 값

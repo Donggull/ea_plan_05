@@ -125,7 +125,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
     }, 60 * 60 * 1000) // 1시간
 
-    // 페이지 포커스 시 세션 검증 및 복구
+    // 페이지 포커스 시 세션 검증 및 복구 (프로젝트 상태 보호)
     const handleFocus = async () => {
       const currentState = useAuthStore.getState()
 
@@ -143,11 +143,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return
       }
 
+      // 현재 user 상태 백업 (프로젝트 컨텍스트 보호용)
+      const currentUser = currentState.user
+
       isRefreshing = true
       try {
         const validationResult = await authStore.validateAndRecoverSession()
+
         if (validationResult) {
           console.log('✅ Session validation completed successfully')
+
+          // 세션 검증 후 user 상태가 일시적으로 변경된 경우 확인
+          const finalState = useAuthStore.getState()
+          if (finalState.user?.id === currentUser?.id) {
+            console.log('✅ User identity maintained during validation')
+          } else if (finalState.isAuthenticated && finalState.user) {
+            console.log('⚠️ User identity changed during validation - this may affect project context')
+          }
         } else {
           console.log('❌ Session validation failed - user logged out')
         }

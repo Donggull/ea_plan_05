@@ -240,18 +240,33 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // 현재 상태와 서버 세션이 다르면 동기화
       if (session.access_token !== currentState.session?.access_token) {
         console.log('🔄 Session mismatch detected, syncing...')
-        set({
-          user: session.user,
-          session,
-          isAuthenticated: true,
-        })
 
-        // 프로필 정보 다시 로드
-        if (session.user) {
-          try {
-            await get().loadProfile(session.user.id)
-          } catch (profileError) {
-            console.warn('⚠️ Profile reload failed during session sync:', profileError)
+        // 동일한 사용자인지 확인하여 불필요한 user 변경 방지
+        const isSameUser = session.user.id === currentState.user?.id
+
+        if (isSameUser) {
+          console.log('✅ Same user detected, updating session only')
+          // 같은 사용자라면 세션만 업데이트
+          set({
+            session,
+            isAuthenticated: true,
+          })
+        } else {
+          console.log('⚠️ Different user detected, updating user and session')
+          // 다른 사용자라면 전체 업데이트
+          set({
+            user: session.user,
+            session,
+            isAuthenticated: true,
+          })
+
+          // 새로운 사용자인 경우에만 프로필 다시 로드
+          if (session.user) {
+            try {
+              await get().loadProfile(session.user.id)
+            } catch (profileError) {
+              console.warn('⚠️ Profile reload failed during session sync:', profileError)
+            }
           }
         }
         return true
