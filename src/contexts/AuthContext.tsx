@@ -32,188 +32,76 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const authStore = useAuthStore()
 
-  // SSR Hydration 불일치 방지를 위한 클라이언트 상태 관리
+  // SSR 호환성을 위한 클라이언트 준비 상태
   const [isClient, setIsClient] = useState(false)
 
-  // 클라이언트 사이드에서만 실행
+  // 클라이언트 준비 완료 표시
   useEffect(() => {
     setIsClient(true)
   }, [])
 
-  // 디버깅용 상태 로그 (개발 환경에서만, 초기화 완료 시에만)
+  // 인증 초기화 (클라이언트에서 한 번만)
   useEffect(() => {
-    if (!isClient || process.env['NODE_ENV'] === 'production') return
+    if (!isClient || authStore.isInitialized) return
 
-    // 초기화 완료 후 한 번만 로그 출력
-    if (authStore.isInitialized && !authStore.isLoading) {
-      console.log('🏗️ AuthProvider initialized:', {
-        isAuthenticated: authStore.isAuthenticated,
-        hasUser: !!authStore.user,
-        hasSession: !!authStore.session,
-        hasError: !!authStore.error
-      })
-    }
+    console.log('🔄 AuthContext: Starting initialization...')
+    authStore.initialize().catch((error) => {
+      console.error('❌ AuthContext initialization failed:', error)
+    })
   }, [isClient, authStore.isInitialized])
 
+  // 세션 갱신 관리 (단순화)
   useEffect(() => {
-    // 클라이언트에서만 인증 상태 초기화
-    if (!isClient) return
-
-    // 중복 초기화 방지를 위한 전역 플래그 체크
-    if (typeof window !== 'undefined' && window.__authInitializing) {
-      return
-    }
-
-    // 인증 상태 초기화 - 한 번만 실행되도록 보장
-    if (!authStore.isInitialized && !authStore.isLoading) {
-      if (typeof window !== 'undefined') {
-        window.__authInitializing = true
-      }
-
-      console.log('🔄 AuthContext: Triggering auth initialization...')
-
-      // Promise 체인으로 초기화 상태 보장
-      authStore.initialize()
-        .catch((error) => {
-          console.error('❌ AuthContext initialization failed:', error)
-        })
-        .finally(() => {
-          if (typeof window !== 'undefined') {
-            window.__authInitializing = false
-          }
-        })
-    }
-  }, [isClient]) // isClient만 의존성으로 설정하여 중복 실행 방지
-
-  // 세션 갱신 타이머 설정 (브라우저 창 이동 시 세션 유지) - 클라이언트에서만, 한 번만 설정
-  useEffect(() => {
-    if (!isClient || !authStore.isAuthenticated || !authStore.session) return
-
-    // 중복 타이머 설정 방지
-    if (typeof window !== 'undefined' && window.__sessionRefreshTimer) {
-      clearInterval(window.__sessionRefreshTimer)
-      if (window.__sessionFocusHandler) {
-        window.removeEventListener('focus', window.__sessionFocusHandler)
-      }
-    }
-
-    let isRefreshing = false // 중복 갱신 방지 플래그
+    if (!isClient || !authStore.isAuthenticated) return
 
     // 1시간마다 세션 갱신
     const refreshInterval = setInterval(async () => {
-      const currentState = useAuthStore.getState()
-      if (currentState.isAuthenticated && !isRefreshing) {
-        isRefreshing = true
-        try {
-          await authStore.refreshSession()
-        } catch (error) {
-          console.error('Scheduled session refresh failed:', error)
-        } finally {
-          isRefreshing = false
-        }
+      try {
+        await authStore.refreshSession()
+      } catch (error) {
+        console.error('Session refresh failed:', error)
       }
-    }, 60 * 60 * 1000) // 1시간
+    }, 60 * 60 * 1000)
 
-    // 페이지 포커스 시 세션 갱신
-    const handleFocus = async () => {
-      const currentState = useAuthStore.getState()
-      if (currentState.isAuthenticated && currentState.session && !isRefreshing) {
-        const tokenExp = currentState.session.expires_at
-        const now = Math.floor(Date.now() / 1000)
+    return () => clearInterval(refreshInterval)
+  }, [isClient, authStore.isAuthenticated])
 
-        // 토큰 만료 10분 전에 갱신
-        if (tokenExp && (tokenExp - now) < 600) {
-          isRefreshing = true
-          try {
-            await authStore.refreshSession()
-          } catch (error) {
-            console.error('Focus session refresh failed:', error)
-          } finally {
-            isRefreshing = false
-          }
-        }
-      }
-    }
-
-    if (typeof window !== 'undefined') {
-      window.addEventListener('focus', handleFocus)
-      // 전역 참조로 중복 설정 방지
-      window.__sessionRefreshTimer = refreshInterval
-      window.__sessionFocusHandler = handleFocus
-    }
-
-    return () => {
-      clearInterval(refreshInterval)
-      if (typeof window !== 'undefined') {
-        window.removeEventListener('focus', handleFocus)
-        window.__sessionRefreshTimer = null
-        window.__sessionFocusHandler = null
-      }
-    }
-  }, [isClient, authStore.isAuthenticated]) // session 의존성 제거로 중복 실행 방지
-
-  // 브라우저 종료 시 세션 정리 - 클라이언트에서만
+  // 브라우저 종료 시 세션 정리 (단순화)
   useEffect(() => {
-    if (!isClient || typeof window === 'undefined') return
-
-    // 앱 시작 시 이전 세션 정리 플래그 제거
-    window.sessionStorage.removeItem('auth-keep-session')
+    if (!isClient) return
 
     const handleBeforeUnload = () => {
-      // 브라우저 종료/새로고침 구분 불가능하므로 localStorage 사용
       localStorage.setItem('auth-unload-time', Date.now().toString())
     }
 
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        // 탭이 숨겨질 때 (브라우저 종료 가능성)
-        localStorage.setItem('auth-tab-hidden-time', Date.now().toString())
-      }
-    }
-
-    // 페이지 로드 시 이전 세션 상태 확인
     const checkPreviousSession = () => {
       const unloadTime = localStorage.getItem('auth-unload-time')
-      const tabHiddenTime = localStorage.getItem('auth-tab-hidden-time')
-
-      if (unloadTime || tabHiddenTime) {
-        const lastActivity = Math.max(
-          parseInt(unloadTime || '0'),
-          parseInt(tabHiddenTime || '0')
-        )
+      if (unloadTime) {
         const now = Date.now()
-        const timeDiff = now - lastActivity
+        const timeDiff = now - parseInt(unloadTime)
 
         // 10분 이상 비활성 상태였다면 세션 종료
         if (timeDiff > 10 * 60 * 1000) {
           console.log('Previous session expired due to inactivity')
           authStore.signOut()
         }
-
-        // 플래그 정리
         localStorage.removeItem('auth-unload-time')
-        localStorage.removeItem('auth-tab-hidden-time')
       }
     }
 
-    // 앱 시작 시 이전 세션 상태 확인
     checkPreviousSession()
-
     window.addEventListener('beforeunload', handleBeforeUnload)
-    document.addEventListener('visibilitychange', handleVisibilityChange)
 
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [isClient])
 
-  // 브라우저 탭 간 세션 동기화 - 클라이언트에서만
+  // 탭 간 세션 동기화 (단순화)
   useEffect(() => {
-    if (!isClient || typeof window === 'undefined') return
+    if (!isClient) return
 
     const handleStorageChange = (event: StorageEvent) => {
-      // 다른 탭에서 로그아웃한 경우
       if (event.key === 'auth-logout-signal' && event.newValue) {
         console.log('Logout detected in another tab')
         authStore.signOut()
@@ -222,10 +110,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
 
     window.addEventListener('storage', handleStorageChange)
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange)
-    }
+    return () => window.removeEventListener('storage', handleStorageChange)
   }, [isClient])
 
   const contextValue: AuthContextType = {
