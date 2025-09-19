@@ -10,7 +10,8 @@ import {
   MoreHorizontal,
   Zap,
   TrendingUp,
-  UserCheck
+  UserCheck,
+  FileSearch
 } from 'lucide-react'
 import { useProject } from '../../contexts/ProjectContext'
 import { ProjectService } from '../../services/projectService'
@@ -303,6 +304,13 @@ export function ProjectDetailPage() {
                 <h3 className="text-lg font-semibold text-text-primary">빠른 액션</h3>
               </div>
               <div className="space-y-2">
+                <button
+                  onClick={() => navigate(`/projects/${id}/proposal/document-analysis`)}
+                  className="w-full flex items-center space-x-3 px-3 py-2.5 text-left text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-lg transition-colors"
+                >
+                  <FileSearch className="w-4 h-4" />
+                  <span className="text-sm font-medium">AI 문서 분석</span>
+                </button>
                 <button className="w-full flex items-center space-x-3 px-3 py-2.5 text-left text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors">
                   <FileText className="w-4 h-4" />
                   <span className="text-sm">문서 추가</span>

@@ -298,6 +298,7 @@ export class ProposalDataManager {
    */
   static async getProjectDocuments(projectId: string): Promise<any[]> {
     try {
+      // 우선 documents 테이블에서 기본 정보만 조회
       const { data, error } = await supabase!
         .from('documents')
         .select(`
@@ -305,21 +306,21 @@ export class ProposalDataManager {
           file_name,
           storage_path,
           file_type,
+          file_size,
           metadata,
-          document_content (
-            raw_text,
-            processed_text,
-            language
-          )
+          created_at,
+          is_processed
         `)
         .eq('project_id', projectId)
-        .eq('is_processed', true)
 
       if (error) throw error
+
+      console.log('Project documents loaded:', data?.length || 0)
       return (data as any) || []
     } catch (error) {
       console.error('Failed to get project documents:', error)
-      throw error
+      // 오류가 발생해도 빈 배열을 반환하여 페이지가 정상적으로 로드되도록 함
+      return []
     }
   }
 

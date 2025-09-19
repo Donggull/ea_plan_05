@@ -44,7 +44,8 @@
       "Bash(find:*)",
       "Bash(grep:*)",
       "mcp__supabase__list_extensions",
-      "Bash(copy \"D:\\ea_plan_05\\src\\lib\\supabase.ts\" \"D:\\ea_plan_05\\src\\lib\\supabase.ts.backup\")"
+      "Bash(copy \"D:\\ea_plan_05\\src\\lib\\supabase.ts\" \"D:\\ea_plan_05\\src\\lib\\supabase.ts.backup\")",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []
