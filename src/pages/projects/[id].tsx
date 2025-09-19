@@ -20,6 +20,7 @@ import { InviteModal } from '../../components/projects/members/InviteModal'
 import { CollaborativeWorkspace } from '../../components/realtime/CollaborativeWorkspace'
 import { DocumentManager } from '../../components/documents/DocumentManager'
 import { ProjectWorkflowCard } from '../../components/projects/ProjectWorkflowCard'
+import { DocumentAnalysisCard } from '../../components/projects/DocumentAnalysisCard'
 import { useProjectMembers } from '../../lib/queries/projectMembers'
 import { supabase } from '../../lib/supabase'
 import { PageContainer, PageHeader, PageContent, Card } from '../../components/LinearComponents'
@@ -277,6 +278,11 @@ export function ProjectDetailPage() {
           </Card>
         </div>
 
+        {/* 문서 분석 */}
+        <div className="mb-8">
+          <DocumentAnalysisCard projectId={id!} variant="detailed" />
+        </div>
+
         {/* 실시간 협업 + 빠른 액션/프로젝트 정보 */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           {/* 실시간 협업 */}
@@ -305,15 +311,18 @@ export function ProjectDetailPage() {
               </div>
               <div className="space-y-2">
                 <button
-                  onClick={() => navigate(`/projects/${id}/document-analysis`)}
+                  onClick={() => navigate(`/projects/${id}/documents`)}
+                  className="w-full flex items-center space-x-3 px-3 py-2.5 text-left text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors"
+                >
+                  <FileText className="w-4 h-4" />
+                  <span className="text-sm">문서 관리</span>
+                </button>
+                <button
+                  onClick={() => navigate(`/projects/${id}/proposal`)}
                   className="w-full flex items-center space-x-3 px-3 py-2.5 text-left text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors"
                 >
                   <Brain className="w-4 h-4" />
-                  <span className="text-sm">문서 분석</span>
-                </button>
-                <button className="w-full flex items-center space-x-3 px-3 py-2.5 text-left text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors">
-                  <FileText className="w-4 h-4" />
-                  <span className="text-sm">문서 추가</span>
+                  <span className="text-sm">제안 진행</span>
                 </button>
                 <button
                   onClick={() => setIsInviteModalOpen(true)}

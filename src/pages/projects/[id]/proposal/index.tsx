@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
-  ArrowLeft,
   Play,
   CheckCircle,
   Clock,
@@ -13,7 +12,6 @@ import {
   DollarSign,
   Settings,
   RefreshCw,
-  TestTube
 } from 'lucide-react'
 import { useAuth } from '../../../../contexts/AuthContext'
 import { useSelectedAIModel } from '../../../../contexts/AIModelContext'
@@ -23,6 +21,8 @@ import { WorkflowStep } from '../../../../services/proposal/aiQuestionGenerator'
 import { PageContainer, PageHeader, PageContent, Card, Button, ProgressBar, Badge } from '../../../../components/LinearComponents'
 import { AnalysisProgressModal } from '../../../../components/analysis/AnalysisProgressModal'
 import { AIModelTest } from '../../../../components/proposal/AIModelTest'
+import { AIModelSelector } from '../../../../components/widgets/AIModelSelector'
+import { ProjectNavigationHeader } from '../../../../components/projects/ProjectNavigationHeader'
 
 interface StepStatus {
   questionsCompleted: boolean
@@ -234,32 +234,25 @@ export function ProposalWorkflowPage() {
 
   return (
     <PageContainer>
+      {/* 프로젝트 네비게이션 헤더 */}
+      <ProjectNavigationHeader
+        projectId={id!}
+        currentPage="proposal"
+        currentSubPage="워크플로우"
+      />
+
       <PageHeader
         title="제안 진행"
         subtitle="AI 기반 질문-답변으로 체계적인 제안서를 작성하세요"
         description={`전체 진행률: ${Math.round(workflowProgress?.overallProgress || 0)}% • ${workflowProgress?.completedSteps.length || 0}/${WORKFLOW_STEPS.length} 단계 완료`}
         actions={
           <div className="flex items-center space-x-3">
-            {/* 선택된 AI 모델 표시 */}
-            {selectedModel && (
-              <div className="flex items-center space-x-2 px-3 py-2 bg-bg-tertiary border border-border-primary rounded-lg">
-                <span className="text-text-secondary text-sm">AI 모델:</span>
-                <span className="text-text-primary text-sm font-medium">
-                  {selectedModel.name}
-                </span>
-                <span className="text-text-muted text-xs">
-                  ({selectedModel.provider})
-                </span>
-              </div>
-            )}
-
-            <button
-              onClick={() => setShowAITest(!showAITest)}
-              className="flex items-center space-x-2 px-3 py-2 text-text-secondary hover:text-text-primary border border-border-primary rounded-lg hover:bg-bg-tertiary transition-colors"
-            >
-              <TestTube className="w-4 h-4" />
-              <span>AI 테스트</span>
-            </button>
+            {/* AI 모델 선택기 */}
+            <AIModelSelector
+              variant="compact"
+              showTestButton={true}
+              onTestClick={() => setShowAITest(!showAITest)}
+            />
 
             <button
               onClick={handleRefresh}
@@ -268,14 +261,6 @@ export function ProposalWorkflowPage() {
             >
               <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
               <span>새로고침</span>
-            </button>
-
-            <button
-              onClick={() => navigate(`/projects/${id}`)}
-              className="flex items-center space-x-2 px-4 py-2 text-text-muted hover:text-text-primary border border-border-primary rounded-lg hover:bg-bg-tertiary transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>프로젝트로</span>
             </button>
 
             <Badge variant="primary">

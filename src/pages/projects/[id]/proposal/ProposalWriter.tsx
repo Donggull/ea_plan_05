@@ -18,6 +18,9 @@ import { ProposalDataManager, ProposalWorkflowQuestion } from '../../../../servi
 import { ProposalAnalysisService } from '../../../../services/proposal/proposalAnalysisService'
 import { useAuth } from '../../../../contexts/AuthContext'
 import { PageContainer, PageHeader, PageContent, Card, Button, Badge, ProgressBar } from '../../../../components/LinearComponents'
+import { AIModelSelector } from '../../../../components/widgets/AIModelSelector'
+import { ProjectNavigationHeader } from '../../../../components/projects/ProjectNavigationHeader'
+import { useSelectedAIModel } from '../../../../contexts/AIModelContext'
 
 interface QuestionFormData {
   [questionId: string]: string | string[] | number
@@ -34,6 +37,7 @@ export function ProposalWriterPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { selectedModel } = useSelectedAIModel()
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -198,9 +202,10 @@ export function ProposalWriterPage() {
       // 먼저 답변 저장
       await handleSave(false)
 
-      // AI 분석 실행 (아직 구현되지 않음)
+      // AI 분석 실행
       try {
-        await ProposalAnalysisService.analyzeStep(id, 'proposal', user.id, 'gpt-4o')
+        const modelId = selectedModel?.id || 'gpt-4o'
+        await ProposalAnalysisService.analyzeStep(id, 'proposal', user.id, modelId)
       } catch (analysisError) {
         console.warn('AI analysis not implemented, proceeding to results')
       }
@@ -312,12 +317,25 @@ export function ProposalWriterPage() {
 
   return (
     <PageContainer>
+      {/* 프로젝트 네비게이션 헤더 */}
+      <ProjectNavigationHeader
+        projectId={id!}
+        currentPage="proposal"
+        currentSubPage="제안서 작성"
+      />
+
       <PageHeader
         title="제안서 작성"
         subtitle="솔루션 제안 및 구현 계획을 위한 질문에 답변해주세요"
         description={`질문 답변 진행률: ${Math.round(completionStatus.completionRate)}% • ${completionStatus.answeredQuestions}/${completionStatus.totalQuestions} 질문 완료`}
         actions={
           <div className="flex items-center space-x-3">
+            {/* AI 모델 선택기 */}
+            <AIModelSelector
+              variant="compact"
+              showProviderInfo={true}
+            />
+
             <Badge variant="warning">
               <FileText className="w-3 h-3 mr-1" />
               {Math.round(completionStatus.completionRate)}% 완료
@@ -346,7 +364,7 @@ export function ProposalWriterPage() {
 
             <Button.Primary
               onClick={handleSubmitAndAnalyze}
-              disabled={analyzing || !completionStatus.isCompleted}
+              disabled={analyzing || !completionStatus.isCompleted || !selectedModel}
             >
               {analyzing ? (
                 <>

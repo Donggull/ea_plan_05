@@ -26,7 +26,9 @@ import { WorkflowStep } from '../../../types/documentAnalysis'
 import { useAuth } from '../../../contexts/AuthContext'
 import { PageContainer, PageHeader, PageContent, Card } from '../../../components/LinearComponents'
 import { DocumentAnalysisDetailModal } from '../../../components/analysis/DocumentAnalysisDetailModal'
-import { supabase } from '../../../lib/supabase'
+import { ProjectNavigationHeader } from '../../../components/projects/ProjectNavigationHeader'
+import { AIModelSelector } from '../../../components/widgets/AIModelSelector'
+import { Badge } from '../../../components/LinearComponents'
 
 interface Document {
   id: string
@@ -51,6 +53,7 @@ export function DocumentAnalysisPage({}: DocumentAnalysisPageProps) {
   const { id: projectId } = useParams<{ id: string }>()
   const { user } = useAuth()
   const navigate = useNavigate()
+  // const { selectedModel } = useSelectedAIModel() // 현재 사용하지 않음
 
   const [selectedView, setSelectedView] = useState<'overview' | 'documents' | 'workflow' | 'insights'>('overview')
 
@@ -84,6 +87,7 @@ export function DocumentAnalysisPage({}: DocumentAnalysisPageProps) {
 
     setLoadingDocuments(true)
     try {
+      const { supabase } = await import('../../../lib/supabase')
       if (!supabase) {
         console.error('Supabase client not initialized')
         return
@@ -169,12 +173,32 @@ export function DocumentAnalysisPage({}: DocumentAnalysisPageProps) {
 
   return (
     <PageContainer>
+      {/* 프로젝트 네비게이션 헤더 */}
+      <ProjectNavigationHeader
+        projectId={projectId!}
+        currentPage="analysis"
+      />
+
       <PageHeader
         title="문서 분석"
         subtitle="AI 기반 문서 분석 및 워크플로우 인사이트"
         description="프로젝트 문서를 AI로 분석하여 워크플로우별 인사이트를 추출합니다"
         actions={
           <div className="flex items-center space-x-3">
+            {/* AI 모델 선택기 */}
+            <AIModelSelector
+              variant="compact"
+              showProviderInfo={true}
+            />
+
+            <button
+              onClick={() => navigate(`/projects/${projectId}/documents`)}
+              className="flex items-center space-x-2 px-3 py-2 text-primary-500 hover:text-primary-600 border border-primary-500/30 rounded-lg hover:bg-primary-500/10 transition-colors"
+            >
+              <Upload className="w-4 h-4" />
+              <span>문서 관리</span>
+            </button>
+
             <button
               onClick={refreshStatus}
               disabled={isLoading}
@@ -203,6 +227,11 @@ export function DocumentAnalysisPage({}: DocumentAnalysisPageProps) {
                 )}
               </button>
             )}
+
+            <Badge variant="primary">
+              <Brain className="w-3 h-3 mr-1" />
+              AI 분석
+            </Badge>
           </div>
         }
       />
