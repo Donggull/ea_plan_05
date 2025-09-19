@@ -23,10 +23,11 @@ interface DocumentAnalysisDetailModalProps {
   onClose: () => void
   document: {
     id: string
-    name: string
-    fileType: string
-    size: string
-    uploadedAt: string
+    file_name: string
+    file_type?: string | null
+    mime_type: string
+    file_size: number
+    created_at: string | null
   }
   analysisResult: DocumentAnalysisResult | null
   isAnalyzing?: boolean
@@ -40,6 +41,14 @@ export function DocumentAnalysisDetailModal({
   isAnalyzing = false
 }: DocumentAnalysisDetailModalProps) {
   const [activeTab, setActiveTab] = useState<'summary' | 'insights' | 'extracted' | 'recommendations'>('summary')
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes'
+    const k = 1024
+    const sizes = ['Bytes', 'KB', 'MB', 'GB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+  }
 
   if (!isOpen) return null
 
@@ -89,9 +98,9 @@ export function DocumentAnalysisDetailModal({
                 <FileText className="w-6 h-6 text-primary-500" />
               </div>
               <div>
-                <h2 className="text-text-primary font-semibold">{document.name}</h2>
+                <h2 className="text-text-primary font-semibold">{document.file_name}</h2>
                 <p className="text-text-secondary text-small">
-                  {document.fileType} • {document.size} • {new Date(document.uploadedAt).toLocaleDateString()}
+                  {document.file_type || document.mime_type} • {formatFileSize(document.file_size)} • {document.created_at ? new Date(document.created_at).toLocaleDateString() : ''}
                 </p>
               </div>
             </div>

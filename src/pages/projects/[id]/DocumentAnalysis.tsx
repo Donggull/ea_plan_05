@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import {
   FileText,
   RefreshCw,
@@ -16,17 +16,41 @@ import {
   FileSearch,
   Filter,
   ArrowRight,
-  Zap
+  Zap,
+  Eye,
+  Upload,
+  ExternalLink
 } from 'lucide-react'
 import { useDocumentAnalysis, useDocumentAnalysisStats } from '../../../hooks/useDocumentAnalysis'
 import { WorkflowStep } from '../../../types/documentAnalysis'
 import { useAuth } from '../../../contexts/AuthContext'
+import { PageContainer, PageHeader, PageContent, Card } from '../../../components/LinearComponents'
+import { DocumentAnalysisDetailModal } from '../../../components/analysis/DocumentAnalysisDetailModal'
+import { supabase } from '../../../lib/supabase'
+
+interface Document {
+  id: string
+  file_name: string
+  storage_path: string
+  file_size: number
+  mime_type: string
+  file_type?: string | null
+  project_id?: string
+  uploaded_by?: string | null
+  created_at: string | null
+  updated_at: string | null
+  metadata?: any
+  is_processed?: boolean | null
+  version?: number | null
+  parent_id?: string | null
+}
 
 interface DocumentAnalysisPageProps {}
 
 export function DocumentAnalysisPage({}: DocumentAnalysisPageProps) {
   const { id: projectId } = useParams<{ id: string }>()
   const { user } = useAuth()
+  const navigate = useNavigate()
 
   const [selectedView, setSelectedView] = useState<'overview' | 'documents' | 'workflow' | 'insights'>('overview')
 
@@ -44,8 +68,10 @@ export function DocumentAnalysisPage({}: DocumentAnalysisPageProps) {
   const stats = useDocumentAnalysisStats()
 
   // 문서 목록 조회
-  const [documents, setDocuments] = useState<any[]>([])
+  const [documents, setDocuments] = useState<Document[]>([])
   const [loadingDocuments, setLoadingDocuments] = useState(true)
+  const [selectedDocument, setSelectedDocument] = useState<Document | null>(null)
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
 
   useEffect(() => {
     if (projectId) {
@@ -58,9 +84,23 @@ export function DocumentAnalysisPage({}: DocumentAnalysisPageProps) {
 
     setLoadingDocuments(true)
     try {
-      // 실제 구현에서는 DocumentService를 통해 문서 목록을 가져와야 함
-      // 임시로 빈 배열 설정
-      setDocuments([])
+      if (!supabase) {
+        console.error('Supabase client not initialized')
+        return
+      }
+
+      const { data, error } = await supabase
+        .from('documents')
+        .select('*')
+        .eq('project_id', projectId)
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        console.error('문서 목록 조회 실패:', error)
+        return
+      }
+
+      setDocuments(data || [])
     } catch (error) {
       console.error('Failed to load documents:', error)
     } finally {
@@ -78,8 +118,19 @@ export function DocumentAnalysisPage({}: DocumentAnalysisPageProps) {
   }
 
   const handleDocumentClick = async (docId: string) => {
-    console.log('Document clicked:', docId)
-    // TODO: 문서 상세 모달 구현
+    const document = documents.find(doc => doc.id === docId)
+    if (document) {
+      setSelectedDocument(document)
+      setIsDetailModalOpen(true)
+    }
+  }
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes'
+    const k = 1024
+    const sizes = ['Bytes', 'KB', 'MB', 'GB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
   }
 
   const getWorkflowIcon = (step: WorkflowStep) => {
@@ -117,47 +168,46 @@ export function DocumentAnalysisPage({}: DocumentAnalysisPageProps) {
   }
 
   return (
-    <div className="space-y-6">
-      {/* 헤더 */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-h2 font-semibold text-text-primary">문서 분석</h1>
-          <p className="text-text-secondary mt-1">
-            프로젝트 문서를 AI로 분석하여 워크플로우별 인사이트를 추출합니다
-          </p>
-        </div>
-
-        <div className="flex items-center space-x-3">
-          <button
-            onClick={refreshStatus}
-            disabled={isLoading}
-            className="p-2 text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors"
-            title="새로고침"
-          >
-            <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
-          </button>
-
-          {hasDocuments && (
+    <PageContainer>
+      <PageHeader
+        title="문서 분석"
+        subtitle="AI 기반 문서 분석 및 워크플로우 인사이트"
+        description="프로젝트 문서를 AI로 분석하여 워크플로우별 인사이트를 추출합니다"
+        actions={
+          <div className="flex items-center space-x-3">
             <button
-              onClick={handleAnalyzeAll}
-              disabled={isAnalyzing}
-              className="flex items-center space-x-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50"
+              onClick={refreshStatus}
+              disabled={isLoading}
+              className="p-2 text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors"
+              title="새로고침"
             >
-              {isAnalyzing ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>분석 중...</span>
-                </>
-              ) : (
-                <>
-                  <Brain className="w-4 h-4" />
-                  <span>전체 분석 시작</span>
-                </>
-              )}
+              <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
             </button>
-          )}
-        </div>
-      </div>
+
+            {hasDocuments && (
+              <button
+                onClick={handleAnalyzeAll}
+                disabled={isAnalyzing}
+                className="flex items-center space-x-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50"
+              >
+                {isAnalyzing ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>분석 중...</span>
+                  </>
+                ) : (
+                  <>
+                    <Brain className="w-4 h-4" />
+                    <span>전체 분석 시작</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+        }
+      />
+
+      <PageContent>
 
       {/* 오류 표시 */}
       {error && (
@@ -279,7 +329,7 @@ export function DocumentAnalysisPage({}: DocumentAnalysisPageProps) {
         {selectedView === 'overview' && (
           <div className="space-y-6">
             {/* 워크플로우 준비도 미리보기 */}
-            <div className="bg-bg-secondary border border-border-primary rounded-lg p-6">
+            <Card>
               <h3 className="text-text-primary font-medium mb-4 flex items-center space-x-2">
                 <Target className="w-5 h-5" />
                 <span>워크플로우 준비도</span>
@@ -321,10 +371,10 @@ export function DocumentAnalysisPage({}: DocumentAnalysisPageProps) {
                   )
                 })}
               </div>
-            </div>
+            </Card>
 
             {/* 최근 분석 활동 */}
-            <div className="bg-bg-secondary border border-border-primary rounded-lg p-6">
+            <Card>
               <h3 className="text-text-primary font-medium mb-4 flex items-center space-x-2">
                 <Clock className="w-5 h-5" />
                 <span>최근 분석 활동</span>
@@ -367,7 +417,7 @@ export function DocumentAnalysisPage({}: DocumentAnalysisPageProps) {
                   )}
                 </div>
               )}
-            </div>
+            </Card>
           </div>
         )}
 
@@ -375,13 +425,22 @@ export function DocumentAnalysisPage({}: DocumentAnalysisPageProps) {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-text-primary font-medium">문서별 분석 결과</h3>
-              <div className="flex items-center space-x-2">
-                <Filter className="w-4 h-4 text-text-muted" />
-                <select className="bg-bg-secondary border border-border-primary rounded-lg px-3 py-1 text-small">
-                  <option>모든 문서</option>
-                  <option>분석 완료</option>
-                  <option>분석 대기</option>
-                </select>
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={() => navigate('/documents')}
+                  className="flex items-center space-x-1 text-primary-500 hover:text-primary-600 text-small transition-colors"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  <span>문서 관리</span>
+                </button>
+                <div className="flex items-center space-x-2">
+                  <Filter className="w-4 h-4 text-text-muted" />
+                  <select className="bg-bg-secondary border border-border-primary rounded-lg px-3 py-1 text-small">
+                    <option>모든 문서</option>
+                    <option>분석 완료</option>
+                    <option>분석 대기</option>
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -394,29 +453,48 @@ export function DocumentAnalysisPage({}: DocumentAnalysisPageProps) {
               <div className="text-center py-12">
                 <FileText className="w-16 h-16 text-text-muted mx-auto mb-4" />
                 <p className="text-text-secondary mb-2">업로드된 문서가 없습니다</p>
-                <p className="text-mini text-text-muted">프로젝트에 문서를 업로드한 후 분석을 시작해보세요</p>
+                <p className="text-mini text-text-muted mb-4">프로젝트에 문서를 업로드한 후 분석을 시작해보세요</p>
+                <div className="flex justify-center space-x-3">
+                  <button
+                    onClick={() => navigate('/documents')}
+                    className="flex items-center space-x-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
+                  >
+                    <Upload className="w-4 h-4" />
+                    <span>문서 업로드</span>
+                  </button>
+                  <button
+                    onClick={() => navigate("/projects/" + projectId)}
+                    className="flex items-center space-x-2 px-4 py-2 border border-border-primary text-text-primary rounded-lg hover:bg-bg-tertiary transition-colors"
+                  >
+                    <ArrowRight className="w-4 h-4" />
+                    <span>프로젝트로 돌아가기</span>
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-4">
                 {documents.map((doc) => (
                   <div
                     key={doc.id}
-                    className="border border-border-primary rounded-lg p-4 hover:bg-bg-tertiary transition-colors cursor-pointer"
+                    className="bg-bg-secondary border border-border-primary rounded-lg p-4 hover:bg-bg-tertiary transition-colors cursor-pointer"
                     onClick={() => handleDocumentClick(doc.id)}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-3">
                         <FileText className="w-5 h-5 text-primary-500" />
                         <div>
-                          <p className="text-small font-medium text-text-primary">{doc.name}</p>
+                          <p className="text-small font-medium text-text-primary">{doc.file_name}</p>
                           <p className="text-mini text-text-secondary">
-                            {doc.fileType} • {doc.size}
+                            {doc.file_type || doc.mime_type} • {formatFileSize(doc.file_size)}
+                          </p>
+                          <p className="text-mini text-text-muted">
+                            {doc.created_at ? new Date(doc.created_at).toLocaleDateString() : ''}
                           </p>
                         </div>
                       </div>
 
                       <div className="flex items-center space-x-3">
-                        {doc.analyzed ? (
+                        {doc.is_processed ? (
                           <div className="flex items-center space-x-1">
                             <CheckCircle className="w-4 h-4 text-accent-green" />
                             <span className="text-mini text-accent-green">분석 완료</span>
@@ -427,6 +505,7 @@ export function DocumentAnalysisPage({}: DocumentAnalysisPageProps) {
                             <span className="text-mini text-text-muted">분석 대기</span>
                           </div>
                         )}
+                        <Eye className="w-4 h-4 text-text-muted" />
                         <ArrowRight className="w-4 h-4 text-text-muted" />
                       </div>
                     </div>
@@ -445,10 +524,7 @@ export function DocumentAnalysisPage({}: DocumentAnalysisPageProps) {
                 const readinessNum = typeof readiness === 'number' ? readiness : 0
 
                 return (
-                  <div
-                    key={step}
-                    className="bg-bg-secondary border border-border-primary rounded-lg p-6"
-                  >
+                  <Card key={step}>
                     <div className="flex items-center space-x-3 mb-4">
                       <div className="p-2 bg-primary-500/10 rounded-lg">
                         <Icon className="w-5 h-5 text-primary-500" />
@@ -500,7 +576,7 @@ export function DocumentAnalysisPage({}: DocumentAnalysisPageProps) {
                         </div>
                       )}
                     </div>
-                  </div>
+                  </Card>
                 )
               })}
             </div>
@@ -512,7 +588,7 @@ export function DocumentAnalysisPage({}: DocumentAnalysisPageProps) {
             {analysisResult ? (
               <div className="space-y-6">
                 {/* 전체 요약 */}
-                <div className="bg-bg-secondary border border-border-primary rounded-lg p-6">
+                <Card>
                   <h3 className="text-text-primary font-medium mb-3 flex items-center space-x-2">
                     <Brain className="w-5 h-5" />
                     <span>전체 분석 요약</span>
@@ -520,10 +596,10 @@ export function DocumentAnalysisPage({}: DocumentAnalysisPageProps) {
                   <p className="text-small text-text-secondary leading-relaxed">
                     {analysisResult.overallSummary}
                   </p>
-                </div>
+                </Card>
 
                 {/* 다음 단계 */}
-                <div className="bg-bg-secondary border border-border-primary rounded-lg p-6">
+                <Card>
                   <h3 className="text-text-primary font-medium mb-3 flex items-center space-x-2">
                     <ArrowRight className="w-5 h-5" />
                     <span>권장 다음 단계</span>
@@ -536,11 +612,11 @@ export function DocumentAnalysisPage({}: DocumentAnalysisPageProps) {
                       </div>
                     ))}
                   </div>
-                </div>
+                </Card>
 
                 {/* 비용 정보 */}
                 {analysisResult.costSummary && (
-                  <div className="bg-bg-secondary border border-border-primary rounded-lg p-6">
+                  <Card>
                     <h3 className="text-text-primary font-medium mb-3 flex items-center space-x-2">
                       <DollarSign className="w-5 h-5" />
                       <span>분석 비용</span>
@@ -565,7 +641,7 @@ export function DocumentAnalysisPage({}: DocumentAnalysisPageProps) {
                         </p>
                       </div>
                     </div>
-                  </div>
+                  </Card>
                 )}
               </div>
             ) : (
@@ -577,7 +653,22 @@ export function DocumentAnalysisPage({}: DocumentAnalysisPageProps) {
             )}
           </div>
         )}
-      </div>
-    </div>
+        </div>
+      </PageContent>
+
+      {/* 문서 상세 분석 모달 */}
+      {selectedDocument && (
+        <DocumentAnalysisDetailModal
+          isOpen={isDetailModalOpen}
+          onClose={() => {
+            setIsDetailModalOpen(false)
+            setSelectedDocument(null)
+          }}
+          document={selectedDocument}
+          analysisResult={null}
+          isAnalyzing={isAnalyzing}
+        />
+      )}
+    </PageContainer>
   )
 }
