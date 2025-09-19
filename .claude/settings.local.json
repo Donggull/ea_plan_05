@@ -45,7 +45,8 @@
       "Bash(grep:*)",
       "mcp__supabase__list_extensions",
       "Bash(copy \"D:\\ea_plan_05\\src\\lib\\supabase.ts\" \"D:\\ea_plan_05\\src\\lib\\supabase.ts.backup\")",
-      "mcp__github-mcp__git-flow"
+      "mcp__github-mcp__git-flow",
+      "mcp__github-mcp__git-pull"
     ],
     "deny": [],
     "ask": []
