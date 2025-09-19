@@ -242,7 +242,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return
     }
 
+    // 전역 플래그로 추가 중복 실행 방지
+    if (typeof window !== 'undefined' && window.__authStoreInitializing) {
+      console.log('🔄 Auth store initialization blocked by global flag')
+      return
+    }
+
     console.log('🚀 Starting auth initialization...')
+
+    if (typeof window !== 'undefined') {
+      window.__authStoreInitializing = true
+    }
+
     set({ isLoading: true, error: null })
 
     try {
@@ -299,10 +310,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       })
 
       // Auth 상태 변경 리스너 (클라이언트에서만, 한 번만 설정)
-      if (typeof window !== 'undefined' && !window.__supabaseAuthListenerSet) {
-        window.__supabaseAuthListenerSet = true
+      if (typeof window !== 'undefined') {
+        // 기존 리스너가 있다면 정리
+        if (window.__supabaseAuthUnsubscribe) {
+          window.__supabaseAuthUnsubscribe()
+        }
 
-        supabase.auth.onAuthStateChange(async (event, session) => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
           console.log('Auth state changed:', event, session?.user?.email)
 
           if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
@@ -345,6 +359,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             })
           }
         })
+
+        // unsubscribe 함수를 전역으로 저장하여 중복 등록 방지
+        window.__supabaseAuthUnsubscribe = subscription.unsubscribe
       }
 
     } catch (error: any) {
@@ -358,6 +375,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isInitialized: true,
         error: error.message || 'Authentication initialization failed'
       })
+    } finally {
+      // 전역 플래그 해제
+      if (typeof window !== 'undefined') {
+        window.__authStoreInitializing = false
+      }
     }
   },
 }))

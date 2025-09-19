@@ -40,41 +40,48 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setIsClient(true)
   }, [])
 
-  // 디버깅용 상태 로그 (클라이언트에서만)
+  // 디버깅용 상태 로그 (개발 환경에서만, 초기화 완료 시에만)
   useEffect(() => {
-    if (!isClient) return
+    if (!isClient || process.env['NODE_ENV'] === 'production') return
 
-    console.log('🏗️ AuthProvider state update:', {
-      isInitialized: authStore.isInitialized,
-      isLoading: authStore.isLoading,
-      isAuthenticated: authStore.isAuthenticated,
-      hasUser: !!authStore.user,
-      hasSession: !!authStore.session,
-      hasError: !!authStore.error
-    })
-  }, [
-    isClient,
-    authStore.isInitialized,
-    authStore.isLoading,
-    authStore.isAuthenticated,
-    authStore.user,
-    authStore.session,
-    authStore.error
-  ])
+    // 초기화 완료 후 한 번만 로그 출력
+    if (authStore.isInitialized && !authStore.isLoading) {
+      console.log('🏗️ AuthProvider initialized:', {
+        isAuthenticated: authStore.isAuthenticated,
+        hasUser: !!authStore.user,
+        hasSession: !!authStore.session,
+        hasError: !!authStore.error
+      })
+    }
+  }, [isClient, authStore.isInitialized])
 
   useEffect(() => {
     // 클라이언트에서만 인증 상태 초기화
     if (!isClient) return
 
+    // 중복 초기화 방지를 위한 전역 플래그 체크
+    if (typeof window !== 'undefined' && window.__authInitializing) {
+      return
+    }
+
     // 인증 상태 초기화 - 한 번만 실행되도록 보장
     if (!authStore.isInitialized && !authStore.isLoading) {
+      if (typeof window !== 'undefined') {
+        window.__authInitializing = true
+      }
+
       console.log('🔄 AuthContext: Triggering auth initialization...')
 
-      // Promise 체인으로 초기화 상태 보장 (AuthStore에서 자체적으로 에러 처리함)
-      authStore.initialize().catch((error) => {
-        console.error('❌ AuthContext initialization failed:', error)
-        // AuthStore에서 이미 에러 처리하므로 추가 처리는 불필요
-      })
+      // Promise 체인으로 초기화 상태 보장
+      authStore.initialize()
+        .catch((error) => {
+          console.error('❌ AuthContext initialization failed:', error)
+        })
+        .finally(() => {
+          if (typeof window !== 'undefined') {
+            window.__authInitializing = false
+          }
+        })
     }
   }, [isClient]) // isClient만 의존성으로 설정하여 중복 실행 방지
 
