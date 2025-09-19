@@ -70,8 +70,18 @@ export function DocumentAnalysisPage() {
       setLoading(true)
       setError(null)
 
-      // 프로젝트 문서 목록 조회
-      const projectDocuments = await ProposalDataManager.getProjectDocuments(id)
+      console.log('🔄 DocumentAnalysis: Loading documents for project:', id)
+
+      // 프로젝트 문서 목록 조회 (안전한 처리)
+      let projectDocuments = []
+      try {
+        projectDocuments = await ProposalDataManager.getProjectDocuments(id)
+        console.log('📁 Loaded documents:', projectDocuments.length)
+      } catch (docError) {
+        console.warn('⚠️ Document loading failed, using empty list:', docError)
+        projectDocuments = []
+      }
+
       const documentList = projectDocuments.map(doc => ({
         id: doc.id,
         file_name: doc.file_name,
@@ -81,8 +91,15 @@ export function DocumentAnalysisPage() {
       }))
       setDocuments(documentList)
 
-      // 기존 질문이 있는지 확인
-      let existingQuestions = await ProposalDataManager.getQuestions(id, 'document_analysis')
+      // 기존 질문이 있는지 확인 (안전한 처리)
+      let existingQuestions: ProposalWorkflowQuestion[] = []
+      try {
+        existingQuestions = await ProposalDataManager.getQuestions(id, 'document_analysis')
+        console.log('❓ Loaded questions:', existingQuestions.length)
+      } catch (questionError) {
+        console.warn('⚠️ Question loading failed, using default questions:', questionError)
+        existingQuestions = []
+      }
 
       if (existingQuestions.length === 0) {
         // 기본 질문들 사용
@@ -170,9 +187,22 @@ export function DocumentAnalysisPage() {
 
       setCategories(categoryList)
 
-      // 완료 상태 업데이트
-      const status = await ProposalDataManager.getStepCompletionStatus(id, 'document_analysis')
-      setCompletionStatus(status)
+      // 완료 상태 업데이트 (안전한 처리)
+      try {
+        const status = await ProposalDataManager.getStepCompletionStatus(id, 'document_analysis')
+        setCompletionStatus(status)
+        console.log('✅ Completion status loaded:', status)
+      } catch (statusError) {
+        console.warn('⚠️ Status loading failed, using default:', statusError)
+        setCompletionStatus({
+          totalQuestions: 0,
+          answeredQuestions: 0,
+          requiredQuestions: 0,
+          answeredRequiredQuestions: 0,
+          isCompleted: false,
+          completionRate: 0
+        })
+      }
 
     } catch (err) {
       console.error('Failed to load documents and questions:', err)

@@ -145,7 +145,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   refreshSession: async () => {
+    const { session, isAuthenticated } = get()
+
+    // 세션이 없거나 인증되지 않은 경우 스킵
+    if (!session || !isAuthenticated) {
+      console.log('⏭️ Skipping refresh - no active session')
+      return
+    }
+
+    // 토큰 만료 시간 확인 - 30분 이상 남았으면 스킵
+    const now = Math.floor(Date.now() / 1000)
+    const expiresAt = session.expires_at
+    if (expiresAt && (expiresAt - now) > 1800) { // 30분
+      console.log('⏭️ Skipping refresh - token still valid for 30+ minutes')
+      return
+    }
+
     try {
+      console.log('🔄 Refreshing session token...')
       const supabase = getSupabaseClient()
       const { data, error } = await supabase.auth.refreshSession()
       if (error) throw error
@@ -156,9 +173,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           session: data.session,
           isAuthenticated: true,
         })
+        console.log('✅ Session refreshed successfully')
       }
     } catch (error: any) {
-      console.error('Session refresh error:', error)
+      console.error('❌ Session refresh error:', error)
       set({ error: error.message })
     }
   },

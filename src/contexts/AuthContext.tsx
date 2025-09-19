@@ -66,34 +66,51 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return () => clearInterval(refreshInterval)
   }, [isClient, authStore.isAuthenticated])
 
-  // 브라우저 종료 시 세션 정리 (단순화)
+  // 브라우저 창 간 세션 유지 관리 (개선)
   useEffect(() => {
     if (!isClient) return
 
     const handleBeforeUnload = () => {
-      localStorage.setItem('auth-unload-time', Date.now().toString())
+      // 브라우저 창 이동/새로고침을 위한 플래그 설정
+      sessionStorage.setItem('auth-tab-active', 'false')
+      localStorage.setItem('auth-last-activity', Date.now().toString())
+    }
+
+    const handleFocus = () => {
+      // 브라우저 창으로 돌아왔을 때 활성화 표시
+      sessionStorage.setItem('auth-tab-active', 'true')
     }
 
     const checkPreviousSession = () => {
-      const unloadTime = localStorage.getItem('auth-unload-time')
-      if (unloadTime) {
-        const now = Date.now()
-        const timeDiff = now - parseInt(unloadTime)
+      // 세션 활성화 플래그가 있으면 이전 세션 유지
+      const wasTabActive = sessionStorage.getItem('auth-tab-active')
+      const lastActivity = localStorage.getItem('auth-last-activity')
 
-        // 10분 이상 비활성 상태였다면 세션 종료
-        if (timeDiff > 10 * 60 * 1000) {
-          console.log('Previous session expired due to inactivity')
+      if (wasTabActive === 'false' && lastActivity) {
+        const now = Date.now()
+        const timeDiff = now - parseInt(lastActivity)
+
+        // 30분 이상 비활성 상태였다면 세션 종료 (10분 → 30분으로 완화)
+        if (timeDiff > 30 * 60 * 1000) {
+          console.log('Previous session expired due to long inactivity')
           authStore.signOut()
+        } else {
+          console.log('Previous session maintained - returning from tab switch')
         }
-        localStorage.removeItem('auth-unload-time')
+        localStorage.removeItem('auth-last-activity')
       }
+
+      // 현재 탭 활성화 표시
+      sessionStorage.setItem('auth-tab-active', 'true')
     }
 
     checkPreviousSession()
     window.addEventListener('beforeunload', handleBeforeUnload)
+    window.addEventListener('focus', handleFocus)
 
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload)
+      window.removeEventListener('focus', handleFocus)
     }
   }, [isClient])
 
