@@ -137,6 +137,7 @@ export function ReportModal({
   // 단계별 제목
   const getStepTitle = (step: WorkflowStep) => {
     const titles = {
+      document_analysis: '문서 종합 분석',
       market_research: '시장 조사',
       personas: '페르소나 분석',
       proposal: '제안서',

@@ -2,7 +2,7 @@
 
 export type ProjectType = 'proposal' | 'construction' | 'operation'
 
-export type WorkflowStep = 'market_research' | 'personas' | 'proposal' | 'budget'
+export type WorkflowStep = 'document_analysis' | 'market_research' | 'personas' | 'proposal' | 'budget'
 
 export interface ProjectTypeConfig {
   id: ProjectType
@@ -31,9 +31,9 @@ export const PROJECT_TYPE_CONFIGS: Record<ProjectType, ProjectTypeConfig> = {
   proposal: {
     id: 'proposal',
     name: '제안 진행',
-    description: 'AI 기반 시장 조사, 페르소나 분석, 제안서 작성 및 예산 계획',
+    description: 'AI 기반 문서 분석, 시장 조사, 페르소나 분석, 제안서 작성 및 예산 계획',
     icon: 'FileText',
-    availableSteps: ['market_research', 'personas', 'proposal', 'budget'],
+    availableSteps: ['document_analysis', 'market_research', 'personas', 'proposal', 'budget'],
     isEnabled: true
   },
   construction: {
@@ -62,12 +62,20 @@ export const WORKFLOW_STEP_CONFIGS: Record<WorkflowStep, {
   order: number
   estimatedTime: string
 }> = {
+  document_analysis: {
+    id: 'document_analysis',
+    name: '문서 종합 분석',
+    description: '업로드된 문서의 종합적 분석 및 프로젝트 맥락 파악',
+    icon: 'FileSearch',
+    order: 1,
+    estimatedTime: '0.5-1일'
+  },
   market_research: {
     id: 'market_research',
     name: '시장 조사',
     description: '시장 규모, 경쟁사 분석, 성장률 등 시장 환경 분석',
     icon: 'TrendingUp',
-    order: 1,
+    order: 2,
     estimatedTime: '1-2일'
   },
   personas: {
@@ -75,7 +83,7 @@ export const WORKFLOW_STEP_CONFIGS: Record<WorkflowStep, {
     name: '페르소나 분석',
     description: '타겟 고객 분석 및 사용자 페르소나 정의',
     icon: 'Users',
-    order: 2,
+    order: 3,
     estimatedTime: '1-2일'
   },
   proposal: {
@@ -83,7 +91,7 @@ export const WORKFLOW_STEP_CONFIGS: Record<WorkflowStep, {
     name: '제안서 작성',
     description: '종합 분석 기반 제안서 및 솔루션 문서 작성',
     icon: 'FileText',
-    order: 3,
+    order: 4,
     estimatedTime: '2-3일'
   },
   budget: {
@@ -91,7 +99,7 @@ export const WORKFLOW_STEP_CONFIGS: Record<WorkflowStep, {
     name: '예산 계획',
     description: '프로젝트 예산 산정 및 비용 계획 수립',
     icon: 'DollarSign',
-    order: 4,
+    order: 5,
     estimatedTime: '1일'
   }
 }

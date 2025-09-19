@@ -9,7 +9,8 @@ import {
   Zap,
   FileText,
   Target,
-  DollarSign
+  DollarSign,
+  FileSearch
 } from 'lucide-react'
 import { Card, Button } from '../LinearComponents'
 import { WorkflowStep } from '../../services/proposal/aiQuestionGenerator'
@@ -38,6 +39,7 @@ interface AnalysisProgressModalProps {
 }
 
 const STEP_ICONS = {
+  document_analysis: FileSearch,
   market_research: Target,
   personas: Brain,
   proposal: FileText,
@@ -45,6 +47,7 @@ const STEP_ICONS = {
 }
 
 const STEP_NAMES = {
+  document_analysis: '문서 종합 분석',
   market_research: '시장 조사',
   personas: '페르소나 분석',
   proposal: '제안서 작성',

@@ -24,8 +24,37 @@ export interface QuestionResponse {
   notes?: string
 }
 
-// 워크플로우 단계 정의
-export type WorkflowStep = 'market_research' | 'personas' | 'proposal' | 'budget'
+// 워크플로우 단계 정의 (project.ts의 WorkflowStep을 import)
+import type { WorkflowStep } from '../../types/project'
+export type { WorkflowStep }
+
+// 문서 분석 질문 템플릿
+const DOCUMENT_ANALYSIS_QUESTIONS: Omit<Question, 'id'>[] = [
+  {
+    category: '프로젝트 개요',
+    text: '프로젝트의 주요 목표를 간단히 설명해주세요.',
+    type: 'textarea',
+    required: true,
+    order: 1,
+    helpText: '업로드된 문서에서 파악하기 어려운 핵심 목표나 의도를 보완해주세요'
+  },
+  {
+    category: '도메인 정보',
+    text: '이 프로젝트가 속한 비즈니스 도메인이나 산업 분야는 무엇인가요?',
+    type: 'text',
+    required: true,
+    order: 2,
+    helpText: '예: 헬스케어, 핀테크, 교육, 커머스 등'
+  },
+  {
+    category: '추가 맥락',
+    text: '문서에서 확인하기 어려운 배경 정보나 제약사항이 있다면 설명해주세요.',
+    type: 'textarea',
+    required: false,
+    order: 3,
+    helpText: '예산, 일정, 기술적 제약, 규제 사항 등'
+  }
+]
 
 // 시장 조사 질문 템플릿
 const MARKET_RESEARCH_QUESTIONS: Omit<Question, 'id'>[] = [
@@ -257,6 +286,9 @@ export class AIQuestionGenerator {
     let baseQuestions: Omit<Question, 'id'>[]
 
     switch (step) {
+      case 'document_analysis':
+        baseQuestions = DOCUMENT_ANALYSIS_QUESTIONS
+        break
       case 'market_research':
         baseQuestions = MARKET_RESEARCH_QUESTIONS
         break
@@ -280,12 +312,12 @@ export class AIQuestionGenerator {
   }
 
   /**
-   * 프로젝트 문서 기반 동적 질문 생성
+   * 프로젝트 문서 기반 동적 질문 생성 (이전 단계 결과 활용)
    */
   static async generateDynamicQuestions(
     projectId: string,
     step: WorkflowStep,
-    _additionalContext?: string
+    additionalContext?: string
   ): Promise<Question[]> {
     try {
       // 프로젝트 기본 정보 조회
@@ -302,9 +334,21 @@ export class AIQuestionGenerator {
         .eq('project_id', projectId)
         .limit(5)
 
+      // 이전 단계들의 분석 결과 조회 (동적 임포트로 순환 참조 방지)
+      const { StepIntegrationService } = await import('./stepIntegrationService')
+      const integratedContext = await StepIntegrationService.getIntegratedContext(projectId)
+
       // 기본 질문에 동적 질문 추가
       const baseQuestions = this.generateQuestions(step, projectId)
       const dynamicQuestions: Question[] = []
+
+      // 이전 단계 결과 기반 맥락 정보 질문 추가
+      const contextQuestions = this.generateContextAwareQuestions(
+        step,
+        projectId,
+        integratedContext
+      )
+      dynamicQuestions.push(...contextQuestions)
 
       if (project && documents) {
         // 프로젝트 타입 기반 추가 질문
@@ -334,12 +378,167 @@ export class AIQuestionGenerator {
         }
       }
 
+      // 추가 맥락 정보가 있다면 질문에 반영
+      if (additionalContext) {
+        dynamicQuestions.push({
+          id: `${step}_context_${projectId}_1`,
+          category: '맥락 정보',
+          text: '이전 단계 분석 결과를 바탕으로 추가로 고려해야 할 사항이 있습니까?',
+          type: 'textarea',
+          required: false,
+          order: 102,
+          helpText: additionalContext
+        })
+      }
+
       return [...baseQuestions, ...dynamicQuestions]
     } catch (error) {
       console.error('Dynamic questions generation failed:', error)
       // 실패 시 기본 질문만 반환
       return this.generateQuestions(step, projectId)
     }
+  }
+
+  /**
+   * 이전 단계 분석 결과를 기반으로 맥락 인식 질문 생성
+   */
+  static generateContextAwareQuestions(
+    step: WorkflowStep,
+    projectId: string,
+    integratedContext: any
+  ): Question[] {
+    const contextQuestions: Question[] = []
+
+    switch (step) {
+      case 'market_research':
+        // 문서 분석 결과를 활용한 시장 조사 질문
+        if (integratedContext.document_analysis) {
+          const docResult = integratedContext.document_analysis.analysisResult
+
+          if (docResult?.businessDomain) {
+            contextQuestions.push({
+              id: `${step}_context_${projectId}_domain`,
+              category: '맥락 기반 분석',
+              text: `문서 분석에서 파악된 '${docResult.businessDomain}' 도메인의 특수성을 고려할 때, 추가로 조사해야 할 시장 요소가 있습니까?`,
+              type: 'textarea',
+              required: false,
+              order: 90,
+              helpText: '도메인별 특수한 시장 환경이나 규제 사항을 고려해주세요'
+            })
+          }
+
+          if (docResult?.targetAudience) {
+            contextQuestions.push({
+              id: `${step}_context_${projectId}_audience`,
+              category: '맥락 기반 분석',
+              text: `문서에서 파악된 타겟 고객층(${docResult.targetAudience})을 고려할 때, 시장 세분화 전략에서 중점을 둘 부분은 무엇입니까?`,
+              type: 'textarea',
+              required: false,
+              order: 91,
+              helpText: '특정 고객층의 특성을 반영한 시장 접근법을 설명해주세요'
+            })
+          }
+        }
+        break
+
+      case 'personas':
+        // 문서 분석과 시장 조사 결과를 활용한 페르소나 질문
+        if (integratedContext.document_analysis && integratedContext.market_research) {
+          const docResult = integratedContext.document_analysis.analysisResult
+          const marketResult = integratedContext.market_research.analysisResult
+
+          if (docResult?.userNeeds && marketResult?.customerSegments) {
+            contextQuestions.push({
+              id: `${step}_context_${projectId}_segments`,
+              category: '통합 분석 기반',
+              text: `문서에서 파악된 사용자 니즈와 시장 조사에서 발견된 고객 세그먼트를 종합할 때, 가장 우선순위가 높은 페르소나는 누구입니까?`,
+              type: 'textarea',
+              required: false,
+              order: 90,
+              helpText: '두 분석 결과의 교집합에서 핵심 페르소나를 도출해주세요'
+            })
+          }
+
+          if (marketResult?.painPoints) {
+            contextQuestions.push({
+              id: `${step}_context_${projectId}_painpoints`,
+              category: '통합 분석 기반',
+              text: `시장 조사에서 파악된 고객 Pain Points를 바탕으로, 페르소나별로 어떤 차별화된 해결책이 필요합니까?`,
+              type: 'textarea',
+              required: false,
+              order: 91,
+              helpText: '세그먼트별 맞춤형 솔루션 접근법을 설명해주세요'
+            })
+          }
+        }
+        break
+
+      case 'proposal':
+        // 모든 이전 단계 결과를 활용한 제안서 질문
+        if (Object.keys(integratedContext).length > 0) {
+          contextQuestions.push({
+            id: `${step}_context_${projectId}_integration`,
+            category: '통합 솔루션 설계',
+            text: `이전 단계들에서 도출된 인사이트를 종합할 때, 가장 차별화된 가치 제안은 무엇입니까?`,
+            type: 'textarea',
+            required: false,
+            order: 90,
+            helpText: '문서 분석, 시장 조사, 페르소나 분석의 핵심 발견사항을 통합한 독특한 가치를 제시해주세요'
+          })
+
+          if (integratedContext.personas?.analysisResult?.primaryPersona) {
+            const persona = integratedContext.personas.analysisResult.primaryPersona
+            contextQuestions.push({
+              id: `${step}_context_${projectId}_persona_solution`,
+              category: '페르소나 기반 솔루션',
+              text: `주요 페르소나 '${persona.name}'의 특성을 고려할 때, 솔루션의 핵심 기능과 UX는 어떻게 설계되어야 합니까?`,
+              type: 'textarea',
+              required: false,
+              order: 91,
+              helpText: '페르소나의 니즈와 행동 패턴에 최적화된 솔루션을 설계해주세요'
+            })
+          }
+        }
+        break
+
+      case 'budget':
+        // 모든 이전 단계 결과를 활용한 비용 산정 질문
+        if (integratedContext.proposal?.analysisResult) {
+          const proposalResult = integratedContext.proposal.analysisResult
+
+          if (proposalResult.technicalComplexity) {
+            contextQuestions.push({
+              id: `${step}_context_${projectId}_complexity`,
+              category: '복잡도 기반 비용',
+              text: `제안된 솔루션의 기술적 복잡도(${proposalResult.technicalComplexity})를 고려할 때, 리스크 대응을 위한 예비 비용은 어느 정도가 적절합니까?`,
+              type: 'select',
+              options: ['5%', '10%', '15%', '20%', '25%'],
+              required: false,
+              order: 90,
+              helpText: '기술적 복잡도에 따른 리스크 버퍼를 설정해주세요'
+            })
+          }
+
+          if (integratedContext.market_research?.analysisResult?.competitorPricing) {
+            contextQuestions.push({
+              id: `${step}_context_${projectId}_competitive_pricing`,
+              category: '경쟁력 있는 가격 책정',
+              text: `시장 조사에서 파악된 경쟁사 가격대를 고려할 때, 가격 경쟁력을 위한 조정 사항이 있습니까?`,
+              type: 'textarea',
+              required: false,
+              order: 91,
+              helpText: '경쟁력 있는 가격으로 조정하기 위한 비용 최적화 방안을 제시해주세요'
+            })
+          }
+        }
+        break
+
+      case 'document_analysis':
+        // 문서 분석은 첫 단계이므로 기본 질문만 사용
+        break
+    }
+
+    return contextQuestions
   }
 
   /**

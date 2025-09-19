@@ -10,7 +10,8 @@ import {
   Users,
   DollarSign,
   ArrowRight,
-  Settings
+  Settings,
+  FileSearch
 } from 'lucide-react'
 import {
   ProjectType,
@@ -25,6 +26,7 @@ interface ProjectWorkflowCardProps {
 }
 
 const STEP_ICONS = {
+  document_analysis: FileSearch,
   market_research: TrendingUp,
   personas: Users,
   proposal: FileText,
