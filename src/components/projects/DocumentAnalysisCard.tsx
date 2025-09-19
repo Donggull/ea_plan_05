@@ -17,6 +17,7 @@ import {
 import { Card, Badge, ProgressBar } from '../LinearComponents'
 import { useDocumentAnalysis } from '../../hooks/useDocumentAnalysis'
 import { useAuth } from '../../contexts/AuthContext'
+import { useAIModel } from '../../contexts/AIModelContext'
 
 interface DocumentAnalysisCardProps {
   projectId: string
@@ -38,6 +39,7 @@ export function DocumentAnalysisCard({
 }: DocumentAnalysisCardProps) {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { getSelectedModel } = useAIModel()
   const [documentCount, setDocumentCount] = useState(0)
   const [loadingDocs, setLoadingDocs] = useState(true)
 
@@ -138,7 +140,12 @@ export function DocumentAnalysisCard({
   // 전체 분석 실행
   const handleAnalyzeAll = async () => {
     if (!projectId || !user || !hasDocuments) return
+
+    const selectedModel = getSelectedModel()
+    const modelId = selectedModel?.id
+
     await analyzeDocuments({
+      modelId,
       forceReanalysis: false,
       targetSteps: ['market_research', 'personas', 'proposal', 'budget']
     })

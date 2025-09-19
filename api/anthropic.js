@@ -17,12 +17,14 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: 'Anthropic API key is not configured' })
     }
 
-    console.log('🔄 Anthropic API Proxy:', {
+    console.log('🔄 Anthropic API Proxy 요청:', {
       method: req.method,
       hasEnvApiKey: !!process.env.VITE_ANTHROPIC_API_KEY,
       hasHeaderApiKey: !!req.headers['x-api-key'],
       apiKeySource: process.env.VITE_ANTHROPIC_API_KEY ? 'environment' : 'header',
-      apiKeyLength: apiKey?.length
+      apiKeyLength: apiKey?.length,
+      requestBodyKeys: req.body ? Object.keys(req.body) : [],
+      requestBodySize: req.body ? JSON.stringify(req.body).length : 0
     })
 
     // Anthropic API로 프록시
@@ -40,15 +42,21 @@ export default async function handler(req, res) {
 
     const data = await response.json()
 
-    console.log('📡 Anthropic API Response:', {
+    console.log('📡 Anthropic API 응답:', {
       status: response.status,
-      ok: response.ok
+      ok: response.ok,
+      hasContent: !!data.content,
+      contentLength: data.content?.[0]?.text?.length || 0,
+      usage: data.usage,
+      error: data.error?.message
     })
 
     if (!response.ok) {
+      console.error('❌ Anthropic API 오류:', data)
       return res.status(response.status).json(data)
     }
 
+    console.log('✅ Anthropic API 성공 응답 전송')
     res.status(200).json(data)
   } catch (error) {
     console.error('❌ Anthropic API Proxy Error:', error)

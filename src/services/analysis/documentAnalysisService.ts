@@ -213,6 +213,7 @@ export class DocumentAnalysisService {
     try {
       // AI 모델 선택
       const selectedModel = await this.selectAIModel(context.projectId, userId, modelId)
+      console.log(`📊 선택된 모델:`, { selectedModel, originalModelId: modelId })
 
       // 프롬프트 생성
       const prompt = this.generateDocumentAnalysisPrompt(document, context)
@@ -413,18 +414,110 @@ export class DocumentAnalysisService {
 
       // 등록된 모델 목록 조회
       const availableModels = AIProviderFactory.getRegisteredModels()
-      const availableModelIds = availableModels.map(m => m.id)
+      const availableModelIds = new Set(availableModels.map(m => m.id))
+      const providerModelIdMap = new Map<string, string>()
 
-      console.log(`📋 사용 가능한 모델: ${availableModelIds.join(', ')}`)
+      availableModels.forEach(model => {
+        providerModelIdMap.set(model.model_id, model.id)
+        providerModelIdMap.set(model.id, model.id)
+      })
 
-      if (availableModelIds.length === 0) {
+      console.log(`📋 사용 가능한 모델: ${Array.from(availableModelIds).join(', ')}`)
+
+      if (availableModelIds.size === 0) {
         throw new Error('등록된 AI 모델이 없습니다. AI Provider Factory가 초기화되지 않았을 수 있습니다.')
       }
 
+      const resolutionCache = new Map<string, string | null>()
+
+      const resolveModelId = async (identifier?: string | null): Promise<string | null> => {
+        if (!identifier) return null
+
+        if (resolutionCache.has(identifier)) {
+          return resolutionCache.get(identifier) ?? null
+        }
+
+        if (availableModelIds.has(identifier)) {
+          resolutionCache.set(identifier, identifier)
+          return identifier
+        }
+
+        const mappedByProviderId = providerModelIdMap.get(identifier)
+        if (mappedByProviderId) {
+          resolutionCache.set(identifier, mappedByProviderId)
+          return mappedByProviderId
+        }
+
+        try {
+          const { data, error } = await supabase!
+            .from('ai_models')
+            .select('model_id, metadata')
+            .eq('id', identifier)
+            .single()
+
+          if (error) {
+            if (error.code !== 'PGRST116') {
+              console.warn('AI 모델 식별자 조회 실패:', error)
+            }
+          }
+
+          if (data) {
+            const candidates: string[] = []
+
+            if (typeof data.model_id === 'string') {
+              candidates.push(data.model_id)
+            }
+
+            const metadata = (data.metadata || {}) as Record<string, unknown>
+            const metadataKeys = [
+              'registry_model_id',
+              'registryModelId',
+              'factory_model_id',
+              'factoryModelId',
+              'provider_model_id',
+              'providerModelId',
+              'model_key',
+              'modelKey',
+              'modelId',
+              'id'
+            ]
+
+            const metadataCandidates = metadataKeys
+              .map(key => metadata[key])
+              .filter((value): value is string => typeof value === 'string' && value.length > 0)
+
+            candidates.push(...metadataCandidates)
+
+            for (const candidate of candidates) {
+              if (availableModelIds.has(candidate)) {
+                resolutionCache.set(identifier, candidate)
+                return candidate
+              }
+
+              const mapped = providerModelIdMap.get(candidate)
+              if (mapped) {
+                resolutionCache.set(identifier, mapped)
+                return mapped
+              }
+            }
+          }
+        } catch (dbError) {
+          console.warn('AI 모델 ID 변환 중 오류 발생:', dbError)
+        }
+
+        resolutionCache.set(identifier, null)
+        return null
+      }
+
       // 1. 명시적으로 제공된 모델 ID 확인
-      if (preferredModelId && availableModelIds.includes(preferredModelId)) {
-        console.log(`✅ 지정된 모델 선택: ${preferredModelId}`)
-        return preferredModelId
+      const resolvedPreferred = await resolveModelId(preferredModelId)
+      if (resolvedPreferred) {
+        console.log(`✅ 지정된 모델 선택: ${resolvedPreferred} (원본 ID: ${preferredModelId})`)
+        return resolvedPreferred
+      }
+
+      if (preferredModelId) {
+        console.warn(`⚠️ 지정된 모델(${preferredModelId})을 등록된 모델과 매칭하지 못했습니다. 다른 설정을 확인합니다.`)
       }
 
       // 2. 프로젝트별 설정 확인
@@ -437,16 +530,25 @@ export class DocumentAnalysisService {
       if (projectSettings?.analysis_model_mappings &&
           typeof projectSettings.analysis_model_mappings === 'object' &&
           'document_analysis' in projectSettings.analysis_model_mappings) {
-        const mappedModel = (projectSettings.analysis_model_mappings as any).document_analysis
-        if (availableModelIds.includes(mappedModel)) {
-          console.log(`✅ 프로젝트 매핑 모델 선택: ${mappedModel}`)
-          return mappedModel
+        const analysisMappings = projectSettings.analysis_model_mappings as Record<string, unknown>
+        const mappedModel = analysisMappings['document_analysis'] as string | undefined
+        const resolvedMapped = await resolveModelId(mappedModel)
+        if (resolvedMapped) {
+          console.log(`✅ 프로젝트 매핑 모델 선택: ${resolvedMapped}`)
+          return resolvedMapped
+        }
+        if (mappedModel) {
+          console.warn(`⚠️ 프로젝트 매핑 모델(${mappedModel})을 등록된 모델과 매칭하지 못했습니다.`)
         }
       }
 
-      if (projectSettings?.default_model_id && availableModelIds.includes(projectSettings.default_model_id)) {
-        console.log(`✅ 프로젝트 기본 모델 선택: ${projectSettings.default_model_id}`)
-        return projectSettings.default_model_id
+      if (projectSettings?.default_model_id) {
+        const resolvedDefault = await resolveModelId(projectSettings.default_model_id)
+        if (resolvedDefault) {
+          console.log(`✅ 프로젝트 기본 모델 선택: ${resolvedDefault}`)
+          return resolvedDefault
+        }
+        console.warn(`⚠️ 프로젝트 기본 모델(${projectSettings.default_model_id})을 등록된 모델과 매칭하지 못했습니다.`)
       }
 
       // 3. 사용자별 설정 확인
@@ -456,25 +558,35 @@ export class DocumentAnalysisService {
         .eq('user_id', userId)
         .single()
 
-      if (userSettings?.preferred_model_id && availableModelIds.includes(userSettings.preferred_model_id)) {
-        console.log(`✅ 사용자 선호 모델 선택: ${userSettings.preferred_model_id}`)
-        return userSettings.preferred_model_id
+      if (userSettings?.preferred_model_id) {
+        const resolvedUserModel = await resolveModelId(userSettings.preferred_model_id)
+        if (resolvedUserModel) {
+          console.log(`✅ 사용자 선호 모델 선택: ${resolvedUserModel}`)
+          return resolvedUserModel
+        }
+        console.warn(`⚠️ 사용자 선호 모델(${userSettings.preferred_model_id})을 등록된 모델과 매칭하지 못했습니다.`)
       }
 
-      // 4. 기본 모델들 우선순위
-      const defaultModelPriority = ['claude-3-sonnet', 'claude-3-opus', 'gpt-4o', 'gpt-4-turbo', 'gemini-pro']
+      // 4. 기본 모델들 우선순위 (활성화된 것만)
+      const defaultModelPriority = ['claude-3-opus', 'claude-3-sonnet', 'gpt-4o', 'gpt-4-turbo', 'gemini-pro']
 
       for (const defaultModel of defaultModelPriority) {
-        if (availableModelIds.includes(defaultModel)) {
+        if (availableModelIds.has(defaultModel)) {
           console.log(`✅ 기본 우선순위 모델 선택: ${defaultModel}`)
           return defaultModel
         }
       }
 
       // 5. 마지막으로 첫 번째 사용 가능한 모델
-      const fallbackModel = availableModelIds[0]
-      console.log(`⚠️ 폴백 모델 선택: ${fallbackModel}`)
-      return fallbackModel
+      if (availableModelIds.size > 0) {
+        const fallbackModel = Array.from(availableModelIds)[0]
+        console.log(`⚠️ 폴백 모델 선택: ${fallbackModel}`)
+        return fallbackModel
+      }
+
+      // 6. 아무 모델도 없으면 에러
+      console.error('🚨 사용 가능한 모델이 전혀 없습니다!')
+      throw new Error('사용 가능한 AI 모델이 없습니다. AI Provider Factory 초기화를 확인해주세요.')
 
     } catch (error) {
       console.warn('🚨 AI 모델 선택 실패, 폴백 시도:', error)
@@ -558,13 +670,37 @@ export class DocumentAnalysisService {
    */
   private static parseDocumentAnalysisResult(aiResponse: string): any {
     try {
-      const jsonMatch = aiResponse.match(/\{[\s\S]*\}/)
+      console.log('🔍 AI 응답 파싱 시작:', {
+        responseLength: aiResponse.length,
+        preview: aiResponse.substring(0, 200) + '...'
+      })
+
+      // JSON 블록 찾기 - 더 정확한 패턴 사용
+      const jsonMatch = aiResponse.match(/\{(?:[^{}]|{[^{}]*})*\}/s)
       if (jsonMatch) {
-        return JSON.parse(jsonMatch[0])
+        const parsedResult = JSON.parse(jsonMatch[0])
+        console.log('✅ JSON 파싱 성공:', {
+          hasKeyFields: !!(parsedResult.summary && parsedResult.keyInsights),
+          resultKeys: Object.keys(parsedResult)
+        })
+        return parsedResult
       }
-      throw new Error('No JSON found in AI response')
+
+      // JSON이 없으면 응답 전체를 텍스트로 처리
+      console.warn('⚠️ JSON 형식이 아닌 응답, 텍스트로 처리:', aiResponse.substring(0, 100))
+      return {
+        summary: aiResponse.substring(0, 500),
+        keyInsights: ['AI가 JSON 형식이 아닌 응답을 제공했습니다.'],
+        relevantWorkflowSteps: ['market_research', 'personas', 'proposal', 'budget'],
+        extractedData: {},
+        recommendations: ['문서 내용을 수동으로 검토해주세요.'],
+        confidence: 0.5
+      }
     } catch (error) {
-      console.error('Failed to parse document analysis result:', error)
+      console.error('❌ 문서 분석 결과 파싱 실패:', {
+        error: error instanceof Error ? error.message : String(error),
+        responsePreview: aiResponse.substring(0, 200)
+      })
       return {
         summary: '분석 결과를 파싱할 수 없습니다.',
         keyInsights: ['AI 응답 파싱 실패'],
@@ -581,13 +717,35 @@ export class DocumentAnalysisService {
    */
   private static parseWorkflowRecommendationsResult(aiResponse: string): any {
     try {
-      const jsonMatch = aiResponse.match(/\{[\s\S]*\}/)
+      console.log('🔍 워크플로우 권장사항 파싱 시작:', {
+        responseLength: aiResponse.length,
+        preview: aiResponse.substring(0, 200) + '...'
+      })
+
+      // JSON 블록 찾기 - 더 정확한 패턴 사용
+      const jsonMatch = aiResponse.match(/\{(?:[^{}]|{[^{}]*})*\}/s)
       if (jsonMatch) {
-        return JSON.parse(jsonMatch[0])
+        const parsedResult = JSON.parse(jsonMatch[0])
+        console.log('✅ 워크플로우 권장사항 JSON 파싱 성공:', {
+          hasOverallSummary: !!parsedResult.overallSummary,
+          hasWorkflowRecommendations: !!parsedResult.workflowRecommendations,
+          resultKeys: Object.keys(parsedResult)
+        })
+        return parsedResult
       }
-      throw new Error('No JSON found in AI response')
+
+      // JSON이 없으면 기본값 반환
+      console.warn('⚠️ 워크플로우 권장사항 JSON 형식 없음, 기본값 사용')
+      return {
+        overallSummary: aiResponse.substring(0, 500),
+        workflowRecommendations: {},
+        nextSteps: ['수동으로 워크플로우를 검토해주세요.']
+      }
     } catch (error) {
-      console.error('Failed to parse workflow recommendations result:', error)
+      console.error('❌ 워크플로우 권장사항 결과 파싱 실패:', {
+        error: error instanceof Error ? error.message : String(error),
+        responsePreview: aiResponse.substring(0, 200)
+      })
       return {
         overallSummary: '워크플로우 권장사항을 생성할 수 없습니다.',
         workflowRecommendations: {},

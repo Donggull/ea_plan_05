@@ -343,7 +343,8 @@ class AnthropicProvider extends BaseAIProvider {
       console.log('✅ Anthropic API 성공 응답:', {
         contentLength: data.content?.[0]?.text?.length || 0,
         usage: data.usage,
-        stopReason: data.stop_reason
+        stopReason: data.stop_reason,
+        modelUsed: this.config.model_id
       })
 
       const usage = data.usage || {}
