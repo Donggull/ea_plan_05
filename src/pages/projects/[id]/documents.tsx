@@ -6,7 +6,7 @@ import { PageContainer } from '@/components/LinearComponents'
 
 export function ProjectDocumentsPage() {
   const { id: projectId } = useParams<{ id: string }>()
-  const { selectedProject } = useProject()
+  const { state } = useProject()
 
   if (!projectId) {
     return (
@@ -23,7 +23,7 @@ export function ProjectDocumentsPage() {
       {/* 프로젝트 네비게이션 헤더 */}
       <ProjectNavigationHeader
         projectId={projectId}
-        projectName={selectedProject?.name}
+        projectName={state.currentProject?.name}
         currentPage="documents"
         showBreadcrumb={true}
       />

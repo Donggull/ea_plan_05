@@ -49,6 +49,7 @@ export function useDocumentAnalysis(projectId?: string) {
     modelId?: string
     targetSteps?: WorkflowStep[]
     forceReanalysis?: boolean
+    documentIds?: string[]
   } = {}) => {
     if (!currentProjectId || !user) {
       setState(prev => ({ ...prev, error: '프로젝트 또는 사용자 정보가 없습니다.' }))

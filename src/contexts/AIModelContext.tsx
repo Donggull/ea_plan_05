@@ -206,10 +206,10 @@ export function AIModelProvider({ children }: { children: React.ReactNode }) {
       }
 
       // 선택 항목 적용
-      if (validProviderId !== state.selectedProviderId) {
+      if (validProviderId && validProviderId !== state.selectedProviderId) {
         dispatch({ type: 'SELECT_PROVIDER', payload: validProviderId })
       }
-      if (validModelId !== state.selectedModelId) {
+      if (validModelId && validModelId !== state.selectedModelId) {
         dispatch({ type: 'SELECT_MODEL', payload: validModelId })
       }
 
