@@ -17,6 +17,8 @@ import {
 import { ProposalDataManager, ProposalWorkflowQuestion } from '../../../../services/proposal/dataManager'
 import { ProposalAnalysisService } from '../../../../services/proposal/proposalAnalysisService'
 import { useAuth } from '@/components/providers/AuthProvider'
+import { useAIModel, useSelectedAIModel } from '../../../../contexts/AIModelContext'
+import { ModelSelector } from '../../../../components/ai/ModelSelector'
 import { PageContainer, PageHeader, PageContent, Card, Button, Badge, ProgressBar } from '../../../../components/LinearComponents'
 
 interface QuestionFormData {
@@ -34,6 +36,8 @@ export function ProposalWriterPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { selectedModel } = useSelectedAIModel()
+  const { selectModel } = useAIModel()
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -368,6 +372,31 @@ export function ProposalWriterPage() {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* 카테고리 사이드바 */}
           <div className="lg:col-span-1">
+            {/* AI 모델 선택 */}
+            <Card className="mb-6">
+              <h3 className="text-lg font-semibold text-text-primary mb-4">AI 모델 선택</h3>
+              <ModelSelector
+                selectedModelId={selectedModel?.id}
+                onModelSelect={(model) => {
+                  selectModel(model.id)
+                  console.log('AI 모델 선택됨:', model)
+                }}
+                variant="compact"
+                showCosts={true}
+                showCharacteristics={true}
+                filterByCapability={['text_generation', 'analysis']}
+                className="w-full"
+              />
+              {selectedModel && (
+                <div className="mt-3 p-3 bg-bg-tertiary rounded-lg">
+                  <div className="flex items-center gap-2 text-sm text-text-secondary">
+                    <Brain className="w-4 h-4" />
+                    <span>선택된 모델: {selectedModel.name || selectedModel.provider}</span>
+                  </div>
+                </div>
+              )}
+            </Card>
+
             <Card className="sticky top-6">
               <h3 className="text-lg font-semibold text-text-primary mb-4">질문 카테고리</h3>
 
