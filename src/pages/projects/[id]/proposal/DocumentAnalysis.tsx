@@ -15,7 +15,8 @@ import {
 import { ProposalDataManager, ProposalWorkflowQuestion } from '../../../../services/proposal/dataManager'
 import { DocumentAnalysisService } from '../../../../services/proposal/documentAnalysisService'
 import { useAuth } from '@/components/providers/AuthProvider'
-import { useSelectedAIModel } from '../../../../contexts/AIModelContext'
+import { useAIModel, useSelectedAIModel } from '../../../../contexts/AIModelContext'
+import { ModelSelector } from '../../../../components/ai/ModelSelector'
 import { PageContainer, PageHeader, PageContent, Card, Button, Badge, ProgressBar } from '../../../../components/LinearComponents'
 
 interface QuestionFormData {
@@ -42,6 +43,7 @@ export function DocumentAnalysisPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const { selectedModel } = useSelectedAIModel()
+  const { selectModel } = useAIModel()
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -484,6 +486,32 @@ export function DocumentAnalysisPage() {
                     <p className="text-text-secondary text-xs">
                       총 {documents.length}개 문서 ({formatFileSize(documents.reduce((sum, doc) => sum + doc.file_size, 0))})
                     </p>
+                  </div>
+                </div>
+              )}
+            </Card>
+
+            {/* AI 모델 선택 */}
+            <Card className="mb-6">
+              <h3 className="text-lg font-semibold text-text-primary mb-4">AI 모델 선택</h3>
+              <ModelSelector
+                selectedModelId={selectedModel?.id}
+                onModelSelect={(model) => {
+                  // AI 모델 선택 처리
+                  selectModel(model.id)
+                  console.log('AI 모델 선택됨:', model)
+                }}
+                variant="compact"
+                showCosts={true}
+                showCharacteristics={true}
+                filterByCapability={['text_generation', 'analysis']}
+                className="w-full"
+              />
+              {selectedModel && (
+                <div className="mt-3 p-3 bg-bg-tertiary rounded-lg">
+                  <div className="flex items-center gap-2 text-sm text-text-secondary">
+                    <Brain className="w-4 h-4" />
+                    <span>선택된 모델: {selectedModel.name || selectedModel.provider}</span>
                   </div>
                 </div>
               )}
