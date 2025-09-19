@@ -33,10 +33,49 @@ type AIModelAction =
   | { type: 'SELECT_MODEL'; payload: string }
   | { type: 'CLEAR_SELECTION' }
 
-// 초기 상태
+// 로컬 스토리지 키
+const STORAGE_KEYS = {
+  SELECTED_PROVIDER: 'eluo-ai-selected-provider',
+  SELECTED_MODEL: 'eluo-ai-selected-model'
+}
+
+// 로컬 스토리지에서 저장된 선택 항목 읽기
+function loadPersistedSelection(): { providerId: string | null; modelId: string | null } {
+  try {
+    return {
+      providerId: localStorage.getItem(STORAGE_KEYS.SELECTED_PROVIDER),
+      modelId: localStorage.getItem(STORAGE_KEYS.SELECTED_MODEL)
+    }
+  } catch (error) {
+    console.warn('Failed to load persisted AI model selection:', error)
+    return { providerId: null, modelId: null }
+  }
+}
+
+// 로컬 스토리지에 선택 항목 저장
+function persistSelection(providerId: string | null, modelId: string | null): void {
+  try {
+    if (providerId) {
+      localStorage.setItem(STORAGE_KEYS.SELECTED_PROVIDER, providerId)
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.SELECTED_PROVIDER)
+    }
+
+    if (modelId) {
+      localStorage.setItem(STORAGE_KEYS.SELECTED_MODEL, modelId)
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.SELECTED_MODEL)
+    }
+  } catch (error) {
+    console.warn('Failed to persist AI model selection:', error)
+  }
+}
+
+// 초기 상태 (저장된 선택 항목 복원)
+const persistedSelection = loadPersistedSelection()
 const initialState: AIModelState = {
-  selectedProviderId: null,
-  selectedModelId: null,
+  selectedProviderId: persistedSelection.providerId,
+  selectedModelId: persistedSelection.modelId,
   availableModels: [],
   loading: false,
   error: null
@@ -44,26 +83,42 @@ const initialState: AIModelState = {
 
 // 리듀서
 function aiModelReducer(state: AIModelState, action: AIModelAction): AIModelState {
+  let newState: AIModelState
+
   switch (action.type) {
     case 'SET_LOADING':
-      return { ...state, loading: action.payload }
+      newState = { ...state, loading: action.payload }
+      break
     case 'SET_ERROR':
-      return { ...state, error: action.payload, loading: false }
+      newState = { ...state, error: action.payload, loading: false }
+      break
     case 'SET_MODELS':
-      return { ...state, availableModels: action.payload, loading: false }
+      newState = { ...state, availableModels: action.payload, loading: false }
+      break
     case 'SELECT_PROVIDER':
-      return {
+      newState = {
         ...state,
         selectedProviderId: action.payload,
         selectedModelId: null // 프로바이더 변경 시 모델 선택 초기화
       }
+      // 프로바이더 선택 시 로컬 스토리지에 저장
+      persistSelection(action.payload, null)
+      break
     case 'SELECT_MODEL':
-      return { ...state, selectedModelId: action.payload }
+      newState = { ...state, selectedModelId: action.payload }
+      // 모델 선택 시 로컬 스토리지에 저장
+      persistSelection(state.selectedProviderId, action.payload)
+      break
     case 'CLEAR_SELECTION':
-      return { ...state, selectedProviderId: null, selectedModelId: null }
+      newState = { ...state, selectedProviderId: null, selectedModelId: null }
+      // 선택 초기화 시 로컬 스토리지에서 제거
+      persistSelection(null, null)
+      break
     default:
-      return state
+      newState = state
   }
+
+  return newState
 }
 
 // 컨텍스트 타입 정의
@@ -108,12 +163,63 @@ export function AIModelProvider({ children }: { children: React.ReactNode }) {
 
       dispatch({ type: 'SET_MODELS', payload: formattedModels })
 
-      // 기본 프로바이더 및 모델 선택 (첫 번째 사용 가능한 모델)
-      if (formattedModels.length > 0 && !state.selectedProviderId) {
-        const firstModel = formattedModels[0]
-        dispatch({ type: 'SELECT_PROVIDER', payload: firstModel.provider })
-        dispatch({ type: 'SELECT_MODEL', payload: firstModel.id })
+      // 저장된 선택 항목 복원 및 유효성 검증
+      const { providerId: savedProviderId, modelId: savedModelId } = loadPersistedSelection()
+
+      let validProviderId = state.selectedProviderId
+      let validModelId = state.selectedModelId
+
+      // 저장된 프로바이더가 유효한지 확인
+      if (savedProviderId) {
+        const providerExists = formattedModels.some(model => model.provider === savedProviderId)
+        if (providerExists) {
+          validProviderId = savedProviderId
+        }
       }
+
+      // 저장된 모델이 유효한지 확인
+      if (savedModelId) {
+        const modelExists = formattedModels.some(model =>
+          model.id === savedModelId && model.available &&
+          (!validProviderId || model.provider === validProviderId)
+        )
+        if (modelExists) {
+          validModelId = savedModelId
+          // 모델의 프로바이더로 프로바이더도 설정
+          const model = formattedModels.find(m => m.id === savedModelId)
+          if (model) {
+            validProviderId = model.provider
+          }
+        }
+      }
+
+      // 유효한 선택이 없으면 기본값 설정
+      if (!validProviderId || !validModelId) {
+        if (formattedModels.length > 0) {
+          const availableModels = formattedModels.filter(m => m.available)
+          if (availableModels.length > 0) {
+            const firstModel = availableModels[0]
+            validProviderId = firstModel.provider
+            validModelId = firstModel.id
+          }
+        }
+      }
+
+      // 선택 항목 적용
+      if (validProviderId !== state.selectedProviderId) {
+        dispatch({ type: 'SELECT_PROVIDER', payload: validProviderId })
+      }
+      if (validModelId !== state.selectedModelId) {
+        dispatch({ type: 'SELECT_MODEL', payload: validModelId })
+      }
+
+      console.log('🎯 AI 모델 선택 복원:', {
+        savedProvider: savedProviderId,
+        savedModel: savedModelId,
+        validProvider: validProviderId,
+        validModel: validModelId,
+        availableModels: formattedModels.length
+      })
     } catch (error) {
       console.error('Failed to load AI models:', error)
       dispatch({ type: 'SET_ERROR', payload: 'AI 모델을 불러오는데 실패했습니다.' })

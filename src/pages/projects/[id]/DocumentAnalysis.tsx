@@ -121,6 +121,24 @@ export function DocumentAnalysisPage({}: DocumentAnalysisPageProps) {
     })
   }
 
+  // 개별 문서 분석 기능 추가
+  const handleAnalyzeDocument = async (documentId: string) => {
+    if (!projectId || !user) return
+
+    try {
+      console.log('Analyzing document:', documentId)
+      // 개별 문서 분석 로직 추가 필요
+      // 예시: 특정 문서만 분석하는 API 호출
+      await analyzeDocuments({
+        forceReanalysis: false,
+        targetSteps: ['market_research', 'personas', 'proposal', 'budget'],
+        documentIds: [documentId] // 특정 문서만 분석
+      })
+    } catch (error) {
+      console.error('Failed to analyze document:', error)
+    }
+  }
+
   const handleDocumentClick = async (docId: string) => {
     const document = documents.find(doc => doc.id === docId)
     if (document) {
@@ -524,14 +542,38 @@ export function DocumentAnalysisPage({}: DocumentAnalysisPageProps) {
 
                       <div className="flex items-center space-x-3">
                         {doc.is_processed ? (
-                          <div className="flex items-center space-x-1">
-                            <CheckCircle className="w-4 h-4 text-accent-green" />
-                            <span className="text-mini text-accent-green">분석 완료</span>
+                          <div className="flex items-center space-x-2">
+                            <div className="flex items-center space-x-1">
+                              <CheckCircle className="w-4 h-4 text-accent-green" />
+                              <span className="text-mini text-accent-green">분석 완료</span>
+                            </div>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleAnalyzeDocument(doc.id)
+                              }}
+                              className="px-2 py-1 text-xs text-accent-green hover:text-accent-green-600 border border-accent-green/30 rounded hover:bg-accent-green/10 transition-colors"
+                            >
+                              재분석
+                            </button>
                           </div>
                         ) : (
-                          <div className="flex items-center space-x-1">
-                            <Clock className="w-4 h-4 text-text-muted" />
-                            <span className="text-mini text-text-muted">분석 대기</span>
+                          <div className="flex items-center space-x-2">
+                            <div className="flex items-center space-x-1">
+                              <Clock className="w-4 h-4 text-text-muted" />
+                              <span className="text-mini text-text-muted">분석 대기</span>
+                            </div>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleAnalyzeDocument(doc.id)
+                              }}
+                              disabled={isAnalyzing}
+                              className="px-2 py-1 text-xs text-primary-500 hover:text-primary-600 border border-primary-500/30 rounded hover:bg-primary-500/10 transition-colors disabled:opacity-50"
+                            >
+                              <Brain className="w-3 h-3 inline mr-1" />
+                              분석
+                            </button>
                           </div>
                         )}
                         <Eye className="w-4 h-4 text-text-muted" />

@@ -111,6 +111,7 @@ export class DocumentAnalysisService {
       modelId?: string
       targetSteps?: WorkflowStep[]
       forceReanalysis?: boolean
+      documentIds?: string[] // 특정 문서만 분석하는 옵션 추가
     } = {}
   ): Promise<IntegratedAnalysisResult> {
     const startTime = Date.now()
@@ -125,7 +126,14 @@ export class DocumentAnalysisService {
       // 2. 각 문서별 개별 분석
       const documentAnalysisResults: DocumentAnalysisResult[] = []
 
-      for (const document of context.documents) {
+      // 특정 문서들만 분석하는 경우 필터링
+      const documentsToAnalyze = options.documentIds
+        ? context.documents.filter(doc => options.documentIds!.includes(doc.id))
+        : context.documents
+
+      console.log(`📊 분석 대상 문서: ${documentsToAnalyze.length}개 (전체: ${context.documents.length}개)`)
+
+      for (const document of documentsToAnalyze) {
         // 기존 분석 결과 확인 (forceReanalysis가 false인 경우)
         if (!options.forceReanalysis) {
           const existingAnalysis = await this.getExistingDocumentAnalysis(document.id)
@@ -379,9 +387,25 @@ export class DocumentAnalysisService {
     preferredModelId?: string
   ): Promise<string> {
     try {
-      if (preferredModelId) return preferredModelId
+      console.log(`🎯 AI 모델 선택 시작:`, { projectId, userId, preferredModelId })
 
-      // 프로젝트별 설정 확인
+      // 등록된 모델 목록 조회
+      const availableModels = AIProviderFactory.getRegisteredModels()
+      const availableModelIds = availableModels.map(m => m.id)
+
+      console.log(`📋 사용 가능한 모델: ${availableModelIds.join(', ')}`)
+
+      if (availableModelIds.length === 0) {
+        throw new Error('등록된 AI 모델이 없습니다. AI Provider Factory가 초기화되지 않았을 수 있습니다.')
+      }
+
+      // 1. 명시적으로 제공된 모델 ID 확인
+      if (preferredModelId && availableModelIds.includes(preferredModelId)) {
+        console.log(`✅ 지정된 모델 선택: ${preferredModelId}`)
+        return preferredModelId
+      }
+
+      // 2. 프로젝트별 설정 확인
       const { data: projectSettings } = await supabase!
         .from('project_ai_settings')
         .select('default_model_id, analysis_model_mappings')
@@ -391,30 +415,57 @@ export class DocumentAnalysisService {
       if (projectSettings?.analysis_model_mappings &&
           typeof projectSettings.analysis_model_mappings === 'object' &&
           'document_analysis' in projectSettings.analysis_model_mappings) {
-        return (projectSettings.analysis_model_mappings as any).document_analysis
+        const mappedModel = (projectSettings.analysis_model_mappings as any).document_analysis
+        if (availableModelIds.includes(mappedModel)) {
+          console.log(`✅ 프로젝트 매핑 모델 선택: ${mappedModel}`)
+          return mappedModel
+        }
       }
 
-      if (projectSettings?.default_model_id) {
+      if (projectSettings?.default_model_id && availableModelIds.includes(projectSettings.default_model_id)) {
+        console.log(`✅ 프로젝트 기본 모델 선택: ${projectSettings.default_model_id}`)
         return projectSettings.default_model_id
       }
 
-      // 사용자별 설정 확인
+      // 3. 사용자별 설정 확인
       const { data: userSettings } = await supabase!
         .from('user_ai_settings')
         .select('preferred_model_id')
         .eq('user_id', userId)
         .single()
 
-      if (userSettings?.preferred_model_id) {
+      if (userSettings?.preferred_model_id && availableModelIds.includes(userSettings.preferred_model_id)) {
+        console.log(`✅ 사용자 선호 모델 선택: ${userSettings.preferred_model_id}`)
         return userSettings.preferred_model_id
       }
 
-      // 기본 모델
-      return 'gpt-4o'
+      // 4. 기본 모델들 우선순위
+      const defaultModelPriority = ['claude-3-sonnet', 'claude-3-opus', 'gpt-4o', 'gpt-4-turbo', 'gemini-pro']
+
+      for (const defaultModel of defaultModelPriority) {
+        if (availableModelIds.includes(defaultModel)) {
+          console.log(`✅ 기본 우선순위 모델 선택: ${defaultModel}`)
+          return defaultModel
+        }
+      }
+
+      // 5. 마지막으로 첫 번째 사용 가능한 모델
+      const fallbackModel = availableModelIds[0]
+      console.log(`⚠️ 폴백 모델 선택: ${fallbackModel}`)
+      return fallbackModel
 
     } catch (error) {
-      console.warn('Failed to select AI model, using default:', error)
-      return 'gpt-4o'
+      console.warn('🚨 AI 모델 선택 실패, 폴백 시도:', error)
+
+      // 최후의 폴백 - 등록된 첫 번째 모델
+      const availableModels = AIProviderFactory.getRegisteredModels()
+      if (availableModels.length > 0) {
+        const fallbackModel = availableModels[0].id
+        console.log(`🆘 최후 폴백 모델: ${fallbackModel}`)
+        return fallbackModel
+      }
+
+      throw new Error('사용 가능한 AI 모델이 없습니다. 환경 변수와 AI Provider Factory 초기화를 확인해주세요.')
     }
   }
 
@@ -427,11 +478,37 @@ export class DocumentAnalysisService {
     userId: string
   ): Promise<AIResponse> {
     try {
+      console.log(`🤖 AI 분석 시작:`, {
+        modelId,
+        userId,
+        messageCount: messages.length,
+        contentLength: messages.reduce((sum, msg) => sum + msg.content.length, 0)
+      })
+
+      // 등록된 모델 확인
+      const availableModels = AIProviderFactory.getRegisteredModels()
+      console.log(`📋 등록된 AI 모델: ${availableModels.length}개`, availableModels.map(m => m.id))
+
+      const selectedModel = AIProviderFactory.getModel(modelId)
+      if (!selectedModel) {
+        throw new Error(`AI 모델 '${modelId}'이 등록되지 않았습니다. 사용 가능한 모델: ${availableModels.map(m => m.id).join(', ')}`)
+      }
+
+      console.log(`✅ 모델 확인됨: ${selectedModel.name} (${selectedModel.provider})`)
+
       const response = await AIProviderFactory.generateCompletion(modelId, {
         messages,
         max_tokens: 4000,
         temperature: 0.3,
         user_id: userId
+      })
+
+      console.log(`✅ AI 분석 완료:`, {
+        contentLength: response.content.length,
+        cost: response.cost,
+        inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens,
+        responseTime: response.response_time
       })
 
       // API 사용량 기록
@@ -445,7 +522,11 @@ export class DocumentAnalysisService {
 
       return response
     } catch (error) {
-      console.error('AI analysis execution failed:', error)
+      console.error('🚨 AI 분석 실행 실패:', {
+        modelId,
+        userId,
+        error: error instanceof Error ? error.message : String(error)
+      })
       throw error
     }
   }

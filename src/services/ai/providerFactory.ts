@@ -245,64 +245,108 @@ class AnthropicProvider extends BaseAIProvider {
   }
 
   private async callAnthropicAPI(options: AIRequestOptions, startTime: number): Promise<AIResponse> {
-    // Anthropic API 메시지 형식 변환
-    const anthropicMessages = options.messages.filter(m => m.role !== 'system').map(m => ({
-      role: m.role,
-      content: m.content
-    }))
+    try {
+      // Anthropic API 메시지 형식 변환 - 더 엄격한 유효성 검사
+      const anthropicMessages = options.messages
+        .filter(m => m.role !== 'system' && m.content && m.content.trim())
+        .map(m => ({
+          role: m.role === 'user' ? 'user' as const : 'assistant' as const,
+          content: m.content.trim()
+        }))
 
-    const systemMessage = options.messages.find(m => m.role === 'system')?.content || ''
+      // 최소 1개의 메시지가 필요함
+      if (anthropicMessages.length === 0) {
+        throw new Error('최소 1개의 유효한 메시지가 필요합니다.')
+      }
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': this.config.api_key!,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
+      const systemMessage = options.messages.find(m => m.role === 'system')?.content?.trim() || ''
+
+      const requestBody = {
         model: this.config.model_id,
-        max_tokens: options.max_tokens || this.config.max_tokens,
-        temperature: options.temperature || 0.7,
-        system: systemMessage,
-        messages: anthropicMessages
+        max_tokens: Math.min(options.max_tokens || this.config.max_tokens, 4096),
+        temperature: Math.max(0, Math.min(1, options.temperature || 0.7)),
+        messages: anthropicMessages,
+        ...(systemMessage && { system: systemMessage })
+      }
+
+      console.log('🔍 Anthropic API 요청:', {
+        model: this.config.model_id,
+        messageCount: anthropicMessages.length,
+        hasSystem: !!systemMessage,
+        apiKeyPrefix: this.config.api_key?.substring(0, 10) + '...'
       })
-    })
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(`HTTP ${response.status}: ${errorData.error?.message || response.statusText}`)
-    }
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': this.config.api_key!,
+          'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify(requestBody)
+      })
 
-    const data = await response.json()
-    const usage = data.usage || {}
-    const cost = this.calculateCost(usage.input_tokens || 0, usage.output_tokens || 0)
+      console.log('📡 Anthropic API 응답 상태:', response.status, response.statusText)
 
-    const aiResponse: AIResponse = {
-      content: data.content?.[0]?.text || 'No response content',
-      model: this.config.model_id,
-      usage: {
-        input_tokens: usage.input_tokens || 0,
-        output_tokens: usage.output_tokens || 0,
-        total_tokens: (usage.input_tokens || 0) + (usage.output_tokens || 0)
-      },
-      cost,
-      response_time: Date.now() - startTime,
-      finish_reason: data.stop_reason === 'end_turn' ? 'stop' : data.stop_reason || 'stop'
-    }
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('❌ Anthropic API 에러 응답:', errorText)
 
-    // 사용량 기록
-    if (options.user_id) {
-      await ApiUsageService.recordUsageBatch([{
-        userId: options.user_id!,
+        let errorData
+        try {
+          errorData = JSON.parse(errorText)
+        } catch {
+          errorData = { error: { message: errorText } }
+        }
+
+        // 구체적인 에러 메시지 생성
+        const errorMessage = errorData.error?.message ||
+                           errorData.message ||
+                           `HTTP ${response.status}: ${response.statusText}`
+
+        throw new Error(errorMessage)
+      }
+
+      const data = await response.json()
+      console.log('✅ Anthropic API 성공 응답:', {
+        contentLength: data.content?.[0]?.text?.length || 0,
+        usage: data.usage,
+        stopReason: data.stop_reason
+      })
+
+      const usage = data.usage || {}
+      const cost = this.calculateCost(usage.input_tokens || 0, usage.output_tokens || 0)
+
+      const aiResponse: AIResponse = {
+        content: data.content?.[0]?.text || 'No response content',
         model: this.config.model_id,
-        inputTokens: aiResponse.usage.input_tokens,
-        outputTokens: aiResponse.usage.output_tokens,
-        cost: aiResponse.cost
-      }])
-    }
+        usage: {
+          input_tokens: usage.input_tokens || 0,
+          output_tokens: usage.output_tokens || 0,
+          total_tokens: (usage.input_tokens || 0) + (usage.output_tokens || 0)
+        },
+        cost,
+        response_time: Date.now() - startTime,
+        finish_reason: data.stop_reason === 'end_turn' ? 'stop' : data.stop_reason || 'stop'
+      }
 
-    return aiResponse
+      // 사용량 기록
+      if (options.user_id) {
+        await ApiUsageService.recordUsageBatch([{
+          userId: options.user_id!,
+          model: this.config.model_id,
+          inputTokens: aiResponse.usage.input_tokens,
+          outputTokens: aiResponse.usage.output_tokens,
+          cost: aiResponse.cost
+        }])
+      }
+
+      return aiResponse
+
+    } catch (error) {
+      console.error('🚨 Anthropic API 호출 실패:', error)
+      throw error
+    }
   }
 
 }
@@ -669,10 +713,20 @@ export function initializeDefaultModels(): void {
   const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
   const googleApiKey = import.meta.env.VITE_GOOGLE_AI_API_KEY
 
-  console.log('🔑 AI API 키 확인:')
-  console.log('OpenAI:', openaiApiKey ? '✅ 설정됨' : '❌ 누락')
-  console.log('Anthropic:', anthropicApiKey ? '✅ 설정됨' : '❌ 누락')
-  console.log('Google:', googleApiKey ? '✅ 설정됨' : '❌ 누락')
+  console.log('🔑 AI API 키 상세 확인:')
+  console.log('OpenAI:', openaiApiKey ?
+    `✅ 설정됨 (${openaiApiKey.substring(0, 7)}...)` : '❌ 누락')
+  console.log('Anthropic:', anthropicApiKey ?
+    `✅ 설정됨 (${anthropicApiKey.substring(0, 10)}...)` : '❌ 누락')
+  console.log('Google:', googleApiKey ?
+    `✅ 설정됨 (${googleApiKey.substring(0, 7)}...)` : '❌ 누락')
+
+  // 환경 변수 디버깅 정보
+  console.log('📊 환경 변수 상태:')
+  console.log('NODE_ENV:', import.meta.env.NODE_ENV)
+  console.log('MODE:', import.meta.env.MODE)
+  console.log('DEV:', import.meta.env.DEV)
+  console.log('PROD:', import.meta.env.PROD)
 
   const defaultModels: AIModelConfig[] = []
 
