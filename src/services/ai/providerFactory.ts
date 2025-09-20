@@ -317,6 +317,7 @@ class AnthropicProvider extends BaseAIProvider {
 
       // Anthropic API 키 유효성 재확인
       // 환경별 API 키 최종 검증
+      const isDev = import.meta.env.DEV
       if (isDev) {
         // 개발 환경에서만 API 키 검증
         if (!this.config.api_key || this.config.api_key === 'your-anthropic-key-here' || !this.config.api_key.startsWith('sk-ant-')) {
