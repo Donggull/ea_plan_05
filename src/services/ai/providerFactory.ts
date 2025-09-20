@@ -803,31 +803,18 @@ export class AIProviderFactory {
     throw lastError || new Error('All AI providers failed')
   }
 
-  // 헬스 체크
+  // 헬스 체크 (비활성화: 다중 모델 호출 방지)
   static async healthCheck(modelId?: string): Promise<Record<string, boolean>> {
     const modelsToCheck = modelId ? [modelId] : Array.from(this.models.keys())
     const results: Record<string, boolean> = {}
 
-    await Promise.allSettled(
-      modelsToCheck.map(async (id) => {
-        try {
-          const provider = this.providers.get(id)
-          if (!provider) {
-            results[id] = false
-            return
-          }
+    console.log('🚨 헬스 체크 비활성화: 다중 모델 API 호출 방지')
 
-          // 간단한 테스트 요청
-          await provider.generateCompletion({
-            messages: [{ role: 'user', content: 'test' }],
-            max_tokens: 10
-          })
-          results[id] = true
-        } catch {
-          results[id] = false
-        }
-      })
-    )
+    // 실제 API 호출 대신 등록된 모델들을 true로 반환
+    modelsToCheck.forEach(id => {
+      const provider = this.providers.get(id)
+      results[id] = !!provider // 프로바이더가 등록되어 있으면 true
+    })
 
     return results
   }
@@ -1121,12 +1108,12 @@ export function initializeDefaultModels(): void {
   console.log('✅ 등록 완료된 모델 수:', registeredModels.length)
   console.log('✅ 등록된 모델 ID:', registeredModels.map(m => m.id))
 
-  // 폴백 체인 설정 (등록된 모델들로만 구성)
+  // 폴백 체인 설정 (비활성화: 선택된 모델만 사용)
   const availableModelIds = defaultModels.map(model => model.id)
   AIProviderFactory.setFallbackConfig({
-    enabled: true,
-    models: availableModelIds,
-    max_retries: 3,
+    enabled: false,  // 🚨 다중 모델 호출 방지
+    models: [],      // 빈 배열로 설정
+    max_retries: 1,
     retry_delay: 1000
   })
 
