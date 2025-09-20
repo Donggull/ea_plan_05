@@ -346,7 +346,7 @@ class AnthropicProvider extends BaseAIProvider {
       // 환경별 헤더 설정
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        'anthropic-version': '2023-06-01',
+        'anthropic-version': '2024-10-22',
         'User-Agent': 'ELUO-Project/1.0'
       }
 
@@ -698,9 +698,9 @@ export class AIProviderFactory {
   private static models: Map<string, AIModelConfig> = new Map()
   private static providers: Map<string, BaseAIProvider> = new Map()
   private static fallbackConfig: FallbackConfig = {
-    enabled: true,
+    enabled: false,  // 🚨 Fallback 비활성화: 선택된 모델만 사용
     models: [],
-    max_retries: 3,
+    max_retries: 1,
     retry_delay: 1000
   }
 

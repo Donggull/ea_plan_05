@@ -472,7 +472,7 @@ export class DocumentAnalysisService {
   }
 
   /**
-   * AI 모델 선택
+   * AI 모델 선택 (단순화된 로직 - preferredModelId 최우선)
    */
   private static async selectAIModel(
     projectId: string,
@@ -485,12 +485,6 @@ export class DocumentAnalysisService {
       // 등록된 모델 목록 조회
       const availableModels = AIProviderFactory.getRegisteredModels()
       const availableModelIds = new Set(availableModels.map(m => m.id))
-      const providerModelIdMap = new Map<string, string>()
-
-      availableModels.forEach(model => {
-        providerModelIdMap.set(model.model_id, model.id)
-        providerModelIdMap.set(model.id, model.id)
-      })
 
       console.log(`📋 사용 가능한 모델: ${Array.from(availableModelIds).join(', ')}`)
 
@@ -498,147 +492,18 @@ export class DocumentAnalysisService {
         throw new Error('등록된 AI 모델이 없습니다. AI Provider Factory가 초기화되지 않았을 수 있습니다.')
       }
 
-      const resolutionCache = new Map<string, string | null>()
-
-      const resolveModelId = async (identifier?: string | null): Promise<string | null> => {
-        if (!identifier) return null
-
-        if (resolutionCache.has(identifier)) {
-          return resolutionCache.get(identifier) ?? null
-        }
-
-        if (availableModelIds.has(identifier)) {
-          resolutionCache.set(identifier, identifier)
-          return identifier
-        }
-
-        const mappedByProviderId = providerModelIdMap.get(identifier)
-        if (mappedByProviderId) {
-          resolutionCache.set(identifier, mappedByProviderId)
-          return mappedByProviderId
-        }
-
-        try {
-          const { data, error } = await supabase!
-            .from('ai_models')
-            .select('model_id, metadata')
-            .eq('id', identifier)
-            .single()
-
-          if (error) {
-            if (error.code !== 'PGRST116') {
-              console.warn('AI 모델 식별자 조회 실패:', error)
-            }
-          }
-
-          if (data) {
-            const candidates: string[] = []
-
-            if (typeof data.model_id === 'string') {
-              candidates.push(data.model_id)
-            }
-
-            const metadata = (data.metadata || {}) as Record<string, unknown>
-            const metadataKeys = [
-              'registry_model_id',
-              'registryModelId',
-              'factory_model_id',
-              'factoryModelId',
-              'provider_model_id',
-              'providerModelId',
-              'model_key',
-              'modelKey',
-              'modelId',
-              'id'
-            ]
-
-            const metadataCandidates = metadataKeys
-              .map(key => metadata[key])
-              .filter((value): value is string => typeof value === 'string' && value.length > 0)
-
-            candidates.push(...metadataCandidates)
-
-            for (const candidate of candidates) {
-              if (availableModelIds.has(candidate)) {
-                resolutionCache.set(identifier, candidate)
-                return candidate
-              }
-
-              const mapped = providerModelIdMap.get(candidate)
-              if (mapped) {
-                resolutionCache.set(identifier, mapped)
-                return mapped
-              }
-            }
-          }
-        } catch (dbError) {
-          console.warn('AI 모델 ID 변환 중 오류 발생:', dbError)
-        }
-
-        resolutionCache.set(identifier, null)
-        return null
-      }
-
-      // 1. 명시적으로 제공된 모델 ID 확인
-      const resolvedPreferred = await resolveModelId(preferredModelId)
-      if (resolvedPreferred) {
-        console.log(`✅ 지정된 모델 선택: ${resolvedPreferred} (원본 ID: ${preferredModelId})`)
-        return resolvedPreferred
+      // 🚨 최우선: 명시적으로 제공된 모델 ID 확인 (단순화)
+      if (preferredModelId && availableModelIds.has(preferredModelId)) {
+        console.log(`✅ 지정된 모델 우선 선택: ${preferredModelId}`)
+        return preferredModelId
       }
 
       if (preferredModelId) {
-        console.warn(`⚠️ 지정된 모델(${preferredModelId})을 등록된 모델과 매칭하지 못했습니다. 다른 설정을 확인합니다.`)
+        console.warn(`⚠️ 지정된 모델(${preferredModelId})이 등록된 모델 목록에 없습니다. 사용 가능한 모델: ${Array.from(availableModelIds).join(', ')}`)
       }
 
-      // 2. 프로젝트별 설정 확인
-      const { data: projectSettings } = await supabase!
-        .from('project_ai_settings')
-        .select('default_model_id, analysis_model_mappings')
-        .eq('project_id', projectId)
-        .single()
-
-      if (projectSettings?.analysis_model_mappings &&
-          typeof projectSettings.analysis_model_mappings === 'object' &&
-          'document_analysis' in projectSettings.analysis_model_mappings) {
-        const analysisMappings = projectSettings.analysis_model_mappings as Record<string, unknown>
-        const mappedModel = analysisMappings['document_analysis'] as string | undefined
-        const resolvedMapped = await resolveModelId(mappedModel)
-        if (resolvedMapped) {
-          console.log(`✅ 프로젝트 매핑 모델 선택: ${resolvedMapped}`)
-          return resolvedMapped
-        }
-        if (mappedModel) {
-          console.warn(`⚠️ 프로젝트 매핑 모델(${mappedModel})을 등록된 모델과 매칭하지 못했습니다.`)
-        }
-      }
-
-      if (projectSettings?.default_model_id) {
-        const resolvedDefault = await resolveModelId(projectSettings.default_model_id)
-        if (resolvedDefault) {
-          console.log(`✅ 프로젝트 기본 모델 선택: ${resolvedDefault}`)
-          return resolvedDefault
-        }
-        console.warn(`⚠️ 프로젝트 기본 모델(${projectSettings.default_model_id})을 등록된 모델과 매칭하지 못했습니다.`)
-      }
-
-      // 3. 사용자별 설정 확인
-      const { data: userSettings } = await supabase!
-        .from('user_ai_settings')
-        .select('preferred_model_id')
-        .eq('user_id', userId)
-        .single()
-
-      if (userSettings?.preferred_model_id) {
-        const resolvedUserModel = await resolveModelId(userSettings.preferred_model_id)
-        if (resolvedUserModel) {
-          console.log(`✅ 사용자 선호 모델 선택: ${resolvedUserModel}`)
-          return resolvedUserModel
-        }
-        console.warn(`⚠️ 사용자 선호 모델(${userSettings.preferred_model_id})을 등록된 모델과 매칭하지 못했습니다.`)
-      }
-
-      // 4. 기본 모델들 우선순위 (활성화된 것만)
-      const defaultModelPriority = ['claude-3-opus', 'claude-3-sonnet', 'gpt-4o', 'gpt-4-turbo', 'gemini-pro']
+      // 폴백: 기본 우선순위 모델
+      const defaultModelPriority = ['claude-4.1', 'claude-4', 'claude-3.7', 'claude-3-opus', 'claude-3-sonnet', 'gpt-4o', 'gpt-4-turbo', 'gemini-2.0-flash-thinking']
 
       for (const defaultModel of defaultModelPriority) {
         if (availableModelIds.has(defaultModel)) {
@@ -647,19 +512,17 @@ export class DocumentAnalysisService {
         }
       }
 
-      // 5. 마지막으로 첫 번째 사용 가능한 모델
+      // 최종 폴백: 첫 번째 사용 가능한 모델
       if (availableModelIds.size > 0) {
         const fallbackModel = Array.from(availableModelIds)[0]
         console.log(`⚠️ 폴백 모델 선택: ${fallbackModel}`)
         return fallbackModel
       }
 
-      // 6. 아무 모델도 없으면 에러
-      console.error('🚨 사용 가능한 모델이 전혀 없습니다!')
       throw new Error('사용 가능한 AI 모델이 없습니다. AI Provider Factory 초기화를 확인해주세요.')
 
     } catch (error) {
-      console.warn('🚨 AI 모델 선택 실패, 폴백 시도:', error)
+      console.error('🚨 AI 모델 선택 실패:', error)
 
       // 최후의 폴백 - 등록된 첫 번째 모델
       const availableModels = AIProviderFactory.getRegisteredModels()

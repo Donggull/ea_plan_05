@@ -60,7 +60,7 @@ export default async function handler(req, res) {
         headers: {
           'Content-Type': 'application/json',
           'x-api-key': apiKey,
-          'anthropic-version': req.headers['anthropic-version'] || '2023-06-01',
+          'anthropic-version': req.headers['anthropic-version'] || '2024-10-22',
           'User-Agent': 'ELUO-Project/1.0'
         },
         body: req.method !== 'GET' ? JSON.stringify(req.body) : undefined,

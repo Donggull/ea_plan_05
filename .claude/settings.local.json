@@ -48,7 +48,8 @@
       "mcp__github-mcp__git-flow",
       "mcp__github-mcp__git-pull",
       "Bash(netstat:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "mcp__playwright-stealth__playwright_get_visible_text"
     ],
     "deny": [],
     "ask": []
