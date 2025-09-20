@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { DocumentAnalysisService } from '../services/analysis/documentAnalysisService'
 import { useAuth } from '../contexts/AuthContext'
 import { useProject } from '../contexts/ProjectContext'
+import { useAIModel } from '../contexts/AIModelContext'
 import {
   DocumentAnalysisState,
   WorkflowStep
@@ -10,6 +11,7 @@ import {
 export function useDocumentAnalysis(projectId?: string) {
   const { user } = useAuth()
   const { state: projectState } = useProject()
+  const { getSelectedModel } = useAIModel()
   const currentProjectId = projectId || projectState.currentProject?.id
 
   const [state, setState] = useState<DocumentAnalysisState>({
@@ -69,12 +71,21 @@ export function useDocumentAnalysis(projectId?: string) {
     }))
 
     try {
-      // 실제 분석 실행 (실시간 진행률 콜백 포함)
+      // 현재 선택된 AI 모델 가져오기
+      const selectedModel = getSelectedModel()
+      if (!selectedModel) {
+        throw new Error('AI 모델이 선택되지 않았습니다. Left 사이드바에서 모델을 선택해주세요.')
+      }
+
+      console.log('🎯 문서 분석에 사용할 모델:', selectedModel.name, `(${selectedModel.id})`)
+
+      // 실제 분석 실행 (선택된 모델만 사용)
       const result = await DocumentAnalysisService.analyzeProjectDocuments(
         currentProjectId,
         user.id,
         {
           ...options,
+          modelId: selectedModel.id, // 선택된 모델ID만 전달
           onProgress: (progress) => {
             setState(prev => ({
               ...prev,
