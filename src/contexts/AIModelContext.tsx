@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react'
-import { modelSettingsService } from '../services/ai/modelSettingsService'
 
 // AI 모델 타입 정의
 export interface AIModel {
@@ -163,7 +162,7 @@ export function AIModelProvider({ children }: { children: React.ReactNode }) {
         cost_per_input_token: model.cost_per_input_token,
         cost_per_output_token: model.cost_per_output_token,
         status: 'active', // AI Provider Factory에 등록된 모델은 모두 활성 상태
-        capabilities: model.capabilities || [],
+        capabilities: [], // AI Provider Factory의 모델에는 capabilities 정보가 없음
         max_tokens: model.max_tokens,
         available: true // AI Provider Factory에 등록된 모델은 모두 사용 가능
       }))
