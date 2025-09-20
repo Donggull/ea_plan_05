@@ -319,12 +319,12 @@ class AnthropicProvider extends BaseAIProvider {
         'User-Agent': 'ELUO-Project/1.0'
       }
 
-      // 타임아웃 및 재시도 로직 추가
+      // 타임아웃 및 재시도 로직 추가 - 문서 분석에 더 많은 시간 필요
       const controller = new AbortController()
       const timeoutId = setTimeout(() => {
         console.warn('⚠️ Anthropic API 타임아웃 발생')
         controller.abort()
-      }, 60000) // 60초 타임아웃
+      }, 120000) // 120초 타임아웃 (문서 분석은 더 오래 걸릴 수 있음)
 
       try {
         const response = await fetch(apiUrl, {
@@ -385,14 +385,39 @@ class AnthropicProvider extends BaseAIProvider {
           responseTime: Date.now() - startTime
         })
 
-        return data
+        // Anthropic 응답을 AIResponse 형식으로 변환
+        const aiResponse: AIResponse = {
+          content: data.content?.[0]?.text || 'No response content',
+          model: this.config.model_id,
+          usage: {
+            input_tokens: data.usage?.input_tokens || 0,
+            output_tokens: data.usage?.output_tokens || 0,
+            total_tokens: (data.usage?.input_tokens || 0) + (data.usage?.output_tokens || 0)
+          },
+          cost: this.calculateCost(data.usage?.input_tokens || 0, data.usage?.output_tokens || 0),
+          response_time: Date.now() - startTime,
+          finish_reason: data.stop_reason === 'end_turn' ? 'stop' : 'length'
+        }
+
+        // 사용량 기록
+        if (options.user_id) {
+          await ApiUsageService.recordUsageBatch([{
+            userId: options.user_id,
+            model: this.config.model_id,
+            inputTokens: aiResponse.usage.input_tokens,
+            outputTokens: aiResponse.usage.output_tokens,
+            cost: aiResponse.cost
+          }])
+        }
+
+        return aiResponse
       } catch (fetchError) {
         clearTimeout(timeoutId)
 
         if (fetchError instanceof Error && fetchError.name === 'AbortError') {
           console.error('❌ Anthropic API 타임아웃')
           throw new AIProviderError(
-            'Anthropic API 요청이 60초 후 타임아웃되었습니다',
+            'Anthropic API 요청이 120초 후 타임아웃되었습니다. 문서가 너무 크거나 복잡할 수 있습니다.',
             'anthropic',
             this.config.model_id,
             408,

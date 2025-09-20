@@ -112,6 +112,12 @@ export class DocumentAnalysisService {
       targetSteps?: WorkflowStep[]
       forceReanalysis?: boolean
       documentIds?: string[] // 특정 문서만 분석하는 옵션 추가
+      onProgress?: (progress: {
+        currentStep: string
+        currentDocument: number
+        totalDocuments: number
+        percentage: number
+      }) => void
     } = {}
   ): Promise<IntegratedAnalysisResult> {
     const startTime = Date.now()
@@ -133,25 +139,74 @@ export class DocumentAnalysisService {
 
       console.log(`📊 분석 대상 문서: ${documentsToAnalyze.length}개 (전체: ${context.documents.length}개)`)
 
-      for (const document of documentsToAnalyze) {
+      // 초기 진행률 보고
+      options.onProgress?.({
+        currentStep: '문서 준비',
+        currentDocument: 0,
+        totalDocuments: documentsToAnalyze.length,
+        percentage: 0
+      })
+
+      for (let i = 0; i < documentsToAnalyze.length; i++) {
+        const document = documentsToAnalyze[i]
+        // 진행률 업데이트
+        const currentPercentage = Math.floor((i / documentsToAnalyze.length) * 70) // 70%까지는 문서 분석
+        options.onProgress?.({
+          currentStep: `문서 분석: ${document.file_name}`,
+          currentDocument: i + 1,
+          totalDocuments: documentsToAnalyze.length,
+          percentage: currentPercentage
+        })
+
         // 기존 분석 결과 확인 (forceReanalysis가 false인 경우)
         if (!options.forceReanalysis) {
           const existingAnalysis = await this.getExistingDocumentAnalysis(document.id)
           if (existingAnalysis) {
+            console.log(`📄 기존 분석 결과 사용: ${document.file_name}`)
             documentAnalysisResults.push(existingAnalysis)
             continue
           }
         }
 
-        const docResult = await this.analyzeDocument(document, context, userId, options.modelId)
-        documentAnalysisResults.push(docResult)
+        try {
+          const docResult = await this.analyzeDocument(document, context, userId, options.modelId)
+          documentAnalysisResults.push(docResult)
 
-        totalCost += docResult.costSummary?.cost || 0
-        totalTokens += docResult.costSummary?.tokens || 0
-        modelUsed = docResult.costSummary?.model || modelUsed
+          totalCost += docResult.costSummary?.cost || 0
+          totalTokens += docResult.costSummary?.tokens || 0
+          modelUsed = docResult.costSummary?.model || modelUsed
+
+          console.log(`✅ 문서 분석 완료: ${document.file_name} (${i + 1}/${documentsToAnalyze.length})`)
+        } catch (error) {
+          console.error(`❌ 문서 분석 실패: ${document.file_name}`, error)
+
+          // 분석 실패한 문서는 기본 구조로 추가
+          documentAnalysisResults.push({
+            documentId: document.id,
+            fileName: document.file_name,
+            summary: '문서 분석에 실패했습니다.',
+            keyInsights: [`${document.file_name} 분석 중 오류 발생`],
+            relevantWorkflowSteps: [],
+            extractedData: {},
+            recommendations: ['수동으로 문서를 검토해주세요.'],
+            confidence: 0.1,
+            processingTime: 0,
+            costSummary: { cost: 0, tokens: 0, model: 'unknown' }
+          })
+
+          // 개별 문서 실패는 전체 프로세스를 중단하지 않음
+          console.warn(`⚠️ 개별 문서 분석 실패를 건너뛰고 계속 진행: ${document.file_name}`)
+        }
       }
 
       // 3. 통합 분석 및 워크플로우 평가
+      options.onProgress?.({
+        currentStep: '통합 분석 및 워크플로우 평가',
+        currentDocument: documentsToAnalyze.length,
+        totalDocuments: documentsToAnalyze.length,
+        percentage: 80
+      })
+
       const workflowRecommendations = await this.generateWorkflowRecommendations(
         context,
         documentAnalysisResults,
@@ -178,7 +233,22 @@ export class DocumentAnalysisService {
       }
 
       // 5. 결과 저장
+      options.onProgress?.({
+        currentStep: '결과 저장',
+        currentDocument: documentsToAnalyze.length,
+        totalDocuments: documentsToAnalyze.length,
+        percentage: 95
+      })
+
       await this.saveIntegratedAnalysisResult(result, userId)
+
+      // 분석 완료
+      options.onProgress?.({
+        currentStep: '분석 완료',
+        currentDocument: documentsToAnalyze.length,
+        totalDocuments: documentsToAnalyze.length,
+        percentage: 100
+      })
 
       return result
 

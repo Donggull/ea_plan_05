@@ -52,7 +52,7 @@ export default async function handler(req, res) {
     // Anthropic API로 프록시 - 타임아웃 및 오류 처리 강화
     const anthropicUrl = 'https://api.anthropic.com/v1/messages'
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 60000) // 60초 타임아웃
+    const timeoutId = setTimeout(() => controller.abort(), 120000) // 120초 타임아웃 (문서 분석용)
 
     try {
       const response = await fetch(anthropicUrl, {
@@ -103,7 +103,7 @@ export default async function handler(req, res) {
         console.error('❌ Anthropic API 타임아웃')
         return res.status(408).json({
           error: 'Request timeout',
-          message: 'Anthropic API request timed out after 60 seconds'
+          message: 'Anthropic API request timed out after 120 seconds'
         })
       }
       throw fetchError

@@ -69,33 +69,20 @@ export function useDocumentAnalysis(projectId?: string) {
     }))
 
     try {
-      // 진행률 업데이트 시뮬레이션 (실제로는 서비스에서 콜백으로 받아야 함)
-      const progressInterval = setInterval(() => {
-        setState(prev => {
-          if (!prev.progress) return prev
-
-          const newPercentage = Math.min(prev.progress.percentage + 10, 90)
-          return {
-            ...prev,
-            progress: {
-              ...prev.progress,
-              percentage: newPercentage,
-              currentStep: newPercentage < 30 ? '문서 읽기' :
-                          newPercentage < 60 ? 'AI 분석' :
-                          newPercentage < 90 ? '결과 정리' : '완료 준비'
-            }
-          }
-        })
-      }, 1000)
-
-      // 실제 분석 실행
+      // 실제 분석 실행 (실시간 진행률 콜백 포함)
       const result = await DocumentAnalysisService.analyzeProjectDocuments(
         currentProjectId,
         user.id,
-        options
+        {
+          ...options,
+          onProgress: (progress) => {
+            setState(prev => ({
+              ...prev,
+              progress
+            }))
+          }
+        }
       )
-
-      clearInterval(progressInterval)
 
       setState(prev => ({
         ...prev,
@@ -103,8 +90,8 @@ export function useDocumentAnalysis(projectId?: string) {
         isAnalyzing: false,
         progress: {
           currentStep: '완료',
-          currentDocument: prev.projectStatus?.totalDocuments || 0,
-          totalDocuments: prev.projectStatus?.totalDocuments || 0,
+          currentDocument: result.documentInsights.length,
+          totalDocuments: result.documentInsights.length,
           percentage: 100
         }
       }))
