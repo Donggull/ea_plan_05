@@ -821,30 +821,22 @@ export class AIProviderFactory {
 
 // 기본 모델들 등록
 export function initializeDefaultModels(): void {
+  console.log('🚀 AI Provider Factory 초기화 시작...')
+
   // 환경 변수에서 API 키 읽기
   const openaiApiKey = import.meta.env.VITE_OPENAI_API_KEY
   const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
   const googleApiKey = import.meta.env.VITE_GOOGLE_AI_API_KEY
 
-  console.log('🔑 AI API 키 상세 확인:')
-  console.log('OpenAI:', {
-    present: !!openaiApiKey,
-    valid: openaiApiKey && openaiApiKey !== 'sk-your-openai-key-here' && openaiApiKey.startsWith('sk-'),
-    prefix: openaiApiKey?.substring(0, 7) + '...',
-    length: openaiApiKey?.length
-  })
-  console.log('Anthropic:', {
-    present: !!anthropicApiKey,
-    valid: anthropicApiKey && anthropicApiKey !== 'your-anthropic-key-here' && anthropicApiKey.startsWith('sk-ant-'),
-    prefix: anthropicApiKey?.substring(0, 10) + '...',
-    length: anthropicApiKey?.length
-  })
-  console.log('Google:', {
-    present: !!googleApiKey,
-    valid: googleApiKey && googleApiKey !== 'your-google-ai-key-here',
-    prefix: googleApiKey?.substring(0, 7) + '...',
-    length: googleApiKey?.length
-  })
+  console.log('🔑 AI API 키 검증:')
+
+  const openaiValid = openaiApiKey && openaiApiKey !== 'sk-your-openai-key-here' && openaiApiKey.startsWith('sk-')
+  const anthropicValid = anthropicApiKey && anthropicApiKey !== 'your-anthropic-key-here' && anthropicApiKey.startsWith('sk-ant-')
+  const googleValid = googleApiKey && googleApiKey !== 'your-google-ai-key-here'
+
+  console.log(`- OpenAI: ${openaiValid ? '✅ 유효' : '❌ 무효'} (길이: ${openaiApiKey?.length || 0})`)
+  console.log(`- Anthropic: ${anthropicValid ? '✅ 유효' : '❌ 무효'} (길이: ${anthropicApiKey?.length || 0})`)
+  console.log(`- Google: ${googleValid ? '✅ 유효' : '❌ 무효'} (길이: ${googleApiKey?.length || 0})`)
 
   // 환경 변수 디버깅 정보
   console.log('📊 환경 변수 상태:')
@@ -855,8 +847,9 @@ export function initializeDefaultModels(): void {
 
   const defaultModels: AIModelConfig[] = []
 
-  // OpenAI 모델들 (API 키가 있을 때만 등록)
-  if (openaiApiKey && openaiApiKey !== 'sk-your-openai-key-here') {
+  // OpenAI 모델들
+  if (openaiValid) {
+    console.log('✅ OpenAI 모델 2개 등록 중...')
     defaultModels.push(
       {
         id: 'gpt-4o',
@@ -881,10 +874,13 @@ export function initializeDefaultModels(): void {
         rate_limits: { requests_per_minute: 500, tokens_per_minute: 30000 }
       }
     )
+  } else {
+    console.log('❌ OpenAI 모델 건너뜀')
   }
 
-  // Anthropic 모델들 (API 키가 있을 때만 등록)
-  if (anthropicApiKey && anthropicApiKey !== 'your-anthropic-key-here') {
+  // Anthropic 모델들
+  if (anthropicValid) {
+    console.log('✅ Anthropic 모델 2개 등록 중...')
     defaultModels.push(
       {
         id: 'claude-3-opus',
@@ -909,10 +905,13 @@ export function initializeDefaultModels(): void {
         rate_limits: { requests_per_minute: 300, tokens_per_minute: 20000 }
       }
     )
+  } else {
+    console.log('❌ Anthropic 모델 건너뜀')
   }
 
-  // Google 모델들 (API 키가 있을 때만 등록)
-  if (googleApiKey && googleApiKey !== 'your-google-ai-key-here') {
+  // Google 모델들
+  if (googleValid) {
+    console.log('✅ Google 모델 1개 등록 중...')
     defaultModels.push({
       id: 'gemini-pro',
       name: 'Gemini Pro',
@@ -924,7 +923,13 @@ export function initializeDefaultModels(): void {
       cost_per_output_token: 0.0000015,
       rate_limits: { requests_per_minute: 60, tokens_per_minute: 5000 }
     })
+  } else {
+    console.log('❌ Google 모델 건너뜀')
   }
+
+  console.log('📊 모델 등록 결과:')
+  console.log('- 총 수집된 모델 수:', defaultModels.length)
+  console.log('- 수집된 모델 목록:', defaultModels.map(m => m.id))
 
   // 모델이 없으면 에러 메시지
   if (defaultModels.length === 0) {
@@ -938,9 +943,16 @@ export function initializeDefaultModels(): void {
     return
   }
 
-  defaultModels.forEach(model => {
+  console.log('🔧 AI Provider Factory에 모델 등록 중...')
+  defaultModels.forEach((model, index) => {
+    console.log(`${index + 1}. 등록 중: ${model.id} (${model.provider})`)
     AIProviderFactory.registerModel(model)
   })
+
+  // 등록 완료 후 확인
+  const registeredModels = AIProviderFactory.getRegisteredModels()
+  console.log('✅ 등록 완료된 모델 수:', registeredModels.length)
+  console.log('✅ 등록된 모델 ID:', registeredModels.map(m => m.id))
 
   // 폴백 체인 설정 (등록된 모델들로만 구성)
   const availableModelIds = defaultModels.map(model => model.id)
@@ -951,7 +963,8 @@ export function initializeDefaultModels(): void {
     retry_delay: 1000
   })
 
-  console.log(`✅ ${defaultModels.length}개의 AI 모델이 등록되었습니다:`, availableModelIds)
+  console.log(`🎯 AI Provider Factory 초기화 완료: ${registeredModels.length}개 모델 사용 가능`)
+  console.log('🎯 사용 가능한 모델:', availableModelIds)
 }
 
 // 팩토리 인스턴스를 기본 내보내기

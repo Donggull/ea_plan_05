@@ -146,19 +146,26 @@ export function AIModelProvider({ children }: { children: React.ReactNode }) {
       dispatch({ type: 'SET_LOADING', payload: true })
       dispatch({ type: 'SET_ERROR', payload: null })
 
-      const models = await modelSettingsService.getActiveModels()
+      // AI Provider Factory에서 등록된 모델 목록 가져오기
+      const { AIProviderFactory } = await import('../services/ai/providerFactory')
+      const registeredModels = AIProviderFactory.getRegisteredModels()
 
-      const formattedModels: AIModel[] = models.map(model => ({
+      console.log('🔍 AI Provider Factory에서 가져온 모델 목록:', {
+        modelCount: registeredModels.length,
+        models: registeredModels.map(m => ({ id: m.id, name: m.name, provider: m.provider }))
+      })
+
+      const formattedModels: AIModel[] = registeredModels.map(model => ({
         id: model.id,
         name: model.name,
         provider: model.provider as 'openai' | 'anthropic' | 'google' | 'custom',
         model_id: model.model_id,
         cost_per_input_token: model.cost_per_input_token,
         cost_per_output_token: model.cost_per_output_token,
-        status: model.status || 'active',
+        status: 'active', // AI Provider Factory에 등록된 모델은 모두 활성 상태
         capabilities: model.capabilities || [],
         max_tokens: model.max_tokens,
-        available: model.status === 'active'
+        available: true // AI Provider Factory에 등록된 모델은 모두 사용 가능
       }))
 
       dispatch({ type: 'SET_MODELS', payload: formattedModels })
