@@ -125,20 +125,28 @@ class OpenAIProvider extends BaseAIProvider {
         await this.checkRateLimit(options.user_id)
       }
 
-      // API 키 확인 - 반드시 실제 API 키가 있어야 함
-      if (!this.config.api_key || this.config.api_key === 'sk-your-openai-key-here' || !this.config.api_key.startsWith('sk-')) {
-        console.error('❌ OpenAI API 키 오류:', {
-          hasKey: !!this.config.api_key,
-          keyPrefix: this.config.api_key?.substring(0, 10),
-          keyLength: this.config.api_key?.length
-        })
-        throw new AIProviderError(
-          'OpenAI API 키가 설정되지 않았거나 잘못되었습니다. 환경 변수 VITE_OPENAI_API_KEY를 확인해주세요.',
-          'openai',
-          this.config.model_id,
-          401,
-          false
-        )
+      // 환경별 API 키 확인
+      const isDev = import.meta.env.DEV
+
+      if (isDev) {
+        // 개발 환경: 클라이언트사이드 API 키 체크
+        if (!this.config.api_key || this.config.api_key === 'sk-your-openai-key-here' || !this.config.api_key.startsWith('sk-')) {
+          console.error('❌ OpenAI API 키 오류:', {
+            hasKey: !!this.config.api_key,
+            keyPrefix: this.config.api_key?.substring(0, 10),
+            keyLength: this.config.api_key?.length
+          })
+          throw new AIProviderError(
+            'OpenAI API 키가 설정되지 않았거나 잘못되었습니다. 환경 변수 VITE_OPENAI_API_KEY를 확인해주세요.',
+            'openai',
+            this.config.model_id,
+            401,
+            false
+          )
+        }
+      } else {
+        // 프로덕션 환경: 서버사이드 API Routes 사용 (클라이언트 키 체크 건너뛰기)
+        console.log('🔄 프로덕션 환경 - OpenAI 서버사이드 API Routes 사용:', '/api/openai')
       }
 
       return await this.callOpenAIAPI(options, startTime)
@@ -163,12 +171,23 @@ class OpenAIProvider extends BaseAIProvider {
 
     console.log('🌐 OpenAI API URL:', apiUrl, '(dev mode:', import.meta.env.DEV, ')')
 
+    // 환경별 헤더 설정
+    const isDev = import.meta.env.DEV
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json'
+    }
+
+    // 개발 환경에서만 클라이언트사이드 API 키 사용
+    if (isDev && this.config.api_key) {
+      headers['Authorization'] = `Bearer ${this.config.api_key}`
+      console.log('🔑 개발 환경 - OpenAI 클라이언트사이드 API 키 사용')
+    } else {
+      console.log('🔄 프로덕션 환경 - OpenAI 서버사이드 API 키 사용')
+    }
+
     const response = await fetch(apiUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.config.api_key}`
-      },
+      headers,
       body: JSON.stringify({
         model: this.config.model_id,
         messages: options.messages,
@@ -227,15 +246,23 @@ class AnthropicProvider extends BaseAIProvider {
         await this.checkRateLimit(options.user_id)
       }
 
-      // API 키 확인 - 반드시 실제 API 키가 있어야 함
-      if (!this.config.api_key || this.config.api_key === 'your-anthropic-key-here') {
-        throw new AIProviderError(
-          'Anthropic API 키가 설정되지 않았습니다. 환경 변수 VITE_ANTHROPIC_API_KEY를 설정해주세요.',
-          'anthropic',
-          this.config.model_id,
-          401,
-          false
-        )
+      // 환경별 API 키 확인
+      const isDev = import.meta.env.DEV
+
+      if (isDev) {
+        // 개발 환경: 클라이언트사이드 API 키 체크
+        if (!this.config.api_key || this.config.api_key === 'your-anthropic-key-here') {
+          throw new AIProviderError(
+            'Anthropic API 키가 설정되지 않았습니다. 환경 변수 VITE_ANTHROPIC_API_KEY를 설정해주세요.',
+            'anthropic',
+            this.config.model_id,
+            401,
+            false
+          )
+        }
+      } else {
+        // 프로덕션 환경: 서버사이드 API Routes 사용 (클라이언트 키 체크 건너뛰기)
+        console.log('🔄 프로덕션 환경 - 서버사이드 API Routes 사용:', '/api/anthropic')
       }
 
       return await this.callAnthropicAPI(options, startTime)
@@ -289,12 +316,15 @@ class AnthropicProvider extends BaseAIProvider {
       })
 
       // Anthropic API 키 유효성 재확인
-      if (!this.config.api_key || this.config.api_key === 'your-anthropic-key-here' || !this.config.api_key.startsWith('sk-ant-')) {
-        throw new Error(`잘못된 Anthropic API 키입니다. 키 형식: ${this.config.api_key?.substring(0, 10)}...`)
+      // 환경별 API 키 최종 검증
+      if (isDev) {
+        // 개발 환경에서만 API 키 검증
+        if (!this.config.api_key || this.config.api_key === 'your-anthropic-key-here' || !this.config.api_key.startsWith('sk-ant-')) {
+          throw new Error(`잘못된 Anthropic API 키입니다. 키 형식: ${this.config.api_key?.substring(0, 10)}...`)
+        }
       }
 
       // 환경에 따른 API 엔드포인트 결정 - 프로덕션 대응 강화
-      const isDev = import.meta.env.DEV
 
       let apiUrl: string
       if (isDev) {
@@ -312,11 +342,19 @@ class AnthropicProvider extends BaseAIProvider {
         requestSize: JSON.stringify(requestBody).length
       })
 
+      // 환경별 헤더 설정
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        'x-api-key': this.config.api_key!,
         'anthropic-version': '2023-06-01',
         'User-Agent': 'ELUO-Project/1.0'
+      }
+
+      // 개발 환경에서만 클라이언트사이드 API 키 사용
+      if (isDev && this.config.api_key) {
+        headers['x-api-key'] = this.config.api_key
+        console.log('🔑 개발 환경 - 클라이언트사이드 API 키 사용')
+      } else {
+        console.log('🔄 프로덕션 환경 - 서버사이드 API 키 사용')
       }
 
       // 타임아웃 및 재시도 로직 추가 - 문서 분석에 더 많은 시간 필요
@@ -823,20 +861,36 @@ export class AIProviderFactory {
 export function initializeDefaultModels(): void {
   console.log('🚀 AI Provider Factory 초기화 시작...')
 
-  // 환경 변수에서 API 키 읽기
+  // 환경별 API 키 읽기 (개발환경: VITE_, 프로덕션: 서버사이드 API 사용)
+  const isDev = import.meta.env.DEV
   const openaiApiKey = import.meta.env.VITE_OPENAI_API_KEY
   const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
   const googleApiKey = import.meta.env.VITE_GOOGLE_AI_API_KEY
 
-  console.log('🔑 AI API 키 검증:')
+  console.log('🔑 AI API 키 검증 (환경:', isDev ? '개발' : '프로덕션', '):')
 
-  const openaiValid = openaiApiKey && openaiApiKey !== 'sk-your-openai-key-here' && openaiApiKey.startsWith('sk-')
-  const anthropicValid = anthropicApiKey && anthropicApiKey !== 'your-anthropic-key-here' && anthropicApiKey.startsWith('sk-ant-')
-  const googleValid = googleApiKey && googleApiKey !== 'your-google-ai-key-here'
+  // 프로덕션 환경에서는 클라이언트사이드 API 키 체크를 건너뛰고 서버사이드 API 사용
+  let openaiValid, anthropicValid, googleValid
 
-  console.log(`- OpenAI: ${openaiValid ? '✅ 유효' : '❌ 무효'} (길이: ${openaiApiKey?.length || 0})`)
-  console.log(`- Anthropic: ${anthropicValid ? '✅ 유효' : '❌ 무효'} (길이: ${anthropicApiKey?.length || 0})`)
-  console.log(`- Google: ${googleValid ? '✅ 유효' : '❌ 무효'} (길이: ${googleApiKey?.length || 0})`)
+  if (isDev) {
+    // 개발 환경: 클라이언트사이드 환경 변수 체크
+    openaiValid = openaiApiKey && openaiApiKey !== 'sk-your-openai-key-here' && openaiApiKey.startsWith('sk-')
+    anthropicValid = anthropicApiKey && anthropicApiKey !== 'your-anthropic-key-here' && anthropicApiKey.startsWith('sk-ant-')
+    googleValid = googleApiKey && googleApiKey !== 'your-google-ai-key-here'
+
+    console.log(`- OpenAI: ${openaiValid ? '✅ 유효' : '❌ 무효'} (길이: ${openaiApiKey?.length || 0})`)
+    console.log(`- Anthropic: ${anthropicValid ? '✅ 유효' : '❌ 무효'} (길이: ${anthropicApiKey?.length || 0})`)
+    console.log(`- Google: ${googleValid ? '✅ 유효' : '❌ 무효'} (길이: ${googleApiKey?.length || 0})`)
+  } else {
+    // 프로덕션 환경: 서버사이드 API Routes를 통해 사용하므로 항상 true로 설정
+    openaiValid = true
+    anthropicValid = true
+    googleValid = true
+
+    console.log(`- OpenAI: ✅ 서버사이드 API 사용 (API Routes: /api/openai)`)
+    console.log(`- Anthropic: ✅ 서버사이드 API 사용 (API Routes: /api/anthropic)`)
+    console.log(`- Google: ✅ 서버사이드 API 사용 (API Routes: /api/google)`)
+  }
 
   // 환경 변수 디버깅 정보
   console.log('📊 환경 변수 상태:')
