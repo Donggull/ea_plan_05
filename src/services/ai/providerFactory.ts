@@ -847,10 +847,9 @@ export function initializeDefaultModels(): void {
 
   const defaultModels: AIModelConfig[] = []
 
-  // OpenAI 모델들
-  if (openaiValid) {
-    console.log('✅ OpenAI 모델 2개 등록 중...')
-    defaultModels.push(
+  // OpenAI 모델들 (최신 2024-2025 모델들) - API 키 유효성에 관계없이 등록
+  console.log('📋 OpenAI 모델 5개 등록 중... (API 키 상태:', openaiValid ? '✅ 유효' : '❌ 무효', ')')
+  defaultModels.push(
       {
         id: 'gpt-4o',
         name: 'GPT-4o',
@@ -863,25 +862,109 @@ export function initializeDefaultModels(): void {
         rate_limits: { requests_per_minute: 500, tokens_per_minute: 30000 }
       },
       {
+        id: 'gpt-4o-mini',
+        name: 'GPT-4o Mini',
+        provider: 'openai',
+        model_id: 'gpt-4o-mini',
+        api_key: openaiApiKey,
+        max_tokens: 128000,
+        cost_per_input_token: 0.00000015,
+        cost_per_output_token: 0.0000006,
+        rate_limits: { requests_per_minute: 500, tokens_per_minute: 200000 }
+      },
+      {
         id: 'gpt-4-turbo',
         name: 'GPT-4 Turbo',
         provider: 'openai',
-        model_id: 'gpt-4-turbo-preview',
+        model_id: 'gpt-4-turbo',
         api_key: openaiApiKey,
         max_tokens: 4096,
         cost_per_input_token: 0.00001,
         cost_per_output_token: 0.00003,
         rate_limits: { requests_per_minute: 500, tokens_per_minute: 30000 }
+      },
+      {
+        id: 'gpt-3.5-turbo',
+        name: 'GPT-3.5 Turbo',
+        provider: 'openai',
+        model_id: 'gpt-3.5-turbo',
+        api_key: openaiApiKey,
+        max_tokens: 4096,
+        cost_per_input_token: 0.0000015,
+        cost_per_output_token: 0.000002,
+        rate_limits: { requests_per_minute: 3500, tokens_per_minute: 90000 }
+      },
+      {
+        id: 'o1-preview',
+        name: 'o1 Preview',
+        provider: 'openai',
+        model_id: 'o1-preview',
+        api_key: openaiApiKey,
+        max_tokens: 32768,
+        cost_per_input_token: 0.000015,
+        cost_per_output_token: 0.00006,
+        rate_limits: { requests_per_minute: 20, tokens_per_minute: 20000 }
       }
     )
-  } else {
-    console.log('❌ OpenAI 모델 건너뜀')
-  }
 
-  // Anthropic 모델들
-  if (anthropicValid) {
-    console.log('✅ Anthropic 모델 2개 등록 중...')
-    defaultModels.push(
+  // Anthropic 모델들 (최신 Claude 4 시리즈 포함) - API 키 유효성에 관계없이 등록
+  console.log('📋 Anthropic 모델 7개 등록 중... (API 키 상태:', anthropicValid ? '✅ 유효' : '❌ 무효', ')')
+  defaultModels.push(
+      {
+        id: 'claude-opus-4-1',
+        name: 'Claude Opus 4.1',
+        provider: 'anthropic',
+        model_id: 'claude-opus-4-1-20250805',
+        api_key: anthropicApiKey,
+        max_tokens: 8192,
+        cost_per_input_token: 0.000015,
+        cost_per_output_token: 0.000075,
+        rate_limits: { requests_per_minute: 50, tokens_per_minute: 40000 }
+      },
+      {
+        id: 'claude-opus-4',
+        name: 'Claude Opus 4',
+        provider: 'anthropic',
+        model_id: 'claude-opus-4-20250514',
+        api_key: anthropicApiKey,
+        max_tokens: 8192,
+        cost_per_input_token: 0.000015,
+        cost_per_output_token: 0.000075,
+        rate_limits: { requests_per_minute: 50, tokens_per_minute: 40000 }
+      },
+      {
+        id: 'claude-sonnet-4',
+        name: 'Claude Sonnet 4',
+        provider: 'anthropic',
+        model_id: 'claude-sonnet-4-20250514',
+        api_key: anthropicApiKey,
+        max_tokens: 8192,
+        cost_per_input_token: 0.000003,
+        cost_per_output_token: 0.000015,
+        rate_limits: { requests_per_minute: 100, tokens_per_minute: 80000 }
+      },
+      {
+        id: 'claude-3-7-sonnet',
+        name: 'Claude 3.7 Sonnet',
+        provider: 'anthropic',
+        model_id: 'claude-3-7-sonnet-20250219',
+        api_key: anthropicApiKey,
+        max_tokens: 8192,
+        cost_per_input_token: 0.000003,
+        cost_per_output_token: 0.000015,
+        rate_limits: { requests_per_minute: 100, tokens_per_minute: 80000 }
+      },
+      {
+        id: 'claude-3-5-haiku',
+        name: 'Claude 3.5 Haiku',
+        provider: 'anthropic',
+        model_id: 'claude-3-5-haiku-20241022',
+        api_key: anthropicApiKey,
+        max_tokens: 8192,
+        cost_per_input_token: 0.0000008,
+        cost_per_output_token: 0.000004,
+        rate_limits: { requests_per_minute: 300, tokens_per_minute: 50000 }
+      },
       {
         id: 'claude-3-opus',
         name: 'Claude 3 Opus',
@@ -894,54 +977,83 @@ export function initializeDefaultModels(): void {
         rate_limits: { requests_per_minute: 100, tokens_per_minute: 10000 }
       },
       {
-        id: 'claude-3-sonnet',
-        name: 'Claude 3 Sonnet',
+        id: 'claude-3-haiku',
+        name: 'Claude 3 Haiku',
         provider: 'anthropic',
-        model_id: 'claude-3-sonnet-20240229',
+        model_id: 'claude-3-haiku-20240307',
         api_key: anthropicApiKey,
         max_tokens: 4096,
-        cost_per_input_token: 0.000003,
-        cost_per_output_token: 0.000015,
-        rate_limits: { requests_per_minute: 300, tokens_per_minute: 20000 }
+        cost_per_input_token: 0.00000025,
+        cost_per_output_token: 0.00000125,
+        rate_limits: { requests_per_minute: 300, tokens_per_minute: 50000 }
       }
     )
-  } else {
-    console.log('❌ Anthropic 모델 건너뜀')
-  }
 
-  // Google 모델들
-  if (googleValid) {
-    console.log('✅ Google 모델 1개 등록 중...')
-    defaultModels.push({
-      id: 'gemini-pro',
-      name: 'Gemini Pro',
-      provider: 'google',
-      model_id: 'gemini-pro',
-      api_key: googleApiKey,
-      max_tokens: 2048,
-      cost_per_input_token: 0.0000005,
-      cost_per_output_token: 0.0000015,
-      rate_limits: { requests_per_minute: 60, tokens_per_minute: 5000 }
-    })
-  } else {
-    console.log('❌ Google 모델 건너뜀')
-  }
+  // Google 모델들 (최신 Gemini 2.0 및 2.5 시리즈) - API 키 유효성에 관계없이 등록
+  console.log('📋 Google 모델 5개 등록 중... (API 키 상태:', googleValid ? '✅ 유효' : '❌ 무효', ')')
+  defaultModels.push(
+      {
+        id: 'gemini-2.0-flash',
+        name: 'Gemini 2.0 Flash',
+        provider: 'google',
+        model_id: 'gemini-2.0-flash',
+        api_key: googleApiKey,
+        max_tokens: 8192,
+        cost_per_input_token: 0.000000125,
+        cost_per_output_token: 0.000000375,
+        rate_limits: { requests_per_minute: 1000, tokens_per_minute: 1000000 }
+      },
+      {
+        id: 'gemini-2.5-pro-preview-tts',
+        name: 'Gemini 2.5 Pro Preview TTS',
+        provider: 'google',
+        model_id: 'gemini-2.5-pro-preview-tts',
+        api_key: googleApiKey,
+        max_tokens: 8192,
+        cost_per_input_token: 0.00000125,
+        cost_per_output_token: 0.00000375,
+        rate_limits: { requests_per_minute: 20, tokens_per_minute: 32000 }
+      },
+      {
+        id: 'gemini-1.5-pro',
+        name: 'Gemini 1.5 Pro',
+        provider: 'google',
+        model_id: 'gemini-1.5-pro',
+        api_key: googleApiKey,
+        max_tokens: 8192,
+        cost_per_input_token: 0.00000125,
+        cost_per_output_token: 0.00000375,
+        rate_limits: { requests_per_minute: 360, tokens_per_minute: 10000000 }
+      },
+      {
+        id: 'gemini-1.5-flash',
+        name: 'Gemini 1.5 Flash',
+        provider: 'google',
+        model_id: 'gemini-1.5-flash',
+        api_key: googleApiKey,
+        max_tokens: 8192,
+        cost_per_input_token: 0.000000075,
+        cost_per_output_token: 0.0000003,
+        rate_limits: { requests_per_minute: 1000, tokens_per_minute: 1000000 }
+      },
+      {
+        id: 'gemini-pro',
+        name: 'Gemini Pro',
+        provider: 'google',
+        model_id: 'gemini-pro',
+        api_key: googleApiKey,
+        max_tokens: 2048,
+        cost_per_input_token: 0.0000005,
+        cost_per_output_token: 0.0000015,
+        rate_limits: { requests_per_minute: 60, tokens_per_minute: 32000 }
+      }
+    )
 
   console.log('📊 모델 등록 결과:')
   console.log('- 총 수집된 모델 수:', defaultModels.length)
   console.log('- 수집된 모델 목록:', defaultModels.map(m => m.id))
 
-  // 모델이 없으면 에러 메시지
-  if (defaultModels.length === 0) {
-    console.error('❌ AI API 키가 설정되지 않았습니다.')
-    console.error('다음 환경 변수 중 하나 이상을 설정해주세요:')
-    console.error('- VITE_OPENAI_API_KEY: OpenAI API 키')
-    console.error('- VITE_ANTHROPIC_API_KEY: Anthropic API 키')
-    console.error('- VITE_GOOGLE_AI_API_KEY: Google AI API 키')
-    console.error('설정 후 애플리케이션을 다시 시작해주세요.')
-    // 모델이 없으면 아무것도 등록하지 않음
-    return
-  }
+  // 모든 모델이 API 키 유효성에 관계없이 등록됨
 
   console.log('🔧 AI Provider Factory에 모델 등록 중...')
   defaultModels.forEach((model, index) => {
