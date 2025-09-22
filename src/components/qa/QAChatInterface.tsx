@@ -11,11 +11,7 @@ import {
   MessageSquare,
   CheckCircle,
   Sparkles,
-  Search,
-  Filter,
-  Paperclip,
-  Smile,
-  MoreVertical
+  Paperclip
 } from 'lucide-react'
 import { QAConversation, QAMessage } from '../../types/qa'
 import { qaService } from '../../services/qa/qaService'
@@ -244,13 +240,13 @@ export const QAChatInterface: React.FC<QAChatInterfaceProps> = ({
 
           <div className="flex items-center space-x-2">
             <button className="p-2 hover:bg-bg-tertiary rounded-lg transition-colors">
-              <Search className="w-4 h-4 text-text-secondary" />
+              <MessageSquare className="w-4 h-4 text-text-secondary" />
             </button>
             <button className="p-2 hover:bg-bg-tertiary rounded-lg transition-colors">
-              <Filter className="w-4 h-4 text-text-secondary" />
+              <Sparkles className="w-4 h-4 text-text-secondary" />
             </button>
             <button className="p-2 hover:bg-bg-tertiary rounded-lg transition-colors">
-              <MoreVertical className="w-4 h-4 text-text-secondary" />
+              <Bot className="w-4 h-4 text-text-secondary" />
             </button>
           </div>
         </div>
@@ -427,7 +423,7 @@ export const QAChatInterface: React.FC<QAChatInterfaceProps> = ({
               className="p-2 hover:bg-bg-tertiary rounded-lg transition-colors"
               title="이모지"
             >
-              <Smile className="w-4 h-4 text-text-secondary" />
+              <CheckCircle className="w-4 h-4 text-text-secondary" />
             </button>
           </div>
 

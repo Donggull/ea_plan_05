@@ -217,8 +217,8 @@ export class QAAIService {
         userId: item.user_id,
         userName: item.user_name,
         userRole: item.user_role,
-        createdAt: new Date(item.created_at),
-        updatedAt: new Date(item.updated_at),
+        createdAt: new Date(item.created_at || new Date().toISOString()),
+        updatedAt: new Date(item.updated_at || new Date().toISOString()),
         isEdited: item.is_edited || false,
         replyCount: 0
       })) as QAMessage[] || []
@@ -340,7 +340,7 @@ export class QAAIService {
       }, {} as Record<string, number>)
 
       const trendingTopics = Object.entries(tagCounts)
-        .sort(([,a], [,b]) => b - a)
+        .sort(([,a], [,b]) => (b as number) - (a as number))
         .slice(0, 5)
         .map(([tag]) => tag)
 

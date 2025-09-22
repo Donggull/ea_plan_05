@@ -101,7 +101,6 @@ export class ApiQuotaService {
 
     const usageRecord: UserApiUsageInsert = {
       user_id: userId,
-      api_provider: 'openai', // 기본값 설정
       date,
       hour,
       model,

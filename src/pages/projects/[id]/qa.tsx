@@ -2,7 +2,7 @@
 // 프로젝트별 질문-답변 시스템
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/router'
+import { useParams } from 'react-router-dom'
 import {
   MessageSquare,
   Bot,
@@ -16,8 +16,7 @@ import QAChatInterface from '../../../components/qa/QAChatInterface'
 import ProjectLayout from '../../../layouts/ProjectLayout'
 
 export default function QAPage() {
-  const router = useRouter()
-  const { id: projectId } = router.query
+  const { id: projectId } = useParams<{ id: string }>()
 
   // States
   const [selectedConversation, setSelectedConversation] = useState<QAConversation | null>(null)
@@ -38,7 +37,7 @@ export default function QAPage() {
 
   // Effects
   useEffect(() => {
-    if (projectId && typeof projectId === 'string') {
+    if (projectId) {
       // 프로젝트별 Q&A 초기화
     }
   }, [projectId])
@@ -53,7 +52,7 @@ export default function QAPage() {
   }
 
   const handleCreateConversation = async () => {
-    if (!newConversationData.title.trim() || !projectId || typeof projectId !== 'string') return
+    if (!newConversationData.title.trim() || !projectId) return
 
     setIsCreating(true)
     try {
@@ -91,7 +90,7 @@ export default function QAPage() {
     }))
   }
 
-  if (!projectId || typeof projectId !== 'string') {
+  if (!projectId) {
     return <div>프로젝트를 찾을 수 없습니다.</div>
   }
 

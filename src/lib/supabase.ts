@@ -308,7 +308,7 @@ export const auth = {
 export const db = {
   from: (table: keyof Database['public']['Tables']) => {
     const client = getSupabaseClient()
-    return client.from(table)
+    return (client as any).from(table)
   },
   rpc: (...args: any[]) => {
     const client = getSupabaseClient()

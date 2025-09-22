@@ -419,7 +419,7 @@ export class QAService {
         .eq('id', messageId)
         .single()
 
-      if (message) {
+      if (message && message.conversation_id) {
         // 기존 답변 표시 제거
         await supabase
           .from('qa_messages')
