@@ -31,6 +31,8 @@ import { ProtectedRoute } from '@/components/layout/ProtectedRoute'
 import { MainLayout } from '@/layouts/MainLayout'
 import { AuthLayout } from '@/layouts/AuthLayout'
 import AdminRoutes from '@/pages/admin/index'
+import { MCPSettings } from '@/pages/settings/MCPSettings'
+import { PreAnalysisPage } from '@/pages/projects/PreAnalysisPage'
 
 const queryClient = new QueryClient()
 
@@ -64,6 +66,7 @@ function App() {
               <Route path="/projects/new" element={<NewProjectPage />} />
               <Route path="/projects/:id" element={<ProjectDetailPage />} />
               <Route path="/projects/:id/edit" element={<EditProjectPage />} />
+              <Route path="/projects/:id/pre-analysis" element={<PreAnalysisPage />} />
               <Route path="/projects/:id/proposal" element={<ProposalWorkflowPage />} />
               <Route path="/projects/:id/proposal/market-research" element={<MarketResearchPage />} />
               <Route path="/projects/:id/proposal/market-research/results" element={<MarketResearchResultsPage />} />
@@ -77,6 +80,7 @@ function App() {
               <Route path="/analytics" element={<DashboardPage />} />
               <Route path="/team" element={<DashboardPage />} />
               <Route path="/settings" element={<DashboardPage />} />
+              <Route path="/settings/mcp" element={<MCPSettings />} />
               <Route path="/profile" element={<ProfilePage />} />
 
               {/* 관리자 페이지 라우트 */}

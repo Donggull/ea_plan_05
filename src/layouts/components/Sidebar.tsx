@@ -18,12 +18,17 @@ import {
   XCircle,
   ChevronDown,
   Building,
-  Shield
+  Shield,
+  Database,
+  Search,
+  Github,
+  MoreHorizontal
 } from 'lucide-react'
 import { ApiUsageService } from '../../services/apiUsageService'
 import { useAIModel } from '../../contexts/AIModelContext'
 import { useProject } from '../../contexts/ProjectContext'
 import { usePermissionCheck } from '@/lib/middleware/permissionCheck'
+import { MCPManager } from '../../services/preAnalysis/MCPManager'
 
 interface SidebarProps {
   isCollapsed?: boolean
@@ -31,9 +36,12 @@ interface SidebarProps {
 }
 
 interface MCPServer {
+  id: string
   name: string
   status: 'connected' | 'disconnected' | 'error'
   description: string
+  icon: React.ElementType
+  enabled: boolean
 }
 
 interface AIModel {
@@ -72,13 +80,16 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
   // 권한 검증 사용
   const { isAdminUser, isSubAdminUser } = usePermissionCheck()
 
-  // MCP 서버 상태 (실제로는 상태 관리에서 가져와야 함)
-  const [mcpServers] = useState<MCPServer[]>([
-    { name: 'Supabase', status: 'connected', description: 'Database & Auth' },
-    { name: 'Context7', status: 'connected', description: 'Documentation' },
-    { name: 'Sequential', status: 'connected', description: 'Analysis' },
-    { name: 'GitHub', status: 'disconnected', description: 'Code Repository' }
+  // MCP 서버 상태 - 실제 MCPManager와 연동
+  const [mcpServers, setMcpServers] = useState<MCPServer[]>([
+    { id: 'filesystem', name: 'Filesystem', status: 'connected', description: 'File Analysis', icon: FolderOpen, enabled: true },
+    { id: 'database', name: 'Database', status: 'connected', description: 'Project History', icon: Database, enabled: true },
+    { id: 'websearch', name: 'Web Search', status: 'connected', description: 'Market Research', icon: Search, enabled: false },
+    { id: 'github', name: 'GitHub', status: 'disconnected', description: 'Code Repository', icon: Github, enabled: false }
   ])
+
+  // MCP Manager 인스턴스
+  const mcpManager = MCPManager.getInstance()
 
   // AI 모델 컨텍스트에서 상태 추출
   const { selectedProviderId, selectedModelId, availableModels, loading, error } = aiModelState
@@ -131,6 +142,34 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
     const interval = setInterval(loadCostData, 30000)
     return () => clearInterval(interval)
   }, [])
+
+  // MCP 서버 상태 초기화 및 동기화
+  useEffect(() => {
+    // MCPManager의 초기 상태 설정
+    mcpServers.forEach(server => {
+      mcpManager.setServerStatus(server.id, server.enabled)
+    })
+
+    // MCP 서버 헬스체크
+    const checkMCPHealth = async () => {
+      try {
+        const healthStatus = await mcpManager.checkServerHealth()
+
+        setMcpServers(prev => prev.map(server => ({
+          ...server,
+          status: healthStatus[server.id] ? 'connected' : 'disconnected'
+        })))
+      } catch (error) {
+        console.error('MCP 서버 상태 확인 실패:', error)
+      }
+    }
+
+    checkMCPHealth()
+
+    // 10초마다 MCP 서버 상태 확인
+    const mcpInterval = setInterval(checkMCPHealth, 10000)
+    return () => clearInterval(mcpInterval)
+  }, [mcpManager])
 
   useEffect(() => {
     setCollapsed(isCollapsed)
@@ -507,7 +546,7 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
           )}
         </div>
 
-        {/* MCP 서버 상태 - 축소된 버전 */}
+        {/* MCP 서버 상태 - 향상된 버전 */}
         <div className="space-y-2">
           {!collapsed && (
             <h3 className="text-text-tertiary text-mini font-medium uppercase tracking-wide">
@@ -517,33 +556,59 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
 
           {!collapsed ? (
             <div className="space-y-1">
-              {mcpServers.slice(0, 3).map((server) => (
-                <div
-                  key={server.name}
-                  className="flex items-center justify-between p-1.5 bg-bg-tertiary/30 rounded text-mini"
-                >
-                  <div className="flex items-center space-x-2">
-                    {getStatusIcon(server.status)}
-                    <span className="text-text-primary font-medium">{server.name}</span>
+              {mcpServers.slice(0, 3).map((server) => {
+                const Icon = server.icon
+                return (
+                  <div
+                    key={server.id}
+                    className="flex items-center justify-between p-1.5 bg-bg-tertiary/30 rounded text-mini hover:bg-bg-tertiary/50 transition-colors"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <Icon className="w-3 h-3 text-text-secondary" />
+                      {getStatusIcon(server.status)}
+                      <span className="text-text-primary font-medium">{server.name}</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const newEnabled = !server.enabled
+                        setMcpServers(prev => prev.map(s =>
+                          s.id === server.id ? { ...s, enabled: newEnabled } : s
+                        ))
+                        mcpManager.setServerStatus(server.id, newEnabled)
+                      }}
+                      className={`w-3 h-3 rounded-full transition-colors ${
+                        server.enabled
+                          ? 'bg-accent-green'
+                          : 'bg-text-muted hover:bg-text-secondary'
+                      }`}
+                      title={`${server.enabled ? 'Disable' : 'Enable'} ${server.name}`}
+                    />
                   </div>
-                </div>
-              ))}
+                )
+              })}
               {mcpServers.length > 3 && (
-                <div className="text-center">
-                  <span className="text-text-tertiary text-mini">+{mcpServers.length - 3} more</span>
-                </div>
+                <button
+                  onClick={() => navigate('/settings/mcp')}
+                  className="w-full text-center py-1 text-text-tertiary hover:text-text-secondary transition-colors"
+                >
+                  <div className="flex items-center justify-center space-x-1">
+                    <MoreHorizontal className="w-3 h-3" />
+                    <span className="text-mini">+{mcpServers.length - 3} more</span>
+                  </div>
+                </button>
               )}
             </div>
           ) : (
             /* 축소된 상태에서 MCP 상태 표시 */
             <button
-              title={`MCP Servers: ${mcpServers.filter(s => s.status === 'connected').length}/${mcpServers.length} connected`}
+              title={`MCP Servers: ${mcpServers.filter(s => s.status === 'connected').length}/${mcpServers.length} connected, ${mcpServers.filter(s => s.enabled).length} enabled`}
               className="w-full flex justify-center p-2 bg-bg-tertiary rounded-lg hover:bg-bg-elevated transition-colors"
+              onClick={() => navigate('/settings/mcp')}
             >
               <div className="flex items-center space-x-1">
                 <Activity className="w-4 h-4 text-accent-green" />
                 <span className="text-mini text-text-primary font-medium">
-                  {mcpServers.filter(s => s.status === 'connected').length}
+                  {mcpServers.filter(s => s.enabled).length}
                 </span>
               </div>
             </button>
