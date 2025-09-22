@@ -5,7 +5,7 @@
 **기본적으로 라이트모드와 다크모드로 전환할 수 있는 기능을 header 영역에 제공해줘**
 **global CSS를 통해서 전체 컬러 값 등 모든 요소를 수정하고 관리할 수 있도록 중앙화와 일반화를 신경써서 만들어줘.**
 **너는 MCP를 사용할 수 있어. 적용되어 있는 MCP를 우선적으로 사용하면서 작업을 진행해줘.**
-**요청한 요건이 완료되면 마지막에는 반드시 github MCP를 활용해서 커밋 하고 푸시해줘**
+**요청한 요건이 완료되면 TODO.md 파일에도 업데이트해줘. 마지막에는 반드시 github MCP를 활용해서 커밋 하고 푸시해줘.**
 git은 Donggull/ea_plan_05의 master 브랜치에 커밋과 푸시를 진행하면 돼.
 **모든 데이터는 실제 데이터인 supabase와 연동되도록 개발해줘.**
 **로그인이 완료되면 모든 페이지에는 로그인 정보가 연동 되어야 하고 환경에 따라 접근 가능한 부분을 설정할 예정이야. 모든 페이지에 로그인 정보가 연동되도록 기본 설계가 되어야해.**
@@ -43,6 +43,9 @@ ELUO는 AI 기반 통합 프로젝트 관리 시스템으로, 제안서 작성�
 - 기술 요구사항: `./docs/trd_technical_spec.md`
 - AI/MCP 통합: `./docs/ai_mcp_integration_guide.md`
 - Linear 테마: `./src/config/linear-theme.config.ts`
+- 사전 분석 단계 PRD: `./docs/pre_analysis_prd.md`
+- 사전 분석 단계 개발 프롬프트 가이드: `./docs/pre_analysis_prompts.md`
+- 사전 분석 단계 통합 가이드: `./docs/integration_guide.md`
 
 ### 기술 스택
 ```
