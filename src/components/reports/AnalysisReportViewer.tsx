@@ -7,15 +7,11 @@ import {
   Download,
   Share2,
   Printer,
-  Eye,
-  EyeOff,
   ChevronLeft,
   ChevronRight,
-  Filter,
   Search,
   Calendar,
   Clock,
-  User,
   Database,
   Brain,
   TrendingUp,
@@ -23,17 +19,12 @@ import {
   CheckCircle,
   Target,
   Lightbulb,
-  Settings,
-  MoreVertical
+  Settings
 } from 'lucide-react'
 import { AnalysisReportData, analysisReportService } from '../../services/reports/analysisReportService'
 import {
   RiskDistributionChart,
-  CostAnalysisChart,
-  TimelineChart,
   TechAnalysisRadar,
-  RiskTrendChart,
-  ROIAnalysisChart,
   MetricCard
 } from '../charts/ReportCharts'
 
@@ -41,6 +32,7 @@ interface AnalysisReportViewerProps {
   projectId: string
   reportId?: string
   onReportSelect?: (reportId: string) => void
+  onBack?: () => void
   className?: string
 }
 
@@ -48,6 +40,7 @@ export const AnalysisReportViewer: React.FC<AnalysisReportViewerProps> = ({
   projectId,
   reportId,
   onReportSelect,
+  onBack,
   className = ''
 }) => {
   const [reports, setReports] = useState<AnalysisReportData[]>([])

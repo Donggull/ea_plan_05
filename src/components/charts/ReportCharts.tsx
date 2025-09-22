@@ -119,7 +119,7 @@ export const CostAnalysisChart: React.FC<CostAnalysisChartProps> = ({ data, clas
             <YAxis
               stroke="#9ca3af"
               tick={{ fill: '#9ca3af', fontSize: 12 }}
-              tickFormatter={(value) => `${(value / 1000000).toFixed(0)}M`}
+              tickFormatter={(value: number) => `${(value / 1000000).toFixed(0)}M`}
             />
             <Tooltip
               contentStyle={{
@@ -347,7 +347,7 @@ export const ROIAnalysisChart: React.FC<ROIAnalysisChartProps> = ({ data, classN
             <YAxis
               stroke="#9ca3af"
               tick={{ fill: '#9ca3af', fontSize: 12 }}
-              tickFormatter={(value) => `${value}%`}
+              tickFormatter={(value: number) => `${value}%`}
             />
             <Tooltip
               contentStyle={{

@@ -16,10 +16,10 @@ import {
 } from 'lucide-react'
 import { useProject } from '../../../contexts/ProjectContext'
 import { ProjectService } from '../../../services/projectService'
-import { AnalysisReportService } from '../../../services/reports/analysisReportService'
+import { analysisReportService } from '../../../services/reports/analysisReportService'
 import { AnalysisReportViewer } from '../../../components/reports/AnalysisReportViewer'
 import { PageContainer, PageHeader, PageContent, Card } from '../../../components/LinearComponents'
-import type { AnalysisReport } from '../../../services/reports/analysisReportService'
+import type { AnalysisReportData } from '../../../services/reports/analysisReportService'
 
 export function ProjectReportsPage() {
   const { id } = useParams<{ id: string }>()
@@ -28,9 +28,9 @@ export function ProjectReportsPage() {
   const [project, setProject] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [reports, setReports] = useState<AnalysisReport[]>([])
+  const [reports, setReports] = useState<AnalysisReportData[]>([])
   const [reportsLoading, setReportsLoading] = useState(false)
-  const [selectedReport, setSelectedReport] = useState<AnalysisReport | null>(null)
+  const [selectedReport, setSelectedReport] = useState<AnalysisReportData | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [showViewer, setShowViewer] = useState(false)
 
@@ -76,7 +76,7 @@ export function ProjectReportsPage() {
 
       try {
         setReportsLoading(true)
-        const reportData = await AnalysisReportService.getProjectReports(id)
+        const reportData = await analysisReportService.getProjectReports(id)
         setReports(reportData)
       } catch (err) {
         console.error('Failed to load reports:', err)
@@ -96,14 +96,14 @@ export function ProjectReportsPage() {
 
     try {
       setIsGenerating(true)
-      const newReport = await AnalysisReportService.generateComprehensiveReport(
+      const newReport = await analysisReportService.generateComprehensiveReport(
         id,
         '프로젝트 종합 분석 보고서',
         'comprehensive'
       )
 
       // 보고서 목록 새로고침
-      const updatedReports = await AnalysisReportService.getProjectReports(id)
+      const updatedReports = await analysisReportService.getProjectReports(id)
       setReports(updatedReports)
 
       // 새로 생성된 보고서 선택
@@ -118,7 +118,7 @@ export function ProjectReportsPage() {
   }
 
   // 보고서 선택
-  const handleSelectReport = (report: AnalysisReport) => {
+  const handleSelectReport = (report: AnalysisReportData) => {
     setSelectedReport(report)
     setShowViewer(true)
   }
@@ -165,16 +165,12 @@ export function ProjectReportsPage() {
 
   const getReportTypeIcon = (type: string) => {
     switch (type) {
-      case 'risk':
+      case 'summary':
         return <AlertTriangle className="w-5 h-5 text-accent-red" />
-      case 'cost':
+      case 'detailed':
         return <DollarSign className="w-5 h-5 text-accent-green" />
-      case 'technical':
+      case 'executive':
         return <Zap className="w-5 h-5 text-accent-blue" />
-      case 'security':
-        return <Shield className="w-5 h-5 text-accent-orange" />
-      case 'timeline':
-        return <Clock className="w-5 h-5 text-accent-purple" />
       case 'comprehensive':
         return <BarChart3 className="w-5 h-5 text-accent-indigo" />
       default:
@@ -184,16 +180,12 @@ export function ProjectReportsPage() {
 
   const getReportTypeName = (type: string) => {
     switch (type) {
-      case 'risk':
-        return '위험 분석'
-      case 'cost':
-        return '비용 분석'
-      case 'technical':
-        return '기술 분석'
-      case 'security':
-        return '보안 분석'
-      case 'timeline':
-        return '일정 분석'
+      case 'summary':
+        return '요약 보고서'
+      case 'detailed':
+        return '상세 보고서'
+      case 'executive':
+        return '경영진 보고서'
       case 'comprehensive':
         return '종합 분석'
       default:
@@ -280,9 +272,9 @@ export function ProjectReportsPage() {
               </div>
               <div>
                 <div className="text-2xl font-semibold text-text-primary">
-                  {reports.filter(r => r.report_type === 'risk').length}
+                  {reports.filter(r => r.reportType === 'summary').length}
                 </div>
-                <div className="text-text-secondary text-sm">위험 분석 보고서</div>
+                <div className="text-text-secondary text-sm">요약 보고서</div>
               </div>
             </div>
           </Card>
@@ -294,7 +286,7 @@ export function ProjectReportsPage() {
               </div>
               <div>
                 <div className="text-2xl font-semibold text-text-primary">
-                  {reports.filter(r => r.report_type === 'comprehensive').length}
+                  {reports.filter(r => r.reportType === 'comprehensive').length}
                 </div>
                 <div className="text-text-secondary text-sm">종합 분석 보고서</div>
               </div>
@@ -355,7 +347,7 @@ export function ProjectReportsPage() {
                 >
                   <div className="flex items-center space-x-4">
                     <div className="p-2 bg-bg-tertiary rounded-lg group-hover:bg-bg-secondary transition-colors">
-                      {getReportTypeIcon(report.report_type)}
+                      {getReportTypeIcon(report.reportType)}
                     </div>
                     <div className="flex-1 min-w-0">
                       <h4 className="text-base font-medium text-text-primary group-hover:text-primary-500 transition-colors">
@@ -363,20 +355,20 @@ export function ProjectReportsPage() {
                       </h4>
                       <div className="flex items-center space-x-4 mt-1">
                         <span className="text-sm text-text-secondary">
-                          {getReportTypeName(report.report_type)}
+                          {getReportTypeName(report.reportType)}
                         </span>
                         <span className="text-sm text-text-secondary">
-                          {formatDate(report.created_at)}
+                          {formatDate(report.createdAt)}
                         </span>
                         <span className={`px-2 py-1 text-xs rounded-full ${
                           report.status === 'completed'
                             ? 'bg-green-500/10 text-green-500'
-                            : report.status === 'in_progress'
+                            : report.status === 'generating'
                             ? 'bg-blue-500/10 text-blue-500'
                             : 'bg-orange-500/10 text-orange-500'
                         }`}>
                           {report.status === 'completed' ? '완료' :
-                           report.status === 'in_progress' ? '생성 중' : '대기 중'}
+                           report.status === 'generating' ? '생성 중' : '실패'}
                         </span>
                       </div>
                     </div>

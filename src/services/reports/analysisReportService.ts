@@ -953,6 +953,79 @@ ${report.content.implementationPlan.phases.map(phase => `
 ${report.content.implementationPlan.milestones.map(milestone => `- ${milestone}`).join('\n')}
 `
   }
+
+  /**
+   * 프로젝트의 보고서 목록 조회
+   */
+  async getProjectReports(projectId: string): Promise<AnalysisReportData[]> {
+    try {
+      if (!supabase) {
+        throw new Error('Supabase client not initialized')
+      }
+
+      const { data, error } = await supabase
+        .from('analysis_reports')
+        .select('*')
+        .eq('project_id', projectId)
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        console.error('Failed to fetch project reports:', error)
+        throw error
+      }
+
+      // 데이터베이스 형식을 AnalysisReportData 형식으로 변환
+      return (data || []).map(report => ({
+        id: report.id,
+        projectId: report.project_id,
+        title: `분석 보고서 - ${new Date(report.created_at).toLocaleDateString()}`,
+        reportType: 'comprehensive' as const,
+        status: 'completed' as const,
+        content: {
+          executiveSummary: report.executive_summary || '',
+          keyFindings: report.key_insights || [],
+          riskAssessment: report.risk_assessment || { overall: 0, risks: [] },
+          recommendations: report.recommendations || [],
+          technicalAnalysis: {
+            architecture: '',
+            technologies: [],
+            scalability: '',
+            performance: '',
+            security: ''
+          },
+          businessAnalysis: {
+            viability: '',
+            marketOpportunity: '',
+            competitiveAdvantage: '',
+            roi: ''
+          },
+          implementationPlan: {
+            phases: [],
+            timeline: '',
+            milestones: []
+          },
+          appendices: {
+            rawData: report.baseline_data || {},
+            sources: [],
+            methodology: ''
+          }
+        },
+        metadata: {
+          generatedBy: report.generated_by || '',
+          aiModel: report.ai_model || '',
+          aiProvider: report.ai_provider || '',
+          totalTokens: report.input_tokens || 0,
+          totalCost: report.total_cost || 0,
+          processingTime: report.total_processing_time || 0
+        },
+        createdAt: report.created_at,
+        updatedAt: report.updated_at || report.created_at
+      }))
+    } catch (error) {
+      console.error('Failed to get project reports:', error)
+      return []
+    }
+  }
 }
 
 export const analysisReportService = AnalysisReportService.getInstance()
