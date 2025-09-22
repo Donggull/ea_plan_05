@@ -4,7 +4,6 @@ import {
   Search,
   Brain,
   MessageSquare,
-  BarChart3,
   CheckCircle,
   Clock,
   AlertTriangle,
@@ -12,8 +11,6 @@ import {
   Pause,
   RotateCcw,
 } from 'lucide-react';
-import { ProgressUpdate } from '../../types/preAnalysis';
-import { preAnalysisService } from '../../services/preAnalysis/PreAnalysisService';
 
 interface AnalysisProgressProps {
   sessionId: string;
@@ -78,7 +75,7 @@ export const AnalysisProgress: React.FC<AnalysisProgressProps> = ({
   ]);
 
   const [overallProgress, setOverallProgress] = useState(0);
-  const [currentStage, setCurrentStage] = useState<string>('document_classification');
+  const [, setCurrentStage] = useState<string>('document_classification');
   const [isPaused, setIsPaused] = useState(false);
   const [activityLog, setActivityLog] = useState<string[]>([]);
   const [startTime, setStartTime] = useState<Date>(new Date());
@@ -149,7 +146,7 @@ export const AnalysisProgress: React.FC<AnalysisProgressProps> = ({
     });
 
     // 전체 진행률 계산
-    setOverallProgress(prev => {
+    setOverallProgress(() => {
       const completedStages = stages.filter(s => s.status === 'completed').length;
       const inProgressStage = stages.find(s => s.status === 'in_progress');
       const inProgressContribution = inProgressStage ? inProgressStage.progress / stages.length : 0;

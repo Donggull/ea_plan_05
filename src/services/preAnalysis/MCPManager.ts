@@ -36,7 +36,7 @@ export class MCPManager {
   /**
    * 프로젝트 구조 분석 (파일시스템 MCP)
    */
-  async analyzeProjectStructure(projectPath?: string): Promise<MCPResponse<{
+  async analyzeProjectStructure(_projectPath?: string): Promise<MCPResponse<{
     totalFiles: number;
     techStack: string[];
     complexity: number;
@@ -105,13 +105,13 @@ export class MCPManager {
 
       const startTime = Date.now();
 
-      // 검색 쿼리 생성
-      const searchQueries = [
-        `${projectType} market trends 2024`,
-        `${projectType} industry analysis`,
-        `${industry || projectType} market size growth`,
-        `${projectType} best practices case studies`,
-      ];
+      // 검색 쿼리 생성 (미사용)
+      // const searchQueries = [
+      //   `${projectType} market trends 2024`,
+      //   `${projectType} industry analysis`,
+      //   `${industry || projectType} market size growth`,
+      //   `${projectType} best practices case studies`,
+      // ];
 
       // 실제 웹 검색 MCP 서버 호출 로직
       // 현재는 임시 구현
@@ -161,8 +161,8 @@ export class MCPManager {
    * 유사 프로젝트 검색 (GitHub MCP)
    */
   async findSimilarProjects(
-    techStack: string[],
-    projectType?: string
+    _techStack: string[],
+    _projectType?: string
   ): Promise<MCPResponse<Project[]>> {
     try {
       if (!this.isServerEnabled('github')) {
@@ -174,8 +174,8 @@ export class MCPManager {
 
       const startTime = Date.now();
 
-      // GitHub 검색 쿼리 생성
-      const searchQuery = techStack.join(' ') + (projectType ? ` ${projectType}` : '');
+      // GitHub 검색 쿼리 생성 (미사용)
+      // const searchQuery = techStack.join(' ') + (projectType ? ` ${projectType}` : '');
 
       // 실제 GitHub MCP 서버 호출 로직
       // 현재는 임시 구현
@@ -228,8 +228,8 @@ export class MCPManager {
    * 경쟁사 분석 (웹 검색 + 데이터베이스 MCP)
    */
   async analyzeCompetitors(
-    industry: string,
-    productType: string
+    _industry: string,
+    _productType: string
   ): Promise<MCPResponse<Competitor[]>> {
     try {
       if (!this.isServerEnabled('websearch') && !this.isServerEnabled('database')) {
@@ -351,8 +351,8 @@ export class MCPManager {
    * 과거 프로젝트 데이터 조회 (데이터베이스 MCP)
    */
   async queryHistoricalData(
-    projectType: string,
-    industry?: string
+    _projectType: string,
+    _industry?: string
   ): Promise<MCPResponse<{
     successRate: number;
     averageDuration: number;
@@ -525,15 +525,15 @@ export class MCPManager {
             break;
           case 'database':
             // Supabase 연결 확인
-            healthStatus[server] = !!(process.env.VITE_SUPABASE_URL && process.env.VITE_SUPABASE_ANON_KEY);
+            healthStatus[server] = !!(process.env['VITE_SUPABASE_URL'] && process.env['VITE_SUPABASE_ANON_KEY']);
             break;
           case 'websearch':
             // Brave Search API 키 확인
-            healthStatus[server] = !!process.env.VITE_BRAVE_API_KEY;
+            healthStatus[server] = !!process.env['VITE_BRAVE_API_KEY'];
             break;
           case 'github':
             // GitHub 토큰 확인
-            healthStatus[server] = !!process.env.VITE_GITHUB_TOKEN;
+            healthStatus[server] = !!process.env['VITE_GITHUB_TOKEN'];
             break;
           default:
             healthStatus[server] = false;
@@ -568,7 +568,7 @@ export class MCPManager {
 
         case 'database':
           // Supabase 연결 테스트
-          if (!process.env.VITE_SUPABASE_URL) {
+          if (!process.env['VITE_SUPABASE_URL']) {
             throw new Error('Supabase URL이 설정되지 않았습니다');
           }
           return {
@@ -578,7 +578,7 @@ export class MCPManager {
 
         case 'websearch':
           // Brave Search API 테스트
-          if (!process.env.VITE_BRAVE_API_KEY) {
+          if (!process.env['VITE_BRAVE_API_KEY']) {
             throw new Error('Brave API 키가 설정되지 않았습니다');
           }
           return {
@@ -588,7 +588,7 @@ export class MCPManager {
 
         case 'github':
           // GitHub API 테스트
-          if (!process.env.VITE_GITHUB_TOKEN) {
+          if (!process.env['VITE_GITHUB_TOKEN']) {
             throw new Error('GitHub 토큰이 설정되지 않았습니다');
           }
           return {

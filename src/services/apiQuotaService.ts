@@ -101,6 +101,7 @@ export class ApiQuotaService {
 
     const usageRecord: UserApiUsageInsert = {
       user_id: userId,
+      api_provider: 'openai', // 기본값 설정
       date,
       hour,
       model,
@@ -369,11 +370,13 @@ export class ApiQuotaService {
     // 일별 트렌드
     const dailyStats: Record<string, { requests: number; cost: number }> = {}
     usageData?.forEach(item => {
-      if (!dailyStats[item.date]) {
+      if (item.date && !dailyStats[item.date]) {
         dailyStats[item.date] = { requests: 0, cost: 0 }
       }
-      dailyStats[item.date].requests += item.request_count || 0
-      dailyStats[item.date].cost += item.cost || 0
+      if (item.date) {
+        dailyStats[item.date].requests += item.request_count || 0
+        dailyStats[item.date].cost += item.cost || 0
+      }
     })
 
     const dailyTrend = Object.entries(dailyStats)

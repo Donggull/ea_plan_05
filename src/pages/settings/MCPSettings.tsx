@@ -13,8 +13,7 @@ import {
   Settings as SettingsIcon,
   BarChart3,
   Clock,
-  DollarSign,
-  Zap
+  DollarSign
 } from 'lucide-react';
 import { MCPManager } from '../../services/preAnalysis/MCPManager';
 
@@ -52,7 +51,7 @@ const MCPServerInfo = {
     requiredFor: ['리스크 분석', '예산 추정', '일정 계획'],
     costImpact: 'none' as const,
     timeImpact: 'low' as const,
-    connectionString: process.env.VITE_SUPABASE_URL,
+    connectionString: process.env['VITE_SUPABASE_URL'],
   },
   websearch: {
     name: '웹 검색',
@@ -62,7 +61,7 @@ const MCPServerInfo = {
     requiredFor: ['시장 분석', '경쟁력 평가'],
     costImpact: 'medium' as const,
     timeImpact: 'medium' as const,
-    connectionString: process.env.VITE_BRAVE_API_KEY ? 'brave://search' : undefined,
+    connectionString: process.env['VITE_BRAVE_API_KEY'] ? 'brave://search' : undefined,
   },
   github: {
     name: 'GitHub',
@@ -72,7 +71,7 @@ const MCPServerInfo = {
     requiredFor: ['기술적 참조', '아키텍처 벤치마킹'],
     costImpact: 'low' as const,
     timeImpact: 'medium' as const,
-    connectionString: process.env.VITE_GITHUB_TOKEN ? 'github://api' : undefined,
+    connectionString: process.env['VITE_GITHUB_TOKEN'] ? 'github://api' : undefined,
   }
 } as const;
 
@@ -94,8 +93,8 @@ export const MCPSettings: React.FC = () => {
         icon: info.icon,
         enabled: id === 'filesystem' || id === 'database', // 기본적으로 filesystem과 database만 활성화
         status: 'disconnected' as const,
-        capabilities: info.capabilities,
-        requiredFor: info.requiredFor,
+        capabilities: [...info.capabilities],
+        requiredFor: [...info.requiredFor],
         costImpact: info.costImpact,
         timeImpact: info.timeImpact,
         lastHealthCheck: undefined,
@@ -307,9 +306,9 @@ export const MCPSettings: React.FC = () => {
                         </h3>
                         {getStatusIcon(server.status)}
                         {serverInfo.connectionString ? (
-                          <CheckCircle className="w-4 h-4 text-accent-green" title="설정 완료" />
+                          <CheckCircle className="w-4 h-4 text-accent-green" />
                         ) : (
-                          <AlertCircle className="w-4 h-4 text-accent-orange" title="설정 필요" />
+                          <AlertCircle className="w-4 h-4 text-accent-orange" />
                         )}
                       </div>
 

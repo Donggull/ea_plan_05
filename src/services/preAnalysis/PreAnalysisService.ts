@@ -1,7 +1,6 @@
 import { supabase } from '../../lib/supabase';
 import {
   PreAnalysisSession,
-  PreAnalysisConfig,
   DocumentAnalysis,
   AIQuestion,
   UserAnswer,
@@ -12,8 +11,6 @@ import {
   QuestionGenerationOptions,
   ReportGenerationOptions,
   DocumentCategory,
-  RiskItem,
-  TimelineItem,
 } from '../../types/preAnalysis';
 
 export class PreAnalysisService {
@@ -50,6 +47,10 @@ export class PreAnalysisService {
           outputFormat: settings.outputFormat,
         },
       };
+
+      if (!supabase) {
+        throw new Error('Supabase client not initialized');
+      }
 
       const { data, error } = await supabase
         .from('pre_analysis_sessions')
@@ -106,6 +107,10 @@ export class PreAnalysisService {
       });
 
       // 문서 정보 조회
+      if (!supabase) {
+        throw new Error('Supabase client not initialized');
+      }
+
       const { data: document, error: docError } = await supabase
         .from('documents')
         .select('*')
@@ -128,8 +133,13 @@ export class PreAnalysisService {
       }
 
       // AI 분석 수행 (실제 AI 호출은 별도 서비스에서)
+      const textContent = content.processed_text || content.raw_text;
+      if (!textContent) {
+        return { success: false, error: '문서 내용이 비어있습니다.' };
+      }
+
       const analysisResult = await this.performAIAnalysis(
-        content.processed_text || content.raw_text,
+        textContent,
         category,
         sessionId
       );
@@ -205,6 +215,10 @@ export class PreAnalysisService {
       });
 
       // 세션 정보 조회
+      if (!supabase) {
+        throw new Error('Supabase client not initialized');
+      }
+
       const { data: session, error: sessionError } = await supabase
         .from('pre_analysis_sessions')
         .select('*')
@@ -301,6 +315,10 @@ export class PreAnalysisService {
         answered_by: answer.answeredBy,
       }));
 
+      if (!supabase) {
+        throw new Error('Supabase client not initialized');
+      }
+
       const { data: savedAnswers, error } = await supabase
         .from('user_answers')
         .upsert(answersData, {
@@ -360,14 +378,16 @@ export class PreAnalysisService {
       // 보고서 저장
       const reportData = {
         session_id: sessionId,
-        project_id: sessionData.data!.session.project_id,
-        summary: reportContent.summary,
-        executive_summary: reportContent.executiveSummary,
-        key_insights: reportContent.keyInsights,
-        risk_assessment: reportContent.riskAssessment,
-        recommendations: reportContent.recommendations,
-        baseline_data: reportContent.baselineData,
-        visualization_data: reportContent.visualizationData,
+        report_type: 'comprehensive',
+        report_content: {
+          summary: reportContent.summary,
+          executive_summary: reportContent.executiveSummary,
+          key_insights: reportContent.keyInsights,
+          risk_assessment: reportContent.riskAssessment,
+          recommendations: reportContent.recommendations,
+          baseline_data: reportContent.baselineData,
+          visualization_data: reportContent.visualizationData,
+        },
         ai_model: sessionData.data!.session.ai_model,
         ai_provider: sessionData.data!.session.ai_provider,
         total_processing_time: reportContent.totalProcessingTime,
@@ -376,6 +396,10 @@ export class PreAnalysisService {
         output_tokens: reportContent.outputTokens,
         generated_by: sessionData.data!.session.created_by,
       };
+
+      if (!supabase) {
+        throw new Error('Supabase client not initialized');
+      }
 
       const { data: savedReport, error: saveError } = await supabase
         .from('analysis_reports')
@@ -420,6 +444,10 @@ export class PreAnalysisService {
    */
   async getSession(sessionId: string): Promise<ServiceResponse<PreAnalysisSession>> {
     try {
+      if (!supabase) {
+        throw new Error('Supabase client not initialized');
+      }
+
       const { data, error } = await supabase
         .from('pre_analysis_sessions')
         .select('*')
@@ -448,6 +476,10 @@ export class PreAnalysisService {
    */
   async getProjectSessions(projectId: string): Promise<ServiceResponse<PreAnalysisSession[]>> {
     try {
+      if (!supabase) {
+        throw new Error('Supabase client not initialized');
+      }
+
       const { data, error } = await supabase
         .from('pre_analysis_sessions')
         .select('*')
@@ -474,9 +506,9 @@ export class PreAnalysisService {
   // 프라이빗 메서드들
 
   private async performAIAnalysis(
-    content: string,
+    _content: string,
     category: DocumentCategory | undefined,
-    sessionId: string
+    _sessionId: string
   ): Promise<any> {
     // AI 분석 로직 구현 (추후 AI 서비스와 연동)
     // 임시 구현
@@ -533,9 +565,9 @@ export class PreAnalysisService {
   }
 
   private async generateAIQuestions(
-    analyses: any[],
-    options: QuestionGenerationOptions,
-    session: any
+    _analyses: any[],
+    _options: QuestionGenerationOptions,
+    _session: any
   ): Promise<any[]> {
     // AI 질문 생성 로직 구현 (추후 AI 서비스와 연동)
     // 임시 구현
@@ -570,12 +602,16 @@ export class PreAnalysisService {
     ];
 
     return sampleQuestions.filter(q =>
-      options.categories.includes(q.category)
-    ).slice(0, options.maxQuestions);
+      _options.categories.includes(q.category)
+    ).slice(0, _options.maxQuestions);
   }
 
   private async collectSessionData(sessionId: string): Promise<ServiceResponse<any>> {
     try {
+      if (!supabase) {
+        return { success: false, error: 'Supabase client not initialized' };
+      }
+
       const [sessionRes, analysesRes, questionsRes, answersRes] = await Promise.all([
         supabase.from('pre_analysis_sessions').select('*').eq('id', sessionId).single(),
         supabase.from('document_analyses').select('*').eq('session_id', sessionId),
@@ -601,7 +637,7 @@ export class PreAnalysisService {
     }
   }
 
-  private async generateAIReport(sessionData: any, options: ReportGenerationOptions): Promise<any> {
+  private async generateAIReport(_sessionData: any, _options: ReportGenerationOptions): Promise<any> {
     // AI 보고서 생성 로직 구현 (추후 AI 서비스와 연동)
     // 임시 구현
     return {
@@ -633,6 +669,8 @@ export class PreAnalysisService {
   }
 
   private async completeSession(sessionId: string, totalCost: number): Promise<void> {
+    if (!supabase) return;
+
     await supabase
       .from('pre_analysis_sessions')
       .update({

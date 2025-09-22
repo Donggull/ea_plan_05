@@ -4,14 +4,12 @@ import {
   CheckCircle,
   Clock,
   AlertCircle,
-  FileText,
   Save,
   Send,
   ArrowRight,
   ArrowLeft,
 } from 'lucide-react';
 import { AIQuestion, UserAnswer } from '../../types/preAnalysis';
-import { preAnalysisService } from '../../services/preAnalysis/PreAnalysisService';
 
 interface QuestionAnswerProps {
   sessionId: string;
@@ -23,7 +21,7 @@ export const QuestionAnswer: React.FC<QuestionAnswerProps> = ({
   onComplete,
 }) => {
   const [questions, setQuestions] = useState<AIQuestion[]>([]);
-  const [answers, setAnswers] = useState<Record<string, UserAnswer>>({});
+  const [answers, setAnswers] = useState<{[key: string]: UserAnswer}>({});
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -136,10 +134,6 @@ export const QuestionAnswer: React.FC<QuestionAnswerProps> = ({
     if (questions.length === 0) return;
 
     const answeredCount = Object.keys(answers).length;
-    const requiredCount = questions.filter(q => q.required).length;
-    const requiredAnswered = questions.filter(q =>
-      q.required && answers[q.id] && !answers[q.id].isDraft
-    ).length;
 
     const progressValue = Math.round((answeredCount / questions.length) * 100);
     setProgress(progressValue);
@@ -262,7 +256,7 @@ export const QuestionAnswer: React.FC<QuestionAnswerProps> = ({
   };
 
   const getCategoryColor = (category: string) => {
-    const colors = {
+    const colors: {[key: string]: string} = {
       business: 'bg-blue-900/30 text-blue-300 border-blue-700',
       technical: 'bg-green-900/30 text-green-300 border-green-700',
       timeline: 'bg-purple-900/30 text-purple-300 border-purple-700',
@@ -275,7 +269,7 @@ export const QuestionAnswer: React.FC<QuestionAnswerProps> = ({
   };
 
   const getCategoryLabel = (category: string) => {
-    const labels = {
+    const labels: {[key: string]: string} = {
       business: '비즈니스',
       technical: '기술',
       timeline: '일정',

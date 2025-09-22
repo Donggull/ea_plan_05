@@ -118,6 +118,7 @@ export class ApiUsageService {
     const now = new Date()
     const batchRecords: UserApiUsageInsert[] = usageRecords.map(record => ({
       user_id: record.userId,
+      api_provider: 'openai', // 기본값 설정
       date: now.toISOString().split('T')[0],
       hour: now.getHours(),
       model: record.model,

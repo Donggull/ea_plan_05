@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronDown, Info, Zap, DollarSign, Clock } from 'lucide-react';
+import { ChevronDown, Info, DollarSign, Clock } from 'lucide-react';
 import { AnalysisSettings, AIModelInfo } from '../../types/preAnalysis';
 
 interface AIModelSelectorProps {

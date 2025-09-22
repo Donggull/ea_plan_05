@@ -5,7 +5,6 @@ import {
   Github,
   FolderOpen,
   Wifi,
-  WifiOff,
   Info,
   AlertCircle,
   CheckCircle,

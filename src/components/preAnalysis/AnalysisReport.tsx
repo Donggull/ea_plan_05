@@ -4,7 +4,6 @@ import {
   FileText,
   Download,
   Share2,
-  Eye,
   AlertTriangle,
   CheckCircle,
   TrendingUp,
@@ -15,7 +14,6 @@ import {
   Lightbulb,
 } from 'lucide-react';
 import { AnalysisReport as AnalysisReportType } from '../../types/preAnalysis';
-import { preAnalysisService } from '../../services/preAnalysis/PreAnalysisService';
 
 interface AnalysisReportProps {
   sessionId: string;

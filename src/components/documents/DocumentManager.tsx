@@ -110,7 +110,7 @@ export function DocumentManager({
         throw error
       }
 
-      setDocuments(data || [])
+      setDocuments((data || []) as Document[])
       onDocumentChange?.() // 문서 목록 변경 알림
     } catch (error) {
       console.error('문서 로드 실패:', error)
