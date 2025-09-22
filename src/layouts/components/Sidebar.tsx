@@ -22,7 +22,11 @@ import {
   Database,
   Search,
   Github,
-  MoreHorizontal
+  MoreHorizontal,
+  RefreshCw,
+  Clock,
+  Zap,
+  Sparkles
 } from 'lucide-react'
 import { ApiUsageService } from '../../services/apiUsageService'
 import { useAIModel } from '../../contexts/AIModelContext'
@@ -71,7 +75,10 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
     selectProvider,
     selectModel,
     getProviderModels,
-    getAvailableProviders
+    getAvailableProviders,
+    syncModels,
+    getRecommendedModels,
+    isSyncing
   } = useAIModel()
 
   // 프로젝트 컨텍스트 사용
@@ -92,7 +99,15 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
   const mcpManager = MCPManager.getInstance()
 
   // AI 모델 컨텍스트에서 상태 추출
-  const { selectedProviderId, selectedModelId, availableModels, loading, error } = aiModelState
+  const {
+    selectedProviderId,
+    selectedModelId,
+    availableModels,
+    loading,
+    error,
+    lastSyncTime,
+    syncInProgress
+  } = aiModelState
 
   // 프로젝트 컨텍스트에서 상태 추출
   const { currentProject, userProjects, loading: projectLoading } = projectState
@@ -351,9 +366,18 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
         {/* AI 모델 선택 - 통합된 영역 */}
         <div className="space-y-2">
           {!collapsed && (
-            <h3 className="text-text-tertiary text-mini font-medium uppercase tracking-wide">
-              AI Provider
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-text-tertiary text-mini font-medium uppercase tracking-wide">
+                AI Provider
+              </h3>
+              <div className="flex items-center space-x-1">
+                {availableModels.length > 0 && (
+                  <span className="text-text-muted text-mini">
+                    {availableModels.length} models
+                  </span>
+                )}
+              </div>
+            </div>
           )}
 
           {loading ? (
@@ -450,6 +474,36 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
                     )}
                   </div>
 
+                  {/* AI 모델 동기화 버튼 */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-text-tertiary text-mini font-medium uppercase tracking-wide">
+                      Models
+                    </span>
+                    <div className="flex items-center space-x-1">
+                      {lastSyncTime && (
+                        <div
+                          className="flex items-center space-x-1 text-text-muted text-mini"
+                          title={`Last sync: ${new Date(lastSyncTime).toLocaleString()}`}
+                        >
+                          <Clock className="w-3 h-3" />
+                          <span>{new Date(lastSyncTime).toLocaleTimeString()}</span>
+                        </div>
+                      )}
+                      <button
+                        onClick={syncModels}
+                        disabled={syncInProgress || isSyncing}
+                        className={`p-1 rounded transition-colors ${
+                          syncInProgress || isSyncing
+                            ? 'text-accent-orange animate-spin'
+                            : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary'
+                        }`}
+                        title="최신 AI 모델 정보 동기화"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+
                   {/* 2차: 모델 선택 (프로바이더가 선택된 경우에만 표시) */}
                   {selectedProviderId && (
                     <div className="relative">
@@ -462,9 +516,21 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
                           <div className="text-left">
                             {selectedModelId ? (() => {
                               const model = availableModels.find(m => m.id === selectedModelId)
+                              const recommended = getRecommendedModels()
+                              const isRecommended = model && (
+                                model.id === recommended.balanced?.id ||
+                                model.id === recommended.fastest?.id ||
+                                model.id === recommended.cheapest?.id ||
+                                model.id === recommended.best_performance?.id
+                              )
                               return (
-                                <div className="text-text-primary text-small font-medium">
-                                  {model?.name || 'Unknown Model'}
+                                <div className="flex items-center space-x-1">
+                                  <div className="text-text-primary text-small font-medium">
+                                    {model?.name || 'Unknown Model'}
+                                  </div>
+                                  {isRecommended && (
+                                    <Sparkles className="w-3 h-3 text-accent-blue" title="추천 모델" />
+                                  )}
                                 </div>
                               )
                             })() : (
@@ -484,35 +550,78 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
                                 No models available for this provider
                               </div>
                             ) : (
-                              providerModels.map((model) => (
-                                <button
-                                  key={model.id}
-                                  onClick={() => {
-                                    selectModel(model.id)
-                                    setIsModelDropdownOpen(false)
-                                  }}
-                                  className={`w-full text-left px-3 py-2 hover:bg-bg-tertiary rounded-md transition-colors ${
-                                    selectedModelId === model.id ? 'bg-bg-tertiary' : ''
-                                  }`}
-                                >
-                                  <div className="flex items-center justify-between">
-                                    <div>
-                                      <div className="text-text-primary text-small font-medium">
-                                        {model.name}
-                                      </div>
-                                      <div className="text-text-tertiary text-mini">
-                                        ${((model.cost_per_input_token || 0) * 1000000).toFixed(3)}/1M • {(model.max_tokens || 0).toLocaleString()} tokens
-                                      </div>
-                                      {model.capabilities && model.capabilities.length > 0 && (
-                                        <div className="text-text-muted text-mini mt-1">
-                                          {model.capabilities.slice(0, 2).join(', ')}
+                              (() => {
+                                const recommended = getRecommendedModels()
+                                const recommendedIds = new Set([
+                                  recommended.fastest?.id,
+                                  recommended.cheapest?.id,
+                                  recommended.best_performance?.id,
+                                  recommended.balanced?.id
+                                ].filter(Boolean))
+
+                                // 추천 모델을 먼저, 그 다음 나머지 모델들을 정렬
+                                const sortedModels = [...providerModels].sort((a, b) => {
+                                  const aIsRecommended = recommendedIds.has(a.id)
+                                  const bIsRecommended = recommendedIds.has(b.id)
+
+                                  if (aIsRecommended && !bIsRecommended) return -1
+                                  if (!aIsRecommended && bIsRecommended) return 1
+
+                                  // 같은 그룹 내에서는 이름순
+                                  return a.name.localeCompare(b.name)
+                                })
+
+                                return sortedModels.map((model) => {
+                                  const isRecommended = recommendedIds.has(model.id)
+                                  let recommendedType = ''
+                                  if (model.id === recommended.fastest?.id) recommendedType = '⚡ 최고속도'
+                                  else if (model.id === recommended.cheapest?.id) recommendedType = '💰 최저비용'
+                                  else if (model.id === recommended.best_performance?.id) recommendedType = '🏆 최고성능'
+                                  else if (model.id === recommended.balanced?.id) recommendedType = '⚖️ 균형'
+
+                                  return (
+                                    <button
+                                      key={model.id}
+                                      onClick={() => {
+                                        selectModel(model.id)
+                                        setIsModelDropdownOpen(false)
+                                      }}
+                                      className={`w-full text-left px-3 py-2 hover:bg-bg-tertiary rounded-md transition-colors ${
+                                        selectedModelId === model.id ? 'bg-bg-tertiary' : ''
+                                      } ${
+                                        isRecommended ? 'border-l-2 border-accent-blue' : ''
+                                      }`}
+                                    >
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex-1">
+                                          <div className="flex items-center space-x-1">
+                                            <div className="text-text-primary text-small font-medium">
+                                              {model.name}
+                                            </div>
+                                            {isRecommended && (
+                                              <Sparkles className="w-3 h-3 text-accent-blue" />
+                                            )}
+                                          </div>
+                                          {recommendedType && (
+                                            <div className="text-accent-blue text-mini font-medium">
+                                              {recommendedType}
+                                            </div>
+                                          )}
+                                          <div className="text-text-tertiary text-mini">
+                                            ${((model.cost_per_input_token || 0) * 1000000).toFixed(3)}/1M • {(model.max_tokens || 0).toLocaleString()} tokens
+                                          </div>
+                                          {model.capabilities && model.capabilities.length > 0 && (
+                                            <div className="text-text-muted text-mini mt-1">
+                                              {model.capabilities.slice(0, 2).join(', ')}
+                                            </div>
+                                          )}
                                         </div>
-                                      )}
-                                    </div>
-                                    {model.available && <CheckCircle className="w-4 h-4 text-accent-green" />}
-                                  </div>
-                                </button>
-                              ))
+                                        {model.available && <CheckCircle className="w-4 h-4 text-accent-green" />}
+                                      </div>
+                                    </button>
+                                  )
+                                })
+                              })()
                             )}
                           </div>
                         </div>
@@ -522,25 +631,42 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
                 </div>
               ) : (
                 /* 축소된 상태에서 선택된 AI 모델 표시 */
-                <button
-                  title={
-                    selectedModelId
-                      ? (() => {
-                          const model = availableModels.find(m => m.id === selectedModelId)
-                          const providerName = selectedProviderId ? selectedProviderId.charAt(0).toUpperCase() + selectedProviderId.slice(1) : 'Unknown Provider'
-                          return `${providerName}: ${model?.name || 'Unknown Model'}`
-                        })()
-                      : selectedProviderId
-                        ? `${selectedProviderId.charAt(0).toUpperCase() + selectedProviderId.slice(1)}: No model selected`
-                        : 'No AI Provider Selected'
-                  }
-                  className="w-full flex justify-center p-2 bg-bg-tertiary rounded-lg hover:bg-bg-elevated transition-colors"
-                >
-                  <div className="flex items-center space-x-1">
-                    <Cpu className={`w-4 h-4 ${selectedProviderId ? getProviderColor(selectedProviderId as AIModel['provider']) : 'text-text-muted'}`} />
-                    {selectedModelId && <Target className="w-3 h-3 text-primary-500" />}
-                  </div>
-                </button>
+                <div className="space-y-1">
+                  <button
+                    title={
+                      selectedModelId
+                        ? (() => {
+                            const model = availableModels.find(m => m.id === selectedModelId)
+                            const providerName = selectedProviderId ? selectedProviderId.charAt(0).toUpperCase() + selectedProviderId.slice(1) : 'Unknown Provider'
+                            return `${providerName}: ${model?.name || 'Unknown Model'}`
+                          })()
+                        : selectedProviderId
+                          ? `${selectedProviderId.charAt(0).toUpperCase() + selectedProviderId.slice(1)}: No model selected`
+                          : 'No AI Provider Selected'
+                    }
+                    className="w-full flex justify-center p-2 bg-bg-tertiary rounded-lg hover:bg-bg-elevated transition-colors"
+                  >
+                    <div className="flex items-center space-x-1">
+                      <Cpu className={`w-4 h-4 ${selectedProviderId ? getProviderColor(selectedProviderId as AIModel['provider']) : 'text-text-muted'}`} />
+                      {selectedModelId && <Target className="w-3 h-3 text-primary-500" />}
+                      {syncInProgress && <RefreshCw className="w-3 h-3 text-accent-orange animate-spin" />}
+                    </div>
+                  </button>
+
+                  {/* 동기화 버튼 (축소된 상태) */}
+                  <button
+                    onClick={syncModels}
+                    disabled={syncInProgress || isSyncing}
+                    title={`AI 모델 동기화 ${lastSyncTime ? `(마지막: ${new Date(lastSyncTime).toLocaleString()})` : ''}`}
+                    className={`w-full flex justify-center p-1 rounded transition-colors ${
+                      syncInProgress || isSyncing
+                        ? 'text-accent-orange'
+                        : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary'
+                    }`}
+                  >
+                    <RefreshCw className={`w-3 h-3 ${syncInProgress || isSyncing ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
               )}
             </>
           )}

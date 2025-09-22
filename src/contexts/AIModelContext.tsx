@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react'
 import { modelSettingsService } from '../services/ai/modelSettingsService'
+import { modelSyncService } from '../services/ai/modelSyncService'
+import { getRecommendedModels } from '../services/ai/latestModelsData'
 
 // AI 모델 타입 정의
 export interface AIModel {
@@ -22,6 +24,8 @@ interface AIModelState {
   availableModels: AIModel[]
   loading: boolean
   error: string | null
+  lastSyncTime: string | null
+  syncInProgress: boolean
 }
 
 // 액션 타입 정의
@@ -32,6 +36,7 @@ type AIModelAction =
   | { type: 'SELECT_PROVIDER'; payload: string }
   | { type: 'SELECT_MODEL'; payload: string }
   | { type: 'CLEAR_SELECTION' }
+  | { type: 'SET_SYNC_STATUS'; payload: { syncInProgress: boolean; lastSyncTime?: string } }
 
 // 초기 상태
 const initialState: AIModelState = {
@@ -39,7 +44,9 @@ const initialState: AIModelState = {
   selectedModelId: null,
   availableModels: [],
   loading: false,
-  error: null
+  error: null,
+  lastSyncTime: null,
+  syncInProgress: false
 }
 
 // 리듀서
@@ -61,6 +68,12 @@ function aiModelReducer(state: AIModelState, action: AIModelAction): AIModelStat
       return { ...state, selectedModelId: action.payload }
     case 'CLEAR_SELECTION':
       return { ...state, selectedProviderId: null, selectedModelId: null }
+    case 'SET_SYNC_STATUS':
+      return {
+        ...state,
+        syncInProgress: action.payload.syncInProgress,
+        lastSyncTime: action.payload.lastSyncTime || state.lastSyncTime
+      }
     default:
       return state
   }
@@ -73,9 +86,18 @@ interface AIModelContextType {
   selectModel: (modelId: string) => void
   clearSelection: () => void
   refreshModels: () => Promise<void>
+  syncModels: () => Promise<void>
   getSelectedModel: () => AIModel | null
   getProviderModels: (providerId: string) => AIModel[]
   getAvailableProviders: () => string[]
+  getRecommendedModels: () => {
+    fastest: AIModel | null
+    cheapest: AIModel | null
+    best_performance: AIModel | null
+    balanced: AIModel | null
+  }
+  getModelStatistics: () => Promise<any>
+  isSyncing: boolean
 }
 
 // 컨텍스트 생성
@@ -84,6 +106,7 @@ const AIModelContext = createContext<AIModelContextType | undefined>(undefined)
 // 프로바이더 컴포넌트
 export function AIModelProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(aiModelReducer, initialState)
+  const [isSyncing, setIsSyncing] = useState(false)
 
   // AI 모델 로딩 함수
   const loadModels = async () => {
@@ -108,15 +131,54 @@ export function AIModelProvider({ children }: { children: React.ReactNode }) {
 
       dispatch({ type: 'SET_MODELS', payload: formattedModels })
 
-      // 기본 프로바이더 및 모델 선택 (첫 번째 사용 가능한 모델)
+      // 기본 프로바이더 및 모델 선택 (추천 모델 우선)
       if (formattedModels.length > 0 && !state.selectedProviderId) {
-        const firstModel = formattedModels[0]
-        dispatch({ type: 'SELECT_PROVIDER', payload: firstModel.provider })
-        dispatch({ type: 'SELECT_MODEL', payload: firstModel.id })
+        const recommended = getRecommendedModels()
+        const balancedModel = formattedModels.find(m => m.model_id === recommended.balanced.model_id) || formattedModels[0]
+        dispatch({ type: 'SELECT_PROVIDER', payload: balancedModel.provider })
+        dispatch({ type: 'SELECT_MODEL', payload: balancedModel.id })
+      }
+
+      // 마지막 동기화 시간 업데이트
+      const lastSync = modelSyncService.getLastSyncTime()
+      if (lastSync) {
+        dispatch({ type: 'SET_SYNC_STATUS', payload: { syncInProgress: false, lastSyncTime: lastSync } })
       }
     } catch (error) {
       console.error('Failed to load AI models:', error)
       dispatch({ type: 'SET_ERROR', payload: 'AI 모델을 불러오는데 실패했습니다.' })
+    }
+  }
+
+  // AI 모델 동기화 함수
+  const syncModels = async () => {
+    try {
+      setIsSyncing(true)
+      dispatch({ type: 'SET_SYNC_STATUS', payload: { syncInProgress: true } })
+      dispatch({ type: 'SET_ERROR', payload: null })
+
+      console.log('🔄 AI 모델 동기화 시작...')
+      const result = await modelSyncService.syncAllModels()
+
+      if (result.success) {
+        console.log('✅ AI 모델 동기화 완료:', result.summary)
+        // 동기화 후 모델 목록 새로고침
+        await loadModels()
+      } else {
+        console.error('❌ AI 모델 동기화 실패:', result.details.errors)
+        dispatch({ type: 'SET_ERROR', payload: `동기화 실패: ${result.summary.errors}개 오류 발생` })
+      }
+
+      dispatch({ type: 'SET_SYNC_STATUS', payload: {
+        syncInProgress: false,
+        lastSyncTime: new Date().toISOString()
+      } })
+    } catch (error) {
+      console.error('AI 모델 동기화 중 오류:', error)
+      dispatch({ type: 'SET_ERROR', payload: 'AI 모델 동기화에 실패했습니다.' })
+      dispatch({ type: 'SET_SYNC_STATUS', payload: { syncInProgress: false } })
+    } finally {
+      setIsSyncing(false)
     }
   }
 
@@ -138,6 +200,7 @@ export function AIModelProvider({ children }: { children: React.ReactNode }) {
       dispatch({ type: 'CLEAR_SELECTION' })
     },
     refreshModels: loadModels,
+    syncModels: syncModels,
     getSelectedModel: () => {
       return state.availableModels.find(model => model.id === state.selectedModelId) || null
     },
@@ -147,7 +210,20 @@ export function AIModelProvider({ children }: { children: React.ReactNode }) {
     getAvailableProviders: () => {
       const providers = [...new Set(state.availableModels.map(model => model.provider))]
       return providers
-    }
+    },
+    getRecommendedModels: () => {
+      const recommended = getRecommendedModels()
+      return {
+        fastest: state.availableModels.find(m => m.model_id === recommended.fastest.model_id) || null,
+        cheapest: state.availableModels.find(m => m.model_id === recommended.cheapest.model_id) || null,
+        best_performance: state.availableModels.find(m => m.model_id === recommended.best_performance.model_id) || null,
+        balanced: state.availableModels.find(m => m.model_id === recommended.balanced.model_id) || null
+      }
+    },
+    getModelStatistics: async () => {
+      return await modelSyncService.getModelStatistics()
+    },
+    isSyncing: isSyncing
   }
 
   return (
