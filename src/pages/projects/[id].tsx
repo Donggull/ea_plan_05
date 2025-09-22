@@ -309,6 +309,13 @@ export function ProjectDetailPage() {
                   <span className="text-sm">문서 추가</span>
                 </button>
                 <button
+                  onClick={() => navigate(`/projects/${id}/lifecycle`)}
+                  className="w-full flex items-center space-x-3 px-3 py-2.5 text-left text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors"
+                >
+                  <TrendingUp className="w-4 h-4" />
+                  <span className="text-sm">라이프사이클 관리</span>
+                </button>
+                <button
                   onClick={() => navigate(`/projects/${id}/reports`)}
                   className="w-full flex items-center space-x-3 px-3 py-2.5 text-left text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors"
                 >

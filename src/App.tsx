@@ -34,6 +34,7 @@ import AdminRoutes from '@/pages/admin/index'
 import { MCPSettings } from '@/pages/settings/MCPSettings'
 import { PreAnalysisPage } from '@/pages/projects/PreAnalysisPage'
 import { ProjectReportsPage } from '@/pages/projects/[id]/reports'
+import { ProjectLifecyclePage } from '@/pages/projects/[id]/lifecycle'
 
 const queryClient = new QueryClient()
 
@@ -68,6 +69,7 @@ function App() {
               <Route path="/projects/:id" element={<ProjectDetailPage />} />
               <Route path="/projects/:id/edit" element={<EditProjectPage />} />
               <Route path="/projects/:id/pre-analysis" element={<PreAnalysisPage />} />
+              <Route path="/projects/:id/lifecycle" element={<ProjectLifecyclePage />} />
               <Route path="/projects/:id/reports" element={<ProjectReportsPage />} />
               <Route path="/projects/:id/proposal" element={<ProposalWorkflowPage />} />
               <Route path="/projects/:id/proposal/market-research" element={<MarketResearchPage />} />
