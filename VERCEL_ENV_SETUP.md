@@ -78,24 +78,16 @@ VITE_MCP_SERVER_WEBSEARCH_ENABLED=true
 ```
 
 #### AI API 키 (실제 키로 교체 필요)
-
-⚠️ **중요**: 프로덕션 환경에서는 **클라이언트용과 서버사이드용 두 벌의 환경 변수**가 필요합니다!
-
 ```bash
-# 클라이언트용 (VITE_ 접두사) - 브라우저에서 사용
+# OpenAI API Key (https://platform.openai.com/api-keys)
 VITE_OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+# Anthropic API Key (https://console.anthropic.com/)
 VITE_ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+# Google AI API Key (https://makersuite.google.com/app/apikey)
 VITE_GOOGLE_AI_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-# 🚨 서버사이드용 (VITE_ 접두사 없이) - Vercel API Routes에서 사용
-OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-GOOGLE_AI_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
-
-**왜 두 벌이 필요한가?**
-- **클라이언트용 (`VITE_`)**: 브라우저에서 실행되는 코드용
-- **서버사이드용**: Vercel API Routes (`/api/anthropic`, `/api/openai`)에서 사용
 
 ## 🔑 API 키 발급 방법
 
@@ -175,45 +167,9 @@ VITE_SENTRY_DSN=https://xxxxxxxxx@xxxxxxxxx.ingest.sentry.io/xxxxxxxxx
 
 ---
 
-## 🚀 **2025-09-19 핵심 업데이트**
-
-### **API Routes 대폭 개선**
-- **강화된 오류 처리**: 60초 타임아웃, 상세 로깅, 재시도 로직
-- **환경 변수 이중화**: 서버사이드/클라이언트사이드 환경 변수 분리
-- **CORS 개선**: 프로덕션 환경에 최적화된 CORS 설정
-- **성능 모니터링**: 상세한 API 호출 로깅 및 응답 시간 추적
-
-### **배포 전 필수 확인사항**
-```bash
-# 1. 로컬에서 빌드 테스트
-npm run build
-
-# 2. 타입 체크
-npm run type-check
-
-# 3. 개발 서버에서 API 테스트
-npm run dev
-# → 브라우저에서 문서 분석 기능 테스트
-```
-
-### **Vercel 환경 변수 설정 순서**
-1. **Supabase 설정** (이미 완료)
-2. **클라이언트용 AI API 키** (`VITE_` 접두사)
-3. **🚨 서버사이드용 AI API 키** (VITE_ 접두사 없이)
-4. **기능 플래그 및 MCP 설정**
-
-### **배포 후 성공 지표**
-```
-✅ Vercel Function Logs에서 확인할 성공 로그:
-🔍 API 키 확인: { hasServerKey: true, usingKey: true }
-🔄 Anthropic API Proxy 요청: { apiKeySource: 'server-env' }
-✅ Anthropic API 성공 응답: { contentLength: 1234, responseTime: 2500 }
-```
-
 ## 💡 추가 도움말
 
 배포 중 문제가 발생하면:
-1. **Vercel Function Logs** 확인 (가장 중요!)
+1. Vercel 빌드 로그 확인
 2. 브라우저 개발자 도구의 Network, Console 탭 확인
 3. Supabase Dashboard에서 API 사용량 및 오류 로그 확인
-4. **환경 변수 이중 확인**: 클라이언트용과 서버사이드용 모두 설정되었는지

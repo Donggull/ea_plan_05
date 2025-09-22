@@ -507,7 +507,6 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
           )}
         </div>
 
-
         {/* MCP 서버 상태 - 축소된 버전 */}
         <div className="space-y-2">
           {!collapsed && (

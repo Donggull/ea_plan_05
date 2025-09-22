@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useEffect, useCallback, useMemo } from 'react'
+import React, { createContext, useContext, useReducer, useEffect } from 'react'
 import { ProjectService } from '../services/projectService'
 import { useAuth } from './AuthContext'
 
@@ -133,7 +133,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth()
 
   // 사용자 프로젝트 로딩
-  const loadUserProjects = useCallback(async () => {
+  const loadUserProjects = async () => {
     if (!user) return
 
     try {
@@ -151,10 +151,10 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       console.error('Failed to load user projects:', error)
       dispatch({ type: 'SET_ERROR', payload: '프로젝트를 불러오는데 실패했습니다.' })
     }
-  }, [state.currentProject, user])
+  }
 
   // 최근 프로젝트 로딩
-  const loadRecentProjects = useCallback(async () => {
+  const loadRecentProjects = async () => {
     if (!user) return
 
     try {
@@ -163,10 +163,10 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Failed to load recent projects:', error)
     }
-  }, [user])
+  }
 
   // 프로젝트 생성
-  const createProject = useCallback(async (
+  const createProject = async (
     projectData: ProjectInsert
   ): Promise<Project> => {
     if (!user) throw new Error('사용자가 인증되지 않았습니다.')
@@ -183,10 +183,10 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       console.error('Failed to create project:', error)
       throw error
     }
-  }, [user])
+  }
 
   // 프로젝트 업데이트
-  const updateProject = useCallback(async (
+  const updateProject = async (
     projectId: string,
     updates: ProjectUpdate
   ): Promise<Project> => {
@@ -198,10 +198,10 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       console.error('Failed to update project:', error)
       throw error
     }
-  }, [])
+  }
 
   // 프로젝트 삭제
-  const deleteProject = useCallback(async (projectId: string): Promise<void> => {
+  const deleteProject = async (projectId: string): Promise<void> => {
     try {
       await ProjectService.deleteProject(projectId)
       dispatch({ type: 'REMOVE_PROJECT', payload: projectId })
@@ -209,10 +209,10 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       console.error('Failed to delete project:', error)
       throw error
     }
-  }, [])
+  }
 
   // 프로젝트 선택
-  const selectProject = useCallback((project: Project) => {
+  const selectProject = (project: Project) => {
     dispatch({ type: 'SET_CURRENT_PROJECT', payload: project })
 
     // 로컬 스토리지에 현재 프로젝트 저장
@@ -221,54 +221,46 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Failed to save current project to localStorage:', error)
     }
-  }, [])
+  }
 
   // 현재 프로젝트 가져오기
-  const getCurrentProject = useCallback((): Project | null => {
+  const getCurrentProject = (): Project | null => {
     return state.currentProject
-  }, [state.currentProject])
+  }
 
   // 프로젝트 정리
-  const clearProjects = useCallback(() => {
+  const clearProjects = () => {
     dispatch({ type: 'CLEAR_PROJECTS' })
     try {
       localStorage.removeItem('currentProject')
     } catch (error) {
       console.error('Failed to clear current project from localStorage:', error)
     }
-  }, [])
+  }
 
   // 컴포넌트 마운트 시 사용자 프로젝트 로딩
   useEffect(() => {
     if (user) {
-      // 사용자가 로그인된 상태에서만 프로젝트 로딩
       loadUserProjects()
       loadRecentProjects()
 
-      // 로컬 스토리지에서 현재 프로젝트 복원 (사용자가 로그인된 경우에만)
+      // 로컬 스토리지에서 현재 프로젝트 복원
       try {
         const savedProject = localStorage.getItem('currentProject')
         if (savedProject) {
           const project = JSON.parse(savedProject)
-          // 현재 프로젝트가 없거나 다른 프로젝트인 경우에만 복원
-          if (!state.currentProject || state.currentProject.id !== project.id) {
-            dispatch({ type: 'SET_CURRENT_PROJECT', payload: project })
-          }
+          dispatch({ type: 'SET_CURRENT_PROJECT', payload: project })
         }
       } catch (error) {
         console.error('Failed to restore current project from localStorage:', error)
       }
-    } else if (user === null) {
-      // user가 명시적으로 null인 경우에만 프로젝트 정리 (로그아웃)
-      // user가 undefined인 경우는 아직 로딩 중이므로 정리하지 않음
-      console.log('🔄 User logged out, clearing projects...')
+    } else {
       clearProjects()
     }
-    // user가 undefined인 경우 (로딩 중)에는 아무것도 하지 않음
-  }, [user, loadUserProjects, loadRecentProjects])
+  }, [user])
 
   // 컨텍스트 값
-  const contextValue: ProjectContextType = useMemo(() => ({
+  const contextValue: ProjectContextType = {
     state,
     selectProject,
     loadUserProjects,
@@ -278,17 +270,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     deleteProject,
     getCurrentProject,
     clearProjects
-  }), [
-    state,
-    selectProject,
-    loadUserProjects,
-    loadRecentProjects,
-    createProject,
-    updateProject,
-    deleteProject,
-    getCurrentProject,
-    clearProjects
-  ])
+  }
 
   return (
     <ProjectContext.Provider value={contextValue}>

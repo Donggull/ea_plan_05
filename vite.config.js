@@ -19,28 +19,6 @@ export default defineConfig({
         port: 5173,
         host: true,
         open: true,
-        proxy: {
-            '/proxy/anthropic': {
-                target: 'https://api.anthropic.com',
-                changeOrigin: true,
-                rewrite: (path) => path.replace(/^\/proxy\/anthropic/, '/v1/messages'),
-                configure: (proxy, options) => {
-                    proxy.on('proxyReq', (proxyReq, req, res) => {
-                        proxyReq.setHeader('Origin', 'https://api.anthropic.com')
-                    })
-                }
-            },
-            '/proxy/openai': {
-                target: 'https://api.openai.com',
-                changeOrigin: true,
-                rewrite: (path) => path.replace(/^\/proxy\/openai/, '/v1/chat/completions'),
-                configure: (proxy, options) => {
-                    proxy.on('proxyReq', (proxyReq, req, res) => {
-                        proxyReq.setHeader('Origin', 'https://api.openai.com')
-                    })
-                }
-            }
-        }
     },
     build: {
         outDir: 'dist',

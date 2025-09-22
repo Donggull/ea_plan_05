@@ -20,32 +20,6 @@ export default defineConfig({
     port: 5173,
     host: true,
     open: true,
-    proxy: {
-      '/api/anthropic': {
-        target: 'https://api.anthropic.com',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/anthropic/, ''),
-        headers: {
-          'Origin': 'https://api.anthropic.com'
-        }
-      },
-      '/api/openai': {
-        target: 'https://api.openai.com',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/openai/, ''),
-        headers: {
-          'Origin': 'https://api.openai.com'
-        }
-      },
-      '/api/google': {
-        target: 'https://generativelanguage.googleapis.com',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/google/, ''),
-        headers: {
-          'Origin': 'https://generativelanguage.googleapis.com'
-        }
-      }
-    }
   },
   build: {
     outDir: 'dist',

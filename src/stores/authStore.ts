@@ -20,7 +20,6 @@ interface AuthState {
   resetPassword: (email: string) => Promise<void>
   updatePassword: (newPassword: string) => Promise<void>
   refreshSession: () => Promise<void>
-  validateAndRecoverSession: () => Promise<boolean>
   updateProfile: (updates: Partial<Profile>) => Promise<void>
   loadProfile: (userId: string) => Promise<void>
   initialize: () => Promise<void>
@@ -148,149 +147,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   refreshSession: async () => {
     try {
-      console.log('🔄 Refreshing session...')
       const supabase = getSupabaseClient()
       const { data, error } = await supabase.auth.refreshSession()
-
-      if (error) {
-        console.error('❌ Session refresh failed:', error)
-        throw error
-      }
+      if (error) throw error
 
       if (data.session) {
-        console.log('✅ Session refreshed successfully')
         set({
           user: data.session.user,
           session: data.session,
           isAuthenticated: true,
         })
-
-        // 프로필 정보도 다시 로드
-        if (data.session.user) {
-          try {
-            await get().loadProfile(data.session.user.id)
-          } catch (profileError) {
-            console.warn('⚠️ Profile reload failed after session refresh:', profileError)
-          }
-        }
-      } else {
-        console.warn('⚠️ Session refresh returned no session')
-        set({
-          user: null,
-          session: null,
-          isAuthenticated: false,
-        })
       }
     } catch (error: any) {
-      console.error('❌ Session refresh error:', error)
+      console.error('Session refresh error:', error)
       set({ error: error.message })
-
-      // 세션 갱신 실패 시 로그아웃 처리
-      set({
-        user: null,
-        session: null,
-        isAuthenticated: false,
-      })
-    }
-  },
-
-  // 브라우저 포커스 시 호출할 세션 검증 및 복구 함수
-  validateAndRecoverSession: async () => {
-    const currentState = get()
-
-    // 인증되지 않은 상태면 검증할 필요 없음
-    if (!currentState.isAuthenticated || !currentState.session) {
-      return false
-    }
-
-    try {
-      console.log('🔍 Validating current session...')
-      const supabase = getSupabaseClient()
-
-      // 현재 세션 상태 확인
-      const { data: { session }, error } = await supabase.auth.getSession()
-
-      if (error) {
-        console.error('❌ Session validation failed:', error)
-        // 세션 갱신 시도
-        await get().refreshSession()
-        return true
-      }
-
-      if (!session) {
-        console.warn('⚠️ No active session found')
-        set({
-          user: null,
-          session: null,
-          isAuthenticated: false,
-        })
-        return false
-      }
-
-      // 세션 만료 시간 확인
-      const now = Math.floor(Date.now() / 1000)
-      const expiresAt = session.expires_at
-
-      if (expiresAt && (expiresAt - now) < 300) { // 5분 이내 만료 시 갱신
-        console.log('⏰ Session expires soon, refreshing...')
-        await get().refreshSession()
-        return true
-      }
-
-      // 현재 상태와 서버 세션이 다르면 동기화
-      if (session.access_token !== currentState.session?.access_token) {
-        console.log('🔄 Session mismatch detected, syncing...')
-
-        // 동일한 사용자인지 확인하여 불필요한 user 변경 방지
-        const isSameUser = session.user.id === currentState.user?.id
-
-        if (isSameUser) {
-          console.log('✅ Same user detected, updating session only')
-          // 같은 사용자라면 세션만 업데이트
-          set({
-            session,
-            isAuthenticated: true,
-          })
-        } else {
-          console.log('⚠️ Different user detected, updating user and session')
-          // 다른 사용자라면 전체 업데이트
-          set({
-            user: session.user,
-            session,
-            isAuthenticated: true,
-          })
-
-          // 새로운 사용자인 경우에만 프로필 다시 로드
-          if (session.user) {
-            try {
-              await get().loadProfile(session.user.id)
-            } catch (profileError) {
-              console.warn('⚠️ Profile reload failed during session sync:', profileError)
-            }
-          }
-        }
-        return true
-      }
-
-      console.log('✅ Session is valid and up to date')
-      return true
-
-    } catch (error: any) {
-      console.error('❌ Session validation error:', error)
-      // 검증 실패 시 세션 갱신 시도
-      try {
-        await get().refreshSession()
-        return true
-      } catch (refreshError) {
-        console.error('❌ Session recovery failed:', refreshError)
-        set({
-          user: null,
-          session: null,
-          isAuthenticated: false,
-          error: 'Session validation and recovery failed'
-        })
-        return false
-      }
     }
   },
 
@@ -433,32 +303,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       })
 
       // Auth 상태 변경 리스너 (클라이언트에서만, 한 번만 설정)
-      if (typeof window !== 'undefined') {
-        // 기존 리스너가 있다면 제거
-        if (window.__supabaseAuthListenerUnsubscribe) {
-          console.log('🔄 Removing existing auth listener...')
-          window.__supabaseAuthListenerUnsubscribe()
-        }
+      if (typeof window !== 'undefined' && !window.__supabaseAuthListenerSet) {
+        window.__supabaseAuthListenerSet = true
 
-        console.log('🎯 Setting up auth state change listener...')
-        const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-          console.log('🔔 Auth state changed:', event, {
-            hasUser: !!session?.user,
-            userEmail: session?.user?.email,
-            expiresAt: session?.expires_at
-          })
-
-          // 세션 유효성 추가 검증
-          if (session) {
-            const now = Math.floor(Date.now() / 1000)
-            const expiresAt = session.expires_at
-
-            if (expiresAt && expiresAt <= now) {
-              console.warn('⚠️ Received expired session, treating as SIGNED_OUT')
-              event = 'SIGNED_OUT'
-              session = null
-            }
-          }
+        supabase.auth.onAuthStateChange(async (event, session) => {
+          console.log('Auth state changed:', event, session?.user?.email)
 
           if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
             if (session?.user) {
@@ -471,7 +320,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           }
 
           if (event === 'SIGNED_OUT') {
-            console.log('🚪 User signed out, clearing auth state...')
             set({
               user: null,
               session: null,
@@ -479,10 +327,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
               isAuthenticated: false,
               isInitializing: false,
             })
-          } else if (session) {
+          } else {
             // 프로필 정보가 있는 경우 user_metadata에 role 정보 포함
             const currentProfile = get().profile
-            let updatedUser = session.user
+            let updatedUser = session?.user ?? null
 
             if (updatedUser && currentProfile) {
               updatedUser = {
@@ -498,16 +346,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             set({
               user: updatedUser,
               session,
-              isAuthenticated: true,
+              isAuthenticated: !!session,
               isInitializing: false,
             })
-
-            console.log('✅ Auth state updated successfully')
           }
         })
-
-        // 리스너 해제 함수를 전역에 저장
-        window.__supabaseAuthListenerUnsubscribe = authListener.subscription.unsubscribe
       }
 
     } catch (error: any) {

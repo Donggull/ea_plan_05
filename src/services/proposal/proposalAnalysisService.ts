@@ -386,7 +386,7 @@ export class ProposalAnalysisService {
   }
 
   /**
-   * AI 모델 선택 (단순화된 로직 - preferredModelId 최우선)
+   * AI 모델 선택
    */
   private static async selectAIModel(
     projectId: string,
@@ -394,59 +394,45 @@ export class ProposalAnalysisService {
     preferredModelId?: string
   ): Promise<string> {
     try {
-      console.log(`🎯 AI 모델 선택 시작 (ProposalAnalysisService):`, { projectId, userId, preferredModelId })
-
-      // 등록된 모델 목록 조회
-      const availableModels = AIProviderFactory.getRegisteredModels()
-      const availableModelIds = new Set(availableModels.map(m => m.id))
-
-      console.log(`📋 사용 가능한 모델: ${Array.from(availableModelIds).join(', ')}`)
-
-      if (availableModelIds.size === 0) {
-        throw new Error('등록된 AI 모델이 없습니다. AI Provider Factory가 초기화되지 않았을 수 있습니다.')
-      }
-
-      // 🚨 최우선: 명시적으로 제공된 모델 ID 확인 (단순화)
-      if (preferredModelId && availableModelIds.has(preferredModelId)) {
-        console.log(`✅ 지정된 모델 우선 선택: ${preferredModelId}`)
+      // 1. 명시적으로 지정된 모델 사용
+      if (preferredModelId) {
         return preferredModelId
       }
 
-      if (preferredModelId) {
-        console.warn(`⚠️ 지정된 모델(${preferredModelId})이 등록된 모델 목록에 없습니다. 사용 가능한 모델: ${Array.from(availableModelIds).join(', ')}`)
+      // 2. 프로젝트별 설정 확인
+      const { data: projectSettings } = await supabase!
+        .from('project_ai_settings')
+        .select('default_model_id, workflow_model_mappings')
+        .eq('project_id', projectId)
+        .single()
+
+      if (projectSettings?.workflow_model_mappings &&
+          typeof projectSettings.workflow_model_mappings === 'object' &&
+          'proposal' in projectSettings.workflow_model_mappings) {
+        return (projectSettings.workflow_model_mappings as any).proposal
       }
 
-      // 폴백: 기본 우선순위 모델
-      const defaultModelPriority = ['claude-4.1', 'claude-4', 'claude-3.7', 'claude-3-opus', 'claude-3-sonnet', 'gpt-4o', 'gpt-4-turbo', 'gemini-2.0-flash-thinking']
-
-      for (const defaultModel of defaultModelPriority) {
-        if (availableModelIds.has(defaultModel)) {
-          console.log(`✅ 기본 우선순위 모델 선택: ${defaultModel}`)
-          return defaultModel
-        }
+      if (projectSettings?.default_model_id) {
+        return projectSettings.default_model_id
       }
 
-      // 최종 폴백: 첫 번째 사용 가능한 모델
-      if (availableModelIds.size > 0) {
-        const fallbackModel = Array.from(availableModelIds)[0]
-        console.log(`⚠️ 폴백 모델 선택: ${fallbackModel}`)
-        return fallbackModel
+      // 3. 사용자별 설정 확인
+      const { data: userSettings } = await supabase!
+        .from('user_ai_settings')
+        .select('preferred_model_id')
+        .eq('user_id', userId)
+        .single()
+
+      if (userSettings?.preferred_model_id) {
+        return userSettings.preferred_model_id
       }
 
-      throw new Error('사용 가능한 AI 모델이 없습니다. AI Provider Factory 초기화를 확인해주세요.')
+      // 4. 기본 모델 사용
+      return 'gpt-4o'
 
     } catch (error) {
-      console.error('🚨 AI 모델 선택 실패:', error)
-
-      // 최후의 폴백 - 등록된 첫 번째 모델
-      const availableModels = AIProviderFactory.getRegisteredModels()
-      if (availableModels.length > 0) {
-        const fallbackModel = availableModels[0].id
-        console.log(`🆘 최후 폴백 모델: ${fallbackModel}`)
-        return fallbackModel
-      }
-
-      throw new Error('사용 가능한 AI 모델이 없습니다. 환경 변수와 AI Provider Factory 초기화를 확인해주세요.')
+      console.warn('Failed to select AI model, using default:', error)
+      return 'gpt-4o'
     }
   }
 

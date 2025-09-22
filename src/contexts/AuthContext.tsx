@@ -20,7 +20,6 @@ interface AuthContextType {
   resetPassword: (email: string) => Promise<void>
   updatePassword: (newPassword: string) => Promise<void>
   refreshSession: () => Promise<void>
-  validateAndRecoverSession: () => Promise<boolean>
   updateProfile: (updates: Partial<Profile>) => Promise<void>
   clearError: () => void
 }
@@ -47,26 +46,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     if (!isClient) return
 
-    const sessionInfo = session ? {
-      expiresAt: session.expires_at,
-      timeToExpiry: session.expires_at ? Math.floor((session.expires_at * 1000 - Date.now()) / 1000 / 60) + ' minutes' : 'unknown',
-      accessTokenLength: session.access_token?.length || 0
-    } : null
-
     console.log('🏗️ AuthProvider state update:', {
-      timestamp: new Date().toISOString(),
       isInitialized,
       isInitializing,
       isLoading,
       isAuthenticated,
       hasUser: !!user,
       hasSession: !!session,
-      hasProfile: !!profile,
-      hasError: !!error,
-      userEmail: user?.email,
-      profileRole: profile?.role,
-      sessionInfo,
-      errorMessage: error
+      hasError: !!error
     })
   }, [
     isClient,
@@ -76,7 +63,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     isAuthenticated,
     user,
     session,
-    profile,
     error
   ])
 
@@ -125,48 +111,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
     }, 60 * 60 * 1000) // 1시간
 
-    // 페이지 포커스 시 세션 검증 및 복구 (프로젝트 상태 보호)
+    // 페이지 포커스 시 세션 갱신
     const handleFocus = async () => {
       const currentState = useAuthStore.getState()
+      if (currentState.isAuthenticated && currentState.session && !isRefreshing) {
+        const tokenExp = currentState.session.expires_at
+        const now = Math.floor(Date.now() / 1000)
 
-      console.log('👁️ Browser focus detected, validating session...')
-
-      // 인증된 상태가 아니면 검증할 필요 없음
-      if (!currentState.isAuthenticated || !currentState.session) {
-        console.log('📝 No authenticated session to validate')
-        return
-      }
-
-      // 중복 검증 방지
-      if (isRefreshing) {
-        console.log('🔄 Session validation already in progress')
-        return
-      }
-
-      // 현재 user 상태 백업 (프로젝트 컨텍스트 보호용)
-      const currentUser = currentState.user
-
-      isRefreshing = true
-      try {
-        const validationResult = await authStore.validateAndRecoverSession()
-
-        if (validationResult) {
-          console.log('✅ Session validation completed successfully')
-
-          // 세션 검증 후 user 상태가 일시적으로 변경된 경우 확인
-          const finalState = useAuthStore.getState()
-          if (finalState.user?.id === currentUser?.id) {
-            console.log('✅ User identity maintained during validation')
-          } else if (finalState.isAuthenticated && finalState.user) {
-            console.log('⚠️ User identity changed during validation - this may affect project context')
+        // 토큰 만료 10분 전에 갱신
+        if (tokenExp && (tokenExp - now) < 600) {
+          isRefreshing = true
+          try {
+            await authStore.refreshSession()
+          } catch (error) {
+            console.error('Focus session refresh failed:', error)
+          } finally {
+            isRefreshing = false
           }
-        } else {
-          console.log('❌ Session validation failed - user logged out')
         }
-      } catch (error) {
-        console.error('❌ Focus session validation error:', error)
-      } finally {
-        isRefreshing = false
       }
     }
 
@@ -278,7 +240,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     resetPassword: authStore.resetPassword,
     updatePassword: authStore.updatePassword,
     refreshSession: authStore.refreshSession,
-    validateAndRecoverSession: authStore.validateAndRecoverSession,
     updateProfile: authStore.updateProfile,
     clearError: authStore.clearError,
   }
