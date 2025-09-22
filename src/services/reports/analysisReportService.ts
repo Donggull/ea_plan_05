@@ -118,6 +118,8 @@ export class AnalysisReportService {
     }
   ): Promise<AnalysisReportData> {
     try {
+      const startTime = Date.now()
+
       if (!supabase) {
         throw new Error('Supabase client not initialized')
       }
@@ -175,8 +177,11 @@ export class AnalysisReportService {
           totalTokens: this.calculateTotalTokens(analyses),
           totalCost: this.calculateTotalCost(analyses),
           aiModel: options.aiModel || 'gpt-4o',
-          aiProvider: options.aiProvider || 'openai'
-        }
+          aiProvider: options.aiProvider || 'openai',
+          processingTime: Date.now() - startTime
+        },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       }
 
       // 보고서를 데이터베이스에 저장
@@ -725,8 +730,11 @@ ${analysisData.map(data => `${data.type}: ${data.result}`).join('\n')}
         totalTokens: dbReport.input_tokens + dbReport.output_tokens,
         totalCost: dbReport.total_cost,
         aiModel: dbReport.ai_model,
-        aiProvider: dbReport.ai_provider
-      }
+        aiProvider: dbReport.ai_provider,
+        processingTime: 0
+      },
+      createdAt: dbReport.created_at,
+      updatedAt: dbReport.updated_at || dbReport.created_at
     }
   }
 
@@ -988,9 +996,15 @@ ${report.content.implementationPlan.milestones.map(milestone => `- ${milestone}`
         status: 'completed' as const,
         content: {
           executiveSummary: report.executive_summary || '',
-          keyFindings: report.key_insights || [],
-          riskAssessment: report.risk_assessment || { overall: 0, risks: [] },
-          recommendations: report.recommendations || [],
+          keyFindings: Array.isArray(report.key_insights) ?
+            report.key_insights.filter((item): item is string => typeof item === 'string') :
+            typeof report.key_insights === 'string' ? [report.key_insights] : [],
+          riskAssessment: typeof report.risk_assessment === 'object' && report.risk_assessment !== null ?
+            report.risk_assessment as { overall: number; risks: Array<{ category: string; description: string; severity: 'low' | 'medium' | 'high'; mitigation: string }> } :
+            { overall: 0, risks: [] },
+          recommendations: Array.isArray(report.recommendations) ?
+            report.recommendations.filter((item): item is string => typeof item === 'string') :
+            typeof report.recommendations === 'string' ? [report.recommendations] : [],
           technicalAnalysis: {
             architecture: '',
             technologies: [],
@@ -1010,13 +1024,16 @@ ${report.content.implementationPlan.milestones.map(milestone => `- ${milestone}`
             milestones: []
           },
           appendices: {
-            rawData: report.baseline_data || {},
-            sources: [],
-            methodology: ''
+            dataAnalysis: report.baseline_data || {},
+            documentSummaries: [],
+            technicalSpecifications: {}
           }
         },
         metadata: {
-          generatedBy: report.generated_by || '',
+          generatedAt: new Date(report.created_at!),
+          generatedBy: report.generated_by || 'ai-system',
+          analysisCount: 0,
+          documentCount: 0,
           aiModel: report.ai_model || '',
           aiProvider: report.ai_provider || '',
           totalTokens: report.input_tokens || 0,
