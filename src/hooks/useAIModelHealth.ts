@@ -1,9 +1,8 @@
 // AI 모델 헬스 체크 및 상태 관리 훅
 
 import { useState, useEffect, useCallback } from 'react'
-import { modelSettingsService, type AIModel } from '../services/ai/modelSettingsService'
 import { modelSyncService } from '../services/ai/modelSyncService'
-import { useAIModel } from '../contexts/AIModelContext'
+import { useAIModel, type AIModel } from '../contexts/AIModelContext'
 
 export interface ModelHealthStatus {
   model_id: string
@@ -206,7 +205,7 @@ export function useAIModelHealth() {
       console.log(`🔧 모델 복구 시도: ${model.name}`)
 
       // 1. 모델 상태 검증
-      const isValid = await modelSyncService.validateModelStatus(model.id)
+      const isValid = await modelSyncService.validateModelStatus(modelId)
       if (!isValid) {
         console.log(`❌ 모델 검증 실패: ${model.name}`)
         return false

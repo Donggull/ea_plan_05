@@ -1,7 +1,6 @@
 // AI 모델 동기화 서비스
 // 외부 API와 로컬 데이터베이스 간의 모델 정보 동기화를 담당합니다.
 
-import { supabase } from '@/lib/supabase'
 import { modelSettingsService, type AIModel } from './modelSettingsService'
 import { allLatestModels, type LatestModelInfo } from './latestModelsData'
 
@@ -135,9 +134,6 @@ class ModelSyncService {
         오류: result.summary.errors
       })
 
-      // 동기화 로그 저장
-      await this.saveSyncLog(result)
-
       return result
 
     } catch (error) {
@@ -268,31 +264,6 @@ class ModelSyncService {
     await modelSettingsService.updateModel(modelId, updateData)
   }
 
-  /**
-   * 동기화 로그를 저장합니다.
-   */
-  private async saveSyncLog(result: SyncResult): Promise<void> {
-    if (!supabase) return
-
-    try {
-      await supabase
-        .from('ai_model_sync_logs')
-        .insert([{
-          sync_timestamp: new Date().toISOString(),
-          success: result.success,
-          total_models: result.summary.total_models,
-          new_models: result.summary.new_models,
-          updated_models: result.summary.updated_models,
-          deactivated_models: result.summary.deactivated_models,
-          errors: result.summary.errors,
-          details: result.details,
-          sync_source: 'context7_mcp'
-        }])
-    } catch (error) {
-      console.error('동기화 로그 저장 실패:', error)
-      // 로그 저장 실패는 전체 동기화를 실패로 처리하지 않음
-    }
-  }
 
   /**
    * 마지막 동기화 시간을 반환합니다.

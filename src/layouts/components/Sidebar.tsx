@@ -25,7 +25,6 @@ import {
   MoreHorizontal,
   RefreshCw,
   Clock,
-  Zap,
   Sparkles
 } from 'lucide-react'
 import { ApiUsageService } from '../../services/apiUsageService'
@@ -529,7 +528,7 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
                                     {model?.name || 'Unknown Model'}
                                   </div>
                                   {isRecommended && (
-                                    <Sparkles className="w-3 h-3 text-accent-blue" title="추천 모델" />
+                                    <Sparkles className="w-3 h-3 text-accent-blue" />
                                   )}
                                 </div>
                               )

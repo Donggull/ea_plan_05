@@ -1,6 +1,5 @@
 // AI 모델 헬스 상태 표시 컴포넌트
 
-import React from 'react'
 import {
   AlertTriangle,
   CheckCircle,
