@@ -256,11 +256,12 @@ class PerformanceMonitoringService {
       performanceData?.forEach(record => {
         const modelId = record.model_id
         if (!modelMetrics.has(modelId)) {
+          const aiModels = record.ai_models as any;
           modelMetrics.set(modelId, {
             model_id: modelId,
-            model_name: record.ai_models.name,
-            provider: record.ai_models.provider,
-            status: record.ai_models.status,
+            model_name: aiModels?.name || 'Unknown',
+            provider: aiModels?.provider || 'Unknown',
+            status: aiModels?.status || 'unknown',
             total_requests: 0,
             successful_requests: 0,
             failed_requests: 0,

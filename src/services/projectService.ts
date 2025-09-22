@@ -377,9 +377,9 @@ export class ProjectService {
       const memberProjectsData = memberProjects
         ?.map(mp => mp.projects)
         .filter((project) => {
-          return project !== null && !ownedProjectIds.has(project.id)
+          return project !== null && typeof project === 'object' && 'id' in project && !ownedProjectIds.has((project as any).id)
         })
-        .map(project => project as Project) || []
+        .map(project => project as unknown as Project) || []
 
       const allProjects = [
         ...(ownedProjects || []),

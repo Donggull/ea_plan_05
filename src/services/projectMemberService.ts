@@ -75,7 +75,7 @@ export class ProjectMemberService {
       user: member.profiles, // 호환성을 위해 user 속성 추가
     }))
 
-    return processedData
+    return processedData as unknown as ProjectMember as unknown as ProjectMember[]
   }
 
   // 멤버 초대 (이메일로)
@@ -94,14 +94,18 @@ export class ProjectMemberService {
       userId = userData?.id
     }
 
+    if (!userId) {
+      throw new Error('사용자를 찾을 수 없습니다.');
+    }
+
     const insertData = {
       project_id: memberData.project_id,
       user_id: userId,
       role: memberData.role,
       permissions: memberData.permissions || {},
-      is_active: userId ? true : false,
+      is_active: true,
       invited_by: memberData.invited_by,
-      joined_at: userId ? new Date().toISOString() : null,
+      joined_at: new Date().toISOString(),
     }
 
     const { data, error } = await supabase
@@ -131,7 +135,7 @@ export class ProjectMemberService {
       user: data.profiles, // 호환성을 위해 user 속성 추가
     }
 
-    return processedData
+    return processedData as unknown as ProjectMember
   }
 
   // 멤버 역할/권한 업데이트
@@ -169,7 +173,7 @@ export class ProjectMemberService {
       user: data.profiles, // 호환성을 위해 user 속성 추가
     }
 
-    return processedData
+    return processedData as unknown as ProjectMember
   }
 
   // 멤버 제거
@@ -221,7 +225,7 @@ export class ProjectMemberService {
       user: data.profiles, // 호환성을 위해 user 속성 추가
     }
 
-    return processedData
+    return processedData as unknown as ProjectMember
   }
 
   // 초대 링크 생성
