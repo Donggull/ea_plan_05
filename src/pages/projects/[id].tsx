@@ -10,7 +10,8 @@ import {
   MoreHorizontal,
   Zap,
   TrendingUp,
-  UserCheck
+  UserCheck,
+  BarChart3
 } from 'lucide-react'
 import { useProject } from '../../contexts/ProjectContext'
 import { ProjectService } from '../../services/projectService'
@@ -306,6 +307,13 @@ export function ProjectDetailPage() {
                 <button className="w-full flex items-center space-x-3 px-3 py-2.5 text-left text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors">
                   <FileText className="w-4 h-4" />
                   <span className="text-sm">문서 추가</span>
+                </button>
+                <button
+                  onClick={() => navigate(`/projects/${id}/reports`)}
+                  className="w-full flex items-center space-x-3 px-3 py-2.5 text-left text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors"
+                >
+                  <BarChart3 className="w-4 h-4" />
+                  <span className="text-sm">분석 보고서</span>
                 </button>
                 <button
                   onClick={() => setIsInviteModalOpen(true)}
