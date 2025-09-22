@@ -185,7 +185,17 @@ export const AnalysisReportViewer: React.FC<AnalysisReportViewerProps> = ({
           {/* 헤더 */}
           <div className="p-4 border-b border-gray-700">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-white">분석 보고서</h2>
+              <div className="flex items-center space-x-2">
+                {onBack && (
+                  <button
+                    onClick={onBack}
+                    className="p-1 text-gray-400 hover:text-white transition-colors"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                )}
+                <h2 className="text-lg font-semibold text-white">분석 보고서</h2>
+              </div>
               <button
                 onClick={generateNewReport}
                 disabled={isGenerating}

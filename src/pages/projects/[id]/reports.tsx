@@ -6,9 +6,7 @@ import {
   BarChart3,
   TrendingUp,
   AlertTriangle,
-  Clock,
   DollarSign,
-  Shield,
   Zap,
   Download,
   Loader2,
@@ -98,8 +96,13 @@ export function ProjectReportsPage() {
       setIsGenerating(true)
       const newReport = await analysisReportService.generateComprehensiveReport(
         id,
-        '프로젝트 종합 분석 보고서',
-        'comprehensive'
+        {
+          reportType: 'comprehensive',
+          includeCharts: true,
+          includeAppendices: true,
+          format: 'html',
+          language: 'ko'
+        }
       )
 
       // 보고서 목록 새로고침

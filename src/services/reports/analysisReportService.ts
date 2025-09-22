@@ -62,7 +62,10 @@ export interface AnalysisReportData {
     totalCost: number
     aiModel: string
     aiProvider: string
+    processingTime: number
   }
+  createdAt: string
+  updatedAt: string
 }
 
 export interface ReportGenerationOptions {
@@ -975,10 +978,12 @@ ${report.content.implementationPlan.milestones.map(milestone => `- ${milestone}`
       }
 
       // 데이터베이스 형식을 AnalysisReportData 형식으로 변환
-      return (data || []).map(report => ({
+      return (data || [])
+        .filter(report => report.project_id && report.created_at) // null 값 제외
+        .map(report => ({
         id: report.id,
-        projectId: report.project_id,
-        title: `분석 보고서 - ${new Date(report.created_at).toLocaleDateString()}`,
+        projectId: report.project_id!,
+        title: `분석 보고서 - ${new Date(report.created_at!).toLocaleDateString()}`,
         reportType: 'comprehensive' as const,
         status: 'completed' as const,
         content: {
@@ -1018,8 +1023,8 @@ ${report.content.implementationPlan.milestones.map(milestone => `- ${milestone}`
           totalCost: report.total_cost || 0,
           processingTime: report.total_processing_time || 0
         },
-        createdAt: report.created_at,
-        updatedAt: report.updated_at || report.created_at
+        createdAt: report.created_at!,
+        updatedAt: report.created_at!
       }))
     } catch (error) {
       console.error('Failed to get project reports:', error)
