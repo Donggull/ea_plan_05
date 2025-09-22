@@ -3,7 +3,6 @@
 
 import { supabase } from '../../lib/supabase'
 import { AIProviderFactory } from '../ai/providerFactory'
-import { useAIModel } from '../../contexts/AIModelContext'
 import {
   QAAIRequest,
   QAAIResponse,
@@ -76,8 +75,6 @@ export class QAAIService {
     relatedQuestions: string[]
   }>> {
     try {
-      const aiProvider = AIProviderFactory.createProvider('openai')
-
       const prompt = `
 질문을 분석하여 다음 정보를 JSON 형태로 제공해주세요:
 
@@ -92,9 +89,9 @@ export class QAAIService {
 }
 `
 
-      const response = await aiProvider.generateResponse({
+      const response = await AIProviderFactory.generateCompletion('gpt-4o', {
         messages: [{ role: 'user', content: prompt }],
-        maxTokens: 500,
+        max_tokens: 500,
         temperature: 0.3
       })
 
@@ -124,8 +121,6 @@ export class QAAIService {
     improvedQuestion?: string
   }>> {
     try {
-      const aiProvider = AIProviderFactory.createProvider('openai')
-
       const prompt = `
 다음 질문을 평가하고 개선 제안을 해주세요:
 
@@ -146,9 +141,9 @@ export class QAAIService {
 }
 `
 
-      const response = await aiProvider.generateResponse({
+      const response = await AIProviderFactory.generateCompletion('gpt-4o', {
         messages: [{ role: 'user', content: prompt }],
-        maxTokens: 800,
+        max_tokens: 800,
         temperature: 0.3
       })
 
@@ -260,8 +255,6 @@ export class QAAIService {
     suggestions: string[]
   }>> {
     try {
-      const aiProvider = AIProviderFactory.createProvider('openai')
-
       const prompt = `
 다음 질문과 답변을 평가해주세요:
 
@@ -288,9 +281,9 @@ export class QAAIService {
 }
 `
 
-      const response = await aiProvider.generateResponse({
+      const response = await AIProviderFactory.generateCompletion('gpt-4o', {
         messages: [{ role: 'user', content: prompt }],
-        maxTokens: 800,
+        max_tokens: 800,
         temperature: 0.3
       })
 
@@ -315,7 +308,7 @@ export class QAAIService {
    */
   async getPersonalizedRecommendations(
     userId: string,
-    projectId?: string
+    _projectId?: string
   ): Promise<QAServiceResponse<{
     recommendedQuestions: QAMessage[]
     trendingTopics: string[]
@@ -327,7 +320,7 @@ export class QAAIService {
       }
 
       // 사용자의 과거 활동 기반 추천 (간단한 구현)
-      const { data: userActivity } = await supabase
+      const { data: _userActivity } = await supabase
         .from('qa_messages')
         .select('conversation_id, type, content')
         .eq('user_id', userId)
@@ -442,10 +435,7 @@ export class QAAIService {
     cost?: number
   }> {
     try {
-      const provider = request.provider || 'openai'
       const model = request.model || 'gpt-4o'
-
-      const aiProvider = AIProviderFactory.createProvider(provider)
 
       const systemPrompt = `
 당신은 전문적인 Q&A 시스템의 AI 어시스턴트입니다.
@@ -461,22 +451,21 @@ export class QAAIService {
 ${context.content ? `컨텍스트 정보:\n${context.content}\n` : ''}
 `
 
-      const response = await aiProvider.generateResponse({
+      const response = await AIProviderFactory.generateCompletion(model, {
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: request.question }
         ],
-        maxTokens: request.maxTokens || 1000,
-        temperature: request.temperature || 0.7,
-        model
+        max_tokens: request.maxTokens || 1000,
+        temperature: request.temperature || 0.7
       })
 
       return {
         content: response.content,
         confidence: 0.8, // 기본값
-        inputTokens: response.usage?.promptTokens,
-        outputTokens: response.usage?.completionTokens,
-        cost: response.usage?.totalCost
+        inputTokens: response.usage?.input_tokens,
+        outputTokens: response.usage?.output_tokens,
+        cost: response.usage?.total_tokens ? response.usage.total_tokens * 0.00001 : 0
       }
     } catch (error) {
       console.error('AI 모델 호출 중 오류:', error)

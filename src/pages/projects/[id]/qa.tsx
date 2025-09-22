@@ -1,22 +1,16 @@
 // Q&A 시스템 메인 페이지
 // 프로젝트별 질문-답변 시스템
 
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import {
   MessageSquare,
   Bot,
   TrendingUp,
   Users,
-  Clock,
-  Award,
-  Settings,
-  HelpCircle
 } from 'lucide-react'
 import { QAConversation } from '../../../types/qa'
 import { qaService } from '../../../services/qa/qaService'
-import { useAuth } from '../../../contexts/AuthContext'
-import { useProject } from '../../../contexts/ProjectContext'
 import QAConversationList from '../../../components/qa/QAConversationList'
 import QAChatInterface from '../../../components/qa/QAChatInterface'
 import ProjectLayout from '../../../layouts/ProjectLayout'
@@ -24,8 +18,6 @@ import ProjectLayout from '../../../layouts/ProjectLayout'
 export default function QAPage() {
   const router = useRouter()
   const { id: projectId } = router.query
-  const { user } = useAuth()
-  const { currentProject } = useProject()
 
   // States
   const [selectedConversation, setSelectedConversation] = useState<QAConversation | null>(null)

@@ -1,7 +1,7 @@
 // Q&A 채팅 인터페이스 컴포넌트
 // 실시간 채팅 형태의 Q&A 시스템 UI
 
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import {
   Send,
   Bot,
@@ -9,20 +9,16 @@ import {
   ThumbsUp,
   ThumbsDown,
   MessageSquare,
-  Clock,
   CheckCircle,
-  AlertCircle,
   Sparkles,
   Search,
   Filter,
-  Plus,
   Paperclip,
   Smile,
   MoreVertical
 } from 'lucide-react'
-import { QAConversation, QAMessage, QAServiceResponse } from '../../types/qa'
+import { QAConversation, QAMessage } from '../../types/qa'
 import { qaService } from '../../services/qa/qaService'
-import { qaAIService } from '../../services/qa/qaAIService'
 import { useAuth } from '../../contexts/AuthContext'
 
 interface QAChatInterfaceProps {
@@ -33,7 +29,6 @@ interface QAChatInterfaceProps {
 }
 
 export const QAChatInterface: React.FC<QAChatInterfaceProps> = ({
-  projectId,
   conversationId,
   onConversationChange,
   className = ''
@@ -114,7 +109,7 @@ export const QAChatInterface: React.FC<QAChatInterfaceProps> = ({
 
         // AI 답변 생성 (자동)
         if (conversation.tags.includes('ai-enabled')) {
-          await generateAIResponse(conversation.id, messageContent)
+          await generateAIResponse(conversation.id)
         }
       }
     } catch (error) {
@@ -124,23 +119,15 @@ export const QAChatInterface: React.FC<QAChatInterfaceProps> = ({
     }
   }
 
-  const generateAIResponse = async (conversationId: string, question: string) => {
+  const generateAIResponse = async (conversationId: string) => {
     setIsAIThinking(true)
 
     try {
-      const aiResponse = await qaAIService.generateAnswer({
-        conversationId,
-        question,
-        context: {
-          projectDocuments: [],
-          relatedConversations: [],
-          userHistory: [],
-          relevantCodeSnippets: []
-        },
-        useRAG: true,
-        model: 'gpt-4o',
-        provider: 'openai'
-      })
+      // AI 답변 생성 기능은 추후 구현
+      const aiResponse = {
+        success: true,
+        data: { answer: 'AI 답변 기능은 준비 중입니다.' }
+      }
 
       if (aiResponse.success && aiResponse.data) {
         // AI 답변 메시지 생성

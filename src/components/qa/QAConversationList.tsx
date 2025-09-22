@@ -8,18 +8,13 @@ import {
   Filter,
   Plus,
   Clock,
-  Users,
-  Tag,
   ChevronDown,
-  Star,
   AlertCircle,
   CheckCircle,
   Bot,
-  TrendingUp
 } from 'lucide-react'
 import { QAConversation, QASearchFilter, QAStats } from '../../types/qa'
 import { qaService } from '../../services/qa/qaService'
-import { qaAIService } from '../../services/qa/qaAIService'
 
 interface QAConversationListProps {
   projectId?: string
@@ -381,7 +376,7 @@ export const QAConversationList: React.FC<QAConversationListProps> = ({
                   </div>
 
                   <div className="flex items-center space-x-3 text-xs text-text-muted">
-                    {conversation.messageCount > 0 && (
+                    {(conversation.messageCount || 0) > 0 && (
                       <div className="flex items-center space-x-1">
                         <MessageSquare className="w-3 h-3" />
                         <span>{conversation.messageCount}</span>

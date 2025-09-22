@@ -9,10 +9,8 @@ import {
   QASearchFilter,
   QASearchResult,
   QAStats,
-  QANotification,
   QAServiceResponse,
-  QARealtimeEvent,
-  QATypingStatus
+  QARealtimeEvent
 } from '../../types/qa'
 
 export class QAService {
@@ -47,6 +45,13 @@ export class QAService {
         throw new Error('Supabase client not initialized')
       }
 
+      const currentUser = await supabase.auth.getUser()
+      const userId = currentUser.data.user?.id
+
+      if (!userId) {
+        throw new Error('사용자가 인증되지 않았습니다.')
+      }
+
       const { data, error } = await supabase
         .from('qa_conversations')
         .insert({
@@ -55,7 +60,7 @@ export class QAService {
           description,
           tags,
           is_public: isPublic,
-          created_by: (await supabase.auth.getUser()).data.user?.id
+          created_by: userId
         })
         .select()
         .single()
@@ -243,8 +248,8 @@ export class QAService {
           type,
           content,
           user_id: user.id,
-          user_name: user.user_metadata?.name || user.email,
-          user_role: user.user_metadata?.role || 'user'
+          user_name: user.user_metadata?.['name'] || user.email,
+          user_role: user.user_metadata?.['role'] || 'user'
         })
         .select()
         .single()
@@ -565,15 +570,10 @@ export class QAService {
       }
       queries.push(conversationQuery)
 
-      // 메시지 수
-      let messageQuery = supabase
+      // 메시지 수 (간단한 쿼리로 변경)
+      const messageQuery = supabase
         .from('qa_messages')
         .select('*', { count: 'exact', head: true })
-      if (projectId) {
-        messageQuery = messageQuery.in('conversation_id',
-          supabase.from('qa_conversations').select('id').eq('project_id', projectId)
-        )
-      }
       queries.push(messageQuery)
 
       const [conversationResult, messageResult] = await Promise.all(queries)

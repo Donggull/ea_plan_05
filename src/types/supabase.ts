@@ -1014,6 +1014,264 @@ export type Database = {
         }
         Relationships: []
       }
+      qa_conversations: {
+        Row: {
+          id: string
+          project_id: string
+          title: string
+          description: string | null
+          status: string
+          is_public: boolean
+          tags: string[]
+          message_count: number
+          last_message_at: string | null
+          created_by: string
+          created_at: string
+          updated_at: string
+          metadata: Json
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          title: string
+          description?: string | null
+          status?: string
+          is_public?: boolean
+          tags?: string[]
+          message_count?: number
+          last_message_at?: string | null
+          created_by: string
+          created_at?: string
+          updated_at?: string
+          metadata?: Json
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          title?: string
+          description?: string | null
+          status?: string
+          is_public?: boolean
+          tags?: string[]
+          message_count?: number
+          last_message_at?: string | null
+          created_by?: string
+          created_at?: string
+          updated_at?: string
+          metadata?: Json
+        }
+        Relationships: []
+      }
+      qa_messages: {
+        Row: {
+          id: string
+          conversation_id: string
+          type: string
+          content: string
+          content_format: string
+          is_ai_generated: boolean
+          ai_model: string | null
+          ai_provider: string | null
+          ai_confidence: number | null
+          processing_time: number | null
+          input_tokens: number | null
+          output_tokens: number | null
+          ai_cost: number | null
+          votes_up: number
+          votes_down: number
+          is_marked_as_answer: boolean
+          is_helpful: boolean
+          user_id: string
+          user_name: string | null
+          user_role: string | null
+          created_at: string
+          updated_at: string
+          edited_at: string | null
+          is_edited: boolean
+        }
+        Insert: {
+          id?: string
+          conversation_id: string
+          type?: string
+          content: string
+          content_format?: string
+          is_ai_generated?: boolean
+          ai_model?: string | null
+          ai_provider?: string | null
+          ai_confidence?: number | null
+          processing_time?: number | null
+          input_tokens?: number | null
+          output_tokens?: number | null
+          ai_cost?: number | null
+          votes_up?: number
+          votes_down?: number
+          is_marked_as_answer?: boolean
+          is_helpful?: boolean
+          user_id: string
+          user_name?: string | null
+          user_role?: string | null
+          created_at?: string
+          updated_at?: string
+          edited_at?: string | null
+          is_edited?: boolean
+        }
+        Update: {
+          id?: string
+          conversation_id?: string
+          type?: string
+          content?: string
+          content_format?: string
+          is_ai_generated?: boolean
+          ai_model?: string | null
+          ai_provider?: string | null
+          ai_confidence?: number | null
+          processing_time?: number | null
+          input_tokens?: number | null
+          output_tokens?: number | null
+          ai_cost?: number | null
+          votes_up?: number
+          votes_down?: number
+          is_marked_as_answer?: boolean
+          is_helpful?: boolean
+          user_id?: string
+          user_name?: string | null
+          user_role?: string | null
+          created_at?: string
+          updated_at?: string
+          edited_at?: string | null
+          is_edited?: boolean
+        }
+        Relationships: []
+      }
+      qa_attachments: {
+        Row: {
+          id: string
+          message_id: string
+          file_name: string
+          file_size: number
+          file_type: string
+          file_url: string
+          thumbnail_url: string | null
+          uploaded_by: string
+          uploaded_at: string
+        }
+        Insert: {
+          id?: string
+          message_id: string
+          file_name: string
+          file_size: number
+          file_type: string
+          file_url: string
+          thumbnail_url?: string | null
+          uploaded_by: string
+          uploaded_at?: string
+        }
+        Update: {
+          id?: string
+          message_id?: string
+          file_name?: string
+          file_size?: number
+          file_type?: string
+          file_url?: string
+          thumbnail_url?: string | null
+          uploaded_by?: string
+          uploaded_at?: string
+        }
+        Relationships: []
+      }
+      qa_message_votes: {
+        Row: {
+          id: string
+          message_id: string
+          user_id: string
+          vote_type: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          message_id: string
+          user_id: string
+          vote_type: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          message_id?: string
+          user_id?: string
+          vote_type?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      qa_notifications: {
+        Row: {
+          id: string
+          user_id: string
+          conversation_id: string
+          message_id: string | null
+          type: string
+          title: string
+          content: string
+          is_read: boolean
+          action_url: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          conversation_id: string
+          message_id?: string | null
+          type: string
+          title: string
+          content: string
+          is_read?: boolean
+          action_url?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          conversation_id?: string
+          message_id?: string | null
+          type?: string
+          title?: string
+          content?: string
+          is_read?: boolean
+          action_url?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      qa_conversation_participants: {
+        Row: {
+          id: string
+          conversation_id: string
+          user_id: string
+          role: string
+          is_subscribed: boolean
+          last_read_at: string
+          joined_at: string
+        }
+        Insert: {
+          id?: string
+          conversation_id: string
+          user_id: string
+          role?: string
+          is_subscribed?: boolean
+          last_read_at?: string
+          joined_at?: string
+        }
+        Update: {
+          id?: string
+          conversation_id?: string
+          user_id?: string
+          role?: string
+          is_subscribed?: boolean
+          last_read_at?: string
+          joined_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

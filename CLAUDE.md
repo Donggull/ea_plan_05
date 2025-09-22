@@ -46,6 +46,7 @@ ELUO는 AI 기반 통합 프로젝트 관리 시스템으로, 제안서 작성�
 - 사전 분석 단계 PRD: `./docs/pre_analysis_prd.md`
 - 사전 분석 단계 개발 프롬프트 가이드: `./docs/pre_analysis_prompts.md`
 - 사전 분석 단계 통합 가이드: `./docs/integration_guide.md`
+- TypeScript 환경 및 코드 개선법: `./docs/TypeScript_code.md`
 
 ### 기술 스택
 ```
