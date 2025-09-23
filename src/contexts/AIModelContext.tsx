@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect, useState } from 'react'
 import { modelSettingsService } from '../services/ai/modelSettingsService'
 import { modelSyncService } from '../services/ai/modelSyncService'
-import { getRecommendedModels } from '../services/ai/latestModelsData'
+import { getRecommendedModels, allLatestModels, type LatestModelInfo } from '../services/ai/latestModelsData'
 import { aiServiceManager } from '../services/ai/AIServiceManager'
 
 // AI 모델 타입 정의
@@ -110,63 +110,122 @@ export function AIModelProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(aiModelReducer, initialState)
   const [isSyncing, setIsSyncing] = useState(false)
 
-  // AI 모델 로딩 함수 (AI 서비스 매니저 통합)
+  // 최신 모델 데이터를 AIModel 형식으로 변환
+  const convertLatestModelToAIModel = (latestModel: LatestModelInfo): AIModel => ({
+    id: latestModel.id,
+    name: latestModel.name,
+    provider: latestModel.provider,
+    model_id: latestModel.model_id,
+    cost_per_input_token: latestModel.cost_per_input_token,
+    cost_per_output_token: latestModel.cost_per_output_token,
+    status: latestModel.status,
+    capabilities: latestModel.capabilities,
+    max_tokens: latestModel.max_tokens,
+    available: latestModel.status === 'active',
+    metadata: latestModel.metadata
+  })
+
+  // 기본 모델 선택 함수 (Claude 4 Sonnet 우선)
+  const setDefaultModel = async (models: AIModel[]) => {
+    try {
+      // 1순위: Claude 4 Sonnet (claude-sonnet-4-20250514)
+      let defaultModel = models.find(m => m.model_id === 'claude-sonnet-4-20250514')
+
+      // 2순위: Claude 3 Sonnet (claude-3-5-sonnet-20241022)
+      if (!defaultModel) {
+        defaultModel = models.find(m => m.model_id === 'claude-3-5-sonnet-20241022')
+      }
+
+      // 3순위: 첫 번째 Anthropic 모델
+      if (!defaultModel) {
+        defaultModel = models.find(m => m.provider === 'anthropic' && m.available)
+      }
+
+      // 4순위: 사용 가능한 첫 번째 모델
+      if (!defaultModel) {
+        defaultModel = models.find(m => m.available)
+      }
+
+      if (defaultModel) {
+        console.log('🎯 기본 모델 선택:', defaultModel.name, '(' + defaultModel.model_id + ')')
+        dispatch({ type: 'SELECT_PROVIDER', payload: defaultModel.provider })
+        dispatch({ type: 'SELECT_MODEL', payload: defaultModel.id })
+
+        // AI 서비스 매니저에도 반영
+        await setupAIServiceManager(defaultModel)
+      } else {
+        console.warn('⚠️ 사용 가능한 기본 모델을 찾을 수 없습니다.')
+      }
+    } catch (error) {
+      console.error('기본 모델 선택 중 오류:', error)
+    }
+  }
+
+  // AI 모델 로딩 함수 (최신 모델 데이터 우선 적용)
   const loadModels = async () => {
     try {
       dispatch({ type: 'SET_LOADING', payload: true })
       dispatch({ type: 'SET_ERROR', payload: null })
 
-      // 기존 모델 설정과 AI 서비스 매니저의 모델을 모두 로드
-      const [localModels, aiManagerModels] = await Promise.all([
-        modelSettingsService.getActiveModels(),
-        aiServiceManager.getAllModels()
-      ])
+      console.log('🔄 AI 모델 로딩 시작...')
 
-      // 로컬 모델 포맷팅
-      const formattedLocalModels: AIModel[] = localModels.map(model => ({
-        id: model.id,
-        name: model.name,
-        provider: model.provider as 'openai' | 'anthropic' | 'google' | 'custom',
-        model_id: model.model_id,
-        cost_per_input_token: model.cost_per_input_token,
-        cost_per_output_token: model.cost_per_output_token,
-        status: model.status || 'active',
-        capabilities: model.capabilities || [],
-        max_tokens: model.max_tokens,
-        available: model.status === 'active'
-      }))
+      // 1. 최신 모델 데이터를 우선 로드
+      const latestModelsConverted: AIModel[] = allLatestModels.map(convertLatestModelToAIModel)
+      console.log('📊 최신 모델 로드 완료:', latestModelsConverted.length, '개')
 
-      // AI 매니저 모델과 병합 (중복 제거)
-      const allModels = [...formattedLocalModels]
-      aiManagerModels.forEach(aiModel => {
-        const exists = allModels.find(model => model.model_id === aiModel.model_id)
-        if (!exists) {
-          allModels.push(aiModel)
-        }
-      })
+      // 2. 기존 로컬 모델과 AI 매니저 모델도 로드 (백그라운드)
+      try {
+        const [localModels, aiManagerModels] = await Promise.all([
+          modelSettingsService.getActiveModels().catch(() => []),
+          aiServiceManager.getAllModels().catch(() => [])
+        ])
 
-      dispatch({ type: 'SET_MODELS', payload: allModels })
+        // 로컬 모델 포맷팅
+        const formattedLocalModels: AIModel[] = localModels.map(model => ({
+          id: model.id,
+          name: model.name,
+          provider: model.provider as 'openai' | 'anthropic' | 'google' | 'custom',
+          model_id: model.model_id,
+          cost_per_input_token: model.cost_per_input_token,
+          cost_per_output_token: model.cost_per_output_token,
+          status: model.status || 'active',
+          capabilities: model.capabilities || [],
+          max_tokens: model.max_tokens,
+          available: model.status === 'active',
+          metadata: model.metadata
+        }))
 
-      // 기본 프로바이더 및 모델 선택 (최신 Claude 4 Sonnet 우선)
-      if (allModels.length > 0 && !state.selectedProviderId) {
-        const recommended = getRecommendedModels()
-        // Claude 4 Sonnet을 최우선으로 선택 (최신 모델)
-        const defaultModel = allModels.find(m => m.model_id === 'claude-sonnet-4-20250514') ||
-                           allModels.find(m => m.model_id === recommended.balanced.model_id) ||
-                           allModels[0]
+        // 3. 모든 모델 병합 (최신 모델 우선, 중복 제거)
+        const allModels = [...latestModelsConverted]
 
-        console.log('🎯 기본 모델 설정:', {
-          selectedModel: defaultModel.name,
-          modelId: defaultModel.model_id,
-          provider: defaultModel.provider,
-          isLatestGeneration: defaultModel.metadata?.['latest_generation']
+        // 로컬 모델 추가 (중복되지 않는 것만)
+        formattedLocalModels.forEach(localModel => {
+          const exists = allModels.find(model => model.model_id === localModel.model_id)
+          if (!exists) {
+            allModels.push(localModel)
+          }
         })
 
-        dispatch({ type: 'SELECT_PROVIDER', payload: defaultModel.provider })
-        dispatch({ type: 'SELECT_MODEL', payload: defaultModel.id })
+        // AI 매니저 모델 추가 (중복되지 않는 것만)
+        aiManagerModels.forEach(aiModel => {
+          const exists = allModels.find(model => model.model_id === aiModel.model_id)
+          if (!exists) {
+            allModels.push(aiModel)
+          }
+        })
 
-        // AI 서비스 매니저에도 기본 모델 설정
-        await setupAIServiceManager(defaultModel)
+        console.log('✅ 전체 모델 로드 완료:', allModels.length, '개')
+        dispatch({ type: 'SET_MODELS', payload: allModels })
+
+        // 4. 기본 모델 선택 (Claude 4 Sonnet 우선)
+        await setDefaultModel(allModels)
+      } catch (error) {
+        console.warn('⚠️ 로컬/AI매니저 모델 로드 실패, 최신 모델만 사용:', error)
+        // 로컬 모델 로드에 실패해도 최신 모델은 표시
+        dispatch({ type: 'SET_MODELS', payload: latestModelsConverted })
+
+        // 기본 모델 선택 (최신 모델만으로)
+        await setDefaultModel(latestModelsConverted)
       }
 
       // 마지막 동기화 시간 업데이트
