@@ -8,15 +8,22 @@ import {
   Settings,
   CheckCircle,
   Clock,
-  AlertCircle
+  AlertCircle,
+  FolderOpen,
+  RefreshCw
 } from 'lucide-react';
 import { PreAnalysisSession, AnalysisSettings } from '../../types/preAnalysis';
 import { preAnalysisService } from '../../services/preAnalysis/PreAnalysisService';
+import { useAuth } from '../../contexts/AuthContext';
+import { useAIModel } from '../../contexts/AIModelContext';
 import { AIModelSelector } from './AIModelSelector';
 import { MCPConfiguration } from './MCPConfiguration';
 import { AnalysisProgress } from './AnalysisProgress';
 import { QuestionAnswer } from './QuestionAnswer';
 import { AnalysisReport } from './AnalysisReport';
+import { Card } from '../../components/LinearComponents';
+import { DocumentManager } from '../../components/documents/DocumentManager';
+import { supabase } from '../../lib/supabase';
 
 interface PreAnalysisPanelProps {
   projectId: string;
@@ -27,11 +34,14 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
   projectId,
   onSessionComplete,
 }) => {
+  const { user } = useAuth();
+  const { state: aiModelState } = useAIModel();
+
   const [currentSession, setCurrentSession] = useState<PreAnalysisSession | null>(null);
   const [currentStep, setCurrentStep] = useState<'setup' | 'analysis' | 'questions' | 'report'>('setup');
   const [settings, setSettings] = useState<AnalysisSettings>({
-    aiModel: 'gpt-4o',
-    aiProvider: 'openai',
+    aiModel: aiModelState.selectedModel?.id || 'gpt-4o',
+    aiProvider: aiModelState.selectedProvider || 'openai',
     mcpServers: {
       filesystem: true,
       database: true,
@@ -42,11 +52,52 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [documentCount, setDocumentCount] = useState(0);
+  const [documentsLoading, setDocumentsLoading] = useState(false);
 
-  // 기존 세션 확인
+  // 기존 세션 확인 및 문서 수 로드
   useEffect(() => {
     loadExistingSessions();
+    loadDocumentCount();
   }, [projectId]);
+
+  // AI 모델 상태 변경 시 설정 업데이트
+  useEffect(() => {
+    if (aiModelState.selectedModel && aiModelState.selectedProvider) {
+      setSettings(prev => ({
+        ...prev,
+        aiModel: aiModelState.selectedModel?.id || 'gpt-4o',
+        aiProvider: aiModelState.selectedProvider || 'openai',
+      }));
+    }
+  }, [aiModelState.selectedModel, aiModelState.selectedProvider]);
+
+  const loadDocumentCount = async () => {
+    try {
+      setDocumentsLoading(true);
+
+      if (!supabase) {
+        console.error('Supabase 클라이언트가 초기화되지 않았습니다.');
+        return;
+      }
+
+      const { count, error } = await supabase
+        .from('documents')
+        .select('*', { count: 'exact', head: true })
+        .eq('project_id', projectId);
+
+      if (error) {
+        console.error('문서 수 조회 실패:', error);
+        return;
+      }
+
+      setDocumentCount(count || 0);
+    } catch (error) {
+      console.error('문서 수 조회 중 오류:', error);
+    } finally {
+      setDocumentsLoading(false);
+    }
+  };
 
   const loadExistingSessions = async () => {
     try {
@@ -88,13 +139,15 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
     setError(null);
 
     try {
-      // 사용자 ID는 실제 인증 컨텍스트에서 가져와야 함
-      const userId = 'current-user-id'; // TODO: 실제 사용자 ID 사용
+      if (!user?.id) {
+        setError('사용자 인증이 필요합니다.');
+        return;
+      }
 
       const response = await preAnalysisService.startSession(
         projectId,
         settings,
-        userId
+        user.id
       );
 
       if (response.success && response.data) {
@@ -166,10 +219,10 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
                 <div className={`
                   flex items-center justify-center w-12 h-12 rounded-full border-2 transition-colors
                   ${status === 'completed'
-                    ? 'bg-green-600 border-green-600 text-white'
+                    ? 'bg-success border-success text-white'
                     : status === 'in_progress'
-                    ? 'bg-blue-600 border-blue-600 text-white'
-                    : 'bg-gray-700 border-gray-600 text-gray-400'
+                    ? 'bg-primary border-primary text-white'
+                    : 'bg-bg-secondary border-border-primary text-text-muted'
                   }
                 `}>
                   {status === 'completed' ? (
@@ -183,10 +236,10 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
                 <span className={`
                   mt-2 text-sm font-medium
                   ${status === 'completed'
-                    ? 'text-green-400'
+                    ? 'text-success'
                     : status === 'in_progress'
-                    ? 'text-blue-400'
-                    : 'text-gray-500'
+                    ? 'text-primary'
+                    : 'text-text-muted'
                   }
                 `}>
                   {step.label}
@@ -196,8 +249,8 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
                 <div className={`
                   flex-1 h-0.5 mx-4 transition-colors
                   ${getStepStatus(steps[index + 1].id) === 'completed'
-                    ? 'bg-green-600'
-                    : 'bg-gray-700'
+                    ? 'bg-success'
+                    : 'bg-border-primary'
                   }
                 `} />
               )}
@@ -209,12 +262,12 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
   };
 
   return (
-    <div className="w-full max-w-6xl mx-auto p-6 bg-gray-900 rounded-lg border border-gray-800">
+    <Card className="w-full max-w-6xl mx-auto">
       {/* 헤더 */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-white">사전 분석</h2>
-          <p className="text-gray-400 mt-1">
+          <h2 className="text-2xl font-bold text-text-primary">사전 분석</h2>
+          <p className="text-text-secondary mt-1">
             AI와 MCP를 활용한 프로젝트 사전 분석을 시작합니다.
           </p>
         </div>
@@ -222,7 +275,7 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
           {currentSession && (
             <button
               onClick={handleReset}
-              className="flex items-center gap-2 px-4 py-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+              className="flex items-center gap-2 px-4 py-2 text-text-muted hover:text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors"
             >
               <RotateCcw className="w-4 h-4" />
               초기화
@@ -233,9 +286,9 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
 
       {/* 에러 메시지 */}
       {error && (
-        <div className="mb-6 p-4 bg-red-900/20 border border-red-800 rounded-lg flex items-center gap-3">
-          <AlertCircle className="w-5 h-5 text-red-400" />
-          <span className="text-red-300">{error}</span>
+        <div className="mb-6 p-4 bg-error/10 border border-error rounded-lg flex items-center gap-3">
+          <AlertCircle className="w-5 h-5 text-error" />
+          <span className="text-error">{error}</span>
         </div>
       )}
 
@@ -248,35 +301,82 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
           <div className="space-y-8">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* AI 모델 선택 */}
-              <div className="space-y-6">
-                <h3 className="text-lg font-semibold text-white">AI 모델 설정</h3>
+              <Card>
+                <h3 className="text-lg font-semibold text-text-primary mb-4">AI 모델 설정</h3>
                 <AIModelSelector
                   settings={settings}
                   onSettingsChange={setSettings}
                 />
-              </div>
+              </Card>
 
               {/* MCP 서버 설정 */}
-              <div className="space-y-6">
-                <h3 className="text-lg font-semibold text-white">MCP 서버 설정</h3>
+              <Card>
+                <h3 className="text-lg font-semibold text-text-primary mb-4">MCP 서버 설정</h3>
                 <MCPConfiguration
                   settings={settings}
                   onSettingsChange={setSettings}
                 />
-              </div>
+              </Card>
             </div>
+
+            {/* 프로젝트 문서 정보 */}
+            <Card>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-text-primary">프로젝트 문서</h3>
+                <div className="flex items-center gap-2">
+                  <FolderOpen className="w-4 h-4 text-text-muted" />
+                  <span className="text-text-secondary">
+                    {documentsLoading ? (
+                      <div className="flex items-center gap-2">
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        로딩 중...
+                      </div>
+                    ) : (
+                      `${documentCount}개 문서`
+                    )}
+                  </span>
+                </div>
+              </div>
+
+              {documentCount > 0 ? (
+                <div className="space-y-3">
+                  <p className="text-text-secondary">
+                    업로드된 문서를 기반으로 사전 분석이 진행됩니다.
+                  </p>
+                  <DocumentManager
+                    projectId={projectId}
+                    onDocumentChange={loadDocumentCount}
+                    showUpload={false}
+                    compact={true}
+                  />
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <FolderOpen className="w-12 h-12 text-text-muted mx-auto mb-3" />
+                  <p className="text-text-secondary mb-2">업로드된 문서가 없습니다</p>
+                  <p className="text-text-muted text-sm">
+                    프로젝트 페이지에서 문서를 먼저 업로드해주세요.
+                  </p>
+                </div>
+              )}
+            </Card>
 
             {/* 시작 버튼 */}
             <div className="flex justify-center pt-8">
               <button
                 onClick={handleStartAnalysis}
-                disabled={isLoading}
-                className="flex items-center gap-3 px-8 py-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
+                disabled={isLoading || documentCount === 0}
+                className="flex items-center gap-3 px-8 py-4 bg-primary hover:bg-primary-hover disabled:bg-primary-disabled disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
               >
                 {isLoading ? (
                   <>
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     분석 세션 생성 중...
+                  </>
+                ) : documentCount === 0 ? (
+                  <>
+                    <FolderOpen className="w-5 h-5" />
+                    문서 업로드 필요
                   </>
                 ) : (
                   <>

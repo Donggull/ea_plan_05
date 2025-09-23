@@ -49,13 +49,17 @@ interface DocumentManagerProps {
   showUploader?: boolean
   viewMode?: 'grid' | 'list'
   onDocumentChange?: () => void
+  compact?: boolean
+  showUpload?: boolean
 }
 
 export function DocumentManager({
   projectId,
   showUploader = true,
   viewMode: initialViewMode = 'grid',
-  onDocumentChange
+  onDocumentChange,
+  compact = false,
+  showUpload = true
 }: DocumentManagerProps) {
   const { user } = useAuthStore()
   const [documents, setDocuments] = useState<Document[]>([])
@@ -376,6 +380,70 @@ export function DocumentManager({
     )
   }
 
+  // Compact 모드 렌더링
+  if (compact) {
+    return (
+      <div className="space-y-4">
+        {filteredDocuments.length === 0 ? (
+          <div className="text-center py-6">
+            <Folder className="w-8 h-8 text-text-tertiary mx-auto mb-2" />
+            <p className="text-text-secondary text-sm">
+              업로드된 문서가 없습니다
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {filteredDocuments.slice(0, 5).map((document) => {
+              const FileIcon = getFileIcon(document.mime_type)
+              return (
+                <div
+                  key={document.id}
+                  className="flex items-center p-2 bg-background-secondary rounded border border-border hover:border-accent/50 transition-colors cursor-pointer"
+                  onClick={() => setSelectedDocument(document)}
+                >
+                  <FileIcon className="w-4 h-4 text-text-tertiary mr-2 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-text-primary truncate" title={document.file_name}>
+                      {document.file_name}
+                    </p>
+                    <p className="text-xs text-text-tertiary">
+                      {formatFileSize(document.file_size)}
+                    </p>
+                  </div>
+                </div>
+              )
+            })}
+            {filteredDocuments.length > 5 && (
+              <p className="text-xs text-text-tertiary text-center">
+                +{filteredDocuments.length - 5}개 더
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* 문서 뷰어 모달 */}
+        {selectedDocument && (
+          <div className="fixed inset-0 bg-black/50 z-50">
+            <div className="h-full">
+              <DocumentViewer
+                document={{
+                  ...selectedDocument,
+                  title: selectedDocument.file_name,
+                  file_type: selectedDocument.mime_type,
+                  file_path: selectedDocument.storage_path
+                }}
+                url={supabase?.storage
+                  .from('documents')
+                  .getPublicUrl(selectedDocument.storage_path).data.publicUrl || ''}
+                onClose={() => setSelectedDocument(null)}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       {/* 헤더 */}
@@ -389,7 +457,7 @@ export function DocumentManager({
           </span>
         </div>
 
-        {showUploader && (
+        {showUploader && showUpload && (
           <button
             onClick={() => setShowUploadModal(true)}
             className="linear-button linear-button-primary"
