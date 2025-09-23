@@ -42,10 +42,9 @@
     "file-type": "^21.0.0",
     "framer-motion": "^11.0.0",
     "lucide-react": "^0.344.0",
-    "next": "^14.2.32",
     "pdfjs-dist": "^5.4.149",
-    "react": "19.0.0-rc.1",
-    "react-dom": "19.0.0-rc.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "react-dropzone": "^14.3.8",
     "react-hook-form": "^7.49.0",
     "react-pdf": "^10.1.0",
@@ -89,8 +88,8 @@
   },
   "overrides": {
     "@floating-ui/react-dom": {
-      "react": "19.0.0-rc.1",
-      "react-dom": "19.0.0-rc.1"
+      "react": "^18.3.1",
+      "react-dom": "^18.3.1"
     }
   },
   "peerDependenciesMeta": {
