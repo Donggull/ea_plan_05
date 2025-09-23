@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, ReactNode, useState } from 'react'
-import { useAuthStore } from '@/stores/authStore'
+import { useAuthStore } from '../stores/authStore'
 import { User, Session } from '@supabase/supabase-js'
-import type { Database } from '@/types/supabase'
+import type { Database } from '../types/supabase'
 
 type Profile = Database['public']['Tables']['profiles']['Row']
 
