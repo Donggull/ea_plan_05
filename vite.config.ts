@@ -31,75 +31,44 @@ export default defineConfig({
         manualChunks: (id) => {
           // React 핵심 라이브러리
           if (id.includes('react') || id.includes('react-dom')) {
-            return 'vendor'
+            return 'react-vendor'
           }
 
-          // UI 라이브러리들
-          if (id.includes('@radix-ui') || id.includes('lucide-react')) {
-            return 'ui'
+          // 모든 UI 관련 라이브러리들을 하나로 통합
+          if (id.includes('@radix-ui') || id.includes('lucide-react') ||
+              id.includes('framer-motion') || id.includes('recharts')) {
+            return 'ui-vendor'
           }
 
-          // 차트 라이브러리
-          if (id.includes('recharts') || id.includes('d3')) {
-            return 'charts'
+          // 모든 폼/검증 관련 라이브러리 통합
+          if (id.includes('react-hook-form') || id.includes('@hookform') ||
+              id.includes('zod') || id.includes('react-dropzone')) {
+            return 'form-vendor'
           }
 
-          // PDF 및 파일 처리
-          if (id.includes('pdfjs-dist') || id.includes('react-pdf') || id.includes('tesseract.js') || id.includes('file-type')) {
-            return 'pdf-processing'
+          // 모든 데이터/백엔드 관련 라이브러리 통합
+          if (id.includes('@supabase') || id.includes('supabase') ||
+              id.includes('@tanstack/react-query') || id.includes('zustand')) {
+            return 'data-vendor'
           }
 
-          // Supabase 관련
-          if (id.includes('@supabase') || id.includes('supabase')) {
-            return 'supabase'
+          // 큰 처리 라이브러리들 통합
+          if (id.includes('pdfjs-dist') || id.includes('react-pdf') ||
+              id.includes('tesseract.js') || id.includes('file-type')) {
+            return 'processing-vendor'
           }
 
-          // React Query
-          if (id.includes('@tanstack/react-query')) {
-            return 'query'
-          }
-
-          // 라우터
+          // 라우터 (별도 유지)
           if (id.includes('react-router-dom')) {
-            return 'router'
+            return 'router-vendor'
           }
 
-          // 폼 처리
-          if (id.includes('react-hook-form') || id.includes('@hookform') || id.includes('zod')) {
-            return 'forms'
-          }
-
-          // 애니메이션
-          if (id.includes('framer-motion')) {
-            return 'motion'
-          }
-
-          // 상태 관리
-          if (id.includes('zustand')) {
-            return 'state'
-          }
-
-          // 드래그 앤 드롭
-          if (id.includes('react-dropzone')) {
-            return 'dropzone'
-          }
-
-          // 날짜 처리
-          if (id.includes('date-fns')) {
-            return 'date'
-          }
-
-          // 큰 서비스 파일들
-          if (id.includes('/services/preAnalysis/') || id.includes('/services/proposal/')) {
-            return 'analysis-services'
-          }
-
-          // node_modules의 다른 라이브러리들
+          // 기타 node_modules 라이브러리들
           if (id.includes('node_modules')) {
-            return 'vendor-libs'
+            return 'other-vendor'
           }
 
-          // 기본값
+          // 기본값 (앱 코드)
           return undefined
         },
         assetFileNames: (assetInfo) => {
