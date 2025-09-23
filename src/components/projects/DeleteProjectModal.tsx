@@ -46,18 +46,29 @@ export function DeleteProjectModal({
     onClose()
   }
 
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    handleClose()
+  }
+
+  const handleModalClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+  }
+
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={handleBackdropClick}>
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={handleClose}
       />
 
       {/* Modal */}
-      <div className="relative bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-[500px] w-full mx-4 max-h-[90vh] overflow-y-auto">
+      <div
+        className="relative bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-[500px] w-full mx-4 max-h-[90vh] overflow-y-auto"
+        onClick={handleModalClick}
+      >
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center gap-3 text-red-600">

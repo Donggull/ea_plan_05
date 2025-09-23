@@ -108,6 +108,7 @@ export function ProjectCard({ project, viewMode = 'grid', onEdit, onDelete }: Pr
   }
 
   const handleCardClick = () => {
+    if (showDeleteModal) return // 모달이 열린 상태에서는 카드 클릭 방지
     navigate(`/projects/${project.id}`)
   }
 
