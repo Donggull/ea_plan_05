@@ -1375,27 +1375,53 @@ ${answersContext}
     temperature: number = 0.3
   ): Promise<any> {
     try {
-      console.log('🔧 개발환경: 직접 AI 서비스 호출', { provider, model });
+      console.log('🔧 개발환경: 직접 AI 서비스 호출 시작', { provider, model });
 
-      // AI 서비스 매니저 초기화 확인
-      if (!aiServiceManager.getCurrentProvider()) {
-        // 환경 변수에서 API 키 가져오기 (개발환경용)
-        const apiKeys = {
-          openai: import.meta.env.VITE_OPENAI_API_KEY,
-          anthropic: import.meta.env.VITE_ANTHROPIC_API_KEY,
-          google: import.meta.env.VITE_GOOGLE_AI_API_KEY
-        };
+      // 환경 변수 확인
+      const apiKeys = {
+        openai: import.meta.env.VITE_OPENAI_API_KEY,
+        anthropic: import.meta.env.VITE_ANTHROPIC_API_KEY,
+        google: import.meta.env.VITE_GOOGLE_AI_API_KEY
+      };
 
-        const apiKey = apiKeys[provider as keyof typeof apiKeys];
-        if (apiKey) {
-          await aiServiceManager.setProvider(provider, apiKey);
-          console.log('✅ AI 서비스 매니저 설정 완료:', provider);
-        } else {
-          throw new Error(`개발환경: ${provider} API 키가 설정되지 않았습니다. .env.local 파일을 확인해주세요.`);
+      console.log('🔑 환경변수 상태:', {
+        openai: apiKeys.openai ? '설정됨' : '미설정',
+        anthropic: apiKeys.anthropic ? '설정됨' : '미설정',
+        google: apiKeys.google ? '설정됨' : '미설정'
+      });
+
+      const apiKey = apiKeys[provider as keyof typeof apiKeys];
+      if (!apiKey) {
+        const error = `개발환경: ${provider} API 키가 설정되지 않았습니다. .env.local 파일을 확인해주세요.`;
+        console.error('❌', error);
+        throw new Error(error);
+      }
+
+      // 현재 프로바이더 확인
+      const currentProvider = aiServiceManager.getCurrentProvider();
+      console.log('📋 현재 AI 프로바이더:', currentProvider?.providerId || '없음');
+
+      // AI 서비스 매니저 초기화
+      if (!currentProvider || currentProvider.providerId !== provider) {
+        console.log('🔄 AI 서비스 매니저 설정 중...', { provider, keyLength: apiKey.length });
+
+        const success = await aiServiceManager.setProvider(provider, apiKey);
+        if (!success) {
+          const error = `${provider} 인증에 실패했습니다. API 키를 확인해주세요.`;
+          console.error('❌', error);
+          throw new Error(error);
         }
+
+        console.log('✅ AI 서비스 매니저 설정 완료:', provider);
       }
 
       // AI 완성 호출
+      console.log('🚀 AI 완성 요청 중...', {
+        promptLength: prompt.length,
+        maxTokens,
+        temperature
+      });
+
       const response = await aiServiceManager.generateCompletion(prompt, {
         model,
         maxTokens,
@@ -1403,13 +1429,20 @@ ${answersContext}
       });
 
       console.log('✅ AI 완성 호출 성공:', {
+        contentLength: response.content.length,
         tokens: response.usage.totalTokens,
-        cost: response.cost.totalCost
+        cost: response.cost.totalCost,
+        responseTime: response.responseTime
       });
 
       return response;
     } catch (error) {
-      console.error('❌ 개발환경 AI 직접 호출 실패:', error);
+      console.error('❌ 개발환경 AI 직접 호출 실패:', {
+        provider,
+        model,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
       throw error;
     }
   }
