@@ -180,7 +180,10 @@ export function BudgetPage() {
           order: q.order,
           helpText: q.helpText,
           options: q.type === 'select' ? ['낮음', '보통', '높음', '매우 높음'] : [],
-          validation: {}
+          validation: {},
+          priority: 'medium' as const,
+          confidence: 0.8,
+          aiGenerated: false
         }))
 
         try {

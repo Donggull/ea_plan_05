@@ -2,6 +2,7 @@ import React, { createContext, useContext, useReducer, useEffect, useState } fro
 import { modelSettingsService } from '../services/ai/modelSettingsService'
 import { modelSyncService } from '../services/ai/modelSyncService'
 import { getRecommendedModels } from '../services/ai/latestModelsData'
+import { aiServiceManager } from '../services/ai/AIServiceManager'
 
 // AI 모델 타입 정의
 export interface AIModel {
@@ -82,8 +83,8 @@ function aiModelReducer(state: AIModelState, action: AIModelAction): AIModelStat
 // 컨텍스트 타입 정의
 interface AIModelContextType {
   state: AIModelState
-  selectProvider: (providerId: string) => void
-  selectModel: (modelId: string) => void
+  selectProvider: (providerId: string) => Promise<void>
+  selectModel: (modelId: string) => Promise<void>
   clearSelection: () => void
   refreshModels: () => Promise<void>
   syncModels: () => Promise<void>
@@ -108,15 +109,20 @@ export function AIModelProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(aiModelReducer, initialState)
   const [isSyncing, setIsSyncing] = useState(false)
 
-  // AI 모델 로딩 함수
+  // AI 모델 로딩 함수 (AI 서비스 매니저 통합)
   const loadModels = async () => {
     try {
       dispatch({ type: 'SET_LOADING', payload: true })
       dispatch({ type: 'SET_ERROR', payload: null })
 
-      const models = await modelSettingsService.getActiveModels()
+      // 기존 모델 설정과 AI 서비스 매니저의 모델을 모두 로드
+      const [localModels, aiManagerModels] = await Promise.all([
+        modelSettingsService.getActiveModels(),
+        aiServiceManager.getAllModels()
+      ])
 
-      const formattedModels: AIModel[] = models.map(model => ({
+      // 로컬 모델 포맷팅
+      const formattedLocalModels: AIModel[] = localModels.map(model => ({
         id: model.id,
         name: model.name,
         provider: model.provider as 'openai' | 'anthropic' | 'google' | 'custom',
@@ -129,14 +135,26 @@ export function AIModelProvider({ children }: { children: React.ReactNode }) {
         available: model.status === 'active'
       }))
 
-      dispatch({ type: 'SET_MODELS', payload: formattedModels })
+      // AI 매니저 모델과 병합 (중복 제거)
+      const allModels = [...formattedLocalModels]
+      aiManagerModels.forEach(aiModel => {
+        const exists = allModels.find(model => model.model_id === aiModel.model_id)
+        if (!exists) {
+          allModels.push(aiModel)
+        }
+      })
+
+      dispatch({ type: 'SET_MODELS', payload: allModels })
 
       // 기본 프로바이더 및 모델 선택 (추천 모델 우선)
-      if (formattedModels.length > 0 && !state.selectedProviderId) {
+      if (allModels.length > 0 && !state.selectedProviderId) {
         const recommended = getRecommendedModels()
-        const balancedModel = formattedModels.find(m => m.model_id === recommended.balanced.model_id) || formattedModels[0]
+        const balancedModel = allModels.find(m => m.model_id === recommended.balanced.model_id) || allModels[0]
         dispatch({ type: 'SELECT_PROVIDER', payload: balancedModel.provider })
         dispatch({ type: 'SELECT_MODEL', payload: balancedModel.id })
+
+        // AI 서비스 매니저에도 기본 모델 설정
+        await setupAIServiceManager(balancedModel)
       }
 
       // 마지막 동기화 시간 업데이트
@@ -147,6 +165,25 @@ export function AIModelProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Failed to load AI models:', error)
       dispatch({ type: 'SET_ERROR', payload: 'AI 모델을 불러오는데 실패했습니다.' })
+    }
+  }
+
+  // AI 서비스 매니저 설정 함수
+  const setupAIServiceManager = async (model: AIModel) => {
+    try {
+      // 환경 변수에서 API 키 가져오기
+      const apiKeys = {
+        openai: import.meta.env.VITE_OPENAI_API_KEY,
+        anthropic: import.meta.env.VITE_ANTHROPIC_API_KEY,
+        google: import.meta.env.VITE_GOOGLE_AI_API_KEY
+      }
+
+      const apiKey = apiKeys[model.provider as keyof typeof apiKeys]
+      if (apiKey) {
+        await aiServiceManager.setProvider(model.provider, apiKey)
+      }
+    } catch (error) {
+      console.error('AI 서비스 매니저 설정 실패:', error)
     }
   }
 
@@ -190,11 +227,23 @@ export function AIModelProvider({ children }: { children: React.ReactNode }) {
   // 컨텍스트 값
   const contextValue: AIModelContextType = {
     state,
-    selectProvider: (providerId: string) => {
+    selectProvider: async (providerId: string) => {
       dispatch({ type: 'SELECT_PROVIDER', payload: providerId })
+
+      // AI 서비스 매니저에도 반영
+      const selectedModel = state.availableModels.find(m => m.provider === providerId)
+      if (selectedModel) {
+        await setupAIServiceManager(selectedModel)
+      }
     },
-    selectModel: (modelId: string) => {
+    selectModel: async (modelId: string) => {
       dispatch({ type: 'SELECT_MODEL', payload: modelId })
+
+      // AI 서비스 매니저에도 반영
+      const selectedModel = state.availableModels.find(m => m.id === modelId)
+      if (selectedModel) {
+        await setupAIServiceManager(selectedModel)
+      }
     },
     clearSelection: () => {
       dispatch({ type: 'CLEAR_SELECTION' })

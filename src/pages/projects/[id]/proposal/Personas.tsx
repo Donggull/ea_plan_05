@@ -153,7 +153,10 @@ export function PersonasPage() {
           order: q.order,
           helpText: q.helpText,
           options: [],
-          validation: {}
+          validation: {},
+          priority: 'medium' as const,
+          confidence: 0.8,
+          aiGenerated: false
         }))
 
         try {

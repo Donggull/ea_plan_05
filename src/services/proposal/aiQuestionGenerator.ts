@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabase'
+import { aiServiceManager, CompletionOptions } from '../ai/AIServiceManager'
 
 // 워크플로우 단계별 질문 타입 정의
 export interface Question {
@@ -10,6 +11,9 @@ export interface Question {
   required: boolean
   order: number
   helpText?: string
+  priority: 'high' | 'medium' | 'low'
+  confidence: number
+  aiGenerated: boolean
   validation?: {
     min?: number
     max?: number
@@ -28,7 +32,7 @@ export interface QuestionResponse {
 export type WorkflowStep = 'market_research' | 'personas' | 'proposal' | 'budget'
 
 // 시장 조사 질문 템플릿
-const MARKET_RESEARCH_QUESTIONS: Omit<Question, 'id'>[] = [
+const MARKET_RESEARCH_QUESTIONS: Omit<Question, 'id' | 'priority' | 'confidence' | 'aiGenerated'>[] = [
   {
     category: '시장 규모',
     text: '목표 시장의 예상 규모는 어느 정도입니까?',
@@ -84,7 +88,7 @@ const MARKET_RESEARCH_QUESTIONS: Omit<Question, 'id'>[] = [
 ]
 
 // 페르소나 분석 질문 템플릿
-const PERSONA_QUESTIONS: Omit<Question, 'id'>[] = [
+const PERSONA_QUESTIONS: Omit<Question, 'id' | 'priority' | 'confidence' | 'aiGenerated'>[] = [
   {
     category: '인구통계학적 정보',
     text: '주요 타겟 고객의 연령대는?',
@@ -140,7 +144,7 @@ const PERSONA_QUESTIONS: Omit<Question, 'id'>[] = [
 ]
 
 // 제안서 작성 질문 템플릿
-const PROPOSAL_QUESTIONS: Omit<Question, 'id'>[] = [
+const PROPOSAL_QUESTIONS: Omit<Question, 'id' | 'priority' | 'confidence' | 'aiGenerated'>[] = [
   {
     category: '프로젝트 목표',
     text: '이 프로젝트의 핵심 목표는 무엇입니까?',
@@ -194,7 +198,7 @@ const PROPOSAL_QUESTIONS: Omit<Question, 'id'>[] = [
 ]
 
 // 비용 산정 질문 템플릿
-const BUDGET_QUESTIONS: Omit<Question, 'id'>[] = [
+const BUDGET_QUESTIONS: Omit<Question, 'id' | 'priority' | 'confidence' | 'aiGenerated'>[] = [
   {
     category: '인력 구성',
     text: '프로젝트에 필요한 인력 구성은 어떻게 됩니까?',
@@ -251,10 +255,10 @@ const BUDGET_QUESTIONS: Omit<Question, 'id'>[] = [
 
 export class AIQuestionGenerator {
   /**
-   * 워크플로우 단계별 질문 생성
+   * 워크플로우 단계별 질문 생성 (기본 + AI 강화)
    */
   static generateQuestions(step: WorkflowStep, projectId: string): Question[] {
-    let baseQuestions: Omit<Question, 'id'>[]
+    let baseQuestions: Omit<Question, 'id' | 'priority' | 'confidence' | 'aiGenerated'>[]
 
     switch (step) {
       case 'market_research':
@@ -275,8 +279,191 @@ export class AIQuestionGenerator {
 
     return baseQuestions.map((question, index) => ({
       ...question,
-      id: `${step}_${projectId}_${index + 1}`
+      id: `${step}_${projectId}_${index + 1}`,
+      priority: 'high',
+      confidence: 0.9,
+      aiGenerated: false
     }))
+  }
+
+  /**
+   * AI 기반 맞춤형 질문 생성
+   */
+  static async generateAIQuestions(
+    step: WorkflowStep,
+    projectId: string,
+    context: {
+      projectName?: string
+      projectDescription?: string
+      industry?: string
+      documents?: Array<{ name: string; content?: string }>
+      existingAnswers?: QuestionResponse[]
+    },
+    userId?: string
+  ): Promise<Question[]> {
+    try {
+      const provider = aiServiceManager.getCurrentProvider()
+      if (!provider) {
+        console.warn('AI 제공자가 설정되지 않음. 기본 질문만 반환합니다.')
+        return this.generateQuestions(step, projectId)
+      }
+
+      // AI 프롬프트 구성
+      const prompt = this.buildAIPrompt(step, context)
+
+      const options: CompletionOptions = {
+        model: 'gpt-4o-mini', // 비용 효율적인 모델 사용
+        maxTokens: 2000,
+        temperature: 0.7
+      }
+
+      const response = await aiServiceManager.generateCompletion(
+        prompt,
+        options,
+        {
+          userId,
+          projectId,
+          requestType: 'question_generation'
+        }
+      )
+
+      // AI 응답 파싱하여 질문 생성
+      const aiQuestions = this.parseAIResponse(response.content, step, projectId)
+
+      // 기본 질문과 AI 질문 결합
+      const baseQuestions = this.generateQuestions(step, projectId)
+
+      return [...baseQuestions, ...aiQuestions]
+    } catch (error) {
+      console.error('AI 질문 생성 실패:', error)
+      // 실패 시 기본 질문만 반환
+      return this.generateQuestions(step, projectId)
+    }
+  }
+
+  /**
+   * AI 프롬프트 구성
+   */
+  private static buildAIPrompt(
+    step: WorkflowStep,
+    context: {
+      projectName?: string
+      projectDescription?: string
+      industry?: string
+      documents?: Array<{ name: string; content?: string }>
+      existingAnswers?: QuestionResponse[]
+    }
+  ): string {
+    const stepDescriptions = {
+      market_research: '시장 조사 및 경쟁 분석',
+      personas: '타겟 고객 페르소나 분석',
+      proposal: '제안서 작성을 위한 프로젝트 분석',
+      budget: '예산 산정 및 비용 분석'
+    }
+
+    let prompt = `당신은 전문 프로젝트 컨설턴트입니다. 다음 프로젝트에 대한 ${stepDescriptions[step]} 단계에서 추가로 필요한 핵심 질문들을 생성해주세요.
+
+프로젝트 정보:
+- 이름: ${context.projectName || '미정'}
+- 설명: ${context.projectDescription || '미정'}
+- 산업: ${context.industry || '미정'}
+`
+
+    if (context.documents && context.documents.length > 0) {
+      prompt += `\n업로드된 문서들:
+${context.documents.map(doc => `- ${doc.name}`).join('\n')}
+`
+    }
+
+    if (context.existingAnswers && context.existingAnswers.length > 0) {
+      prompt += `\n이미 답변된 질문들:
+${context.existingAnswers.map(answer => `- ${answer.questionId}: ${answer.answer}`).join('\n')}
+`
+    }
+
+    prompt += `
+요구사항:
+1. ${stepDescriptions[step]}에 특화된 3-5개의 추가 질문을 생성하세요.
+2. 프로젝트의 특성을 고려한 맞춤형 질문이어야 합니다.
+3. 이미 기본 질문들이 있으므로, 더 구체적이고 심화된 질문을 생성하세요.
+4. 각 질문은 실행 가능하고 측정 가능한 답변을 유도해야 합니다.
+
+출력 형식 (JSON):
+{
+  "questions": [
+    {
+      "category": "카테고리명",
+      "text": "질문 내용",
+      "type": "text|select|multiselect|number|textarea",
+      "options": ["옵션1", "옵션2"] (select/multiselect인 경우),
+      "required": true|false,
+      "helpText": "도움말 텍스트",
+      "priority": "high|medium|low",
+      "confidence": 0.0-1.0
+    }
+  ]
+}
+
+JSON만 반환하고 다른 텍스트는 포함하지 마세요.`
+
+    return prompt
+  }
+
+  /**
+   * AI 응답 파싱
+   */
+  private static parseAIResponse(response: string, step: WorkflowStep, projectId: string): Question[] {
+    try {
+      // JSON 부분만 추출
+      const jsonMatch = response.match(/\{[\s\S]*\}/)
+      if (!jsonMatch) {
+        throw new Error('JSON 형식을 찾을 수 없습니다.')
+      }
+
+      const parsed = JSON.parse(jsonMatch[0])
+
+      if (!parsed.questions || !Array.isArray(parsed.questions)) {
+        throw new Error('questions 배열을 찾을 수 없습니다.')
+      }
+
+      return parsed.questions.map((q: any, index: number) => ({
+        id: `${step}_ai_${projectId}_${index + 1}`,
+        category: q.category || '기타',
+        text: q.text,
+        type: q.type || 'textarea',
+        options: q.options,
+        required: q.required || false,
+        order: 1000 + index, // AI 질문은 뒤쪽에 배치
+        helpText: q.helpText,
+        priority: q.priority || 'medium',
+        confidence: q.confidence || 0.8,
+        aiGenerated: true,
+        validation: q.validation
+      }))
+    } catch (error) {
+      console.error('AI 응답 파싱 실패:', error)
+      return []
+    }
+  }
+
+  /**
+   * 질문 우선순위 기반 정렬
+   */
+  static sortQuestionsByPriority(questions: Question[]): Question[] {
+    const priorityOrder = { high: 3, medium: 2, low: 1 }
+
+    return questions.sort((a, b) => {
+      // 우선순위로 먼저 정렬
+      const priorityDiff = priorityOrder[b.priority] - priorityOrder[a.priority]
+      if (priorityDiff !== 0) return priorityDiff
+
+      // 우선순위가 같으면 confidence로 정렬
+      const confidenceDiff = b.confidence - a.confidence
+      if (confidenceDiff !== 0) return confidenceDiff
+
+      // 마지막으로 order로 정렬
+      return a.order - b.order
+    })
   }
 
   /**
@@ -316,7 +503,10 @@ export class AIQuestionGenerator {
             type: 'textarea',
             required: false,
             order: 100,
-            helpText: '프로젝트 고유의 특성이나 제약사항을 설명해주세요'
+            helpText: '프로젝트 고유의 특성이나 제약사항을 설명해주세요',
+            priority: 'medium',
+            confidence: 0.8,
+            aiGenerated: true
           })
         }
 
@@ -329,7 +519,10 @@ export class AIQuestionGenerator {
             type: 'textarea',
             required: false,
             order: 101,
-            helpText: `업로드된 ${documents.length}개 문서를 검토한 후 답변해주세요`
+            helpText: `업로드된 ${documents.length}개 문서를 검토한 후 답변해주세요`,
+            priority: 'medium',
+            confidence: 0.7,
+            aiGenerated: true
           })
         }
       }
@@ -363,7 +556,10 @@ export class AIQuestionGenerator {
             type: 'textarea',
             required: false,
             order: 200 + index,
-            helpText: '핵심 경쟁사와의 차별화 전략을 구체적으로 설명해주세요'
+            helpText: '핵심 경쟁사와의 차별화 전략을 구체적으로 설명해주세요',
+            priority: 'high',
+            confidence: 0.9,
+            aiGenerated: true
           })
         }
       }

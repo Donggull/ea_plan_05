@@ -70,7 +70,10 @@ export function MarketResearchPage() {
             type: 'textarea' as const,
             required: true,
             order: 1,
-            helpText: '지역, 인구 통계, 시장 규모 등을 포함하여 설명해주세요'
+            helpText: '지역, 인구 통계, 시장 규모 등을 포함하여 설명해주세요',
+            priority: 'high' as const,
+            confidence: 0.9,
+            aiGenerated: false
           },
           {
             id: 'mkt_competitors',
@@ -79,7 +82,10 @@ export function MarketResearchPage() {
             type: 'textarea' as const,
             required: true,
             order: 2,
-            helpText: '직접 경쟁사와 간접 경쟁사를 모두 포함해주세요'
+            helpText: '직접 경쟁사와 간접 경쟁사를 모두 포함해주세요',
+            priority: 'high' as const,
+            confidence: 0.9,
+            aiGenerated: false
           },
           {
             id: 'mkt_market_size',
@@ -88,7 +94,10 @@ export function MarketResearchPage() {
             type: 'text' as const,
             required: false,
             order: 3,
-            helpText: '금액이나 사용자 수 등으로 표현해주세요'
+            helpText: '금액이나 사용자 수 등으로 표현해주세요',
+            priority: 'medium' as const,
+            confidence: 0.8,
+            aiGenerated: false
           }
         ]
 
