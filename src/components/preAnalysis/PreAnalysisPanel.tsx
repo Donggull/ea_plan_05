@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import {
-  Play,
   RotateCcw,
   FileText,
   MessageSquare,
@@ -27,12 +26,18 @@ import { supabase } from '../../lib/supabase';
 interface PreAnalysisPanelProps {
   projectId: string;
   onSessionComplete?: (sessionId: string) => void;
+  onDocumentCountChange?: (count: number) => void;
 }
 
-export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
+export interface PreAnalysisPanelRef {
+  startAnalysis: () => Promise<void>;
+}
+
+export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanelProps>(({
   projectId,
   onSessionComplete,
-}) => {
+  onDocumentCountChange,
+}, ref) => {
   const { user } = useAuth();
   const { state: aiModelState, getSelectedModel } = useAIModel();
 
@@ -53,10 +58,24 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
     },
     analysisDepth: 'standard',
   });
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [documentCount, setDocumentCount] = useState(0);
   const [documentsLoading, setDocumentsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // ref를 통한 외부 함수 노출
+  useImperativeHandle(ref, () => ({
+    startAnalysis: async () => {
+      await handleStartAnalysis();
+    }
+  }));
+
+  // 로딩 상태를 상위 컴포넌트에 알림
+  useEffect(() => {
+    if (onDocumentCountChange) {
+      // 여기서 로딩 상태도 함께 전달할 수 있음
+    }
+  }, [isLoading, onDocumentCountChange]);
 
   // 기존 세션 확인 및 문서 수 로드
   useEffect(() => {
@@ -106,7 +125,9 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
         return;
       }
 
-      setDocumentCount(count || 0);
+      const newCount = count || 0;
+      setDocumentCount(newCount);
+      onDocumentCountChange?.(newCount);
     } catch (error) {
       console.error('문서 수 조회 중 오류:', error);
     } finally {
@@ -195,6 +216,11 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
   };
 
   const handleReset = async () => {
+    if (isLoading) {
+      alert('분석이 진행 중입니다. 잠시 후 다시 시도해주세요.');
+      return;
+    }
+
     if (window.confirm('현재 진행 중인 분석을 초기화하시겠습니까?')) {
       setCurrentSession(null);
       setCurrentStep('setup');
@@ -448,32 +474,6 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
                 </div>
               </Card>
             </div>
-
-            {/* 시작 버튼 */}
-            <div className="flex justify-center pt-6">
-              <button
-                onClick={handleStartAnalysis}
-                disabled={isLoading || documentCount === 0}
-                className="flex items-center gap-3 px-8 py-4 bg-primary hover:bg-primary-hover disabled:bg-primary-disabled disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors shadow-lg"
-              >
-                {isLoading ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    분석 세션 생성 중...
-                  </>
-                ) : documentCount === 0 ? (
-                  <>
-                    <FolderOpen className="w-5 h-5" />
-                    문서 업로드 필요
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-5 h-5" />
-                    사전 분석 시작
-                  </>
-                )}
-              </button>
-            </div>
           </div>
         )}
 
@@ -500,4 +500,4 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
       </div>
     </div>
   );
-};
+});
