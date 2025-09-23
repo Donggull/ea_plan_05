@@ -105,29 +105,32 @@ export class ProjectService {
         throw projectError
       }
 
+      // TODO: project_members 테이블 RLS 정책 활성화 후 활성화 예정
       // 프로젝트 소유자를 자동으로 멤버로 추가
-      const { error: memberError } = await supabase
-        .from('project_members')
-        .insert({
-          project_id: project.id,
-          user_id: projectData.owner_id,
-          role: 'owner',
-          permissions: {
-            read: true,
-            write: true,
-            delete: true,
-            manage_members: true,
-            manage_settings: true,
-          },
-          is_active: true,
-          joined_at: new Date().toISOString(),
-        })
+      // const { error: memberError } = await supabase
+      //   .from('project_members')
+      //   .insert({
+      //     project_id: project.id,
+      //     user_id: projectData.owner_id,
+      //     role: 'owner',
+      //     permissions: {
+      //       read: true,
+      //       write: true,
+      //       delete: true,
+      //       manage_members: true,
+      //       manage_settings: true,
+      //     },
+      //     is_active: true,
+      //     joined_at: new Date().toISOString(),
+      //   })
 
-      if (memberError) {
-        console.error('Failed to add project owner as member:', memberError)
-        // 프로젝트는 생성되었지만 멤버 추가에 실패한 경우 경고 로그만 남김
-        console.warn('Project created but owner not added as member. Project ID:', project.id)
-      }
+      // if (memberError) {
+      //   console.error('Failed to add project owner as member:', memberError)
+      //   // 프로젝트는 생성되었지만 멤버 추가에 실패한 경우 경고 로그만 남김
+      //   console.warn('Project created but owner not added as member. Project ID:', project.id)
+      // }
+
+      console.log('프로젝트 생성 완료:', project.id)
 
       return project
     } catch (error) {
