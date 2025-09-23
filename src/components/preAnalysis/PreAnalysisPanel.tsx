@@ -404,6 +404,27 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
                           </div>
                         </div>
                       </div>
+
+                      <div className="pt-3 border-t border-border-primary">
+                        <div className="space-y-2">
+                          <div className="text-xs text-text-muted mb-2">추천 사용 시나리오:</div>
+                          <div className="space-y-1">
+                            <div className="text-xs text-text-secondary">• 복잡한 기술 문서 분석</div>
+                            <div className="text-xs text-text-secondary">• 다국어 문서 처리</div>
+                            <div className="text-xs text-text-secondary">• 상세한 인사이트 생성</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="pt-3 border-t border-border-primary">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-text-muted">모델 상태:</span>
+                          <span className="flex items-center gap-1">
+                            <div className="w-2 h-2 bg-success rounded-full"></div>
+                            <span className="text-xs text-success font-medium">사용 가능</span>
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
