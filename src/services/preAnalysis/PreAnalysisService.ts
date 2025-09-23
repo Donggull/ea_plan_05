@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabase';
+import { aiServiceManager } from '../ai/AIServiceManager';
 import {
   PreAnalysisSession,
   DocumentAnalysis,
@@ -1313,7 +1314,7 @@ ${answersContext}
     console.log('Progress Update:', update);
   }
 
-  // Vercel API 라우트를 통한 AI 완성 호출
+  // 환경별 AI 완성 호출 (개발환경: 직접 호출, 프로덕션: API 라우트)
   private async callAICompletionAPI(
     provider: string,
     model: string,
@@ -1322,6 +1323,12 @@ ${answersContext}
     temperature: number = 0.3
   ): Promise<any> {
     try {
+      // 개발환경에서는 직접 AI 서비스 매니저 사용
+      if (import.meta.env.DEV) {
+        return await this.callAIDirectly(provider, model, prompt, maxTokens, temperature);
+      }
+
+      // 프로덕션에서는 API 라우트 사용
       const response = await fetch('/api/ai/completion', {
         method: 'POST',
         headers: {
@@ -1355,6 +1362,54 @@ ${answersContext}
         throw new Error('네트워크 연결을 확인해주세요. API 서버에 접근할 수 없습니다.');
       }
 
+      throw error;
+    }
+  }
+
+  // 개발환경용 직접 AI 호출
+  private async callAIDirectly(
+    provider: string,
+    model: string,
+    prompt: string,
+    maxTokens: number = 4000,
+    temperature: number = 0.3
+  ): Promise<any> {
+    try {
+      console.log('🔧 개발환경: 직접 AI 서비스 호출', { provider, model });
+
+      // AI 서비스 매니저 초기화 확인
+      if (!aiServiceManager.getCurrentProvider()) {
+        // 환경 변수에서 API 키 가져오기 (개발환경용)
+        const apiKeys = {
+          openai: import.meta.env.VITE_OPENAI_API_KEY,
+          anthropic: import.meta.env.VITE_ANTHROPIC_API_KEY,
+          google: import.meta.env.VITE_GOOGLE_AI_API_KEY
+        };
+
+        const apiKey = apiKeys[provider as keyof typeof apiKeys];
+        if (apiKey) {
+          await aiServiceManager.setProvider(provider, apiKey);
+          console.log('✅ AI 서비스 매니저 설정 완료:', provider);
+        } else {
+          throw new Error(`개발환경: ${provider} API 키가 설정되지 않았습니다. .env.local 파일을 확인해주세요.`);
+        }
+      }
+
+      // AI 완성 호출
+      const response = await aiServiceManager.generateCompletion(prompt, {
+        model,
+        maxTokens,
+        temperature
+      });
+
+      console.log('✅ AI 완성 호출 성공:', {
+        tokens: response.usage.totalTokens,
+        cost: response.cost.totalCost
+      });
+
+      return response;
+    } catch (error) {
+      console.error('❌ 개발환경 AI 직접 호출 실패:', error);
       throw error;
     }
   }
