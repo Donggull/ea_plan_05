@@ -10,7 +10,9 @@ import {
   BarChart3,
   CheckCircle,
   Clock,
-  Archive
+  Archive,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -153,15 +155,106 @@ export const PreAnalysisPage: React.FC = () => {
     return 'pending';
   };
 
-  // 진행 상태 표시 카드 렌더링
+  // 탭 이동 처리
+  const handleStepChange = (stepId: string) => {
+    const status = getStepStatus(stepId);
+
+    // 완료된 단계나 현재 단계로만 이동 가능
+    if (status === 'completed' || status === 'in_progress') {
+      setCurrentStep(stepId as 'setup' | 'analysis' | 'questions' | 'report');
+    }
+  };
+
+  // 이전/다음 단계로 이동
+  const goToPreviousStep = () => {
+    const currentIndex = steps.findIndex(s => s.id === currentStep);
+    if (currentIndex > 0) {
+      const previousStep = steps[currentIndex - 1];
+      handleStepChange(previousStep.id);
+    }
+  };
+
+  const goToNextStep = () => {
+    const currentIndex = steps.findIndex(s => s.id === currentStep);
+    if (currentIndex < steps.length - 1) {
+      const nextStep = steps[currentIndex + 1];
+      const nextStatus = getStepStatus(nextStep.id);
+
+      // 다음 단계가 완료되었거나 현재 단계가 완료되어 다음 단계가 진행 중인 경우에만 이동
+      if (nextStatus === 'completed' || nextStatus === 'in_progress') {
+        handleStepChange(nextStep.id);
+      }
+    }
+  };
+
+  // SNB 탭 네비게이션 렌더링
+  const renderSubNavigation = () => {
+    return (
+      <div className="mb-6">
+        <div className="border-b border-border-primary bg-bg-primary">
+          <nav className="flex space-x-8 px-1">
+            {steps.map((step) => {
+              const Icon = step.icon;
+              const isActive = currentStep === step.id;
+              const status = getStepStatus(step.id);
+              const isDisabled = status === 'pending';
+
+              return (
+                <button
+                  key={step.id}
+                  onClick={() => handleStepChange(step.id)}
+                  disabled={isDisabled}
+                  className={`
+                    group inline-flex items-center py-4 px-1 border-b-2 font-medium text-sm transition-all duration-200
+                    ${isActive
+                      ? 'border-primary-500 text-primary-500'
+                      : isDisabled
+                      ? 'border-transparent text-text-muted cursor-not-allowed'
+                      : 'border-transparent text-text-secondary hover:text-text-primary hover:border-border-secondary'
+                    }
+                  `}
+                >
+                  <div className="flex items-center space-x-2">
+                    <div className={`
+                      p-1.5 rounded-lg transition-colors
+                      ${isActive
+                        ? 'bg-primary-500/10'
+                        : status === 'completed'
+                        ? 'bg-success/10'
+                        : isDisabled
+                        ? 'bg-bg-tertiary'
+                        : 'bg-bg-secondary group-hover:bg-bg-tertiary'
+                      }
+                    `}>
+                      {status === 'completed' ? (
+                        <CheckCircle className={`w-4 h-4 ${isActive ? 'text-primary-500' : 'text-success'}`} />
+                      ) : status === 'in_progress' ? (
+                        <Clock className={`w-4 h-4 ${isActive ? 'text-primary-500' : 'text-primary-400'}`} />
+                      ) : (
+                        <Icon className={`w-4 h-4 ${isActive ? 'text-primary-500' : isDisabled ? 'text-text-muted' : 'text-text-secondary'}`} />
+                      )}
+                    </div>
+                    <span className="hidden sm:block">{step.label}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+      </div>
+    );
+  };
+
+  // 진행 상태 표시 카드 렌더링 (간소화)
   const renderProgressCard = () => {
     const currentStepInfo = getCurrentStepInfo();
     const completedSteps = steps.filter(step => getStepStatus(step.id) === 'completed').length;
     const progressPercentage = (completedSteps / steps.length) * 100;
+    const currentIndex = steps.findIndex(s => s.id === currentStep);
 
     return (
       <Card className="mb-6 bg-gradient-to-r from-primary-500/5 to-primary-600/5 border-primary-500/20">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-primary-500/10 rounded-lg">
               <currentStepInfo.icon className="w-5 h-5 text-primary-500" />
@@ -175,18 +268,41 @@ export const PreAnalysisPage: React.FC = () => {
               </p>
             </div>
           </div>
-          <div className="text-right">
-            <div className="text-2xl font-bold text-primary-500">
-              {completedSteps}/{steps.length}
+
+          <div className="flex items-center space-x-4">
+            {/* 이전/다음 버튼 */}
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={goToPreviousStep}
+                disabled={currentIndex === 0}
+                className="p-2 rounded-lg bg-bg-secondary hover:bg-bg-tertiary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="이전 단계"
+              >
+                <ChevronLeft className="w-4 h-4 text-text-secondary" />
+              </button>
+              <button
+                onClick={goToNextStep}
+                disabled={currentIndex === steps.length - 1 || getStepStatus(steps[currentIndex + 1]?.id) === 'pending'}
+                className="p-2 rounded-lg bg-bg-secondary hover:bg-bg-tertiary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="다음 단계"
+              >
+                <ChevronRight className="w-4 h-4 text-text-secondary" />
+              </button>
             </div>
-            <div className="text-text-secondary text-sm">
-              단계 완료
+
+            <div className="text-right">
+              <div className="text-2xl font-bold text-primary-500">
+                {completedSteps}/{steps.length}
+              </div>
+              <div className="text-text-secondary text-sm">
+                단계 완료
+              </div>
             </div>
           </div>
         </div>
 
         {/* 진행률 바 */}
-        <div className="mb-4">
+        <div className="mt-4">
           <div className="flex justify-between items-center mb-2">
             <span className="text-sm text-text-secondary">전체 진행률</span>
             <span className="text-sm font-medium text-text-primary">
@@ -199,68 +315,6 @@ export const PreAnalysisPage: React.FC = () => {
               style={{ width: `${progressPercentage}%` }}
             />
           </div>
-        </div>
-
-        {/* 단계별 네비게이션 */}
-        <div className="flex items-center justify-between">
-          {steps.map((step, index) => {
-            const status = getStepStatus(step.id);
-            const Icon = step.icon;
-
-            return (
-              <React.Fragment key={step.id}>
-                <div className="flex flex-col items-center group">
-                  <button
-                    onClick={() => {
-                      if (status === 'completed') {
-                        setCurrentStep(step.id as any);
-                      }
-                    }}
-                    disabled={status === 'pending'}
-                    className={`
-                      flex items-center justify-center w-10 h-10 rounded-full border-2 transition-all
-                      ${status === 'completed'
-                        ? 'bg-success border-success text-white hover:scale-105 cursor-pointer'
-                        : status === 'in_progress'
-                        ? 'bg-primary-500 border-primary-500 text-white animate-pulse'
-                        : 'bg-bg-secondary border-border-primary text-text-muted cursor-not-allowed'
-                      }
-                    `}
-                  >
-                    {status === 'completed' ? (
-                      <CheckCircle className="w-5 h-5" />
-                    ) : status === 'in_progress' ? (
-                      <Clock className="w-5 h-5" />
-                    ) : (
-                      <Icon className="w-5 h-5" />
-                    )}
-                  </button>
-                  <span className={`
-                    mt-1 text-xs font-medium transition-colors
-                    ${status === 'completed'
-                      ? 'text-success'
-                      : status === 'in_progress'
-                      ? 'text-primary-500'
-                      : 'text-text-muted'
-                    }
-                  `}>
-                    {step.label}
-                  </span>
-                </div>
-                {index < steps.length - 1 && (
-                  <div className={`
-                    flex-1 h-0.5 mx-3 transition-colors
-                    ${getStepStatus(steps[index + 1].id) === 'completed'
-                      ? 'bg-success'
-                      : status === 'completed'
-                      ? 'bg-primary-500'
-                      : 'bg-border-primary'
-                    }
-                  `} />
-                )}
-              </React.Fragment>
-            );
-          })}
         </div>
       </Card>
     );
@@ -349,6 +403,9 @@ export const PreAnalysisPage: React.FC = () => {
       />
 
       <PageContent>
+        {/* SNB 탭 네비게이션 */}
+        {renderSubNavigation()}
+
         {/* 진행 상태 카드 */}
         {renderProgressCard()}
 
