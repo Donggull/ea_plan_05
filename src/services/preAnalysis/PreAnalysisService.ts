@@ -116,7 +116,14 @@ export class PreAnalysisService {
 
       const documents = documentsResponse.data;
       if (documents.length === 0) {
-        return { success: false, error: '분석할 문서가 없습니다.' };
+        return {
+          success: false,
+          error: '프로젝트에 업로드된 문서가 없습니다. 사전 분석을 진행하려면 먼저 문서를 업로드해주세요.',
+          details: {
+            suggestion: 'UPLOAD_DOCUMENTS_REQUIRED',
+            action: 'Go to Documents tab and upload files'
+          }
+        };
       }
 
       // 진행 상황 업데이트
@@ -331,13 +338,35 @@ export class PreAnalysisService {
         .single();
 
       if (contentError || !content) {
-        return { success: false, error: '문서 내용을 찾을 수 없습니다.' };
+        console.warn('문서 내용이 없음:', { documentId, fileName: document.file_name, contentError });
+        return {
+          success: false,
+          error: `문서 "${document.file_name}"의 내용이 처리되지 않았습니다. 다음 중 하나를 선택하세요:\n\n1. 문서를 다시 업로드해주세요\n2. 또는 다른 문서를 업로드해주세요\n\n현재 문서가 업로드되었지만 내용 추출이 완료되지 않은 상태입니다.`,
+          details: {
+            documentId,
+            fileName: document.file_name,
+            fileSize: document.file_size,
+            fileType: document.file_type,
+            isProcessed: document.is_processed,
+            suggestion: 'REUPLOAD_REQUIRED'
+          }
+        };
       }
 
       // AI 분석 수행 (실제 AI 호출은 별도 서비스에서)
       const textContent = content.processed_text || content.raw_text;
       if (!textContent) {
-        return { success: false, error: '문서 내용이 비어있습니다.' };
+        console.warn('문서 내용이 비어있음:', { documentId, fileName: document.file_name });
+        return {
+          success: false,
+          error: `문서 "${document.file_name}"의 내용이 비어있습니다. 다음을 확인해주세요:\n\n1. 문서에 텍스트 내용이 있는지 확인\n2. 지원되는 파일 형식인지 확인 (PDF, DOCX, TXT 등)\n3. 문서를 다시 업로드해보세요\n\n현재 파일 형식: ${document.file_type}`,
+          details: {
+            documentId,
+            fileName: document.file_name,
+            fileType: document.file_type,
+            suggestion: 'CHECK_CONTENT_AND_REUPLOAD'
+          }
+        };
       }
 
       const analysisResult = await this.performAIAnalysis(
