@@ -146,15 +146,26 @@ export function AIModelProvider({ children }: { children: React.ReactNode }) {
 
       dispatch({ type: 'SET_MODELS', payload: allModels })
 
-      // 기본 프로바이더 및 모델 선택 (추천 모델 우선)
+      // 기본 프로바이더 및 모델 선택 (최신 Claude 4 Sonnet 우선)
       if (allModels.length > 0 && !state.selectedProviderId) {
         const recommended = getRecommendedModels()
-        const balancedModel = allModels.find(m => m.model_id === recommended.balanced.model_id) || allModels[0]
-        dispatch({ type: 'SELECT_PROVIDER', payload: balancedModel.provider })
-        dispatch({ type: 'SELECT_MODEL', payload: balancedModel.id })
+        // Claude 4 Sonnet을 최우선으로 선택 (최신 모델)
+        const defaultModel = allModels.find(m => m.model_id === 'claude-sonnet-4-20250514') ||
+                           allModels.find(m => m.model_id === recommended.balanced.model_id) ||
+                           allModels[0]
+
+        console.log('🎯 기본 모델 설정:', {
+          selectedModel: defaultModel.name,
+          modelId: defaultModel.model_id,
+          provider: defaultModel.provider,
+          isLatestGeneration: defaultModel.metadata?.latest_generation
+        })
+
+        dispatch({ type: 'SELECT_PROVIDER', payload: defaultModel.provider })
+        dispatch({ type: 'SELECT_MODEL', payload: defaultModel.id })
 
         // AI 서비스 매니저에도 기본 모델 설정
-        await setupAIServiceManager(balancedModel)
+        await setupAIServiceManager(defaultModel)
       }
 
       // 마지막 동기화 시간 업데이트

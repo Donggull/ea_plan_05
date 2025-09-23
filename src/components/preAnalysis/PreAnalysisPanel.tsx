@@ -406,12 +406,24 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
                     </div>
                     <div className="space-y-3">
                       <div>
-                        <p className="text-text-primary font-medium mb-1">
-                          {selectedModel?.name || 'Claude Opus 4'}
-                        </p>
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="text-text-primary font-medium">
+                            {selectedModel?.name || 'Claude 4 Sonnet'}
+                          </p>
+                          {selectedModel?.metadata?.latest_generation && (
+                            <span className="px-2 py-0.5 text-xs bg-accent-blue/20 text-accent-blue rounded-full border border-accent-blue/30">
+                              최신
+                            </span>
+                          )}
+                        </div>
                         <p className="text-text-secondary text-sm mb-3">
-                          {selectedModel?.provider || 'anthropic'} • {selectedModel?.model_id || 'claude-3-opus-20240229'}
+                          {selectedModel?.provider || 'anthropic'} • {selectedModel?.model_id || 'claude-sonnet-4-20250514'}
                         </p>
+                        {selectedModel?.metadata?.description && (
+                          <p className="text-text-muted text-xs">
+                            {selectedModel.metadata.description}
+                          </p>
+                        )}
                       </div>
 
                       {selectedModel && (
@@ -426,15 +438,23 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
                             <div className="flex justify-between items-center">
                               <span className="text-xs text-text-muted">입력 비용:</span>
                               <span className="text-xs text-text-secondary font-medium">
-                                ${selectedModel.cost_per_input_token}/1K 토큰
+                                ${(selectedModel.cost_per_input_token * 1000000).toFixed(2)}/1M 토큰
                               </span>
                             </div>
                             <div className="flex justify-between items-center">
                               <span className="text-xs text-text-muted">출력 비용:</span>
                               <span className="text-xs text-text-secondary font-medium">
-                                ${selectedModel.cost_per_output_token}/1K 토큰
+                                ${(selectedModel.cost_per_output_token * 1000000).toFixed(2)}/1M 토큰
                               </span>
                             </div>
+                            {selectedModel.metadata?.context_window && (
+                              <div className="flex justify-between items-center">
+                                <span className="text-xs text-text-muted">컨텍스트 윈도우:</span>
+                                <span className="text-xs text-text-secondary font-medium">
+                                  {(selectedModel.metadata.context_window / 1000000).toFixed(1)}M 토큰
+                                </span>
+                              </div>
+                            )}
                           </div>
                         </div>
                       )}
@@ -456,24 +476,72 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
                         </div>
                       </div>
 
-                      <div className="pt-3 border-t border-border-primary">
-                        <div className="space-y-2">
-                          <div className="text-xs text-text-muted mb-2">모델 특성:</div>
-                          <div className="flex flex-wrap gap-1">
-                            <span className="px-2 py-1 text-xs bg-primary/20 text-primary rounded">추론</span>
-                            <span className="px-2 py-1 text-xs bg-success/20 text-success rounded">분석</span>
-                            <span className="px-2 py-1 text-xs bg-warning/20 text-warning rounded">문서</span>
+                      {selectedModel?.capabilities && selectedModel.capabilities.length > 0 && (
+                        <div className="pt-3 border-t border-border-primary">
+                          <div className="space-y-2">
+                            <div className="text-xs text-text-muted mb-2">모델 기능:</div>
+                            <div className="flex flex-wrap gap-1">
+                              {selectedModel.capabilities.slice(0, 6).map((capability) => {
+                                const capabilityColors = {
+                                  'text': 'bg-primary/20 text-primary',
+                                  'vision': 'bg-success/20 text-success',
+                                  'function_calling': 'bg-warning/20 text-warning',
+                                  'analysis': 'bg-accent-indigo/20 text-accent-indigo',
+                                  'reasoning': 'bg-accent-orange/20 text-accent-orange',
+                                  'coding': 'bg-accent-green/20 text-accent-green',
+                                  'extended_thinking': 'bg-accent-blue/20 text-accent-blue',
+                                  'fast_processing': 'bg-accent-red/20 text-accent-red'
+                                };
+                                const colorClass = capabilityColors[capability as keyof typeof capabilityColors] || 'bg-text-muted/20 text-text-muted';
+
+                                return (
+                                  <span key={capability} className={`px-2 py-1 text-xs rounded ${colorClass}`}>
+                                    {capability === 'function_calling' ? '함수 호출' :
+                                     capability === 'extended_thinking' ? '확장 사고' :
+                                     capability === 'fast_processing' ? '고속 처리' :
+                                     capability === 'vision' ? '비전' :
+                                     capability === 'text' ? '텍스트' :
+                                     capability === 'analysis' ? '분석' :
+                                     capability === 'reasoning' ? '추론' :
+                                     capability === 'coding' ? '코딩' :
+                                     capability}
+                                  </span>
+                                );
+                              })}
+                            </div>
                           </div>
                         </div>
-                      </div>
+                      )}
 
                       <div className="pt-3 border-t border-border-primary">
                         <div className="space-y-2">
                           <div className="text-xs text-text-muted mb-2">추천 사용 시나리오:</div>
                           <div className="space-y-1">
-                            <div className="text-xs text-text-secondary">• 복잡한 기술 문서 분석</div>
-                            <div className="text-xs text-text-secondary">• 다국어 문서 처리</div>
-                            <div className="text-xs text-text-secondary">• 상세한 인사이트 생성</div>
+                            {selectedModel?.metadata?.extended_thinking ? (
+                              <>
+                                <div className="text-xs text-text-secondary">• 복잡한 추론이 필요한 분석</div>
+                                <div className="text-xs text-text-secondary">• 단계별 사고 과정 추적</div>
+                                <div className="text-xs text-text-secondary">• 고급 문제 해결</div>
+                              </>
+                            ) : selectedModel?.metadata?.coding_capability ? (
+                              <>
+                                <div className="text-xs text-text-secondary">• 코드 리뷰 및 분석</div>
+                                <div className="text-xs text-text-secondary">• 기술 문서 해석</div>
+                                <div className="text-xs text-text-secondary">• 아키텍처 분석</div>
+                              </>
+                            ) : selectedModel?.metadata?.speed_optimized ? (
+                              <>
+                                <div className="text-xs text-text-secondary">• 빠른 문서 요약</div>
+                                <div className="text-xs text-text-secondary">• 실시간 분석</div>
+                                <div className="text-xs text-text-secondary">• 간단한 질의응답</div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="text-xs text-text-secondary">• 균형잡힌 문서 분석</div>
+                                <div className="text-xs text-text-secondary">• 다양한 형태 콘텐츠 처리</div>
+                                <div className="text-xs text-text-secondary">• 포괄적 인사이트 생성</div>
+                              </>
+                            )}
                           </div>
                         </div>
                       </div>

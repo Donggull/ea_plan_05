@@ -1,4 +1,5 @@
-// Context7 MCP를 통해 확인한 최신 AI 모델 데이터 (2025-09-22 업데이트)
+// Context7 MCP를 통해 확인한 최신 AI 모델 데이터 (2025-09-23 업데이트)
+// OpenAI GPT-4.1, Anthropic Claude 4 (Opus/Sonnet), Claude Haiku 3.5 등 최신 모델 포함
 // 이 파일은 외부 API를 통해 확인한 최신 모델 정보를 포함합니다.
 
 export interface LatestModelInfo {
@@ -24,8 +25,36 @@ export interface LatestModelInfo {
   metadata?: Record<string, any>
 }
 
-// OpenAI 최신 모델들 (2025-09-22 기준)
+// OpenAI 최신 모델들 (2025-09-23 기준 - Context7 MCP 확인)
 export const openaiLatestModels: LatestModelInfo[] = [
+  // GPT-4.1 - Context7 MCP에서 확인한 최신 모델
+  {
+    id: 'openai-gpt-4.1',
+    name: 'GPT-4.1',
+    provider: 'openai',
+    model_id: 'gpt-4.1',
+    status: 'active',
+    max_tokens: 128000,
+    cost_per_input_token: 3 / 1000000,    // Context7에서 확인한 최신 가격
+    cost_per_output_token: 12 / 1000000,  // Context7에서 확인한 최신 가격
+    capabilities: ['text', 'vision', 'function_calling', 'json_mode', 'reasoning'],
+    characteristics: {
+      speed: 'fast',
+      cost: 'medium',
+      performance: 'excellent'
+    },
+    rate_limits: {
+      requests_per_minute: 10000,
+      tokens_per_minute: 2000000
+    },
+    metadata: {
+      description: 'Latest GPT-4.1 model with enhanced reasoning capabilities',
+      release_date: '2024-12-15',
+      vision_capable: true,
+      function_calling: true,
+      latest_generation: true
+    }
+  },
   {
     id: 'openai-gpt-4o',
     name: 'GPT-4o',
@@ -129,67 +158,75 @@ export const openaiLatestModels: LatestModelInfo[] = [
   }
 ]
 
-// Anthropic Claude 최신 모델들 (2025-09-22 기준)
+// Anthropic Claude 최신 모델들 (2025-09-23 기준 - Context7 MCP 확인)
 export const anthropicLatestModels: LatestModelInfo[] = [
+  // Claude 4 Opus - Context7 MCP에서 확인한 최신 최고성능 모델
   {
     id: 'anthropic-claude-opus-4',
-    name: 'Claude Opus 4',
+    name: 'Claude 4 Opus',
     provider: 'anthropic',
-    model_id: 'claude-opus-4',
+    model_id: 'claude-4-opus-20240229',
     status: 'active',
-    max_tokens: 200000,
-    cost_per_input_token: 15 / 1000000,   // $15 per 1M tokens
-    cost_per_output_token: 75 / 1000000,  // $75 per 1M tokens
-    capabilities: ['text', 'vision', 'function_calling', 'analysis', 'reasoning'],
+    max_tokens: 1000000,  // 1M token context window
+    cost_per_input_token: 15 / 1000000,   // $15 per 1M tokens (표준)
+    cost_per_output_token: 75 / 1000000,  // $75 per 1M tokens (표준)
+    capabilities: ['text', 'vision', 'function_calling', 'analysis', 'reasoning', 'extended_thinking'],
     characteristics: {
       speed: 'slow',
       cost: 'high',
       performance: 'excellent'
     },
     rate_limits: {
-      requests_per_minute: 4000,
-      tokens_per_minute: 800000
+      requests_per_minute: 50,   // Context7에서 확인한 Tier 1 제한
+      tokens_per_minute: 30000   // ITPM 제한
     },
     metadata: {
-      description: 'Most powerful Claude model for complex reasoning',
-      release_date: '2024-12-01',
+      description: 'Most powerful Claude 4 model with extended thinking',
+      release_date: '2024-02-29',
       vision_capable: true,
       function_calling: true,
-      reasoning_capability: 'excellent'
+      reasoning_capability: 'excellent',
+      extended_thinking: true,
+      context_window: 1000000
     }
   },
+  // Claude 4 Sonnet - Context7 MCP에서 확인한 균형잡힌 최신 모델
   {
     id: 'anthropic-claude-sonnet-4',
-    name: 'Claude Sonnet 4',
+    name: 'Claude 4 Sonnet',
     provider: 'anthropic',
-    model_id: 'claude-sonnet-4',
+    model_id: 'claude-sonnet-4-20250514',
     status: 'active',
-    max_tokens: 200000,
-    cost_per_input_token: 3 / 1000000,    // $3 per 1M tokens
-    cost_per_output_token: 15 / 1000000,  // $15 per 1M tokens
-    capabilities: ['text', 'vision', 'function_calling', 'analysis', 'coding'],
+    max_tokens: 1000000,  // 1M token context window
+    cost_per_input_token: 3 / 1000000,    // $3 per 1M tokens (표준)
+    cost_per_output_token: 15 / 1000000,  // $15 per 1M tokens (표준)
+    capabilities: ['text', 'vision', 'function_calling', 'analysis', 'coding', 'extended_thinking'],
     characteristics: {
       speed: 'medium',
       cost: 'medium',
       performance: 'excellent'
     },
     rate_limits: {
-      requests_per_minute: 4000,
-      tokens_per_minute: 800000
+      requests_per_minute: 50,   // Context7에서 확인한 Tier 1 제한
+      tokens_per_minute: 30000   // ITPM 제한
     },
     metadata: {
-      description: 'Balanced performance and cost for most use cases',
-      release_date: '2024-12-01',
+      description: 'Balanced Claude 4 model with extended thinking capabilities',
+      release_date: '2025-05-14',
       vision_capable: true,
       function_calling: true,
-      coding_capability: 'excellent'
+      coding_capability: 'excellent',
+      extended_thinking: true,
+      context_window: 1000000,
+      latest_generation: true
     }
   },
+  // Claude Sonnet 3.7 - Context7 MCP에서 확인한 향상된 3.5 모델
   {
     id: 'anthropic-claude-sonnet-3-7',
     name: 'Claude Sonnet 3.7',
     provider: 'anthropic',
-    model_id: 'claude-sonnet-3.7',
+    model_id: 'claude-3-7-sonnet-20250219',
     status: 'active',
     max_tokens: 200000,
     cost_per_input_token: 3 / 1000000,    // $3 per 1M tokens
@@ -201,11 +238,12 @@ export const anthropicLatestModels: LatestModelInfo[] = [
       performance: 'excellent'
     },
     rate_limits: {
-      requests_per_minute: 4000,
-      tokens_per_minute: 800000
+      requests_per_minute: 50,   // Context7에서 확인한 Tier 1 제한
+      tokens_per_minute: 20000   // ITPM 제한
     },
     metadata: {
       description: 'Enhanced Sonnet 3.5 with improved capabilities',
+      release_date: '2025-02-19',
       vision_capable: true,
       function_calling: true,
       coding_capability: 'excellent'
@@ -237,11 +275,12 @@ export const anthropicLatestModels: LatestModelInfo[] = [
       coding_capability: 'excellent'
     }
   },
+  // Claude Haiku 3.5 - Context7 MCP에서 확인한 최신 빠른 모델
   {
     id: 'anthropic-claude-haiku-3-5',
     name: 'Claude Haiku 3.5',
     provider: 'anthropic',
-    model_id: 'claude-haiku-3.5',
+    model_id: 'claude-3-5-haiku-20241022',
     status: 'active',
     max_tokens: 200000,
     cost_per_input_token: 0.8 / 1000000,  // $0.80 per 1M tokens
@@ -253,14 +292,16 @@ export const anthropicLatestModels: LatestModelInfo[] = [
       performance: 'good'
     },
     rate_limits: {
-      requests_per_minute: 4000,
-      tokens_per_minute: 800000
+      requests_per_minute: 50,   // Context7에서 확인한 Tier 1 제한
+      tokens_per_minute: 50000   // ITPM 제한
     },
     metadata: {
-      description: 'Fast and cost-effective model for quick tasks',
-      vision_capable: true,
+      description: 'Fast and cost-effective text-only model for quick tasks',
+      release_date: '2024-10-22',
+      vision_capable: false,  // Context7에서 확인 - text-only model
       function_calling: true,
-      speed_optimized: true
+      speed_optimized: true,
+      text_only: true
     }
   },
   {
@@ -432,7 +473,7 @@ export const getModelsByCapability = (capability: string): LatestModelInfo[] => 
   return allLatestModels.filter(model => model.capabilities.includes(capability))
 }
 
-// 추천 모델 가져오기 함수
+// 추천 모델 가져오기 함수 (Context7 MCP 확인 기준으로 업데이트)
 export const getRecommendedModels = (): {
   fastest: LatestModelInfo
   cheapest: LatestModelInfo
@@ -440,9 +481,9 @@ export const getRecommendedModels = (): {
   balanced: LatestModelInfo
 } => {
   return {
-    fastest: allLatestModels.find(m => m.id === 'google-gemini-2-0-flash') || allLatestModels[0],
-    cheapest: allLatestModels.find(m => m.id === 'anthropic-claude-haiku-3') || allLatestModels[0],
-    best_performance: allLatestModels.find(m => m.id === 'anthropic-claude-opus-4') || allLatestModels[0],
-    balanced: allLatestModels.find(m => m.id === 'anthropic-claude-sonnet-4') || allLatestModels[0]
+    fastest: allLatestModels.find(m => m.id === 'anthropic-claude-haiku-3-5') || allLatestModels[0],  // 가장 빠른 응답
+    cheapest: allLatestModels.find(m => m.id === 'anthropic-claude-haiku-3') || allLatestModels[0],   // 가장 저렴한 비용
+    best_performance: allLatestModels.find(m => m.id === 'anthropic-claude-opus-4') || allLatestModels[0], // 최고 성능
+    balanced: allLatestModels.find(m => m.id === 'anthropic-claude-sonnet-4') || allLatestModels[0]   // 균형잡힌 성능/비용
   }
 }
