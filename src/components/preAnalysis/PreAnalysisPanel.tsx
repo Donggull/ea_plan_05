@@ -16,7 +16,6 @@ import { PreAnalysisSession, AnalysisSettings } from '../../types/preAnalysis';
 import { preAnalysisService } from '../../services/preAnalysis/PreAnalysisService';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAIModel } from '../../contexts/AIModelContext';
-import { AIModelSelector } from './AIModelSelector';
 import { MCPConfiguration } from './MCPConfiguration';
 import { AnalysisProgress } from './AnalysisProgress';
 import { QuestionAnswer } from './QuestionAnswer';
@@ -68,12 +67,23 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
   // AI 모델 상태 변경 시 설정 업데이트
   useEffect(() => {
     const currentSelectedModel = getSelectedModel();
+    console.log('🔄 AI Model State Changed:', {
+      selectedModelId: aiModelState.selectedModelId,
+      selectedProviderId: aiModelState.selectedProviderId,
+      currentSelectedModel,
+      availableModels: aiModelState.availableModels.length
+    });
+
     if (currentSelectedModel) {
       setSettings(prev => ({
         ...prev,
         aiModel: currentSelectedModel.model_id,
         aiProvider: currentSelectedModel.provider,
       }));
+      console.log('✅ Settings Updated:', {
+        aiModel: currentSelectedModel.model_id,
+        aiProvider: currentSelectedModel.provider
+      });
     }
   }, [aiModelState.selectedModelId, aiModelState.selectedProviderId, getSelectedModel]);
 
@@ -297,28 +307,36 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
         {currentStep === 'setup' && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-              {/* AI 모델 선택 */}
+              {/* AI 모델 정보 */}
               <Card className="xl:col-span-1">
                 <h3 className="text-lg font-semibold text-text-primary mb-4">AI 모델 설정</h3>
                 <div className="space-y-4">
-                  <div className="p-3 bg-bg-secondary rounded-lg border border-border-primary">
-                    <div className="flex items-center justify-between">
+                  <div className="p-4 bg-bg-secondary rounded-lg border border-border-primary">
+                    <div className="flex items-center justify-between mb-3">
                       <span className="text-sm font-medium text-text-primary">선택된 모델</span>
                       <span className="text-xs text-text-muted">사이드바에서 변경</span>
                     </div>
-                    <div className="mt-2">
-                      <p className="text-text-primary font-medium">
+                    <div>
+                      <p className="text-text-primary font-medium mb-1">
                         {selectedModel?.name || 'Claude 3.5 Sonnet'}
                       </p>
-                      <p className="text-text-secondary text-sm">
+                      <p className="text-text-secondary text-sm mb-2">
                         {selectedModel?.provider || 'anthropic'} • {selectedModel?.model_id || 'claude-3-5-sonnet-20241022'}
                       </p>
+                      {selectedModel && (
+                        <div className="text-xs text-text-muted space-y-1">
+                          <p>최대 토큰: {selectedModel.max_tokens?.toLocaleString()}</p>
+                          <p>입력 비용: ${selectedModel.cost_per_input_token}/1K 토큰</p>
+                          <p>출력 비용: ${selectedModel.cost_per_output_token}/1K 토큰</p>
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <AIModelSelector
-                    settings={settings}
-                    onSettingsChange={setSettings}
-                  />
+                  <div className="text-center py-3">
+                    <p className="text-xs text-text-muted">
+                      AI 모델 변경은 왼쪽 사이드바의 MODELS 섹션에서 가능합니다.
+                    </p>
+                  </div>
                 </div>
               </Card>
 
