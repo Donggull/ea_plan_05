@@ -192,6 +192,143 @@ export class ProjectService {
   }
 
   /**
+   * 관리자용 프로젝트 완전 삭제 (연관 데이터 모두 삭제)
+   */
+  static async deleteProjectCompletely(projectId: string, userRole: string, _userLevel: number | null): Promise<void> {
+    try {
+      if (!supabase) {
+        throw new Error('Supabase client not initialized')
+      }
+
+      // 권한 확인
+      if (userRole !== 'admin') {
+        throw new Error('관리자만 프로젝트를 완전 삭제할 수 있습니다.')
+      }
+
+      console.log(`🗑️ [Admin] 프로젝트 완전 삭제 시작: ${projectId}`)
+
+      // 먼저 프로젝트에 속한 문서 ID들 조회
+      const { data: documents } = await supabase
+        .from('documents')
+        .select('id')
+        .eq('project_id', projectId)
+
+      const documentIds = documents?.map(doc => doc.id) || []
+
+      if (documentIds.length > 0) {
+        // 1. 문서 내용 삭제 (document_content)
+        const { error: contentError } = await supabase
+          .from('document_content')
+          .delete()
+          .in('document_id', documentIds)
+
+        if (contentError) {
+          console.error('문서 내용 삭제 실패:', contentError)
+        } else {
+          console.log('✅ 문서 내용 삭제 완료')
+        }
+
+        // 2. 문서 임베딩 삭제 (document_embeddings)
+        const { error: embeddingsError } = await supabase
+          .from('document_embeddings')
+          .delete()
+          .in('document_id', documentIds)
+
+        if (embeddingsError) {
+          console.error('문서 임베딩 삭제 실패:', embeddingsError)
+        } else {
+          console.log('✅ 문서 임베딩 삭제 완료')
+        }
+      }
+
+      // 3. AI 분석 결과 삭제 (ai_analysis)
+      const { error: analysisError } = await supabase
+        .from('ai_analysis')
+        .delete()
+        .eq('project_id', projectId)
+
+      if (analysisError) {
+        console.error('AI 분석 결과 삭제 실패:', analysisError)
+      } else {
+        console.log('✅ AI 분석 결과 삭제 완료')
+      }
+
+      // 4. 티켓 댓글 삭제 (ticket_comments)
+      const { data: tickets } = await supabase
+        .from('operation_tickets')
+        .select('id')
+        .eq('project_id', projectId)
+
+      const ticketIds = tickets?.map(ticket => ticket.id) || []
+
+      if (ticketIds.length > 0) {
+        const { error: commentsError } = await supabase
+          .from('ticket_comments')
+          .delete()
+          .in('ticket_id', ticketIds)
+
+        if (commentsError) {
+          console.error('티켓 댓글 삭제 실패:', commentsError)
+        } else {
+          console.log('✅ 티켓 댓글 삭제 완료')
+        }
+      }
+
+      // 5. 운영 티켓 삭제 (operation_tickets)
+      const { error: ticketsError } = await supabase
+        .from('operation_tickets')
+        .delete()
+        .eq('project_id', projectId)
+
+      if (ticketsError) {
+        console.error('운영 티켓 삭제 실패:', ticketsError)
+      } else {
+        console.log('✅ 운영 티켓 삭제 완료')
+      }
+
+      // 6. 문서 삭제 (documents)
+      const { error: documentsError } = await supabase
+        .from('documents')
+        .delete()
+        .eq('project_id', projectId)
+
+      if (documentsError) {
+        console.error('문서 삭제 실패:', documentsError)
+      } else {
+        console.log('✅ 문서 삭제 완료')
+      }
+
+      // 7. 프로젝트 멤버 삭제 (project_members)
+      const { error: membersError } = await supabase
+        .from('project_members')
+        .delete()
+        .eq('project_id', projectId)
+
+      if (membersError) {
+        console.error('프로젝트 멤버 삭제 실패:', membersError)
+      } else {
+        console.log('✅ 프로젝트 멤버 삭제 완료')
+      }
+
+      // 8. 프로젝트 삭제 (projects)
+      const { error: projectError } = await supabase
+        .from('projects')
+        .delete()
+        .eq('id', projectId)
+
+      if (projectError) {
+        console.error('프로젝트 삭제 실패:', projectError)
+        throw projectError
+      }
+
+      console.log('🎉 프로젝트 완전 삭제 완료!')
+    } catch (error) {
+      console.error('Error in deleteProjectCompletely:', error)
+      throw error
+    }
+  }
+
+  /**
    * 사용자의 활성 프로젝트 수 조회
    */
   static async getActiveProjectsCount(userId: string): Promise<number> {

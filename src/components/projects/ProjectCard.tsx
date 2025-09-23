@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Calendar,
@@ -7,7 +7,10 @@ import {
   Edit,
   Trash2
 } from 'lucide-react'
-import { useDeleteProject } from '../../lib/queries/projects'
+import { useAuth } from '../../contexts/AuthContext'
+import { ProjectService } from '../../services/projectService'
+import { DeleteProjectModal } from './DeleteProjectModal'
+import { isAdmin } from '../../types/user'
 
 interface Project {
   id: string
@@ -29,7 +32,10 @@ interface ProjectCardProps {
 
 export function ProjectCard({ project, viewMode = 'grid', onEdit, onDelete }: ProjectCardProps) {
   const navigate = useNavigate()
-  const deleteProjectMutation = useDeleteProject()
+  const { profile } = useAuth()
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+
+  const userIsAdmin = profile ? isAdmin(profile.role || '') : false
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -76,17 +82,28 @@ export function ProjectCard({ project, viewMode = 'grid', onEdit, onDelete }: Pr
     }
   }
 
-  const handleDelete = async (e: React.MouseEvent) => {
+  const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation()
+    setShowDeleteModal(true)
+  }
 
-    if (window.confirm(`"${project.name}" 프로젝트를 삭제하시겠습니까?`)) {
-      try {
-        await deleteProjectMutation.mutateAsync(project.id)
-        onDelete?.(project.id)
-      } catch (error) {
-        console.error('Failed to delete project:', error)
-        alert('프로젝트 삭제에 실패했습니다.')
+  const handleDeleteConfirm = async () => {
+    try {
+      if (userIsAdmin) {
+        await ProjectService.deleteProjectCompletely(
+          project.id,
+          profile?.role || '',
+          profile?.user_level || null
+        )
+      } else {
+        await ProjectService.deleteProject(project.id)
       }
+      onDelete?.(project.id)
+      // 페이지 새로고침 또는 프로젝트 목록 업데이트
+      window.location.reload()
+    } catch (error) {
+      console.error('프로젝트 삭제 실패:', error)
+      alert('프로젝트 삭제에 실패했습니다.')
     }
   }
 
@@ -139,14 +156,15 @@ export function ProjectCard({ project, viewMode = 'grid', onEdit, onDelete }: Pr
           >
             <Edit className="w-4 h-4" />
           </button>
-          <button
-            onClick={handleDelete}
-            className="p-1 text-text-muted hover:text-accent-red transition-colors"
-            title="삭제"
-            disabled={deleteProjectMutation.isPending}
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+          {userIsAdmin && (
+            <button
+              onClick={handleDelete}
+              className="p-1 text-text-muted hover:text-accent-red transition-colors"
+              title="삭제 (관리자 권한)"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
     )
@@ -176,14 +194,15 @@ export function ProjectCard({ project, viewMode = 'grid', onEdit, onDelete }: Pr
           >
             <Edit className="w-4 h-4" />
           </button>
-          <button
-            onClick={handleDelete}
-            className="p-1 text-text-muted hover:text-accent-red transition-colors"
-            title="삭제"
-            disabled={deleteProjectMutation.isPending}
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+          {userIsAdmin && (
+            <button
+              onClick={handleDelete}
+              className="p-1 text-text-muted hover:text-accent-red transition-colors"
+              title="삭제 (관리자 권한)"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -214,6 +233,16 @@ export function ProjectCard({ project, viewMode = 'grid', onEdit, onDelete }: Pr
           </span>
         </div>
       </div>
+
+      {/* 삭제 확인 모달 */}
+      <DeleteProjectModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={handleDeleteConfirm}
+        projectName={project.name}
+        projectId={project.id}
+        isAdmin={userIsAdmin}
+      />
     </div>
   )
 }
