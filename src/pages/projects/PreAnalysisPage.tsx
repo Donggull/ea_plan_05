@@ -1,6 +1,6 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, BarChart3 } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { PreAnalysisPanel } from '../../components/preAnalysis/PreAnalysisPanel';
 import { PageContainer, PageHeader, PageContent } from '../../components/LinearComponents';
@@ -31,7 +31,6 @@ export const PreAnalysisPage: React.FC = () => {
         title="사전 분석"
         subtitle={currentProject?.name || '프로젝트'}
         description="AI와 MCP를 활용하여 프로젝트를 종합적으로 분석합니다"
-        icon={<BarChart3 className="w-6 h-6" />}
         actions={
           <div className="flex items-center space-x-2">
             <button

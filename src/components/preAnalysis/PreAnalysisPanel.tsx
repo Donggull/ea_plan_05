@@ -40,8 +40,8 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
   const [currentSession, setCurrentSession] = useState<PreAnalysisSession | null>(null);
   const [currentStep, setCurrentStep] = useState<'setup' | 'analysis' | 'questions' | 'report'>('setup');
   const [settings, setSettings] = useState<AnalysisSettings>({
-    aiModel: aiModelState.selectedModel?.id || 'gpt-4o',
-    aiProvider: aiModelState.selectedProvider || 'openai',
+    aiModel: aiModelState.selectedModelId || 'gpt-4o',
+    aiProvider: aiModelState.selectedProviderId || 'openai',
     mcpServers: {
       filesystem: true,
       database: true,
@@ -63,14 +63,14 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
 
   // AI 모델 상태 변경 시 설정 업데이트
   useEffect(() => {
-    if (aiModelState.selectedModel && aiModelState.selectedProvider) {
+    if (aiModelState.selectedModelId && aiModelState.selectedProviderId) {
       setSettings(prev => ({
         ...prev,
-        aiModel: aiModelState.selectedModel?.id || 'gpt-4o',
-        aiProvider: aiModelState.selectedProvider || 'openai',
+        aiModel: aiModelState.selectedModelId || 'gpt-4o',
+        aiProvider: aiModelState.selectedProviderId || 'openai',
       }));
     }
-  }, [aiModelState.selectedModel, aiModelState.selectedProvider]);
+  }, [aiModelState.selectedModelId, aiModelState.selectedProviderId]);
 
   const loadDocumentCount = async () => {
     try {
@@ -410,6 +410,6 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
           />
         )}
       </div>
-    </div>
+    </Card>
   );
 };
