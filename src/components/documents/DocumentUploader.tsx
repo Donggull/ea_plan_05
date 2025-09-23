@@ -1,11 +1,11 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { Upload, File, X, AlertCircle, CheckCircle, FolderOpen } from 'lucide-react'
-import { fileService } from '@/services/fileService'
-import { ProjectService } from '@/services/projectService'
-import { useAuthStore } from '@/stores/authStore'
-import { supabase } from '@/lib/supabase'
-import { LinearDropdown, type DropdownOption } from '@/components/ui/LinearDropdown'
+import { fileService } from '../../services/fileService'
+import { ProjectService } from '../../services/projectService'
+import { useAuthStore } from '../../stores/authStore'
+import { supabase } from '../../lib/supabase'
+import { LinearDropdown, type DropdownOption } from '../ui/LinearDropdown'
 import { toast } from 'sonner'
 
 interface UploadFile {

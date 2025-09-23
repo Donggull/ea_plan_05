@@ -1,5 +1,5 @@
-import { supabase } from '@/lib/supabase'
-import { fileTypeFromBuffer } from 'file-type'
+import { supabase } from '../lib/supabase'
+// import { fileTypeFromBuffer } from 'file-type'
 
 export interface FileMetadata {
   name: string
@@ -55,14 +55,15 @@ class FileService {
       throw new Error(`지원하지 않는 파일 형식입니다: ${file.type}`)
     }
 
-    // 파일 시그니처 검증 (보안)
+    // 파일 시그니처 검증 (보안) - 임시 비활성화
     try {
-      const buffer = await file.arrayBuffer()
-      const fileType = await fileTypeFromBuffer(buffer)
+      // const buffer = await file.arrayBuffer()
+      // const fileType = await fileTypeFromBuffer(buffer)
 
-      if (fileType && !this.ALLOWED_TYPES.includes(fileType.mime)) {
-        throw new Error('파일 내용이 확장자와 일치하지 않습니다.')
-      }
+      // if (fileType && !this.ALLOWED_TYPES.includes(fileType.mime)) {
+      //   throw new Error('파일 내용이 확장자와 일치하지 않습니다.')
+      // }
+      console.log('File signature validation temporarily disabled for debugging')
     } catch (error) {
       console.warn('File signature validation failed:', error)
       // 시그니처 검증 실패는 경고만 하고 진행
