@@ -19,6 +19,13 @@ export default defineConfig({
         port: 5173,
         host: true,
         open: true,
+        proxy: {
+            '/api': {
+                target: 'https://ea-plan-05.vercel.app',
+                changeOrigin: true,
+                secure: true,
+            },
+        },
     },
     build: {
         outDir: 'dist',
@@ -27,66 +34,7 @@ export default defineConfig({
         chunkSizeWarningLimit: 1500,
         rollupOptions: {
             output: {
-                manualChunks: function (id) {
-                    // React 핵심 라이브러리
-                    if (id.includes('react') || id.includes('react-dom')) {
-                        return 'vendor';
-                    }
-                    // UI 라이브러리들
-                    if (id.includes('@radix-ui') || id.includes('lucide-react')) {
-                        return 'ui';
-                    }
-                    // 차트 라이브러리
-                    if (id.includes('recharts') || id.includes('d3')) {
-                        return 'charts';
-                    }
-                    // PDF 및 파일 처리
-                    if (id.includes('pdfjs-dist') || id.includes('react-pdf') || id.includes('tesseract.js') || id.includes('file-type')) {
-                        return 'pdf-processing';
-                    }
-                    // Supabase 관련
-                    if (id.includes('@supabase') || id.includes('supabase')) {
-                        return 'supabase';
-                    }
-                    // React Query
-                    if (id.includes('@tanstack/react-query')) {
-                        return 'query';
-                    }
-                    // 라우터
-                    if (id.includes('react-router-dom')) {
-                        return 'router';
-                    }
-                    // 폼 처리
-                    if (id.includes('react-hook-form') || id.includes('@hookform') || id.includes('zod')) {
-                        return 'forms';
-                    }
-                    // 애니메이션
-                    if (id.includes('framer-motion')) {
-                        return 'motion';
-                    }
-                    // 상태 관리
-                    if (id.includes('zustand')) {
-                        return 'state';
-                    }
-                    // 드래그 앤 드롭
-                    if (id.includes('react-dropzone')) {
-                        return 'dropzone';
-                    }
-                    // 날짜 처리
-                    if (id.includes('date-fns')) {
-                        return 'date';
-                    }
-                    // 큰 서비스 파일들
-                    if (id.includes('/services/preAnalysis/') || id.includes('/services/proposal/')) {
-                        return 'analysis-services';
-                    }
-                    // node_modules의 다른 라이브러리들
-                    if (id.includes('node_modules')) {
-                        return 'vendor-libs';
-                    }
-                    // 기본값
-                    return undefined;
-                },
+                // manualChunks 완전 제거 - Vite 자동 분할 사용
                 assetFileNames: function (assetInfo) {
                     var name = assetInfo.name || 'asset';
                     var info = name.split('.');

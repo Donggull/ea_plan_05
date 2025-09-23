@@ -260,6 +260,7 @@ export interface ServiceResponse<T> {
   data?: T;
   error?: string;
   message?: string;
+  details?: any;
 }
 
 // 진행 상황 업데이트
