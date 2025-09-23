@@ -221,6 +221,15 @@ export class PreAnalysisService {
     settings: AnalysisSettings,
     userId: string
   ): Promise<ServiceResponse<PreAnalysisSession>> {
+    console.log('🎬 PreAnalysisService.startSession 호출됨', { projectId, settings, userId });
+
+    // 환경 상태 즉시 출력
+    console.log('🔬 현재 환경 상태:', {
+      isDev: import.meta.env.DEV,
+      mode: import.meta.env.MODE,
+      anthropicKey: import.meta.env.VITE_ANTHROPIC_API_KEY ? `설정됨 (${import.meta.env.VITE_ANTHROPIC_API_KEY.length}글자)` : '미설정'
+    });
+
     try {
       const sessionData = {
         project_id: projectId,
@@ -287,6 +296,8 @@ export class PreAnalysisService {
     documentId: string,
     category?: DocumentCategory
   ): Promise<ServiceResponse<DocumentAnalysis>> {
+    console.log('📄 PreAnalysisService.analyzeDocument 호출됨', { sessionId, documentId, category });
+
     try {
       // 진행 상황 업데이트
       this.emitProgressUpdate({
@@ -395,6 +406,7 @@ export class PreAnalysisService {
     sessionId: string,
     options: QuestionGenerationOptions
   ): Promise<ServiceResponse<AIQuestion[]>> {
+    console.log('❓ PreAnalysisService.generateQuestions 호출됨', { sessionId, options });
     try {
       // 진행 상황 업데이트
       this.emitProgressUpdate({
@@ -544,7 +556,10 @@ export class PreAnalysisService {
     sessionId: string,
     options: ReportGenerationOptions
   ): Promise<ServiceResponse<AnalysisReport>> {
+    console.log('🎯 [ultrathink] generateReport 시작:', { sessionId, options });
+
     try {
+      console.log('📊 [ultrathink] 진행 상황 업데이트 중...');
       // 진행 상황 업데이트
       this.emitProgressUpdate({
         sessionId,
@@ -555,18 +570,25 @@ export class PreAnalysisService {
         timestamp: new Date(),
       });
 
+      console.log('🔍 [ultrathink] 세션 데이터 수집 시작...');
       // 세션 데이터 수집
       const sessionData = await this.collectSessionData(sessionId);
+      console.log('🔍 [ultrathink] 세션 데이터 수집 결과:', { success: sessionData.success, errorExists: !!sessionData.error });
+
       if (!sessionData.success) {
+        console.error('❌ [ultrathink] 세션 데이터 수집 실패:', sessionData.error);
         return { success: false, error: sessionData.error };
       }
 
+      console.log('🤖 [ultrathink] AI 보고서 생성 시작...');
       // AI를 통한 보고서 생성
       const reportContent = await this.generateAIReport(
         sessionData.data!,
         options
       );
+      console.log('🤖 [ultrathink] AI 보고서 생성 완료:', { hasSummary: !!reportContent.summary, totalCost: reportContent.totalCost });
 
+      console.log('💾 [ultrathink] 보고서 데이터 저장 준비 중...');
       // 보고서 저장
       const reportData = {
         session_id: sessionId,
@@ -588,25 +610,32 @@ export class PreAnalysisService {
         output_tokens: reportContent.outputTokens,
         generated_by: sessionData.data!.session.created_by,
       };
+      console.log('💾 [ultrathink] 보고서 데이터 구조 완성:', { reportType: reportData.report_type, aiModel: reportData.ai_model });
 
       if (!supabase) {
+        console.error('❌ [ultrathink] Supabase 클라이언트 미초기화!');
         throw new Error('Supabase client not initialized');
       }
 
+      console.log('🗃️ [ultrathink] Supabase에 보고서 저장 중...');
       const { data: savedReport, error: saveError } = await supabase
         .from('analysis_reports')
         .insert(reportData)
         .select()
         .single();
+      console.log('🗃️ [ultrathink] 보고서 저장 결과:', { success: !saveError, errorExists: !!saveError });
 
       if (saveError) {
-        console.error('보고서 저장 오류:', saveError);
+        console.error('❌ [ultrathink] 보고서 저장 오류 상세:', saveError);
         return { success: false, error: saveError.message };
       }
 
+      console.log('✅ [ultrathink] 세션 완료 처리 시작...');
       // 세션 완료 처리
       await this.completeSession(sessionId, reportContent.totalCost);
+      console.log('✅ [ultrathink] 세션 완료 처리 완료');
 
+      console.log('📈 [ultrathink] 최종 진행 상황 업데이트...');
       // 진행 상황 업데이트
       this.emitProgressUpdate({
         sessionId,
@@ -617,13 +646,15 @@ export class PreAnalysisService {
         timestamp: new Date(),
       });
 
+      console.log('🎉 [ultrathink] generateReport 성공 완료!');
       return {
         success: true,
         data: this.transformReportData(savedReport),
         message: '분석 보고서가 성공적으로 생성되었습니다.',
       };
     } catch (error) {
-      console.error('보고서 생성 오류:', error);
+      console.error('❌ [ultrathink] 보고서 생성 오류 상세:', error);
+      console.error('❌ [ultrathink] 오류 스택:', error instanceof Error ? error.stack : 'No stack trace');
       return {
         success: false,
         error: '보고서 생성 중 오류가 발생했습니다.',
@@ -1111,21 +1142,29 @@ ${contextSummary}
   }
 
   private async generateAIReport(sessionData: any, options: ReportGenerationOptions): Promise<any> {
+    console.log('🤖 [ultrathink] generateAIReport 메서드 시작');
     const startTime = Date.now();
 
     try {
+      console.log('📋 [ultrathink] 세션 데이터 구조화 중...');
       // 세션 데이터 구조화
       const analyses = sessionData.analyses || [];
       const questions = sessionData.questions || [];
       const answers = sessionData.answers || [];
+      console.log('📋 [ultrathink] 데이터 구조:', { analysesCount: analyses.length, questionsCount: questions.length, answersCount: answers.length });
 
+      console.log('📝 [ultrathink] 보고서 프롬프트 생성 중...');
       // 보고서 생성 프롬프트
       const reportPrompt = this.generateReportPrompt(analyses, questions, answers, options);
+      console.log('📝 [ultrathink] 프롬프트 생성 완료, 길이:', reportPrompt.length);
 
+      console.log('⚙️ [ultrathink] AI 설정 확인 중...');
       // AI 설정 가져오기
       const aiProvider = sessionData.session?.settings?.aiProvider || 'anthropic';
       const aiModel = sessionData.session?.settings?.aiModel || 'claude-sonnet-4-20250514';
+      console.log('⚙️ [ultrathink] AI 설정:', { aiProvider, aiModel });
 
+      console.log('🔗 [ultrathink] AI 완성 API 호출 시작...');
       // API 라우트를 통한 AI 보고서 생성
       const response = await this.callAICompletionAPI(
         aiProvider,
@@ -1134,21 +1173,29 @@ ${contextSummary}
         6000,
         0.2
       );
+      console.log('🔗 [ultrathink] AI API 응답 수신:', { hasContent: !!response.content, contentLength: response.content?.length });
 
+      console.log('🔍 [ultrathink] AI 응답 파싱 시작...');
       // 응답 파싱
       const reportContent = this.parseReportResponse(response.content, analyses, answers);
+      console.log('🔍 [ultrathink] 응답 파싱 완료:', { hasSummary: !!reportContent.summary });
 
       const processingTime = Date.now() - startTime;
+      console.log('⏱️ [ultrathink] 처리 시간:', processingTime, 'ms');
 
-      return {
+      const result = {
         ...reportContent,
         totalProcessingTime: processingTime,
         totalCost: response.cost.totalCost,
         inputTokens: response.usage.inputTokens,
         outputTokens: response.usage.outputTokens,
       };
+      console.log('🎯 [ultrathink] generateAIReport 성공 완료');
+      return result;
     } catch (error) {
-      console.error('AI 보고서 생성 오류:', error);
+      console.error('❌ [ultrathink] AI 보고서 생성 오류 상세:', error);
+      console.error('❌ [ultrathink] 오류 타입:', error instanceof Error ? error.constructor.name : typeof error);
+      console.error('❌ [ultrathink] 오류 메시지:', error instanceof Error ? error.message : String(error));
 
       // 오류 발생 시 기본 보고서 반환
       return {
