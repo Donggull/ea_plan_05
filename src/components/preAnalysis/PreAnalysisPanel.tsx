@@ -406,12 +406,6 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
                       </div>
                     </div>
                   </div>
-
-                  <div className="text-center py-2 px-3 bg-bg-tertiary rounded-lg">
-                    <p className="text-xs text-text-muted">
-                      AI 모델 변경은 왼쪽 사이드바의 MODELS 섹션에서 가능합니다.
-                    </p>
-                  </div>
                 </div>
               </Card>
 
