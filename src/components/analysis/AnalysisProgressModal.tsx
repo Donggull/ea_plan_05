@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { Card, Button } from '../LinearComponents'
 import { WorkflowStep } from '../../services/proposal/aiQuestionGenerator'
+import { ProposalAnalysisService } from '../../services/proposal/proposalAnalysisService'
 
 interface AnalysisStep {
   id: string
@@ -265,7 +266,6 @@ export function AnalysisProgressModal({
 
   const performAIAnalysis = async (stepIndex: number) => {
     // 실제 AI 분석 실행
-    const { ProposalAnalysisService } = await import('../../services/proposal/proposalAnalysisService')
 
     // 진행률 시뮬레이션
     const duration = 45000 // 45초

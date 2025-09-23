@@ -19,6 +19,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { PreAnalysisPanel, PreAnalysisPanelRef } from '../../components/preAnalysis/PreAnalysisPanel';
 import { PageContainer, PageHeader, PageContent, Card, Button } from '../../components/LinearComponents';
 import { supabase } from '../../lib/supabase';
+import { ProjectService } from '../../services/projectService';
 
 export const PreAnalysisPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -53,7 +54,6 @@ export const PreAnalysisPage: React.FC = () => {
         }
 
         // 프로젝트 상세 정보 로딩
-        const { ProjectService } = await import('../../services/projectService');
         const projectData = await ProjectService.getProject(id);
         if (projectData) {
           setProject(projectData);
