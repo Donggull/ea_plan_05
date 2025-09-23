@@ -46,7 +46,8 @@
       "mcp__supabase__list_extensions",
       "Bash(copy \"D:\\ea_plan_05\\src\\lib\\supabase.ts\" \"D:\\ea_plan_05\\src\\lib\\supabase.ts.backup\")",
       "Bash(git add:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(copy:*)"
     ],
     "deny": [],
     "ask": []
