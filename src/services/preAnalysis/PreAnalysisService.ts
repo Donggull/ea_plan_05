@@ -1371,8 +1371,10 @@ ${answersContext}
     try {
       console.log('🔗 [통합 API] AI 완성 요청:', { provider, model, promptLength: prompt.length });
 
-      // 개발/프로덕션 모두 상대 경로 사용 (Vite 프록시를 통해 처리)
-      const apiUrl = '/api/ai/completion';
+      // 개발환경에서는 Vercel 프로덕션 API 직접 호출, 프로덕션에서는 상대 경로 사용
+      const apiUrl = import.meta.env.DEV
+        ? 'https://ea-plan-05.vercel.app/api/ai/completion'
+        : '/api/ai/completion';
 
       console.log('🌐 [통합 API] 호출 URL:', apiUrl);
 
