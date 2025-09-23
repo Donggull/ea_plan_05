@@ -47,7 +47,8 @@
       "Bash(copy \"D:\\ea_plan_05\\src\\lib\\supabase.ts\" \"D:\\ea_plan_05\\src\\lib\\supabase.ts.backup\")",
       "Bash(git add:*)",
       "Bash(dir:*)",
-      "Bash(copy:*)"
+      "Bash(copy:*)",
+      "mcp__github-mcp__git-flow"
     ],
     "deny": [],
     "ask": []
