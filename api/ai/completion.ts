@@ -33,14 +33,39 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ) {
+  // CORS 헤더 추가
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+
+  // OPTIONS 요청 처리
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end()
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
   try {
+    console.log('🚀 [Vercel API] AI 완성 요청 수신:', {
+      timestamp: new Date().toISOString(),
+      userAgent: req.headers['user-agent'],
+      hasBody: !!req.body
+    })
+
     const { provider, model, prompt, maxTokens, temperature, topP }: CompletionRequest = req.body
 
+    console.log('📝 [Vercel API] 요청 파라미터:', {
+      provider,
+      model,
+      promptLength: prompt?.length || 0,
+      maxTokens,
+      temperature
+    })
+
     if (!provider || !model || !prompt) {
+      console.error('❌ [Vercel API] 필수 파라미터 누락:', { provider, model, hasPrompt: !!prompt })
       return res.status(400).json({ error: 'Missing required parameters' })
     }
 
@@ -51,17 +76,25 @@ export default async function handler(
       google: process.env['GOOGLE_AI_API_KEY']
     }
 
+    console.log('🔑 [Vercel API] 환경변수 상태:', {
+      hasOpenAI: !!apiKeys.openai,
+      hasAnthropic: !!apiKeys.anthropic,
+      hasGoogle: !!apiKeys.google,
+      requestedProvider: provider
+    })
+
     const apiKey = apiKeys[provider]
     if (!apiKey) {
-      console.error(`❌ ${provider} API 키가 설정되지 않았습니다.`)
+      console.error(`❌ [Vercel API] ${provider} API 키가 설정되지 않았습니다.`)
       return res.status(500).json({
         error: `${provider} API 키가 설정되지 않았습니다.`,
         provider,
-        availableKeys: Object.keys(apiKeys).filter(key => apiKeys[key as keyof typeof apiKeys])
+        availableKeys: Object.keys(apiKeys).filter(key => apiKeys[key as keyof typeof apiKeys]),
+        timestamp: new Date().toISOString()
       })
     }
 
-    console.log(`🤖 AI 완성 요청 처리: ${provider} ${model}`)
+    console.log(`🤖 [Vercel API] AI 완성 요청 처리 시작: ${provider} ${model}`)
 
     let response: CompletionResponse
 
@@ -79,14 +112,19 @@ export default async function handler(
         return res.status(400).json({ error: `지원하지 않는 프로바이더: ${provider}` })
     }
 
-    console.log(`✅ AI 응답 완료: ${response.usage.totalTokens} 토큰, $${response.cost.totalCost.toFixed(4)}`)
+    console.log(`✅ [Vercel API] AI 응답 완료: ${response.usage.totalTokens} 토큰, $${response.cost.totalCost.toFixed(4)}`)
     return res.status(200).json(response)
 
   } catch (error) {
-    console.error('❌ AI 완성 처리 오류:', error)
+    console.error('❌ [Vercel API] AI 완성 처리 오류 상세:', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      timestamp: new Date().toISOString()
+    })
     return res.status(500).json({
       error: '서버 오류가 발생했습니다.',
-      details: error instanceof Error ? error.message : String(error)
+      details: error instanceof Error ? error.message : String(error),
+      timestamp: new Date().toISOString()
     })
   }
 }
