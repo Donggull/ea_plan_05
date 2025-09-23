@@ -239,22 +239,15 @@ export function AIModelProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // AI 서비스 매니저 설정 함수
+  // AI 서비스 매니저 설정 함수 (API 라우트 사용으로 인해 더 이상 직접 설정 불필요)
   const setupAIServiceManager = async (model: AIModel) => {
     try {
-      // 환경 변수에서 API 키 가져오기 (Vercel 프로덕션 환경 지원)
-      const apiKeys = {
-        openai: import.meta.env.VITE_OPENAI_API_KEY || (globalThis as any).process?.env?.OPENAI_API_KEY,
-        anthropic: import.meta.env.VITE_ANTHROPIC_API_KEY || (globalThis as any).process?.env?.ANTHROPIC_API_KEY,
-        google: import.meta.env.VITE_GOOGLE_AI_API_KEY || (globalThis as any).process?.env?.GOOGLE_AI_API_KEY
-      }
-
-      const apiKey = apiKeys[model.provider as keyof typeof apiKeys]
-      if (apiKey) {
-        await aiServiceManager.setProvider(model.provider, apiKey)
-      }
+      // API 라우트를 통한 AI 호출로 변경되어 직접 API 키 설정이 불필요
+      // 모델 선택 정보만 로깅
+      console.log('✅ AI 모델 선택됨:', model.name, '(' + model.model_id + ')')
+      console.log('📍 API 라우트를 통한 서버사이드 처리 방식으로 동작')
     } catch (error) {
-      console.error('AI 서비스 매니저 설정 실패:', error)
+      console.error('AI 모델 선택 중 오류:', error)
     }
   }
 

@@ -1,5 +1,4 @@
 import { supabase } from '../../lib/supabase';
-import { aiServiceManager } from '../ai/AIServiceManager';
 import {
   PreAnalysisSession,
   DocumentAnalysis,
@@ -728,42 +727,6 @@ export class PreAnalysisService {
         aiProvider: session?.ai_provider || 'anthropic'
       };
 
-      // AI 서비스 매니저 초기화 확인
-      if (!aiServiceManager.getCurrentProvider()) {
-        console.log('🔧 AI 서비스 매니저 초기화 중...', { provider: settings.aiProvider });
-
-        // 환경 변수에서 API 키 가져오기 (Vercel 프로덕션 환경 지원)
-        const apiKeys = {
-          openai: import.meta.env.VITE_OPENAI_API_KEY || (globalThis as any).process?.env?.OPENAI_API_KEY,
-          anthropic: import.meta.env.VITE_ANTHROPIC_API_KEY || (globalThis as any).process?.env?.ANTHROPIC_API_KEY,
-          google: import.meta.env.VITE_GOOGLE_AI_API_KEY || (globalThis as any).process?.env?.GOOGLE_AI_API_KEY
-        };
-
-        // API 키 존재 여부 체크 (실제 키 값은 로깅하지 않음)
-        const keyAvailability = {
-          openai: !!apiKeys.openai,
-          anthropic: !!apiKeys.anthropic,
-          google: !!apiKeys.google
-        };
-        console.log('🔑 API 키 가용성:', keyAvailability);
-
-        const apiKey = apiKeys[settings.aiProvider as keyof typeof apiKeys];
-        if (apiKey) {
-          console.log('✅ API 키 발견, 프로바이더 설정 중...', { provider: settings.aiProvider });
-          await aiServiceManager.setProvider(settings.aiProvider, apiKey);
-          console.log('✅ AI 서비스 매니저 초기화 완료');
-        } else {
-          const errorMsg = `${settings.aiProvider} API 키가 설정되지 않았습니다. 환경 변수를 확인해주세요.`;
-          console.error('❌ API 키 없음:', errorMsg, {
-            provider: settings.aiProvider,
-            availableKeys: keyAvailability
-          });
-          throw new Error(errorMsg);
-        }
-      } else {
-        console.log('✅ AI 서비스 매니저가 이미 초기화되어 있습니다.');
-      }
-
       // 분석 프롬프트 생성
       const analysisPrompt = this.generateAnalysisPrompt(content, category);
       console.log('📝 분석 프롬프트 생성 완료', {
@@ -772,19 +735,21 @@ export class PreAnalysisService {
         promptLength: analysisPrompt.length
       });
 
-      // AI 서비스 매니저를 통한 실제 AI 호출
-      console.log('🤖 AI 호출 시작', {
+      // Vercel API 라우트를 통한 AI 호출 (프로덕션 환경 지원)
+      console.log('🤖 AI 호출 시작 (Vercel API 라우트)', {
         model: settings.aiModel,
         provider: settings.aiProvider,
         maxTokens: 4000,
         temperature: 0.3
       });
 
-      const response = await aiServiceManager.generateCompletion(analysisPrompt, {
-        model: settings.aiModel,
-        maxTokens: 4000,
-        temperature: 0.3
-      });
+      const response = await this.callAICompletionAPI(
+        settings.aiProvider,
+        settings.aiModel,
+        analysisPrompt,
+        4000,
+        0.3
+      );
 
       console.log('✅ AI 응답 수신 완료', {
         responseLength: response.content.length,
@@ -946,25 +911,6 @@ ${content}
     session: any
   ): Promise<any[]> {
     try {
-      // AI 서비스 매니저 초기화 확인
-      if (!aiServiceManager.getCurrentProvider()) {
-        // 환경 변수에서 API 키 가져오기 (Vercel 프로덕션 환경 지원)
-        const apiKeys = {
-          openai: import.meta.env.VITE_OPENAI_API_KEY || (globalThis as any).process?.env?.OPENAI_API_KEY,
-          anthropic: import.meta.env.VITE_ANTHROPIC_API_KEY || (globalThis as any).process?.env?.ANTHROPIC_API_KEY,
-          google: import.meta.env.VITE_GOOGLE_AI_API_KEY || (globalThis as any).process?.env?.GOOGLE_AI_API_KEY
-        };
-
-        const aiProvider = session.settings?.aiProvider || 'anthropic';
-        const apiKey = apiKeys[aiProvider as keyof typeof apiKeys];
-
-        if (apiKey) {
-          await aiServiceManager.setProvider(aiProvider, apiKey);
-        } else {
-          throw new Error(`${aiProvider} API 키가 설정되지 않았습니다.`);
-        }
-      }
-
       // 분석 결과 요약 생성
       const analysisContext = analyses.map(analysis => ({
         summary: analysis.analysis_result?.summary || '분석 요약 없음',
@@ -976,12 +922,17 @@ ${content}
       // 질문 생성 프롬프트
       const questionsPrompt = this.generateQuestionsPrompt(analysisContext, options);
 
-      // AI를 통한 질문 생성
-      const response = await aiServiceManager.generateCompletion(questionsPrompt, {
-        model: session.settings?.aiModel || 'claude-sonnet-4-20250514',
-        maxTokens: 3000,
-        temperature: 0.4
-      });
+      // Vercel API 라우트를 통한 AI 호출
+      const aiProvider = session.settings?.aiProvider || 'anthropic';
+      const aiModel = session.settings?.aiModel || 'claude-sonnet-4-20250514';
+
+      const response = await this.callAICompletionAPI(
+        aiProvider,
+        aiModel,
+        questionsPrompt,
+        3000,
+        0.4
+      );
 
       // 응답 파싱
       const questions = this.parseQuestionsResponse(response.content, options);
@@ -1162,25 +1113,6 @@ ${contextSummary}
     const startTime = Date.now();
 
     try {
-      // AI 서비스 매니저 초기화 확인
-      if (!aiServiceManager.getCurrentProvider()) {
-        // 환경 변수에서 API 키 가져오기 (Vercel 프로덕션 환경 지원)
-        const apiKeys = {
-          openai: import.meta.env.VITE_OPENAI_API_KEY || (globalThis as any).process?.env?.OPENAI_API_KEY,
-          anthropic: import.meta.env.VITE_ANTHROPIC_API_KEY || (globalThis as any).process?.env?.ANTHROPIC_API_KEY,
-          google: import.meta.env.VITE_GOOGLE_AI_API_KEY || (globalThis as any).process?.env?.GOOGLE_AI_API_KEY
-        };
-
-        const aiProvider = sessionData.session?.settings?.aiProvider || 'anthropic';
-        const apiKey = apiKeys[aiProvider as keyof typeof apiKeys];
-
-        if (apiKey) {
-          await aiServiceManager.setProvider(aiProvider, apiKey);
-        } else {
-          throw new Error(`${aiProvider} API 키가 설정되지 않았습니다.`);
-        }
-      }
-
       // 세션 데이터 구조화
       const analyses = sessionData.analyses || [];
       const questions = sessionData.questions || [];
@@ -1189,12 +1121,18 @@ ${contextSummary}
       // 보고서 생성 프롬프트
       const reportPrompt = this.generateReportPrompt(analyses, questions, answers, options);
 
-      // AI를 통한 보고서 생성
-      const response = await aiServiceManager.generateCompletion(reportPrompt, {
-        model: sessionData.session?.settings?.aiModel || 'claude-sonnet-4-20250514',
-        maxTokens: 6000,
-        temperature: 0.2
-      });
+      // AI 설정 가져오기
+      const aiProvider = sessionData.session?.settings?.aiProvider || 'anthropic';
+      const aiModel = sessionData.session?.settings?.aiModel || 'claude-sonnet-4-20250514';
+
+      // API 라우트를 통한 AI 보고서 생성
+      const response = await this.callAICompletionAPI(
+        aiProvider,
+        aiModel,
+        reportPrompt,
+        6000,
+        0.2
+      );
 
       // 응답 파싱
       const reportContent = this.parseReportResponse(response.content, analyses, answers);
@@ -1373,6 +1311,52 @@ ${answersContext}
     // Supabase Realtime을 통한 진행 상황 업데이트
     // 추후 구현
     console.log('Progress Update:', update);
+  }
+
+  // Vercel API 라우트를 통한 AI 완성 호출
+  private async callAICompletionAPI(
+    provider: string,
+    model: string,
+    prompt: string,
+    maxTokens: number = 4000,
+    temperature: number = 0.3
+  ): Promise<any> {
+    try {
+      const response = await fetch('/api/ai/completion', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          provider,
+          model,
+          prompt,
+          maxTokens,
+          temperature
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.error ||
+          errorData.details ||
+          `API 요청 실패: ${response.status} ${response.statusText}`
+        );
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('AI 완성 API 호출 실패:', error);
+
+      // 네트워크 오류인 경우 fallback 메시지
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new Error('네트워크 연결을 확인해주세요. API 서버에 접근할 수 없습니다.');
+      }
+
+      throw error;
+    }
   }
 
   // 데이터 변환 메서드들
