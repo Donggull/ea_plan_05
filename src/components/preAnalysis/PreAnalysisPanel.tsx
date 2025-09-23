@@ -17,7 +17,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useAIModel } from '../../contexts/AIModelContext';
 import { MCPConfiguration } from './MCPConfiguration';
 import { AnalysisProgress } from './AnalysisProgress';
-import { QuestionAnswer } from './QuestionAnswer';
+import { EnhancedQuestionAnswer } from './EnhancedQuestionAnswer';
 import { AnalysisReport } from './AnalysisReport';
 import { Card } from '../../components/LinearComponents';
 import { DocumentManager } from '../../components/documents/DocumentManager';
@@ -550,9 +550,14 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
         )}
 
         {currentStep === 'questions' && currentSession && (
-          <QuestionAnswer
+          <EnhancedQuestionAnswer
+            projectId={projectId}
             sessionId={currentSession.id}
+            workflowStep="questions"
             onComplete={() => handleStepComplete('questions')}
+            onSave={(responses) => {
+              console.log('자동 저장된 답변:', responses);
+            }}
           />
         )}
 

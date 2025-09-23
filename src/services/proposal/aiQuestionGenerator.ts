@@ -29,7 +29,7 @@ export interface QuestionResponse {
 }
 
 // 워크플로우 단계 정의
-export type WorkflowStep = 'market_research' | 'personas' | 'proposal' | 'budget'
+export type WorkflowStep = 'market_research' | 'personas' | 'proposal' | 'budget' | 'questions' | 'pre_analysis'
 
 // 시장 조사 질문 템플릿
 const MARKET_RESEARCH_QUESTIONS: Omit<Question, 'id' | 'priority' | 'confidence' | 'aiGenerated'>[] = [
@@ -253,6 +253,59 @@ const BUDGET_QUESTIONS: Omit<Question, 'id' | 'priority' | 'confidence' | 'aiGen
   }
 ]
 
+// 사전 분석 질문 템플릿
+const PRE_ANALYSIS_QUESTIONS: Omit<Question, 'id' | 'priority' | 'confidence' | 'aiGenerated'>[] = [
+  {
+    category: '프로젝트 목표',
+    text: '이 프로젝트의 주요 목표는 무엇입니까?',
+    type: 'textarea',
+    required: true,
+    order: 1,
+    helpText: '프로젝트를 통해 달성하고자 하는 핵심 목표를 상세히 설명해주세요'
+  },
+  {
+    category: '현재 상황',
+    text: '현재 직면하고 있는 주요 문제나 과제는 무엇입니까?',
+    type: 'textarea',
+    required: true,
+    order: 2,
+    helpText: '해결해야 할 문제점이나 개선이 필요한 영역을 설명해주세요'
+  },
+  {
+    category: '기대 효과',
+    text: '프로젝트 완료 후 기대하는 효과는?',
+    type: 'multiselect',
+    options: ['비용 절감', '효율성 향상', '매출 증가', '고객 만족도 향상', '업무 자동화', '데이터 활용 개선', '기타'],
+    required: true,
+    order: 3,
+    helpText: '프로젝트를 통해 얻고자 하는 효과를 모두 선택해주세요'
+  },
+  {
+    category: '이해관계자',
+    text: '프로젝트의 주요 이해관계자는 누구입니까?',
+    type: 'textarea',
+    required: true,
+    order: 4,
+    helpText: '프로젝트에 영향을 받거나 관련된 부서, 팀, 개인을 설명해주세요'
+  },
+  {
+    category: '제약 조건',
+    text: '프로젝트 진행 시 고려해야 할 제약 조건이 있습니까?',
+    type: 'textarea',
+    required: false,
+    order: 5,
+    helpText: '시간, 예산, 기술적 제약, 규정 등 고려사항을 설명해주세요'
+  },
+  {
+    category: '성공 지표',
+    text: '프로젝트 성공을 어떻게 측정할 계획입니까?',
+    type: 'textarea',
+    required: true,
+    order: 6,
+    helpText: '구체적인 KPI나 성과 측정 방법을 설명해주세요'
+  }
+]
+
 export class AIQuestionGenerator {
   /**
    * 워크플로우 단계별 질문 생성 (기본 + AI 강화)
@@ -272,6 +325,10 @@ export class AIQuestionGenerator {
         break
       case 'budget':
         baseQuestions = BUDGET_QUESTIONS
+        break
+      case 'questions':
+      case 'pre_analysis':
+        baseQuestions = PRE_ANALYSIS_QUESTIONS
         break
       default:
         throw new Error(`Unsupported workflow step: ${step}`)
@@ -358,7 +415,9 @@ export class AIQuestionGenerator {
       market_research: '시장 조사 및 경쟁 분석',
       personas: '타겟 고객 페르소나 분석',
       proposal: '제안서 작성을 위한 프로젝트 분석',
-      budget: '예산 산정 및 비용 분석'
+      budget: '예산 산정 및 비용 분석',
+      questions: '사전 분석 질문-답변',
+      pre_analysis: '사전 분석 및 요구사항 파악'
     }
 
     let prompt = `당신은 전문 프로젝트 컨설턴트입니다. 다음 프로젝트에 대한 ${stepDescriptions[step]} 단계에서 추가로 필요한 핵심 질문들을 생성해주세요.

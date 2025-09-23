@@ -9,7 +9,9 @@ import {
   Zap,
   FileText,
   Target,
-  DollarSign
+  DollarSign,
+  MessageSquare,
+  BarChart3
 } from 'lucide-react'
 import { Card, Button } from '../LinearComponents'
 import { WorkflowStep } from '../../services/proposal/aiQuestionGenerator'
@@ -41,14 +43,18 @@ const STEP_ICONS = {
   market_research: Target,
   personas: Brain,
   proposal: FileText,
-  budget: DollarSign
+  budget: DollarSign,
+  questions: MessageSquare,
+  pre_analysis: BarChart3
 }
 
 const STEP_NAMES = {
   market_research: '시장 조사',
   personas: '페르소나 분석',
   proposal: '제안서 작성',
-  budget: '비용 산정'
+  budget: '비용 산정',
+  questions: '질문-답변',
+  pre_analysis: '사전 분석'
 }
 
 export function AnalysisProgressModal({

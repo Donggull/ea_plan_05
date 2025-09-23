@@ -666,7 +666,9 @@ export class ReportGenerator {
       market_research: '시장 조사 분석',
       personas: '페르소나 분석',
       proposal: '제안서',
-      budget: '비용 산정'
+      budget: '비용 산정',
+      questions: '질문-답변 분석',
+      pre_analysis: '사전 분석'
     }
     return titles[step] || step
   }

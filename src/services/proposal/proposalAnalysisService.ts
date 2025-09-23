@@ -290,6 +290,89 @@ const ANALYSIS_PROMPTS = {
 {documentContents}
 
 위 모든 정보를 바탕으로 상세하고 현실적인 비용 산정을 수행해주세요.`
+  },
+
+  questions: {
+    system: `당신은 전문 프로젝트 분석가입니다. 제공된 질문-답변 내용을 바탕으로 프로젝트 요구사항과 핵심 이슈를 분석해주세요.
+
+분석 시 다음 사항들을 고려해주세요:
+- 답변의 일관성과 완성도
+- 프로젝트 목표의 명확성
+- 잠재적 리스크와 기회 요소
+- 추가 조사가 필요한 영역
+- 이해관계자 요구사항 파악
+
+결과는 다음 JSON 형식으로 제공해주세요:
+{
+  "summary": "질문-답변 분석 요약",
+  "keyFindings": ["주요 발견사항들"],
+  "recommendations": ["권장사항들"],
+  "structuredData": {
+    "completeness": "답변 완성도 (1-10)",
+    "clarity": "명확성 점수 (1-10)",
+    "consistency": "일관성 점수 (1-10)",
+    "riskAreas": ["위험 영역들"],
+    "opportunities": ["기회 요소들"],
+    "gaps": ["정보 부족 영역들"]
+  },
+  "nextSteps": ["다음 단계 권장사항들"],
+  "confidence": 0.85,
+  "warnings": ["주의사항들"]
+}`,
+
+    user: `프로젝트명: {projectName}
+프로젝트 설명: {projectDescription}
+
+=== 질문-답변 내용 ===
+{questionResponses}
+
+=== 관련 문서 내용 ===
+{documentContents}
+
+위 정보를 종합하여 프로젝트 요구사항 분석을 수행해주세요.`
+  },
+
+  pre_analysis: {
+    system: `당신은 경험이 풍부한 프로젝트 컨설턴트입니다. 초기 프로젝트 정보를 바탕으로 포괄적인 사전 분석을 수행해주세요.
+
+사전 분석 포함 사항:
+- 프로젝트 실행 가능성 평가
+- 핵심 성공 요인 식별
+- 주요 위험 요소와 대응 방안
+- 자원 요구사항 개요
+- 이해관계자 영향 분석
+- 예상 일정과 마일스톤
+
+결과는 다음 JSON 형식으로 제공해주세요:
+{
+  "summary": "사전 분석 종합 요약",
+  "keyFindings": ["핵심 발견사항들"],
+  "recommendations": ["사전 권장사항들"],
+  "structuredData": {
+    "feasibility": "실행 가능성 (1-10)",
+    "complexity": "복잡도 (1-10)",
+    "successFactors": ["성공 요인들"],
+    "riskFactors": ["위험 요인들"],
+    "resourceNeeds": ["필요 자원들"],
+    "stakeholders": ["주요 이해관계자들"],
+    "timeline": "예상 일정 (개월)",
+    "budget": "예상 예산 범위"
+  },
+  "nextSteps": ["다음 분석 단계들"],
+  "confidence": 0.85,
+  "warnings": ["주의사항들"]
+}`,
+
+    user: `프로젝트명: {projectName}
+프로젝트 설명: {projectDescription}
+
+=== 사전 분석 질문-답변 ===
+{questionResponses}
+
+=== 관련 문서 내용 ===
+{documentContents}
+
+위 모든 정보를 종합하여 포괄적인 사전 분석을 수행해주세요.`
   }
 }
 

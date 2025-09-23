@@ -24,7 +24,7 @@ import { supabase } from '../../lib/supabase'
 interface EnhancedQuestionAnswerProps {
   projectId: string
   sessionId: string
-  workflowStep: 'market_research' | 'personas' | 'proposal' | 'budget'
+  workflowStep: 'market_research' | 'personas' | 'proposal' | 'budget' | 'questions' | 'pre_analysis'
   onComplete: (responses: QuestionResponse[]) => void
   onSave?: (responses: QuestionResponse[]) => void
 }
