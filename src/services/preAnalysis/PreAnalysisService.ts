@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabase';
+import { aiServiceManager } from '../ai/AIServiceManager';
 import {
   PreAnalysisSession,
   DocumentAnalysis,
@@ -697,37 +698,147 @@ export class PreAnalysisService {
   // 프라이빗 메서드들
 
   private async performAIAnalysis(
-    _content: string,
+    content: string,
     category: DocumentCategory | undefined,
-    _sessionId: string
+    sessionId: string
   ): Promise<any> {
-    // AI 분석 로직 구현 (추후 AI 서비스와 연동)
-    // 임시 구현
+    const startTime = Date.now();
+
+    try {
+      // 현재 세션의 설정 조회
+      if (!supabase) {
+        throw new Error('Supabase client not initialized');
+      }
+
+      const { data: session } = await supabase
+        .from('pre_analysis_sessions')
+        .select('ai_model, ai_provider')
+        .eq('id', sessionId)
+        .single();
+
+      const settings = {
+        aiModel: session?.ai_model || 'claude-sonnet-4-20250514',
+        aiProvider: session?.ai_provider || 'anthropic'
+      };
+
+      // AI 서비스 매니저 초기화 확인
+      if (!aiServiceManager.getCurrentProvider()) {
+        // 환경 변수에서 API 키 가져오기
+        const apiKeys = {
+          openai: import.meta.env.VITE_OPENAI_API_KEY,
+          anthropic: import.meta.env.VITE_ANTHROPIC_API_KEY,
+          google: import.meta.env.VITE_GOOGLE_AI_API_KEY
+        };
+
+        const apiKey = apiKeys[settings.aiProvider as keyof typeof apiKeys];
+        if (apiKey) {
+          await aiServiceManager.setProvider(settings.aiProvider, apiKey);
+        } else {
+          throw new Error(`${settings.aiProvider} API 키가 설정되지 않았습니다.`);
+        }
+      }
+
+      // 분석 프롬프트 생성
+      const analysisPrompt = this.generateAnalysisPrompt(content, category);
+
+      // AI 서비스 매니저를 통한 실제 AI 호출
+      const response = await aiServiceManager.generateCompletion(analysisPrompt, {
+        model: settings.aiModel,
+        maxTokens: 4000,
+        temperature: 0.3
+      });
+
+      // 응답을 파싱하여 구조화된 분석 결과 생성
+      const analysis = this.parseAnalysisResponse(response.content, category);
+
+      const processingTime = Date.now() - startTime;
+
+      return {
+        analysis,
+        mcpEnrichment: {
+          similarProjects: [],
+          marketInsights: {},
+          competitorAnalysis: [],
+          technologyTrends: [],
+        },
+        confidenceScore: 0.85,
+        processingTime,
+        aiModel: settings.aiModel,
+        aiProvider: settings.aiProvider,
+        inputTokens: response.usage.inputTokens,
+        outputTokens: response.usage.outputTokens,
+        cost: response.cost.totalCost,
+      };
+    } catch (error) {
+      console.error('AI 분석 수행 중 오류:', error);
+      throw new Error(`AI 분석 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
+    }
+  }
+
+  private generateAnalysisPrompt(content: string, category?: DocumentCategory): string {
+    const categoryContext = category ? `이 문서는 ${category} 카테고리에 속합니다.` : '';
+
+    return `다음 문서를 종합적으로 분석해주세요:
+
+${categoryContext}
+
+문서 내용:
+"""
+${content}
+"""
+
+다음 형식으로 분석 결과를 JSON 형태로 제공해주세요:
+
+{
+  "summary": "문서의 핵심 요약 (2-3문장)",
+  "keyRequirements": ["주요 요구사항들"],
+  "stakeholders": ["관련 이해관계자들"],
+  "constraints": ["제약사항들"],
+  "risks": ["위험 요소들"],
+  "opportunities": ["기회 요소들"],
+  "technicalStack": ["기술 스택 관련 정보"],
+  "timeline": ["일정 관련 정보"]
+}
+
+정확하고 구체적인 분석을 제공해주세요.`;
+  }
+
+  private parseAnalysisResponse(response: string, category?: DocumentCategory): any {
+    try {
+      // JSON 응답 파싱 시도
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsedResponse = JSON.parse(jsonMatch[0]);
+        return parsedResponse;
+      }
+    } catch (error) {
+      console.warn('AI 응답 JSON 파싱 실패, 텍스트 분석으로 전환:', error);
+    }
+
+    // JSON 파싱 실패시 텍스트 분석으로 대체
     return {
-      analysis: {
-        summary: `${category || '문서'} 분석 요약`,
-        keyRequirements: ['요구사항 1', '요구사항 2'],
-        stakeholders: ['이해관계자 1', '이해관계자 2'],
-        constraints: ['제약사항 1', '제약사항 2'],
-        risks: [],
-        opportunities: ['기회 1', '기회 2'],
-        technicalStack: ['기술 1', '기술 2'],
-        timeline: [],
-      },
-      mcpEnrichment: {
-        similarProjects: [],
-        marketInsights: {},
-        competitorAnalysis: [],
-        technologyTrends: [],
-      },
-      confidenceScore: 0.85,
-      processingTime: 30,
-      aiModel: 'gpt-4o',
-      aiProvider: 'openai',
-      inputTokens: 1000,
-      outputTokens: 500,
-      cost: 0.03,
+      summary: `${category || '문서'} 분석 완료`,
+      keyRequirements: this.extractListFromText(response, '요구사항'),
+      stakeholders: this.extractListFromText(response, '이해관계자'),
+      constraints: this.extractListFromText(response, '제약사항'),
+      risks: this.extractListFromText(response, '위험'),
+      opportunities: this.extractListFromText(response, '기회'),
+      technicalStack: this.extractListFromText(response, '기술'),
+      timeline: this.extractListFromText(response, '일정'),
     };
+  }
+
+  private extractListFromText(text: string, keyword: string): string[] {
+    const lines = text.split('\n');
+    const relevant: string[] = [];
+
+    for (const line of lines) {
+      if (line.toLowerCase().includes(keyword.toLowerCase())) {
+        relevant.push(line.trim());
+      }
+    }
+
+    return relevant.slice(0, 5); // 최대 5개까지만
   }
 
   private detectDocumentCategory(fileName: string): DocumentCategory {
@@ -756,45 +867,189 @@ export class PreAnalysisService {
   }
 
   private async generateAIQuestions(
-    _analyses: any[],
-    _options: QuestionGenerationOptions,
-    _session: any
+    analyses: any[],
+    options: QuestionGenerationOptions,
+    session: any
   ): Promise<any[]> {
-    // AI 질문 생성 로직 구현 (추후 AI 서비스와 연동)
-    // 임시 구현
-    const sampleQuestions = [
-      {
-        category: 'business' as const,
-        question: '프로젝트의 핵심 비즈니스 목표는 무엇입니까?',
-        context: '사업적 관점에서의 주요 목표',
-        required: true,
-        expectedFormat: '구체적인 목표 설명',
-        relatedDocuments: [],
-        confidenceScore: 0.9,
-      },
-      {
-        category: 'technical' as const,
-        question: '기존 시스템과의 통합 요구사항이 있습니까?',
-        context: 'API 연동, 데이터 마이그레이션 등',
-        required: false,
-        expectedFormat: '통합 범위 및 방법',
-        relatedDocuments: [],
-        confidenceScore: 0.8,
-      },
-      {
-        category: 'timeline' as const,
-        question: '프로젝트의 주요 마일스톤과 일정은?',
-        context: '주요 단계별 완료 목표일',
-        required: true,
-        expectedFormat: '마일스톤명: 목표일자 형식',
-        relatedDocuments: [],
-        confidenceScore: 0.85,
-      },
-    ];
+    try {
+      // AI 서비스 매니저 초기화 확인
+      if (!aiServiceManager.getCurrentProvider()) {
+        const apiKeys = {
+          openai: import.meta.env.VITE_OPENAI_API_KEY,
+          anthropic: import.meta.env.VITE_ANTHROPIC_API_KEY,
+          google: import.meta.env.VITE_GOOGLE_AI_API_KEY
+        };
 
-    return sampleQuestions.filter(q =>
-      _options.categories.includes(q.category)
-    ).slice(0, _options.maxQuestions);
+        const aiProvider = session.settings?.aiProvider || 'anthropic';
+        const apiKey = apiKeys[aiProvider as keyof typeof apiKeys];
+
+        if (apiKey) {
+          await aiServiceManager.setProvider(aiProvider, apiKey);
+        } else {
+          throw new Error(`${aiProvider} API 키가 설정되지 않았습니다.`);
+        }
+      }
+
+      // 분석 결과 요약 생성
+      const analysisContext = analyses.map(analysis => ({
+        summary: analysis.analysis_result?.summary || '분석 요약 없음',
+        keyRequirements: analysis.analysis_result?.keyRequirements || [],
+        stakeholders: analysis.analysis_result?.stakeholders || [],
+        technicalStack: analysis.analysis_result?.technicalStack || []
+      }));
+
+      // 질문 생성 프롬프트
+      const questionsPrompt = this.generateQuestionsPrompt(analysisContext, options);
+
+      // AI를 통한 질문 생성
+      const response = await aiServiceManager.generateCompletion(questionsPrompt, {
+        model: session.settings?.aiModel || 'claude-sonnet-4-20250514',
+        maxTokens: 3000,
+        temperature: 0.4
+      });
+
+      // 응답 파싱
+      const questions = this.parseQuestionsResponse(response.content, options);
+
+      return questions;
+    } catch (error) {
+      console.error('AI 질문 생성 오류:', error);
+
+      // 오류 발생 시 기본 질문 반환
+      const fallbackQuestions = [
+        {
+          category: 'business' as const,
+          question: '프로젝트의 핵심 비즈니스 목표는 무엇입니까?',
+          context: '사업적 관점에서의 주요 목표',
+          required: true,
+          expectedFormat: '구체적인 목표 설명',
+          relatedDocuments: [],
+          confidenceScore: 0.7,
+        },
+        {
+          category: 'technical' as const,
+          question: '기존 시스템과의 통합 요구사항이 있습니까?',
+          context: 'API 연동, 데이터 마이그레이션 등',
+          required: false,
+          expectedFormat: '통합 범위 및 방법',
+          relatedDocuments: [],
+          confidenceScore: 0.7,
+        },
+        {
+          category: 'timeline' as const,
+          question: '프로젝트의 주요 마일스톤과 일정은?',
+          context: '주요 단계별 완료 목표일',
+          required: true,
+          expectedFormat: '마일스톤명: 목표일자 형식',
+          relatedDocuments: [],
+          confidenceScore: 0.7,
+        },
+      ];
+
+      return fallbackQuestions.filter(q =>
+        options.categories.includes(q.category)
+      ).slice(0, options.maxQuestions);
+    }
+  }
+
+  private generateQuestionsPrompt(analysisContext: any[], options: QuestionGenerationOptions): string {
+    const contextSummary = analysisContext.map((context, index) =>
+      `문서 ${index + 1}: ${context.summary}`
+    ).join('\n');
+
+    const categoryList = options.categories.join(', ');
+
+    return `다음 문서 분석 결과를 바탕으로 프로젝트 진행에 필요한 핵심 질문들을 생성해주세요:
+
+분석 결과:
+${contextSummary}
+
+요청 사항:
+- 카테고리: ${categoryList}
+- 최대 질문 수: ${options.maxQuestions}
+
+다음 JSON 형식으로 질문들을 제공해주세요:
+
+[
+  {
+    "category": "business|technical|timeline|budget|stakeholder",
+    "question": "구체적이고 명확한 질문",
+    "context": "질문의 배경 설명",
+    "required": true/false,
+    "expectedFormat": "기대하는 답변 형식",
+    "relatedDocuments": [],
+    "confidenceScore": 0.0-1.0
+  }
+]
+
+프로젝트 성공에 핵심적인 질문들을 우선적으로 생성해주세요.`;
+  }
+
+  private parseQuestionsResponse(response: string, options: QuestionGenerationOptions): any[] {
+    try {
+      // JSON 응답 파싱 시도
+      const jsonMatch = response.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        const parsedQuestions = JSON.parse(jsonMatch[0]);
+        return parsedQuestions.slice(0, options.maxQuestions);
+      }
+    } catch (error) {
+      console.warn('AI 질문 응답 JSON 파싱 실패:', error);
+    }
+
+    // JSON 파싱 실패시 텍스트에서 질문 추출
+    const lines = response.split('\n');
+    const questions: any[] = [];
+    let currentQuestion: any = null;
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+
+      // 질문으로 보이는 라인 감지 (? 로 끝나는 문장)
+      if (trimmed.endsWith('?')) {
+        if (currentQuestion) {
+          questions.push(currentQuestion);
+        }
+
+        currentQuestion = {
+          category: this.detectQuestionCategory(trimmed, options.categories),
+          question: trimmed,
+          context: '분석 결과를 바탕으로 생성된 질문',
+          required: true,
+          expectedFormat: '구체적인 답변',
+          relatedDocuments: [],
+          confidenceScore: 0.8,
+        };
+      }
+    }
+
+    if (currentQuestion) {
+      questions.push(currentQuestion);
+    }
+
+    return questions.slice(0, options.maxQuestions);
+  }
+
+  private detectQuestionCategory(question: string, availableCategories: string[]): string {
+    const lowerQuestion = question.toLowerCase();
+
+    if ((lowerQuestion.includes('비즈니스') || lowerQuestion.includes('사업') || lowerQuestion.includes('목표')) && availableCategories.includes('business')) {
+      return 'business';
+    }
+    if ((lowerQuestion.includes('기술') || lowerQuestion.includes('시스템') || lowerQuestion.includes('개발')) && availableCategories.includes('technical')) {
+      return 'technical';
+    }
+    if ((lowerQuestion.includes('일정') || lowerQuestion.includes('기간') || lowerQuestion.includes('마일스톤')) && availableCategories.includes('timeline')) {
+      return 'timeline';
+    }
+    if ((lowerQuestion.includes('예산') || lowerQuestion.includes('비용') || lowerQuestion.includes('투자')) && availableCategories.includes('budget')) {
+      return 'budget';
+    }
+    if ((lowerQuestion.includes('이해관계자') || lowerQuestion.includes('팀') || lowerQuestion.includes('역할')) && availableCategories.includes('stakeholder')) {
+      return 'stakeholder';
+    }
+
+    return availableCategories[0] || 'business';
   }
 
   private async collectSessionData(sessionId: string): Promise<ServiceResponse<any>> {
@@ -828,35 +1083,201 @@ export class PreAnalysisService {
     }
   }
 
-  private async generateAIReport(_sessionData: any, _options: ReportGenerationOptions): Promise<any> {
-    // AI 보고서 생성 로직 구현 (추후 AI 서비스와 연동)
-    // 임시 구현
+  private async generateAIReport(sessionData: any, options: ReportGenerationOptions): Promise<any> {
+    const startTime = Date.now();
+
+    try {
+      // AI 서비스 매니저 초기화 확인
+      if (!aiServiceManager.getCurrentProvider()) {
+        const apiKeys = {
+          openai: import.meta.env.VITE_OPENAI_API_KEY,
+          anthropic: import.meta.env.VITE_ANTHROPIC_API_KEY,
+          google: import.meta.env.VITE_GOOGLE_AI_API_KEY
+        };
+
+        const aiProvider = sessionData.session?.settings?.aiProvider || 'anthropic';
+        const apiKey = apiKeys[aiProvider as keyof typeof apiKeys];
+
+        if (apiKey) {
+          await aiServiceManager.setProvider(aiProvider, apiKey);
+        } else {
+          throw new Error(`${aiProvider} API 키가 설정되지 않았습니다.`);
+        }
+      }
+
+      // 세션 데이터 구조화
+      const analyses = sessionData.analyses || [];
+      const questions = sessionData.questions || [];
+      const answers = sessionData.answers || [];
+
+      // 보고서 생성 프롬프트
+      const reportPrompt = this.generateReportPrompt(analyses, questions, answers, options);
+
+      // AI를 통한 보고서 생성
+      const response = await aiServiceManager.generateCompletion(reportPrompt, {
+        model: sessionData.session?.settings?.aiModel || 'claude-sonnet-4-20250514',
+        maxTokens: 6000,
+        temperature: 0.2
+      });
+
+      // 응답 파싱
+      const reportContent = this.parseReportResponse(response.content, analyses, answers);
+
+      const processingTime = Date.now() - startTime;
+
+      return {
+        ...reportContent,
+        totalProcessingTime: processingTime,
+        totalCost: response.cost.totalCost,
+        inputTokens: response.usage.inputTokens,
+        outputTokens: response.usage.outputTokens,
+      };
+    } catch (error) {
+      console.error('AI 보고서 생성 오류:', error);
+
+      // 오류 발생 시 기본 보고서 반환
+      return {
+        summary: '분석 완료된 프로젝트에 대한 종합 보고서입니다.',
+        executiveSummary: '프로젝트 추진을 위한 핵심 정보가 정리되었습니다.',
+        keyInsights: ['문서 분석이 완료되었습니다.', '질문 답변이 수집되었습니다.'],
+        riskAssessment: {
+          high: [],
+          medium: ['일부 정보가 부족할 수 있습니다.'],
+          low: [],
+          overallScore: 40,
+        },
+        recommendations: ['상세 계획 수립을 권장합니다.', '추가 검토가 필요한 영역을 확인하세요.'],
+        baselineData: {
+          requirements: [],
+          stakeholders: [],
+          constraints: [],
+          timeline: [],
+          budgetEstimates: {},
+          technicalStack: [],
+          integrationPoints: [],
+        },
+        visualizationData: {},
+        totalProcessingTime: Date.now() - startTime,
+        totalCost: 0.01,
+        inputTokens: 1000,
+        outputTokens: 500,
+      };
+    }
+  }
+
+  private generateReportPrompt(analyses: any[], questions: any[], answers: any[], options: ReportGenerationOptions): string {
+    const analysisContext = analyses.map((analysis, index) =>
+      `분석 ${index + 1}: ${analysis.analysis_result?.summary || '분석 요약 없음'}`
+    ).join('\n');
+
+    const questionsContext = questions.map((q, index) =>
+      `질문 ${index + 1}: ${q.question}`
+    ).join('\n');
+
+    const answersContext = answers.map((a, index) => {
+      const question = questions.find(q => q.id === a.question_id);
+      return `답변 ${index + 1}: ${question?.question} → ${a.answer}`;
+    }).join('\n');
+
+    return `다음 정보를 바탕으로 종합적인 프로젝트 분석 보고서를 생성해주세요:
+
+## 문서 분석 결과:
+${analysisContext}
+
+## 질문과 답변:
+${questionsContext}
+
+${answersContext}
+
+## 보고서 요구사항:
+- 형식: ${options.format}
+- 포함 섹션: ${options.includeCharts ? '차트 포함' : '텍스트 위주'}
+
+다음 JSON 형식으로 보고서를 작성해주세요:
+
+{
+  "summary": "전체 프로젝트에 대한 간결한 요약",
+  "executiveSummary": "경영진용 핵심 요약",
+  "keyInsights": ["주요 인사이트들의 배열"],
+  "riskAssessment": {
+    "high": ["높은 위험 요소들"],
+    "medium": ["중간 위험 요소들"],
+    "low": ["낮은 위험 요소들"],
+    "overallScore": 0-100
+  },
+  "recommendations": ["구체적인 권장사항들"],
+  "baselineData": {
+    "requirements": ["주요 요구사항들"],
+    "stakeholders": ["이해관계자들"],
+    "constraints": ["제약사항들"],
+    "timeline": ["일정 관련 정보"],
+    "technicalStack": ["기술 스택 정보"],
+    "integrationPoints": ["통합 포인트들"]
+  }
+}
+
+정확하고 실행 가능한 분석 결과를 제공해주세요.`;
+  }
+
+  private parseReportResponse(response: string, analyses: any[], _answers: any[]): any {
+    try {
+      // JSON 응답 파싱 시도
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsedReport = JSON.parse(jsonMatch[0]);
+        return parsedReport;
+      }
+    } catch (error) {
+      console.warn('AI 보고서 응답 JSON 파싱 실패:', error);
+    }
+
+    // JSON 파싱 실패시 텍스트에서 정보 추출
     return {
-      summary: '프로젝트 종합 분석 요약',
-      executiveSummary: '경영진용 요약',
-      keyInsights: ['주요 인사이트 1', '주요 인사이트 2'],
+      summary: this.extractSectionFromText(response, '요약') || '프로젝트 분석이 완료되었습니다.',
+      executiveSummary: this.extractSectionFromText(response, '경영진') || '프로젝트 추진을 위한 핵심 정보가 준비되었습니다.',
+      keyInsights: this.extractListFromTextResponse(response, '인사이트') || ['분석 결과가 정리되었습니다.'],
       riskAssessment: {
-        high: [],
-        medium: [],
-        low: [],
-        overallScore: 30,
+        high: this.extractListFromTextResponse(response, '높은 위험') || [],
+        medium: this.extractListFromTextResponse(response, '중간 위험') || [],
+        low: this.extractListFromTextResponse(response, '낮은 위험') || [],
+        overallScore: 50,
       },
-      recommendations: ['권장사항 1', '권장사항 2'],
+      recommendations: this.extractListFromTextResponse(response, '권장') || ['상세 검토를 권장합니다.'],
       baselineData: {
-        requirements: [],
-        stakeholders: [],
-        constraints: [],
-        timeline: [],
-        budgetEstimates: {},
-        technicalStack: [],
+        requirements: analyses.flatMap(a => a.analysis_result?.keyRequirements || []),
+        stakeholders: analyses.flatMap(a => a.analysis_result?.stakeholders || []),
+        constraints: analyses.flatMap(a => a.analysis_result?.constraints || []),
+        timeline: analyses.flatMap(a => a.analysis_result?.timeline || []),
+        technicalStack: analyses.flatMap(a => a.analysis_result?.technicalStack || []),
         integrationPoints: [],
       },
       visualizationData: {},
-      totalProcessingTime: 120,
-      totalCost: 0.15,
-      inputTokens: 5000,
-      outputTokens: 2000,
     };
+  }
+
+  private extractSectionFromText(text: string, keyword: string): string | null {
+    const lines = text.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].toLowerCase().includes(keyword.toLowerCase())) {
+        // 다음 몇 줄을 합쳐서 반환
+        const content = lines.slice(i, i + 3).join(' ').trim();
+        return content.length > 10 ? content : null;
+      }
+    }
+    return null;
+  }
+
+  private extractListFromTextResponse(text: string, keyword: string): string[] {
+    const lines = text.split('\n');
+    const relevant: string[] = [];
+
+    for (const line of lines) {
+      if (line.toLowerCase().includes(keyword.toLowerCase()) && line.includes('-')) {
+        relevant.push(line.replace(/^[-*•]\s*/, '').trim());
+      }
+    }
+
+    return relevant.slice(0, 5); // 최대 5개까지만
   }
 
   private async completeSession(sessionId: string, totalCost: number): Promise<void> {

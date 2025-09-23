@@ -171,12 +171,21 @@ export const AnalysisProgress = React.forwardRef<
         setDocumentStatuses(prev => prev.map(doc => {
           const status = statusMap[doc.id];
           if (status) {
+            // 유효한 상태 값인지 확인
+            let documentStatus: DocumentStatus['status'] = 'pending';
+            if (status.status === 'completed') {
+              documentStatus = 'completed';
+            } else if (status.status === 'error') {
+              documentStatus = 'error';
+            } else if (status.status === 'analyzing' || status.status === 'in_progress') {
+              documentStatus = 'analyzing';
+            }
+
             return {
               ...doc,
-              status: status.status === 'completed' ? 'completed' :
-                     status.status === 'error' ? 'error' : 'analyzing',
-              progress: status.status === 'completed' ? 100 :
-                       status.status === 'analyzing' ? Math.min(95, doc.progress + 5) : doc.progress,
+              status: documentStatus,
+              progress: documentStatus === 'completed' ? 100 :
+                       documentStatus === 'analyzing' ? Math.min(95, (doc.progress || 0) + 5) : (doc.progress || 0),
               processingTime: status.processingTime,
               confidenceScore: status.confidenceScore,
             };
@@ -370,6 +379,13 @@ export const AnalysisProgress = React.forwardRef<
   };
 
   const updateStageStatus = (stageId: string, status: AnalysisStage['status']) => {
+    // 유효한 상태 값인지 확인
+    const validStatuses: AnalysisStage['status'][] = ['pending', 'in_progress', 'completed', 'failed'];
+    if (!validStatuses.includes(status)) {
+      console.error('Invalid stage status:', status);
+      return;
+    }
+
     setStages(prev =>
       prev.map(stage =>
         stage.id === stageId
