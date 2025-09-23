@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
   FileText,
-  Search,
-  Brain,
   MessageSquare,
   CheckCircle,
   Clock,
@@ -10,11 +8,27 @@ import {
   Play,
   Pause,
   RotateCcw,
+  FileCheck,
+  Loader,
+  AlertCircle,
 } from 'lucide-react';
+import { preAnalysisService } from '../../services/preAnalysis/PreAnalysisService';
+import { Card } from '../LinearComponents';
 
 interface AnalysisProgressProps {
   sessionId: string;
   onComplete: () => void;
+}
+
+interface DocumentStatus {
+  id: string;
+  fileName: string;
+  status: 'pending' | 'analyzing' | 'completed' | 'error';
+  progress: number;
+  category?: string;
+  processingTime?: number;
+  confidenceScore?: number;
+  error?: string;
 }
 
 interface AnalysisStage {
@@ -31,42 +45,24 @@ interface AnalysisStage {
   endTime?: Date;
 }
 
-export const AnalysisProgress: React.FC<AnalysisProgressProps> = ({
-  sessionId,
-  onComplete,
-}) => {
+export const AnalysisProgress = React.forwardRef<
+  { startAnalysis: () => void },
+  AnalysisProgressProps
+>(({ sessionId, onComplete }, ref) => {
   const [stages, setStages] = useState<AnalysisStage[]>([
     {
-      id: 'document_classification',
-      name: '문서 분류',
-      description: '업로드된 문서들을 자동으로 분류합니다',
+      id: 'document_analysis',
+      name: '문서 분석',
+      description: '업로드된 문서들을 AI로 분석합니다',
       icon: FileText,
-      estimatedDuration: 30,
-      status: 'pending',
-      progress: 0,
-    },
-    {
-      id: 'structure_analysis',
-      name: '구조 분석',
-      description: '문서 내용과 구조를 분석합니다',
-      icon: Search,
-      estimatedDuration: 60,
-      status: 'pending',
-      progress: 0,
-    },
-    {
-      id: 'mcp_enrichment',
-      name: 'MCP 심층 분석',
-      description: 'MCP 서버를 통해 추가 정보를 수집합니다',
-      icon: Brain,
-      estimatedDuration: 90,
+      estimatedDuration: 120,
       status: 'pending',
       progress: 0,
     },
     {
       id: 'question_generation',
       name: '질문 생성',
-      description: 'AI가 분석 결과를 바탕으로 질문을 생성합니다',
+      description: '분석 결과를 바탕으로 맞춤형 질문을 생성합니다',
       icon: MessageSquare,
       estimatedDuration: 45,
       status: 'pending',
@@ -74,85 +70,305 @@ export const AnalysisProgress: React.FC<AnalysisProgressProps> = ({
     },
   ]);
 
+  const [documentStatuses, setDocumentStatuses] = useState<DocumentStatus[]>([]);
+  const [projectDocuments, setProjectDocuments] = useState<any[]>([]);
+
   const [overallProgress, setOverallProgress] = useState(0);
-  const [, setCurrentStage] = useState<string>('document_classification');
+  const [, setCurrentStage] = useState<string>('document_analysis');
   const [isPaused, setIsPaused] = useState(false);
   const [activityLog, setActivityLog] = useState<string[]>([]);
   const [startTime, setStartTime] = useState<Date>(new Date());
   const [elapsedTime, setElapsedTime] = useState(0);
 
   useEffect(() => {
-    // 분석 시작
-    startAnalysis();
+    // 세션 시작 시 초기화
+    initializeAnalysis();
 
-    // 실시간 업데이트 구독 (Supabase Realtime)
-    // 실제 구현에서는 Supabase Realtime을 사용
+    // 실시간 업데이트
     const interval = setInterval(() => {
       if (!isPaused) {
-        simulateProgress();
+        checkAnalysisProgress();
       }
       updateElapsedTime();
-    }, 1000);
+    }, 2000);
 
     return () => clearInterval(interval);
   }, [sessionId, isPaused]);
 
-  const startAnalysis = async () => {
+  const initializeAnalysis = async () => {
     setStartTime(new Date());
-    addToActivityLog('분석을 시작합니다...');
+    addToActivityLog('사전 분석 섽션을 로드합니다...');
 
-    // 첫 번째 단계 시작
-    updateStageStatus('document_classification', 'in_progress');
-  };
-
-  const simulateProgress = () => {
-    setStages(prev => {
-      const updated = [...prev];
-      const currentStageIndex = updated.findIndex(s => s.status === 'in_progress');
-
-      if (currentStageIndex >= 0) {
-        const stage = updated[currentStageIndex];
-        const increment = Math.random() * 10 + 5; // 5-15% 증가
-
-        if (stage.progress < 100) {
-          stage.progress = Math.min(100, stage.progress + increment);
-          stage.message = `${stage.name} 진행 중... (${Math.round(stage.progress)}%)`;
-        } else {
-          // 현재 단계 완료
-          stage.status = 'completed';
-          stage.endTime = new Date();
-          stage.message = `${stage.name} 완료`;
-
-          addToActivityLog(`✓ ${stage.name} 완료`);
-
-          // 다음 단계 시작
-          if (currentStageIndex < updated.length - 1) {
-            const nextStage = updated[currentStageIndex + 1];
-            nextStage.status = 'in_progress';
-            nextStage.startTime = new Date();
-            setCurrentStage(nextStage.id);
-            addToActivityLog(`${nextStage.name} 시작`);
-          } else {
-            // 모든 단계 완료
-            setTimeout(() => {
-              addToActivityLog('🎉 모든 분석 단계가 완료되었습니다!');
-              onComplete();
-            }, 1000);
-          }
-        }
+    try {
+      // 세션 정보 조회
+      const sessionResponse = await preAnalysisService.getSession(sessionId);
+      if (!sessionResponse.success || !sessionResponse.data) {
+        addToActivityLog('❌ 세션 정보를 조회할 수 없습니다.');
+        return;
       }
 
-      return updated;
-    });
+      const session = sessionResponse.data;
+      addToActivityLog(`✓ 세션 정보 로드 완료: ${session.projectId}`);
 
-    // 전체 진행률 계산
-    setOverallProgress(() => {
-      const completedStages = stages.filter(s => s.status === 'completed').length;
-      const inProgressStage = stages.find(s => s.status === 'in_progress');
-      const inProgressContribution = inProgressStage ? inProgressStage.progress / stages.length : 0;
+      // 프로젝트 문서 목록 조회
+      const documentsResponse = await preAnalysisService.getProjectDocuments(session.projectId);
+      if (documentsResponse.success && documentsResponse.data) {
+        const documents = documentsResponse.data;
+        setProjectDocuments(documents);
 
-      return Math.min(100, ((completedStages / stages.length) * 100) + inProgressContribution);
-    });
+        // 문서별 초기 상태 설정
+        const initialStatuses: DocumentStatus[] = documents.map(doc => ({
+          id: doc.id,
+          fileName: doc.file_name,
+          status: 'pending',
+          progress: 0,
+          category: undefined,
+        }));
+
+        setDocumentStatuses(initialStatuses);
+        addToActivityLog(`📁 ${documents.length}개 문서 발견`);
+        addToActivityLog('📋 분석 준비 완료 - 시작 대기 중...');
+
+        // 자동 시작 제거 - 사용자가 수동으로 시작해야 함
+      } else {
+        addToActivityLog('⚠️ 분석할 문서가 없습니다.');
+      }
+    } catch (error) {
+      console.error('Analysis initialization error:', error);
+      addToActivityLog('❌ 분석 초기화 중 오류가 발생했습니다.');
+    }
+  };
+
+  // 실제 분석 시작 메서드 (외부에서 호출됨)
+  const startDocumentAnalysis = async () => {
+    if (documentStatuses.length === 0) {
+      addToActivityLog('❌ 분석할 문서가 없습니다.');
+      return;
+    }
+
+    updateStageStatus('document_analysis', 'in_progress');
+    addToActivityLog('🚀 문서 분석을 시작합니다...');
+
+    // 문서 상태를 분석 중으로 변경
+    setDocumentStatuses(prev => prev.map(doc => ({
+      ...doc,
+      status: 'analyzing' as const,
+      progress: 10,
+    })));
+  };
+
+  // 분석 시작을 위한 외부 인터페이스
+  React.useImperativeHandle(ref, () => ({
+    startAnalysis: startDocumentAnalysis,
+  }));
+
+  const checkAnalysisProgress = async () => {
+    try {
+      // 세션의 문서 분석 상태 조회
+      const statusResponse = await preAnalysisService.getSessionDocumentStatus(sessionId);
+      if (statusResponse.success && statusResponse.data) {
+        const statusMap = statusResponse.data;
+
+        // 문서 상태 업데이트
+        setDocumentStatuses(prev => prev.map(doc => {
+          const status = statusMap[doc.id];
+          if (status) {
+            return {
+              ...doc,
+              status: status.status === 'completed' ? 'completed' :
+                     status.status === 'error' ? 'error' : 'analyzing',
+              progress: status.status === 'completed' ? 100 :
+                       status.status === 'analyzing' ? Math.min(95, doc.progress + 5) : doc.progress,
+              processingTime: status.processingTime,
+              confidenceScore: status.confidenceScore,
+            };
+          }
+          return doc;
+        }));
+
+        // 전체 진행률 계산
+        updateOverallProgress();
+      }
+    } catch (error) {
+      console.error('Progress check error:', error);
+    }
+  };
+
+  const updateOverallProgress = () => {
+    const completedDocs = documentStatuses.filter(doc => doc.status === 'completed').length;
+    const totalDocs = documentStatuses.length;
+
+    if (totalDocs > 0) {
+      const docProgress = (completedDocs / totalDocs) * 60; // 문서 분석 60%
+
+      setStages(prev => {
+        const updated = [...prev];
+        const docStage = updated.find(s => s.id === 'document_analysis');
+
+        if (docStage) {
+          docStage.progress = Math.min(100, docProgress * (100/60));
+
+          if (completedDocs === totalDocs && docStage.status !== 'completed') {
+            docStage.status = 'completed';
+            docStage.endTime = new Date();
+            addToActivityLog('✅ 모든 문서 분석이 완료되었습니다!');
+
+            // 질문 생성 시작
+            const questionStage = updated.find(s => s.id === 'question_generation');
+            if (questionStage) {
+              questionStage.status = 'in_progress';
+              questionStage.startTime = new Date();
+              addToActivityLog('🤖 AI 질문 생성을 시작합니다...');
+
+              // 실제 질문 생성 호출
+              generateQuestions();
+            }
+          }
+        }
+
+        return updated;
+      });
+
+      // 전체 진행률 업데이트
+      const questionStage = stages.find(s => s.id === 'question_generation');
+      const questionProgress = questionStage?.status === 'completed' ? 40 :
+                              questionStage?.status === 'in_progress' ? questionStage.progress * 0.4 : 0;
+
+      setOverallProgress(Math.min(100, docProgress + questionProgress));
+    }
+  };
+
+  const generateQuestions = async () => {
+    try {
+      const response = await preAnalysisService.generateQuestions(sessionId, {
+        categories: ['business', 'technical', 'timeline', 'stakeholders', 'constraints'],
+        maxQuestions: 15,
+        includeFollowUps: true,
+        contextDepth: 'detailed',
+      });
+
+      if (response.success) {
+        // 질문 생성 완료
+        setStages(prev => {
+          const updated = [...prev];
+          const questionStage = updated.find(s => s.id === 'question_generation');
+
+          if (questionStage) {
+            questionStage.status = 'completed';
+            questionStage.progress = 100;
+            questionStage.endTime = new Date();
+          }
+
+          return updated;
+        });
+
+        setOverallProgress(100);
+        addToActivityLog(`🎯 ${response.data?.length || 0}개 질문이 생성되었습니다!`);
+        addToActivityLog('🎉 사전 분석이 완료되었습니다!');
+
+        // 완료 콜백 호출
+        setTimeout(() => {
+          onComplete();
+        }, 1500);
+      } else {
+        addToActivityLog('❌ 질문 생성 중 오류가 발생했습니다.');
+      }
+    } catch (error) {
+      console.error('Question generation error:', error);
+      addToActivityLog('❌ 질문 생성 중 오류가 발생했습니다.');
+    }
+  };
+
+  const renderDocumentProgress = () => {
+    if (documentStatuses.length === 0) {
+      return (
+        <Card className="p-4">
+          <div className="text-center text-text-muted">
+            <Loader className="w-8 h-8 animate-spin mx-auto mb-2" />
+            <p>문서 정보를 로드하는 중...</p>
+          </div>
+        </Card>
+      );
+    }
+
+    return (
+      <Card className="p-4">
+        <h4 className="font-medium text-text-primary mb-4 flex items-center gap-2">
+          <FileCheck className="w-5 h-5" />
+          문서별 분석 상태 ({documentStatuses.filter(d => d.status === 'completed').length}/{documentStatuses.length})
+        </h4>
+
+        <div className="space-y-3 max-h-64 overflow-y-auto">
+          {documentStatuses.map((doc) => {
+            const getStatusIcon = () => {
+              switch (doc.status) {
+                case 'completed':
+                  return <CheckCircle className="w-4 h-4 text-success" />;
+                case 'analyzing':
+                  return <Loader className="w-4 h-4 text-primary animate-spin" />;
+                case 'error':
+                  return <AlertCircle className="w-4 h-4 text-error" />;
+                default:
+                  return <Clock className="w-4 h-4 text-text-muted" />;
+              }
+            };
+
+            const getStatusColor = () => {
+              switch (doc.status) {
+                case 'completed': return 'border-success/30 bg-success/5';
+                case 'analyzing': return 'border-primary/30 bg-primary/5';
+                case 'error': return 'border-error/30 bg-error/5';
+                default: return 'border-border-primary bg-bg-secondary';
+              }
+            };
+
+            return (
+              <div key={doc.id} className={`p-3 rounded-lg border ${getStatusColor()}`}>
+                <div className="flex items-center gap-3">
+                  {getStatusIcon()}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-text-primary truncate">
+                        {doc.fileName}
+                      </p>
+                      <span className="text-xs text-text-muted">
+                        {doc.status === 'completed' ? '완료' :
+                         doc.status === 'analyzing' ? '분석중' :
+                         doc.status === 'error' ? '오류' : '대기'}
+                      </span>
+                    </div>
+
+                    {doc.status === 'analyzing' && (
+                      <div className="mt-2">
+                        <div className="w-full bg-bg-tertiary rounded-full h-1.5">
+                          <div
+                            className="bg-primary h-1.5 rounded-full transition-all duration-500"
+                            style={{ width: `${doc.progress}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {doc.status === 'completed' && doc.confidenceScore && (
+                      <div className="mt-1 text-xs text-text-muted">
+                        신뢰도: {Math.round(doc.confidenceScore * 100)}%
+                        {doc.processingTime && ` • 처리시간: ${doc.processingTime}초`}
+                      </div>
+                    )}
+
+                    {doc.status === 'error' && doc.error && (
+                      <div className="mt-1 text-xs text-error">
+                        {doc.error}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+    );
   };
 
   const updateStageStatus = (stageId: string, status: AnalysisStage['status']) => {
@@ -197,13 +413,13 @@ export const AnalysisProgress: React.FC<AnalysisProgressProps> = ({
         }))
       );
       setOverallProgress(0);
-      setCurrentStage('document_classification');
+      setCurrentStage('document_analysis');
       setIsPaused(false);
       setActivityLog([]);
       setStartTime(new Date());
       setElapsedTime(0);
 
-      setTimeout(() => startAnalysis(), 500);
+      setTimeout(() => initializeAnalysis(), 500);
     }
   };
 
@@ -232,15 +448,15 @@ export const AnalysisProgress: React.FC<AnalysisProgressProps> = ({
       {/* 헤더 및 컨트롤 */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-xl font-semibold text-white">분석 진행 상황</h3>
-          <p className="text-gray-400 mt-1">
+          <h3 className="text-xl font-semibold text-text-primary">분석 진행 상황</h3>
+          <p className="text-text-secondary mt-1">
             AI와 MCP를 활용한 문서 분석이 진행 중입니다
           </p>
         </div>
         <div className="flex items-center gap-3">
           <button
             onClick={handlePauseResume}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-bg-secondary hover:bg-bg-tertiary text-text-primary rounded-lg transition-colors border border-border-primary"
           >
             {isPaused ? (
               <>
@@ -256,7 +472,7 @@ export const AnalysisProgress: React.FC<AnalysisProgressProps> = ({
           </button>
           <button
             onClick={handleRestart}
-            className="flex items-center gap-2 px-4 py-2 bg-red-700 hover:bg-red-600 text-white rounded-lg transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-error hover:bg-error/80 text-white rounded-lg transition-colors"
           >
             <RotateCcw className="w-4 h-4" />
             다시 시작
@@ -265,33 +481,36 @@ export const AnalysisProgress: React.FC<AnalysisProgressProps> = ({
       </div>
 
       {/* 전체 진행률 */}
-      <div className="p-6 bg-gray-800 rounded-lg border border-gray-700">
+      <Card className="p-6">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h4 className="text-lg font-medium text-white">전체 진행률</h4>
-            <p className="text-sm text-gray-400">
+            <h4 className="text-lg font-medium text-text-primary">전체 진행률</h4>
+            <p className="text-sm text-text-secondary">
               {Math.round(overallProgress)}% 완료 •
               경과 시간: {formatDuration(elapsedTime)} •
               예상 남은 시간: {formatDuration(getEstimatedTimeRemaining())}
             </p>
           </div>
           <div className="text-right">
-            <div className="text-2xl font-bold text-white">
+            <div className="text-2xl font-bold text-text-primary">
               {Math.round(overallProgress)}%
             </div>
             {isPaused && (
-              <div className="text-sm text-yellow-400">일시정지됨</div>
+              <div className="text-sm text-warning">일시정지됨</div>
             )}
           </div>
         </div>
 
-        <div className="w-full bg-gray-700 rounded-full h-3">
+        <div className="w-full bg-bg-tertiary rounded-full h-3">
           <div
-            className="bg-gradient-to-r from-blue-500 to-purple-500 h-3 rounded-full transition-all duration-500 ease-out"
+            className="bg-gradient-to-r from-primary to-primary/80 h-3 rounded-full transition-all duration-500 ease-out"
             style={{ width: `${overallProgress}%` }}
           />
         </div>
-      </div>
+      </Card>
+
+      {/* 문서별 분석 상태 */}
+      {renderDocumentProgress()}
 
       {/* 단계별 진행 상황 */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -307,12 +526,12 @@ export const AnalysisProgress: React.FC<AnalysisProgressProps> = ({
               className={`
                 p-4 rounded-lg border-2 transition-all
                 ${isActive
-                  ? 'border-blue-500 bg-blue-900/20'
+                  ? 'border-primary bg-primary/10'
                   : isCompleted
-                  ? 'border-green-500 bg-green-900/20'
+                  ? 'border-success bg-success/10'
                   : isFailed
-                  ? 'border-red-500 bg-red-900/20'
-                  : 'border-gray-700 bg-gray-800'
+                  ? 'border-error bg-error/10'
+                  : 'border-border-primary bg-bg-secondary'
                 }
                 ${isPaused && isActive ? 'opacity-60' : ''}
               `}
@@ -321,12 +540,12 @@ export const AnalysisProgress: React.FC<AnalysisProgressProps> = ({
                 <div className={`
                   p-2 rounded-lg
                   ${isActive
-                    ? 'bg-blue-600 text-white'
+                    ? 'bg-primary text-white'
                     : isCompleted
-                    ? 'bg-green-600 text-white'
+                    ? 'bg-success text-white'
                     : isFailed
-                    ? 'bg-red-600 text-white'
-                    : 'bg-gray-700 text-gray-400'
+                    ? 'bg-error text-white'
+                    : 'bg-bg-tertiary text-text-muted'
                   }
                 `}>
                   {isCompleted ? (
@@ -343,31 +562,31 @@ export const AnalysisProgress: React.FC<AnalysisProgressProps> = ({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <h5 className={`font-medium ${
-                      isCompleted ? 'text-green-300' :
-                      isActive ? 'text-blue-300' :
-                      isFailed ? 'text-red-300' :
-                      'text-gray-400'
+                      isCompleted ? 'text-success' :
+                      isActive ? 'text-primary' :
+                      isFailed ? 'text-error' :
+                      'text-text-muted'
                     }`}>
                       {stage.name}
                     </h5>
-                    <span className="text-xs text-gray-500">
+                    <span className="text-xs text-text-muted">
                       #{index + 1}
                     </span>
                   </div>
 
-                  <p className="text-sm text-gray-400 mb-3">
+                  <p className="text-sm text-text-secondary mb-3">
                     {stage.description}
                   </p>
 
                   {/* 진행률 바 */}
                   {(isActive || isCompleted) && (
                     <div className="mb-2">
-                      <div className="w-full bg-gray-700 rounded-full h-2">
+                      <div className="w-full bg-bg-tertiary rounded-full h-2">
                         <div
                           className={`h-2 rounded-full transition-all duration-300 ${
-                            isCompleted ? 'bg-green-500' :
-                            isActive ? 'bg-blue-500' :
-                            'bg-gray-500'
+                            isCompleted ? 'bg-success' :
+                            isActive ? 'bg-primary' :
+                            'bg-text-muted'
                           }`}
                           style={{ width: `${stage.progress}%` }}
                         />
@@ -378,10 +597,10 @@ export const AnalysisProgress: React.FC<AnalysisProgressProps> = ({
                   {/* 상태 메시지 */}
                   {stage.message && (
                     <p className={`text-xs ${
-                      isCompleted ? 'text-green-400' :
-                      isActive ? 'text-blue-400' :
-                      isFailed ? 'text-red-400' :
-                      'text-gray-500'
+                      isCompleted ? 'text-success' :
+                      isActive ? 'text-primary' :
+                      isFailed ? 'text-error' :
+                      'text-text-muted'
                     }`}>
                       {stage.message}
                     </p>
@@ -389,7 +608,7 @@ export const AnalysisProgress: React.FC<AnalysisProgressProps> = ({
 
                   {/* 시간 정보 */}
                   {(stage.startTime || stage.endTime) && (
-                    <div className="mt-2 text-xs text-gray-500">
+                    <div className="mt-2 text-xs text-text-muted">
                       {stage.startTime && (
                         <span>시작: {stage.startTime.toLocaleTimeString()}</span>
                       )}
@@ -407,25 +626,25 @@ export const AnalysisProgress: React.FC<AnalysisProgressProps> = ({
       </div>
 
       {/* 실시간 활동 로그 */}
-      <div className="p-4 bg-gray-800 rounded-lg border border-gray-700">
-        <h4 className="font-medium text-white mb-3">실시간 활동 로그</h4>
+      <Card className="p-4">
+        <h4 className="font-medium text-text-primary mb-3">실시간 활동 로그</h4>
         <div className="space-y-1 max-h-48 overflow-y-auto">
           {activityLog.length > 0 ? (
             activityLog.map((log, index) => (
               <div
                 key={index}
-                className="text-sm text-gray-300 font-mono bg-gray-900 px-3 py-1 rounded"
+                className="text-sm text-text-secondary font-mono bg-bg-tertiary px-3 py-1 rounded"
               >
                 {log}
               </div>
             ))
           ) : (
-            <div className="text-sm text-gray-500 italic">
+            <div className="text-sm text-text-muted italic">
               활동 로그가 여기에 표시됩니다...
             </div>
           )}
         </div>
-      </div>
+      </Card>
     </div>
   );
-};
+});

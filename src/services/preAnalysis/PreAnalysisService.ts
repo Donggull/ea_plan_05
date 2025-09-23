@@ -24,6 +24,193 @@ export class PreAnalysisService {
   }
 
   /**
+   * 프로젝트 문서 목록 조회
+   */
+  async getProjectDocuments(projectId: string): Promise<ServiceResponse<any[]>> {
+    try {
+      if (!supabase) {
+        throw new Error('Supabase client not initialized');
+      }
+
+      const { data, error } = await supabase
+        .from('documents')
+        .select('*')
+        .eq('project_id', projectId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('문서 조회 오류:', error);
+        return { success: false, error: error.message };
+      }
+
+      return {
+        success: true,
+        data: data || [],
+      };
+    } catch (error) {
+      console.error('문서 조회 중 오류:', error);
+      return {
+        success: false,
+        error: '문서 조회 중 오류가 발생했습니다.',
+      };
+    }
+  }
+
+  /**
+   * 세션별 문서 분석 상태 조회
+   */
+  async getSessionDocumentStatus(sessionId: string): Promise<ServiceResponse<Record<string, any>>> {
+    try {
+      if (!supabase) {
+        throw new Error('Supabase client not initialized');
+      }
+
+      const { data, error } = await supabase
+        .from('document_analyses')
+        .select('document_id, status, processing_time, confidence_score')
+        .eq('session_id', sessionId);
+
+      if (error) {
+        console.error('문서 분석 상태 조회 오류:', error);
+        return { success: false, error: error.message };
+      }
+
+      // 문서 ID를 키로 하는 상태 맵 생성
+      const statusMap = (data || []).reduce((acc, item) => {
+        acc[item.document_id] = {
+          status: item.status,
+          processingTime: item.processing_time,
+          confidenceScore: item.confidence_score,
+        };
+        return acc;
+      }, {} as Record<string, any>);
+
+      return {
+        success: true,
+        data: statusMap,
+      };
+    } catch (error) {
+      console.error('문서 분석 상태 조회 중 오류:', error);
+      return {
+        success: false,
+        error: '문서 분석 상태 조회 중 오류가 발생했습니다.',
+      };
+    }
+  }
+
+  /**
+   * 프로젝트의 모든 문서 분석 시작
+   */
+  async analyzeAllProjectDocuments(
+    sessionId: string,
+    projectId: string
+  ): Promise<ServiceResponse<any>> {
+    try {
+      // 프로젝트 문서 목록 조회
+      const documentsResponse = await this.getProjectDocuments(projectId);
+      if (!documentsResponse.success || !documentsResponse.data) {
+        return { success: false, error: '프로젝트 문서를 조회할 수 없습니다.' };
+      }
+
+      const documents = documentsResponse.data;
+      if (documents.length === 0) {
+        return { success: false, error: '분석할 문서가 없습니다.' };
+      }
+
+      // 진행 상황 업데이트
+      this.emitProgressUpdate({
+        sessionId,
+        stage: 'document_analysis',
+        status: 'in_progress',
+        progress: 20,
+        message: `${documents.length}개 문서 분석을 시작합니다.`,
+        timestamp: new Date(),
+      });
+
+      const results = [];
+      const totalDocuments = documents.length;
+
+      // 각 문서를 순차적으로 분석
+      for (let i = 0; i < documents.length; i++) {
+        const document = documents[i];
+        const progressPercent = 20 + Math.floor((i / totalDocuments) * 40); // 20-60% 범위
+
+        try {
+          // 문서별 분석 시작 알림
+          this.emitProgressUpdate({
+            sessionId,
+            stage: 'document_analysis',
+            status: 'in_progress',
+            progress: progressPercent,
+            message: `"${document.file_name}" 문서 분석 중... (${i + 1}/${totalDocuments})`,
+            timestamp: new Date(),
+          });
+
+          const analysisResult = await this.analyzeDocument(
+            sessionId,
+            document.id,
+            this.detectDocumentCategory(document.file_name)
+          );
+
+          if (analysisResult.success) {
+            results.push({
+              documentId: document.id,
+              fileName: document.file_name,
+              status: 'completed',
+              result: analysisResult.data,
+            });
+          } else {
+            results.push({
+              documentId: document.id,
+              fileName: document.file_name,
+              status: 'error',
+              error: analysisResult.error,
+            });
+          }
+        } catch (error) {
+          console.error(`문서 "${document.file_name}" 분석 오류:`, error);
+          results.push({
+            documentId: document.id,
+            fileName: document.file_name,
+            status: 'error',
+            error: '문서 분석 중 오류가 발생했습니다.',
+          });
+        }
+      }
+
+      // 최종 진행 상황 업데이트
+      const successCount = results.filter(r => r.status === 'completed').length;
+      const errorCount = results.filter(r => r.status === 'error').length;
+
+      this.emitProgressUpdate({
+        sessionId,
+        stage: 'document_analysis',
+        status: 'completed',
+        progress: 60,
+        message: `문서 분석 완료: 성공 ${successCount}개, 실패 ${errorCount}개`,
+        timestamp: new Date(),
+      });
+
+      return {
+        success: true,
+        data: {
+          total: totalDocuments,
+          success: successCount,
+          errors: errorCount,
+          results,
+        },
+        message: `총 ${totalDocuments}개 문서 분석이 완료되었습니다.`,
+      };
+    } catch (error) {
+      console.error('프로젝트 문서 분석 오류:', error);
+      return {
+        success: false,
+        error: '프로젝트 문서 분석 중 오류가 발생했습니다.',
+      };
+    }
+  }
+
+  /**
    * 새로운 사전 분석 세션 시작
    */
   async startSession(
@@ -69,9 +256,11 @@ export class PreAnalysisService {
         stage: 'session_created',
         status: 'completed',
         progress: 10,
-        message: '사전 분석 세션이 생성되었습니다.',
+        message: '사전 분석 세션이 생성되었습니다. 분석 시작 버튼을 클릭하여 진행하세요.',
         timestamp: new Date(),
       });
+
+      // 자동 분석 제거 - 사용자가 수동으로 시작해야 함
 
       return {
         success: true,

@@ -62,6 +62,7 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
   const [documentCount, setDocumentCount] = useState(0);
   const [documentsLoading, setDocumentsLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const analysisProgressRef = useRef<{ startAnalysis: () => void }>(null);
 
   // ref를 통한 외부 함수 노출
   useImperativeHandle(ref, () => ({
@@ -161,24 +162,72 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
   };
 
   const handleStartAnalysis = async () => {
-    if (!currentSession) {
-      await createNewSession();
-    }
+    try {
+      setIsLoading(true);
+      setError(null);
 
-    if (currentSession) {
+      // 세션이 없으면 새로 생성
+      let sessionToUse = currentSession;
+      if (!sessionToUse) {
+        await createNewSession();
+        sessionToUse = currentSession;
+      }
+
+      if (!sessionToUse) {
+        setError('세션 생성에 실패했습니다.');
+        return;
+      }
+
+      // 문서 수 확인
+      if (documentCount === 0) {
+        setError('분석할 문서가 없습니다. 먼저 문서를 업로드해주세요.');
+        return;
+      }
+
+      // 분석 단계로 이동
       setCurrentStep('analysis');
+
+      // AnalysisProgress 컴포넌트에서 분석 시작
+      setTimeout(() => {
+        if (analysisProgressRef.current) {
+          analysisProgressRef.current.startAnalysis();
+        }
+
+        // 동시에 서비스에서도 분석 시작
+        preAnalysisService.analyzeAllProjectDocuments(
+          sessionToUse.id,
+          projectId
+        ).then(analysisResponse => {
+          if (!analysisResponse.success) {
+            console.error('문서 분석 오류:', analysisResponse.error);
+          } else {
+            console.log('문서 분석 시작 성공:', analysisResponse.data);
+          }
+        }).catch(error => {
+          console.error('문서 분석 예외:', error);
+        });
+      }, 500);
+
+    } catch (error) {
+      console.error('분석 시작 오류:', error);
+      setError('분석 시작 중 오류가 발생했습니다.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const createNewSession = async () => {
-    setIsLoading(true);
-    setError(null);
-
     try {
       if (!user?.id) {
         setError('사용자 인증이 필요합니다.');
         return;
       }
+
+      console.log('새 세션 생성 시도:', {
+        projectId,
+        settings,
+        userId: user.id
+      });
 
       const response = await preAnalysisService.startSession(
         projectId,
@@ -188,14 +237,14 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
 
       if (response.success && response.data) {
         setCurrentSession(response.data);
+        console.log('세션 생성 성공:', response.data);
       } else {
         setError(response.error || '세션 생성에 실패했습니다.');
+        console.error('세션 생성 오류:', response.error);
       }
     } catch (error) {
       setError('세션 생성 중 오류가 발생했습니다.');
-      console.error('세션 생성 오류:', error);
-    } finally {
-      setIsLoading(false);
+      console.error('세션 생성 예외:', error);
     }
   };
 
@@ -494,6 +543,7 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
 
         {currentStep === 'analysis' && currentSession && (
           <AnalysisProgress
+            ref={analysisProgressRef}
             sessionId={currentSession.id}
             onComplete={() => handleStepComplete('analysis')}
           />
