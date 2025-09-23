@@ -143,8 +143,28 @@ export class AnalysisReportService {
         .eq('status', 'completed')
         .order('created_at', { ascending: false })
 
+      // 사전 분석 세션 조회
+      const { data: preAnalysisSessions } = await supabase
+        .from('pre_analysis_sessions')
+        .select('*')
+        .eq('project_id', projectId)
+        .eq('status', 'completed')
+        .order('created_at', { ascending: false })
+
+      // 사전 분석 질문-답변 조회
+      const { data: qaData } = await supabase
+        .from('ai_questions')
+        .select(`
+          *,
+          user_answers(*)
+        `)
+        .in('session_id', preAnalysisSessions?.map(s => s.id) || [])
+
       if (!analyses || analyses.length === 0) {
-        throw new Error('No completed analyses found for this project')
+        // 사전 분석 데이터라도 있다면 진행
+        if (!preAnalysisSessions || preAnalysisSessions.length === 0) {
+          throw new Error('No completed analyses or pre-analysis sessions found for this project')
+        }
       }
 
       // 문서 정보 조회
@@ -156,8 +176,10 @@ export class AnalysisReportService {
       // AI를 사용한 종합 분석 생성
       const reportContent = await this.generateReportContent(
         project,
-        analyses,
+        analyses || [],
         documents || [],
+        preAnalysisSessions || [],
+        qaData || [],
         options
       )
 
@@ -172,10 +194,10 @@ export class AnalysisReportService {
         metadata: {
           generatedAt: new Date(),
           generatedBy: 'ai-system',
-          analysisCount: analyses.length,
+          analysisCount: analyses?.length || 0,
           documentCount: documents?.length || 0,
-          totalTokens: this.calculateTotalTokens(analyses),
-          totalCost: this.calculateTotalCost(analyses),
+          totalTokens: this.calculateTotalTokens(analyses || []),
+          totalCost: this.calculateTotalCost(analyses || []),
           aiModel: options.aiModel || 'gpt-4o',
           aiProvider: options.aiProvider || 'openai',
           processingTime: Date.now() - startTime
@@ -202,6 +224,8 @@ export class AnalysisReportService {
     project: Tables<'projects'>,
     analyses: Tables<'ai_analysis'>[],
     documents: Tables<'documents'>[],
+    preAnalysisSessions: Tables<'pre_analysis_sessions'>[],
+    qaData: any[],
     options: ReportGenerationOptions
   ): Promise<AnalysisReportData['content']> {
     const model = options.aiModel || 'gpt-4o'
@@ -214,6 +238,31 @@ export class AnalysisReportService {
       createdAt: analysis.created_at
     }))
 
+    // 사전 분석 세션 데이터 정리
+    const preAnalysisData = preAnalysisSessions.map(session => ({
+      id: session.id,
+      status: session.status,
+      aiModel: session.ai_model,
+      aiProvider: session.ai_provider,
+      analysisDepth: session.analysis_depth,
+      startedAt: session.started_at,
+      completedAt: session.completed_at,
+      processingTime: session.processing_time,
+      totalCost: session.total_cost
+    }))
+
+    // 질문-답변 데이터 정리
+    const qaStructuredData = qaData.map(qa => ({
+      category: qa.category,
+      question: qa.question,
+      required: qa.required,
+      answers: qa.user_answers?.map((answer: any) => ({
+        answer: answer.answer,
+        confidence: answer.confidence,
+        answeredAt: answer.answered_at
+      })) || []
+    }))
+
     // 문서 요약
     const documentSummaries = documents.map(doc => `${doc.file_name} (${doc.file_type})`)
 
@@ -221,12 +270,16 @@ export class AnalysisReportService {
     const executiveSummary = await this.generateExecutiveSummary(
       project,
       analysisData,
+      preAnalysisData,
+      qaStructuredData,
       model
     )
 
     // 주요 발견사항 생성
     const keyFindings = await this.generateKeyFindings(
       analysisData,
+      preAnalysisData,
+      qaStructuredData,
       model
     )
 
@@ -234,6 +287,8 @@ export class AnalysisReportService {
     const riskAssessment = await this.generateRiskAssessment(
       project,
       analysisData,
+      preAnalysisData,
+      qaStructuredData,
       model
     )
 
@@ -241,6 +296,8 @@ export class AnalysisReportService {
     const recommendations = await this.generateRecommendations(
       project,
       analysisData,
+      preAnalysisData,
+      qaStructuredData,
       model
     )
 
@@ -248,6 +305,8 @@ export class AnalysisReportService {
     const technicalAnalysis = await this.generateTechnicalAnalysis(
       project,
       analysisData,
+      preAnalysisData,
+      qaStructuredData,
       model
     )
 
@@ -255,6 +314,8 @@ export class AnalysisReportService {
     const businessAnalysis = await this.generateBusinessAnalysis(
       project,
       analysisData,
+      preAnalysisData,
+      qaStructuredData,
       model
     )
 
@@ -262,6 +323,8 @@ export class AnalysisReportService {
     const implementationPlan = await this.generateImplementationPlan(
       project,
       analysisData,
+      preAnalysisData,
+      qaStructuredData,
       model
     )
 
@@ -287,10 +350,12 @@ export class AnalysisReportService {
   private async generateExecutiveSummary(
     project: Tables<'projects'>,
     analysisData: any[],
+    preAnalysisData: any[],
+    qaStructuredData: any[],
     model: string
   ): Promise<string> {
     const prompt = `
-프로젝트 "${project.name}"에 대한 경영진 요약을 작성해주세요.
+프로젝트 "${project.name}"에 대한 종합적인 경영진 요약을 작성해주세요.
 
 프로젝트 정보:
 - 이름: ${project.name}
@@ -298,17 +363,33 @@ export class AnalysisReportService {
 - 상태: ${project.status}
 - 프로젝트 유형: ${(project.project_types || []).join(', ')}
 
+사전 분석 세션 결과:
+${preAnalysisData.map(session => `
+- 세션 ID: ${session.id}
+- AI 모델: ${session.aiModel} (${session.aiProvider})
+- 분석 깊이: ${session.analysisDepth}
+- 처리 시간: ${session.processingTime}초
+- 총 비용: $${session.totalCost}
+`).join('\n')}
+
+질문-답변 분석:
+${qaStructuredData.map(qa => `
+Q: ${qa.question} (카테고리: ${qa.category}, 필수: ${qa.required ? '예' : '아니오'})
+A: ${qa.answers.map((a: any) => `${a.answer} (확신도: ${a.confidence}%)`).join(', ') || '답변 없음'}
+`).join('\n')}
+
 AI 분석 결과:
 ${analysisData.map(data => `- ${data.type}: ${data.result}`).join('\n')}
 
 다음 요소들을 포함한 간결하고 핵심적인 경영진 요약을 작성해주세요:
 1. 프로젝트 개요 및 목적
-2. 주요 기회와 도전 과제
-3. 핵심 위험 요소
-4. 예상 투자 대비 효과
-5. 권장 의사결정
+2. 사전 분석을 통해 파악된 주요 인사이트
+3. 주요 기회와 도전 과제
+4. 핵심 위험 요소 및 대응 방안
+5. 예상 투자 대비 효과
+6. 권장 의사결정 및 다음 단계
 
-한국어로 3-4 문단 분량으로 작성해주세요.
+한국어로 4-5 문단 분량으로 작성해주세요.
 `
 
     try {
@@ -330,11 +411,24 @@ ${analysisData.map(data => `- ${data.type}: ${data.result}`).join('\n')}
    */
   private async generateKeyFindings(
     analysisData: any[],
+    preAnalysisData: any[],
+    qaStructuredData: any[],
     model: string
   ): Promise<string[]> {
     const prompt = `
-다음 AI 분석 결과들을 바탕으로 주요 발견사항들을 추출해주세요:
+다음 종합 분석 결과들을 바탕으로 주요 발견사항들을 추출해주세요:
 
+사전 분석 인사이트:
+${preAnalysisData.map(session => `- ${session.aiModel} 모델로 ${session.analysisDepth} 분석 완료 (처리시간: ${session.processingTime}초)`).join('\n')}
+
+핵심 질문-답변 분석:
+${qaStructuredData.filter((qa: any) => qa.answers.length > 0).map((qa: any) => `
+카테고리: ${qa.category}
+질문: ${qa.question}
+답변: ${qa.answers.map((a: any) => a.answer).join(', ')}
+`).join('\n')}
+
+AI 분석 결과:
 ${analysisData.map(data => `분석 유형: ${data.type}\n결과: ${data.result}\n`).join('\n')}
 
 JSON 배열 형태로 5-8개의 핵심 발견사항을 반환해주세요:
@@ -367,6 +461,8 @@ JSON 배열 형태로 5-8개의 핵심 발견사항을 반환해주세요:
   private async generateRiskAssessment(
     project: Tables<'projects'>,
     analysisData: any[],
+    _preAnalysisData: any[],
+    _qaStructuredData: any[],
     model: string
   ): Promise<AnalysisReportData['content']['riskAssessment']> {
     const prompt = `
@@ -423,6 +519,8 @@ ${analysisData.map(data => `${data.type}: ${data.result}`).join('\n')}
   private async generateRecommendations(
     project: Tables<'projects'>,
     analysisData: any[],
+    _preAnalysisData: any[],
+    _qaStructuredData: any[],
     model: string
   ): Promise<string[]> {
     const prompt = `
@@ -462,6 +560,8 @@ JSON 배열 형태로 5-10개의 권장사항을 반환해주세요:
   private async generateTechnicalAnalysis(
     project: Tables<'projects'>,
     analysisData: any[],
+    _preAnalysisData: any[],
+    _qaStructuredData: any[],
     model: string
   ): Promise<AnalysisReportData['content']['technicalAnalysis']> {
     const prompt = `
@@ -507,6 +607,8 @@ ${analysisData.map(data => `${data.type}: ${data.result}`).join('\n')}
   private async generateBusinessAnalysis(
     project: Tables<'projects'>,
     analysisData: any[],
+    _preAnalysisData: any[],
+    _qaStructuredData: any[],
     model: string
   ): Promise<AnalysisReportData['content']['businessAnalysis']> {
     const prompt = `
@@ -553,6 +655,8 @@ ${analysisData.map(data => `${data.type}: ${data.result}`).join('\n')}
   private async generateImplementationPlan(
     project: Tables<'projects'>,
     analysisData: any[],
+    _preAnalysisData: any[],
+    _qaStructuredData: any[],
     model: string
   ): Promise<AnalysisReportData['content']['implementationPlan']> {
     const prompt = `
@@ -739,19 +843,20 @@ ${analysisData.map(data => `${data.type}: ${data.result}`).join('\n')}
   }
 
   /**
-   * 보고서 내보내기
+   * 보고서 내보내기 (사전 분석 데이터 포함)
    */
   async exportReport(
     reportData: AnalysisReportData,
-    format: 'html' | 'markdown' | 'json' = 'html'
+    format: 'html' | 'markdown' | 'json' = 'html',
+    preAnalysisData?: { sessions: any[], qaData: any[] }
   ): Promise<string> {
     switch (format) {
       case 'html':
-        return this.exportToHTML(reportData)
+        return this.exportToHTML(reportData, preAnalysisData)
       case 'markdown':
-        return this.exportToMarkdown(reportData)
+        return this.exportToMarkdown(reportData, preAnalysisData)
       case 'json':
-        return JSON.stringify(reportData, null, 2)
+        return JSON.stringify({ report: reportData, preAnalysis: preAnalysisData }, null, 2)
       default:
         throw new Error(`Unsupported export format: ${format}`)
     }
@@ -760,7 +865,7 @@ ${analysisData.map(data => `${data.type}: ${data.result}`).join('\n')}
   /**
    * HTML 형태로 내보내기
    */
-  private exportToHTML(report: AnalysisReportData): string {
+  private exportToHTML(report: AnalysisReportData, preAnalysisData?: { sessions: any[], qaData: any[] }): string {
     return `<!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -795,6 +900,34 @@ ${analysisData.map(data => `${data.type}: ${data.result}`).join('\n')}
         <h2>경영진 요약</h2>
         <p>${report.content.executiveSummary}</p>
     </div>
+
+    ${preAnalysisData ? `
+    <div class="section">
+        <h2>사전 분석 요약</h2>
+        <div class="meta">
+            <strong>분석 세션:</strong> ${preAnalysisData.sessions.length}개 |
+            <strong>총 질문:</strong> ${preAnalysisData.qaData.length}개 |
+            <strong>답변 완료:</strong> ${preAnalysisData.qaData.filter((qa: any) => qa.user_answers?.length > 0).length}개
+        </div>
+
+        <h3>AI 모델 성능</h3>
+        <ul>
+            ${preAnalysisData.sessions.map((session: any) => `
+                <li><strong>${session.ai_model} (${session.ai_provider})</strong>:
+                    ${session.processing_time}초 처리, $${session.total_cost?.toFixed(4)} 비용</li>
+            `).join('')}
+        </ul>
+
+        <h3>핵심 질문-답변</h3>
+        ${preAnalysisData.qaData.filter((qa: any) => qa.user_answers?.length > 0).slice(0, 5).map((qa: any) => `
+            <div style="margin-bottom: 15px; padding: 10px; background-color: #f8f9fa; border-radius: 5px;">
+                <strong>Q:</strong> ${qa.question}<br>
+                <strong>A:</strong> ${qa.user_answers[0]?.answer || '답변 없음'}
+                <span class="meta">(확신도: ${qa.user_answers[0]?.confidence || 0}%)</span>
+            </div>
+        `).join('')}
+    </div>
+    ` : ''}
 
     <div class="section">
         <h2>주요 발견사항</h2>
@@ -883,7 +1016,7 @@ ${analysisData.map(data => `${data.type}: ${data.result}`).join('\n')}
   /**
    * 마크다운 형태로 내보내기
    */
-  private exportToMarkdown(report: AnalysisReportData): string {
+  private exportToMarkdown(report: AnalysisReportData, preAnalysisData?: { sessions: any[], qaData: any[] }): string {
     return `# ${report.title}
 
 **생성일:** ${report.metadata.generatedAt.toLocaleDateString('ko-KR')}
@@ -895,6 +1028,26 @@ ${analysisData.map(data => `${data.type}: ${data.result}`).join('\n')}
 ## 경영진 요약
 
 ${report.content.executiveSummary}
+
+${preAnalysisData ? `
+## 사전 분석 요약
+
+**분석 세션:** ${preAnalysisData.sessions.length}개
+**총 질문:** ${preAnalysisData.qaData.length}개
+**답변 완료:** ${preAnalysisData.qaData.filter((qa: any) => qa.user_answers?.length > 0).length}개
+
+### AI 모델 성능
+
+${preAnalysisData.sessions.map((session: any) => `- **${session.ai_model} (${session.ai_provider})**: ${session.processing_time}초 처리, $${session.total_cost?.toFixed(4)} 비용`).join('\n')}
+
+### 핵심 질문-답변
+
+${preAnalysisData.qaData.filter((qa: any) => qa.user_answers?.length > 0).slice(0, 5).map((qa: any) => `
+**Q:** ${qa.question}
+**A:** ${qa.user_answers[0]?.answer || '답변 없음'} (확신도: ${qa.user_answers[0]?.confidence || 0}%)
+`).join('\n---\n')}
+
+` : ''}
 
 ## 주요 발견사항
 

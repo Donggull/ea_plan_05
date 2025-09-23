@@ -22,11 +22,19 @@ import {
   Settings
 } from 'lucide-react'
 import { AnalysisReportData, analysisReportService } from '../../services/reports/analysisReportService'
+import { supabase } from '../../lib/supabase'
 import {
   RiskDistributionChart,
   TechAnalysisRadar,
   MetricCard
 } from '../charts/ReportCharts'
+import {
+  ModelPerformanceChart,
+  AnalysisDepthChart,
+  QACoverageChart,
+  AnalysisTimelineChart,
+  AnalysisSummary
+} from '../charts/PreAnalysisCharts'
 
 interface AnalysisReportViewerProps {
   projectId: string
@@ -48,6 +56,12 @@ export const AnalysisReportViewer: React.FC<AnalysisReportViewerProps> = ({
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<string>('summary')
+
+  // 사전 분석 데이터 상태
+  const [preAnalysisData, setPreAnalysisData] = useState<{
+    sessions: any[]
+    qaData: any[]
+  }>({ sessions: [], qaData: [] })
   const [showSidebar, setShowSidebar] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterType, setFilterType] = useState<string>('all')
@@ -66,6 +80,7 @@ export const AnalysisReportViewer: React.FC<AnalysisReportViewerProps> = ({
 
   useEffect(() => {
     loadReports()
+    loadPreAnalysisData()
   }, [projectId])
 
   useEffect(() => {
@@ -92,6 +107,37 @@ export const AnalysisReportViewer: React.FC<AnalysisReportViewerProps> = ({
     }
   }
 
+  const loadPreAnalysisData = async () => {
+    try {
+      if (!supabase) {
+        console.error('Supabase client not initialized')
+        return
+      }
+
+      // Supabase에서 사전 분석 데이터 로드
+      const { data: sessions } = await supabase
+        .from('pre_analysis_sessions')
+        .select('*')
+        .eq('project_id', projectId)
+        .eq('status', 'completed')
+
+      const { data: qaData } = await supabase
+        .from('ai_questions')
+        .select(`
+          *,
+          user_answers(*)
+        `)
+        .in('session_id', sessions?.map(s => s.id) || [])
+
+      setPreAnalysisData({
+        sessions: sessions || [],
+        qaData: qaData || []
+      })
+    } catch (error) {
+      console.error('Failed to load pre-analysis data:', error)
+    }
+  }
+
   const generateNewReport = async () => {
     try {
       setIsGenerating(true)
@@ -110,7 +156,11 @@ export const AnalysisReportViewer: React.FC<AnalysisReportViewerProps> = ({
     if (!currentReport) return
 
     try {
-      const content = await analysisReportService.exportReport(currentReport, format)
+      const content = await analysisReportService.exportReport(
+        currentReport,
+        format,
+        preAnalysisData.sessions.length > 0 ? preAnalysisData : undefined
+      )
       const blob = new Blob([content], {
         type: format === 'html' ? 'text/html' : format === 'json' ? 'application/json' : 'text/markdown'
       })
@@ -383,7 +433,11 @@ export const AnalysisReportViewer: React.FC<AnalysisReportViewerProps> = ({
 
             {/* 콘텐츠 */}
             <div className="flex-1 overflow-y-auto p-6">
-              <ReportContent report={currentReport} activeTab={activeTab} />
+              <ReportContent
+                report={currentReport}
+                activeTab={activeTab}
+                preAnalysisData={preAnalysisData}
+              />
             </div>
           </>
         ) : (
@@ -413,9 +467,13 @@ export const AnalysisReportViewer: React.FC<AnalysisReportViewerProps> = ({
 interface ReportContentProps {
   report: AnalysisReportData
   activeTab: string
+  preAnalysisData: {
+    sessions: any[]
+    qaData: any[]
+  }
 }
 
-const ReportContent: React.FC<ReportContentProps> = ({ report, activeTab }) => {
+const ReportContent: React.FC<ReportContentProps> = ({ report, activeTab, preAnalysisData }) => {
   const renderSummaryTab = () => (
     <div className="space-y-6">
       {/* 메트릭 카드들 */}
@@ -652,23 +710,55 @@ const ReportContent: React.FC<ReportContentProps> = ({ report, activeTab }) => {
   )
 
   const renderChartsTab = () => (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <RiskDistributionChart
-        data={{
-          high: report.content.riskAssessment.risks.filter(r => r.severity === 'high').length,
-          medium: report.content.riskAssessment.risks.filter(r => r.severity === 'medium').length,
-          low: report.content.riskAssessment.risks.filter(r => r.severity === 'low').length
-        }}
-      />
-      <TechAnalysisRadar
-        data={{
-          scalability: 75,
-          performance: 80,
-          security: 70,
-          maintainability: 85,
-          usability: 78
-        }}
-      />
+    <div className="space-y-8">
+      {/* 사전 분석 요약 */}
+      {preAnalysisData.sessions.length > 0 && (
+        <>
+          <AnalysisSummary
+            sessions={preAnalysisData.sessions}
+            qaData={preAnalysisData.qaData}
+            className="mb-8"
+          />
+
+          {/* AI 모델 성능 비교 */}
+          <ModelPerformanceChart
+            sessions={preAnalysisData.sessions}
+            className="mb-6"
+          />
+
+          {/* 분석 깊이 및 QA 커버리지 */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <AnalysisDepthChart sessions={preAnalysisData.sessions} />
+            <QACoverageChart qaData={preAnalysisData.qaData} />
+          </div>
+
+          {/* 분석 타임라인 */}
+          <AnalysisTimelineChart
+            sessions={preAnalysisData.sessions}
+            className="mb-6"
+          />
+        </>
+      )}
+
+      {/* 기존 위험 분석 차트 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <RiskDistributionChart
+          data={{
+            high: report.content.riskAssessment.risks.filter(r => r.severity === 'high').length,
+            medium: report.content.riskAssessment.risks.filter(r => r.severity === 'medium').length,
+            low: report.content.riskAssessment.risks.filter(r => r.severity === 'low').length
+          }}
+        />
+        <TechAnalysisRadar
+          data={{
+            scalability: 75,
+            performance: 80,
+            security: 70,
+            maintainability: 85,
+            usability: 78
+          }}
+        />
+      </div>
     </div>
   )
 
