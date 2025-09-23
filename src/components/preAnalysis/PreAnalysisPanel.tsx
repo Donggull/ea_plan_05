@@ -306,33 +306,82 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
       <div className="min-h-[500px]">
         {currentStep === 'setup' && (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 xl:h-[400px]">
               {/* AI 모델 정보 */}
-              <Card className="xl:col-span-1">
+              <Card className="xl:col-span-1 h-full">
                 <h3 className="text-lg font-semibold text-text-primary mb-4">AI 모델 설정</h3>
-                <div className="space-y-4">
-                  <div className="p-4 bg-bg-secondary rounded-lg border border-border-primary">
+                <div className="space-y-4 h-full flex flex-col">
+                  <div className="p-4 bg-bg-secondary rounded-lg border border-border-primary flex-1">
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-sm font-medium text-text-primary">선택된 모델</span>
                       <span className="text-xs text-text-muted">사이드바에서 변경</span>
                     </div>
-                    <div>
-                      <p className="text-text-primary font-medium mb-1">
-                        {selectedModel?.name || 'Claude 3.5 Sonnet'}
-                      </p>
-                      <p className="text-text-secondary text-sm mb-2">
-                        {selectedModel?.provider || 'anthropic'} • {selectedModel?.model_id || 'claude-3-5-sonnet-20241022'}
-                      </p>
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-text-primary font-medium mb-1">
+                          {selectedModel?.name || 'Claude Opus 4'}
+                        </p>
+                        <p className="text-text-secondary text-sm mb-3">
+                          {selectedModel?.provider || 'anthropic'} • {selectedModel?.model_id || 'claude-3-opus-20240229'}
+                        </p>
+                      </div>
+
                       {selectedModel && (
-                        <div className="text-xs text-text-muted space-y-1">
-                          <p>최대 토큰: {selectedModel.max_tokens?.toLocaleString()}</p>
-                          <p>입력 비용: ${selectedModel.cost_per_input_token}/1K 토큰</p>
-                          <p>출력 비용: ${selectedModel.cost_per_output_token}/1K 토큰</p>
+                        <div className="space-y-3 pt-2 border-t border-border-primary">
+                          <div className="grid grid-cols-1 gap-2">
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs text-text-muted">최대 토큰:</span>
+                              <span className="text-xs text-text-secondary font-medium">
+                                {selectedModel.max_tokens?.toLocaleString()}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs text-text-muted">입력 비용:</span>
+                              <span className="text-xs text-text-secondary font-medium">
+                                ${selectedModel.cost_per_input_token}/1K 토큰
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs text-text-muted">출력 비용:</span>
+                              <span className="text-xs text-text-secondary font-medium">
+                                ${selectedModel.cost_per_output_token}/1K 토큰
+                              </span>
+                            </div>
+                          </div>
                         </div>
                       )}
+
+                      <div className="pt-3 border-t border-border-primary">
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-text-muted">분석 효율성:</span>
+                            <span className="text-xs text-success font-medium">최적화됨</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-text-muted">예상 처리 시간:</span>
+                            <span className="text-xs text-primary font-medium">2-5분</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-text-muted">품질 점수:</span>
+                            <span className="text-xs text-warning font-medium">높음</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="pt-3 border-t border-border-primary">
+                        <div className="space-y-2">
+                          <div className="text-xs text-text-muted mb-2">모델 특성:</div>
+                          <div className="flex flex-wrap gap-1">
+                            <span className="px-2 py-1 text-xs bg-primary/20 text-primary rounded">추론</span>
+                            <span className="px-2 py-1 text-xs bg-success/20 text-success rounded">분석</span>
+                            <span className="px-2 py-1 text-xs bg-warning/20 text-warning rounded">문서</span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <div className="text-center py-3">
+
+                  <div className="text-center py-2 px-3 bg-bg-tertiary rounded-lg">
                     <p className="text-xs text-text-muted">
                       AI 모델 변경은 왼쪽 사이드바의 MODELS 섹션에서 가능합니다.
                     </p>
@@ -341,16 +390,20 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
               </Card>
 
               {/* MCP 서버 설정 */}
-              <Card className="xl:col-span-1">
+              <Card className="xl:col-span-1 h-full">
                 <h3 className="text-lg font-semibold text-text-primary mb-4">MCP 서버 설정</h3>
-                <MCPConfiguration
-                  settings={settings}
-                  onSettingsChange={setSettings}
-                />
+                <div className="h-full flex flex-col">
+                  <div className="flex-1">
+                    <MCPConfiguration
+                      settings={settings}
+                      onSettingsChange={setSettings}
+                    />
+                  </div>
+                </div>
               </Card>
 
               {/* 프로젝트 문서 정보 */}
-              <Card className="xl:col-span-1">
+              <Card className="xl:col-span-1 h-full">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-text-primary">프로젝트 문서</h3>
                   <div className="flex items-center gap-2">
@@ -368,27 +421,31 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
                   </div>
                 </div>
 
-                {documentCount > 0 ? (
-                  <div className="space-y-3">
-                    <p className="text-text-secondary text-sm">
-                      업로드된 문서를 기반으로 사전 분석이 진행됩니다.
-                    </p>
-                    <DocumentManager
-                      projectId={projectId}
-                      onDocumentChange={loadDocumentCount}
-                      showUpload={false}
-                      compact={true}
-                    />
-                  </div>
-                ) : (
-                  <div className="text-center py-6">
-                    <FolderOpen className="w-8 h-8 text-text-muted mx-auto mb-2" />
-                    <p className="text-text-secondary text-sm mb-1">업로드된 문서가 없습니다</p>
-                    <p className="text-text-muted text-xs">
-                      프로젝트 페이지에서 문서를 먼저 업로드해주세요.
-                    </p>
-                  </div>
-                )}
+                <div className="h-full flex flex-col">
+                  {documentCount > 0 ? (
+                    <div className="space-y-3 flex-1">
+                      <p className="text-text-secondary text-sm">
+                        업로드된 문서를 기반으로 사전 분석이 진행됩니다.
+                      </p>
+                      <div className="flex-1">
+                        <DocumentManager
+                          projectId={projectId}
+                          onDocumentChange={loadDocumentCount}
+                          showUpload={false}
+                          compact={true}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-6 flex-1 flex flex-col justify-center">
+                      <FolderOpen className="w-8 h-8 text-text-muted mx-auto mb-2" />
+                      <p className="text-text-secondary text-sm mb-1">업로드된 문서가 없습니다</p>
+                      <p className="text-text-muted text-xs">
+                        프로젝트 페이지에서 문서를 먼저 업로드해주세요.
+                      </p>
+                    </div>
+                  )}
+                </div>
               </Card>
             </div>
 
