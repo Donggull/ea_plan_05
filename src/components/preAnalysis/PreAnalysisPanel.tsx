@@ -410,7 +410,7 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
                           <p className="text-text-primary font-medium">
                             {selectedModel?.name || 'Claude 4 Sonnet'}
                           </p>
-                          {selectedModel?.metadata?.latest_generation && (
+                          {selectedModel?.metadata?.['latest_generation'] && (
                             <span className="px-2 py-0.5 text-xs bg-accent-blue/20 text-accent-blue rounded-full border border-accent-blue/30">
                               최신
                             </span>
@@ -419,9 +419,9 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
                         <p className="text-text-secondary text-sm mb-3">
                           {selectedModel?.provider || 'anthropic'} • {selectedModel?.model_id || 'claude-sonnet-4-20250514'}
                         </p>
-                        {selectedModel?.metadata?.description && (
+                        {selectedModel?.metadata?.['description'] && (
                           <p className="text-text-muted text-xs">
-                            {selectedModel.metadata.description}
+                            {selectedModel.metadata['description']}
                           </p>
                         )}
                       </div>
@@ -447,11 +447,11 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
                                 ${(selectedModel.cost_per_output_token * 1000000).toFixed(2)}/1M 토큰
                               </span>
                             </div>
-                            {selectedModel.metadata?.context_window && (
+                            {selectedModel.metadata?.['context_window'] && (
                               <div className="flex justify-between items-center">
                                 <span className="text-xs text-text-muted">컨텍스트 윈도우:</span>
                                 <span className="text-xs text-text-secondary font-medium">
-                                  {(selectedModel.metadata.context_window / 1000000).toFixed(1)}M 토큰
+                                  {(selectedModel.metadata['context_window'] / 1000000).toFixed(1)}M 토큰
                                 </span>
                               </div>
                             )}
@@ -517,19 +517,19 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
                         <div className="space-y-2">
                           <div className="text-xs text-text-muted mb-2">추천 사용 시나리오:</div>
                           <div className="space-y-1">
-                            {selectedModel?.metadata?.extended_thinking ? (
+                            {selectedModel?.metadata?.['extended_thinking'] ? (
                               <>
                                 <div className="text-xs text-text-secondary">• 복잡한 추론이 필요한 분석</div>
                                 <div className="text-xs text-text-secondary">• 단계별 사고 과정 추적</div>
                                 <div className="text-xs text-text-secondary">• 고급 문제 해결</div>
                               </>
-                            ) : selectedModel?.metadata?.coding_capability ? (
+                            ) : selectedModel?.metadata?.['coding_capability'] ? (
                               <>
                                 <div className="text-xs text-text-secondary">• 코드 리뷰 및 분석</div>
                                 <div className="text-xs text-text-secondary">• 기술 문서 해석</div>
                                 <div className="text-xs text-text-secondary">• 아키텍처 분석</div>
                               </>
-                            ) : selectedModel?.metadata?.speed_optimized ? (
+                            ) : selectedModel?.metadata?.['speed_optimized'] ? (
                               <>
                                 <div className="text-xs text-text-secondary">• 빠른 문서 요약</div>
                                 <div className="text-xs text-text-secondary">• 실시간 분석</div>

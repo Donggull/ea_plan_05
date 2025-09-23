@@ -16,6 +16,7 @@ export interface AIModel {
   capabilities: string[]
   max_tokens: number
   available: boolean
+  metadata?: Record<string, any>
 }
 
 // 상태 타입 정의
@@ -158,7 +159,7 @@ export function AIModelProvider({ children }: { children: React.ReactNode }) {
           selectedModel: defaultModel.name,
           modelId: defaultModel.model_id,
           provider: defaultModel.provider,
-          isLatestGeneration: defaultModel.metadata?.latest_generation
+          isLatestGeneration: defaultModel.metadata?.['latest_generation']
         })
 
         dispatch({ type: 'SELECT_PROVIDER', payload: defaultModel.provider })
