@@ -85,7 +85,7 @@
     "vitest": "^1.2.0"
   },
   "engines": {
-    "node": "20.x"
+    "node": "18.x"
   },
   "overrides": {
     "@floating-ui/react-dom": {
