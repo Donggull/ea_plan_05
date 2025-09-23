@@ -397,7 +397,9 @@ export const PreAnalysisPage: React.FC = () => {
         <PreAnalysisPanel
           ref={panelRef}
           projectId={id!}
+          currentStep={currentStep}
           onDocumentCountChange={setDocumentCount}
+          onStepChange={setCurrentStep}
         />
       </PageContent>
     </PageContainer>

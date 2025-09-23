@@ -25,8 +25,10 @@ import { supabase } from '../../lib/supabase';
 
 interface PreAnalysisPanelProps {
   projectId: string;
+  currentStep?: 'setup' | 'analysis' | 'questions' | 'report';
   onSessionComplete?: (sessionId: string) => void;
   onDocumentCountChange?: (count: number) => void;
+  onStepChange?: (step: 'setup' | 'analysis' | 'questions' | 'report') => void;
 }
 
 export interface PreAnalysisPanelRef {
@@ -35,14 +37,18 @@ export interface PreAnalysisPanelRef {
 
 export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanelProps>(({
   projectId,
+  currentStep: externalCurrentStep,
   onSessionComplete,
   onDocumentCountChange,
+  onStepChange,
 }, ref) => {
   const { user } = useAuth();
   const { state: aiModelState, getSelectedModel } = useAIModel();
 
   const [currentSession, setCurrentSession] = useState<PreAnalysisSession | null>(null);
-  const [currentStep, setCurrentStep] = useState<'setup' | 'analysis' | 'questions' | 'report'>('setup');
+
+  // 외부에서 전달받은 currentStep을 사용하거나, 기본값 'setup' 사용
+  const currentStep = externalCurrentStep || 'setup';
 
   // 선택된 모델 정보 가져오기
   const selectedModel = getSelectedModel();
@@ -154,10 +160,10 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
   const determineCurrentStep = (session: PreAnalysisSession) => {
     // 세션 상태에 따라 현재 단계 결정
     if (session.status === 'completed') {
-      setCurrentStep('report');
+      onStepChange?.('report');
     } else {
       // 실제로는 세션의 진행 상황을 체크해서 결정
-      setCurrentStep('analysis');
+      onStepChange?.('analysis');
     }
   };
 
@@ -185,7 +191,7 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
       }
 
       // 분석 단계로 이동
-      setCurrentStep('analysis');
+      onStepChange?.('analysis');
 
       // AnalysisProgress 컴포넌트에서 분석 시작
       setTimeout(() => {
@@ -249,18 +255,25 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
   };
 
   const handleStepComplete = (step: string) => {
+    let nextStep: 'setup' | 'analysis' | 'questions' | 'report' | null = null;
+
     switch (step) {
       case 'analysis':
-        setCurrentStep('questions');
+        nextStep = 'questions';
         break;
       case 'questions':
-        setCurrentStep('report');
+        nextStep = 'report';
         break;
       case 'report':
         if (onSessionComplete && currentSession) {
           onSessionComplete(currentSession.id);
         }
         break;
+    }
+
+    // 상위 컴포넌트에 단계 변경 알림
+    if (nextStep && onStepChange) {
+      onStepChange(nextStep);
     }
   };
 
@@ -272,7 +285,7 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
 
     if (window.confirm('현재 진행 중인 분석을 초기화하시겠습니까?')) {
       setCurrentSession(null);
-      setCurrentStep('setup');
+      onStepChange?.('setup');
       setError(null);
     }
   };
