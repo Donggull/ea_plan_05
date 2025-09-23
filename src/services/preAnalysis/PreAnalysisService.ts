@@ -704,6 +704,12 @@ export class PreAnalysisService {
   ): Promise<any> {
     const startTime = Date.now();
 
+    // 기본 설정 (catch 블록에서도 접근 가능하도록 함수 시작 부분에 정의)
+    let settings = {
+      aiModel: 'claude-sonnet-4-20250514',
+      aiProvider: 'anthropic' as string
+    };
+
     try {
       // 현재 세션의 설정 조회
       if (!supabase) {
@@ -716,40 +722,80 @@ export class PreAnalysisService {
         .eq('id', sessionId)
         .single();
 
-      const settings = {
+      // 세션에서 가져온 설정으로 업데이트
+      settings = {
         aiModel: session?.ai_model || 'claude-sonnet-4-20250514',
         aiProvider: session?.ai_provider || 'anthropic'
       };
 
       // AI 서비스 매니저 초기화 확인
       if (!aiServiceManager.getCurrentProvider()) {
-        // 환경 변수에서 API 키 가져오기
+        console.log('🔧 AI 서비스 매니저 초기화 중...', { provider: settings.aiProvider });
+
+        // 환경 변수에서 API 키 가져오기 (Vercel 프로덕션 환경 지원)
         const apiKeys = {
-          openai: import.meta.env.VITE_OPENAI_API_KEY,
-          anthropic: import.meta.env.VITE_ANTHROPIC_API_KEY,
-          google: import.meta.env.VITE_GOOGLE_AI_API_KEY
+          openai: import.meta.env.VITE_OPENAI_API_KEY || (globalThis as any).process?.env?.OPENAI_API_KEY,
+          anthropic: import.meta.env.VITE_ANTHROPIC_API_KEY || (globalThis as any).process?.env?.ANTHROPIC_API_KEY,
+          google: import.meta.env.VITE_GOOGLE_AI_API_KEY || (globalThis as any).process?.env?.GOOGLE_AI_API_KEY
         };
+
+        // API 키 존재 여부 체크 (실제 키 값은 로깅하지 않음)
+        const keyAvailability = {
+          openai: !!apiKeys.openai,
+          anthropic: !!apiKeys.anthropic,
+          google: !!apiKeys.google
+        };
+        console.log('🔑 API 키 가용성:', keyAvailability);
 
         const apiKey = apiKeys[settings.aiProvider as keyof typeof apiKeys];
         if (apiKey) {
+          console.log('✅ API 키 발견, 프로바이더 설정 중...', { provider: settings.aiProvider });
           await aiServiceManager.setProvider(settings.aiProvider, apiKey);
+          console.log('✅ AI 서비스 매니저 초기화 완료');
         } else {
-          throw new Error(`${settings.aiProvider} API 키가 설정되지 않았습니다.`);
+          const errorMsg = `${settings.aiProvider} API 키가 설정되지 않았습니다. 환경 변수를 확인해주세요.`;
+          console.error('❌ API 키 없음:', errorMsg, {
+            provider: settings.aiProvider,
+            availableKeys: keyAvailability
+          });
+          throw new Error(errorMsg);
         }
+      } else {
+        console.log('✅ AI 서비스 매니저가 이미 초기화되어 있습니다.');
       }
 
       // 분석 프롬프트 생성
       const analysisPrompt = this.generateAnalysisPrompt(content, category);
+      console.log('📝 분석 프롬프트 생성 완료', {
+        contentLength: content.length,
+        category,
+        promptLength: analysisPrompt.length
+      });
 
       // AI 서비스 매니저를 통한 실제 AI 호출
+      console.log('🤖 AI 호출 시작', {
+        model: settings.aiModel,
+        provider: settings.aiProvider,
+        maxTokens: 4000,
+        temperature: 0.3
+      });
+
       const response = await aiServiceManager.generateCompletion(analysisPrompt, {
         model: settings.aiModel,
         maxTokens: 4000,
         temperature: 0.3
       });
 
+      console.log('✅ AI 응답 수신 완료', {
+        responseLength: response.content.length,
+        inputTokens: response.usage.inputTokens,
+        outputTokens: response.usage.outputTokens,
+        totalCost: response.cost.totalCost
+      });
+
       // 응답을 파싱하여 구조화된 분석 결과 생성
       const analysis = this.parseAnalysisResponse(response.content, category);
+      console.log('📊 분석 결과 파싱 완료', { analysisKeys: Object.keys(analysis) });
 
       const processingTime = Date.now() - startTime;
 
@@ -770,8 +816,36 @@ export class PreAnalysisService {
         cost: response.cost.totalCost,
       };
     } catch (error) {
-      console.error('AI 분석 수행 중 오류:', error);
-      throw new Error(`AI 분석 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
+      const processingTime = Date.now() - startTime;
+
+      console.error('❌ AI 분석 수행 중 오류:', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        processingTime,
+        aiModel: settings.aiModel,
+        aiProvider: settings.aiProvider,
+        contentLength: content?.length || 0,
+        category
+      });
+
+      // 오류 유형에 따른 구체적인 메시지 제공
+      let errorMessage = 'AI 분석 중 오류가 발생했습니다.';
+
+      if (error instanceof Error) {
+        if (error.message.includes('API key') || error.message.includes('API 키')) {
+          errorMessage = 'API 키 설정에 문제가 있습니다. 환경 변수를 확인해주세요.';
+        } else if (error.message.includes('network') || error.message.includes('fetch')) {
+          errorMessage = '네트워크 연결에 문제가 있습니다. 인터넷 연결을 확인해주세요.';
+        } else if (error.message.includes('rate limit') || error.message.includes('quota')) {
+          errorMessage = 'API 사용량 한도에 도달했습니다. 잠시 후 다시 시도해주세요.';
+        } else if (error.message.includes('token') && error.message.includes('limit')) {
+          errorMessage = '문서가 너무 깁니다. 더 짧은 문서로 다시 시도해주세요.';
+        } else {
+          errorMessage = `AI 분석 실패: ${error.message}`;
+        }
+      }
+
+      throw new Error(errorMessage);
     }
   }
 
@@ -874,10 +948,11 @@ ${content}
     try {
       // AI 서비스 매니저 초기화 확인
       if (!aiServiceManager.getCurrentProvider()) {
+        // 환경 변수에서 API 키 가져오기 (Vercel 프로덕션 환경 지원)
         const apiKeys = {
-          openai: import.meta.env.VITE_OPENAI_API_KEY,
-          anthropic: import.meta.env.VITE_ANTHROPIC_API_KEY,
-          google: import.meta.env.VITE_GOOGLE_AI_API_KEY
+          openai: import.meta.env.VITE_OPENAI_API_KEY || (globalThis as any).process?.env?.OPENAI_API_KEY,
+          anthropic: import.meta.env.VITE_ANTHROPIC_API_KEY || (globalThis as any).process?.env?.ANTHROPIC_API_KEY,
+          google: import.meta.env.VITE_GOOGLE_AI_API_KEY || (globalThis as any).process?.env?.GOOGLE_AI_API_KEY
         };
 
         const aiProvider = session.settings?.aiProvider || 'anthropic';
@@ -1089,10 +1164,11 @@ ${contextSummary}
     try {
       // AI 서비스 매니저 초기화 확인
       if (!aiServiceManager.getCurrentProvider()) {
+        // 환경 변수에서 API 키 가져오기 (Vercel 프로덕션 환경 지원)
         const apiKeys = {
-          openai: import.meta.env.VITE_OPENAI_API_KEY,
-          anthropic: import.meta.env.VITE_ANTHROPIC_API_KEY,
-          google: import.meta.env.VITE_GOOGLE_AI_API_KEY
+          openai: import.meta.env.VITE_OPENAI_API_KEY || (globalThis as any).process?.env?.OPENAI_API_KEY,
+          anthropic: import.meta.env.VITE_ANTHROPIC_API_KEY || (globalThis as any).process?.env?.ANTHROPIC_API_KEY,
+          google: import.meta.env.VITE_GOOGLE_AI_API_KEY || (globalThis as any).process?.env?.GOOGLE_AI_API_KEY
         };
 
         const aiProvider = sessionData.session?.settings?.aiProvider || 'anthropic';

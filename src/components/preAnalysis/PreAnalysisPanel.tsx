@@ -193,25 +193,15 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
       // 분석 단계로 이동
       onStepChange?.('analysis');
 
-      // AnalysisProgress 컴포넌트에서 분석 시작
+      // AnalysisProgress 컴포넌트에서 분석 시작 (중복 호출 방지)
       setTimeout(() => {
         if (analysisProgressRef.current) {
+          console.log('🚀 AnalysisProgress 컴포넌트에서 분석 시작');
           analysisProgressRef.current.startAnalysis();
+        } else {
+          console.error('❌ AnalysisProgress ref가 설정되지 않았습니다.');
+          setError('분석 컴포넌트 초기화 오류');
         }
-
-        // 동시에 서비스에서도 분석 시작
-        preAnalysisService.analyzeAllProjectDocuments(
-          sessionToUse.id,
-          projectId
-        ).then(analysisResponse => {
-          if (!analysisResponse.success) {
-            console.error('문서 분석 오류:', analysisResponse.error);
-          } else {
-            console.log('문서 분석 시작 성공:', analysisResponse.data);
-          }
-        }).catch(error => {
-          console.error('문서 분석 예외:', error);
-        });
       }, 500);
 
     } catch (error) {

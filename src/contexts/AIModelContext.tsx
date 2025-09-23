@@ -242,11 +242,11 @@ export function AIModelProvider({ children }: { children: React.ReactNode }) {
   // AI 서비스 매니저 설정 함수
   const setupAIServiceManager = async (model: AIModel) => {
     try {
-      // 환경 변수에서 API 키 가져오기
+      // 환경 변수에서 API 키 가져오기 (Vercel 프로덕션 환경 지원)
       const apiKeys = {
-        openai: import.meta.env.VITE_OPENAI_API_KEY,
-        anthropic: import.meta.env.VITE_ANTHROPIC_API_KEY,
-        google: import.meta.env.VITE_GOOGLE_AI_API_KEY
+        openai: import.meta.env.VITE_OPENAI_API_KEY || (globalThis as any).process?.env?.OPENAI_API_KEY,
+        anthropic: import.meta.env.VITE_ANTHROPIC_API_KEY || (globalThis as any).process?.env?.ANTHROPIC_API_KEY,
+        google: import.meta.env.VITE_GOOGLE_AI_API_KEY || (globalThis as any).process?.env?.GOOGLE_AI_API_KEY
       }
 
       const apiKey = apiKeys[model.provider as keyof typeof apiKeys]

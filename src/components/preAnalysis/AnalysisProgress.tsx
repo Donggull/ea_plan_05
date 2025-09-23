@@ -153,6 +153,51 @@ export const AnalysisProgress = React.forwardRef<
       status: 'analyzing' as const,
       progress: 10,
     })));
+
+    try {
+      // 세션 정보 조회하여 프로젝트 ID 가져오기
+      const sessionResponse = await preAnalysisService.getSession(sessionId);
+      if (!sessionResponse.success || !sessionResponse.data) {
+        addToActivityLog('❌ 세션 정보를 조회할 수 없습니다.');
+        updateStageStatus('document_analysis', 'failed');
+        return;
+      }
+
+      const projectId = sessionResponse.data.projectId;
+      addToActivityLog(`📋 프로젝트 ${projectId}의 문서 분석을 진행합니다...`);
+
+      // 실제 문서 분석 시작
+      const analysisResponse = await preAnalysisService.analyzeAllProjectDocuments(
+        sessionId,
+        projectId
+      );
+
+      if (analysisResponse.success) {
+        addToActivityLog('✅ 문서 분석이 성공적으로 시작되었습니다.');
+        addToActivityLog(`📊 총 ${analysisResponse.data?.total || 0}개 문서 분석 중...`);
+      } else {
+        addToActivityLog(`❌ 문서 분석 시작 실패: ${analysisResponse.error}`);
+        updateStageStatus('document_analysis', 'failed');
+
+        // 모든 문서를 오류 상태로 변경
+        setDocumentStatuses(prev => prev.map(doc => ({
+          ...doc,
+          status: 'error' as const,
+          error: analysisResponse.error || '분석 시작 실패',
+        })));
+      }
+    } catch (error) {
+      console.error('Document analysis start error:', error);
+      addToActivityLog(`❌ 문서 분석 중 예외 발생: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
+      updateStageStatus('document_analysis', 'failed');
+
+      // 모든 문서를 오류 상태로 변경
+      setDocumentStatuses(prev => prev.map(doc => ({
+        ...doc,
+        status: 'error' as const,
+        error: '분석 중 예외 발생',
+      })));
+    }
   };
 
   // 분석 시작을 위한 외부 인터페이스
