@@ -10,22 +10,59 @@ import { supabase } from '../../lib/supabase';
 export const PreAnalysisPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { state: projectState } = useProject();
+  const { state: projectState, selectProject } = useProject();
   const { user } = useAuth();
 
+  const [project, setProject] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [documentCount, setDocumentCount] = useState(0);
   const [documentsLoading, setDocumentsLoading] = useState(false);
   const [isStartingAnalysis, setIsStartingAnalysis] = useState(false);
   const panelRef = useRef<PreAnalysisPanelRef>(null);
 
-  // 문서 수 로드
+  // 프로젝트 로딩 및 선택 로직 (다른 페이지와 동일)
   useEffect(() => {
-    if (id) {
-      loadDocumentCount();
-    }
-  }, [id]);
+    const loadProject = async () => {
+      if (!id) return;
 
+      try {
+        setLoading(true);
+        setError(null);
+
+        // 현재 프로젝트가 이미 선택된 경우
+        if (projectState.currentProject?.id === id) {
+          setProject(projectState.currentProject);
+          await loadDocumentCount();
+          setLoading(false);
+          return;
+        }
+
+        // 프로젝트 상세 정보 로딩
+        const { ProjectService } = await import('../../services/projectService');
+        const projectData = await ProjectService.getProject(id);
+        if (projectData) {
+          setProject(projectData);
+          selectProject(projectData); // 현재 프로젝트로 설정 (localStorage에 저장됨)
+          await loadDocumentCount();
+        } else {
+          setError('프로젝트를 찾을 수 없습니다.');
+        }
+      } catch (err) {
+        console.error('Failed to load project:', err);
+        setError('프로젝트를 불러오는데 실패했습니다.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadProject();
+  }, [id, projectState.currentProject?.id, selectProject]);
+
+  // 문서 수 로드
   const loadDocumentCount = async () => {
+    if (!id) return;
+
     try {
       setDocumentsLoading(true);
 
@@ -81,26 +118,39 @@ export const PreAnalysisPage: React.FC = () => {
     }
   };
 
-  if (!id) {
+  if (loading) {
+    return (
+      <PageContainer>
+        <div className="flex items-center justify-center py-12">
+          <div className="text-text-secondary">프로젝트를 불러오는 중...</div>
+        </div>
+      </PageContainer>
+    );
+  }
+
+  if (error || !project) {
     return (
       <PageContainer>
         <div className="flex items-center justify-center py-12">
           <div className="text-center">
-            <h2 className="text-xl font-semibold text-text-primary mb-2">프로젝트를 찾을 수 없습니다</h2>
-            <p className="text-text-secondary">올바른 프로젝트 ID가 필요합니다.</p>
+            <div className="text-accent-red mb-4">{error || '프로젝트를 찾을 수 없습니다.'}</div>
+            <button
+              onClick={() => navigate('/projects')}
+              className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
+            >
+              프로젝트 목록으로 돌아가기
+            </button>
           </div>
         </div>
       </PageContainer>
     );
   }
 
-  const currentProject = projectState.currentProject;
-
   return (
     <PageContainer>
       <PageHeader
         title="사전 분석"
-        subtitle={currentProject?.name || '프로젝트'}
+        subtitle={project?.name || '프로젝트'}
         description="AI와 MCP를 활용하여 프로젝트를 종합적으로 분석합니다"
         actions={
           <div className="flex items-center space-x-2">
@@ -140,7 +190,7 @@ export const PreAnalysisPage: React.FC = () => {
       <PageContent>
         <PreAnalysisPanel
           ref={panelRef}
-          projectId={id}
+          projectId={id!}
           onDocumentCountChange={setDocumentCount}
         />
       </PageContent>
