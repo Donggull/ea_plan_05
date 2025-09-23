@@ -39,17 +39,14 @@ export function ProjectCard({ project, viewMode = 'grid', onEdit, onDelete }: Pr
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'planning':
-        return 'bg-accent-blue/10 text-accent-blue border-accent-blue/20'
       case 'active':
-      case 'in_progress':
         return 'bg-accent-green/10 text-accent-green border-accent-green/20'
       case 'completed':
         return 'bg-accent-indigo/10 text-accent-indigo border-accent-indigo/20'
-      case 'on_hold':
+      case 'archived':
+        return 'bg-text-muted/10 text-text-muted border-text-muted/20'
+      case 'paused':
         return 'bg-accent-orange/10 text-accent-orange border-accent-orange/20'
-      case 'cancelled':
-        return 'bg-accent-red/10 text-accent-red border-accent-red/20'
       default:
         return 'bg-text-muted/10 text-text-muted border-text-muted/20'
     }
@@ -57,17 +54,14 @@ export function ProjectCard({ project, viewMode = 'grid', onEdit, onDelete }: Pr
 
   const getStatusLabel = (status: string) => {
     switch (status) {
-      case 'planning':
-        return '계획 중'
       case 'active':
-      case 'in_progress':
         return '진행 중'
       case 'completed':
         return '완료'
-      case 'on_hold':
-        return '보류'
-      case 'cancelled':
-        return '취소'
+      case 'archived':
+        return '보관됨'
+      case 'paused':
+        return '일시중지'
       default:
         return status
     }

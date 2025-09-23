@@ -21,7 +21,7 @@ export function ProjectForm({ mode, initialData, onSubmit, onCancel }: ProjectFo
   const [formData, setFormData] = useState<ProjectFormData>({
     name: '',
     description: '',
-    status: 'planning',
+    status: 'active',
     stageSelection: {
       selectedTypes: [],
       selectedSteps: [],
@@ -37,7 +37,7 @@ export function ProjectForm({ mode, initialData, onSubmit, onCancel }: ProjectFo
       setFormData({
         name: initialData.name || '',
         description: initialData.description || '',
-        status: initialData.status || 'planning',
+        status: initialData.status || 'active',
         stageSelection: initialData.stageSelection || {
           selectedTypes: [],
           selectedSteps: [],
@@ -55,12 +55,10 @@ export function ProjectForm({ mode, initialData, onSubmit, onCancel }: ProjectFo
   }
 
   const statusOptions = [
-    { value: 'planning', label: '계획 중' },
     { value: 'active', label: '진행 중' },
-    { value: 'in_progress', label: '진행 중' },
     { value: 'completed', label: '완료' },
-    { value: 'on_hold', label: '보류' },
-    { value: 'cancelled', label: '취소' },
+    { value: 'archived', label: '보관됨' },
+    { value: 'paused', label: '일시중지' },
   ]
 
   const handleInputChange = (

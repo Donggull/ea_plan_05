@@ -14,7 +14,7 @@ export function NewProjectPage() {
       const baseProjectData: any = {
         name: projectData.name,
         description: projectData.description,
-        status: 'planning'
+        status: 'active'
       }
 
       const newProject = await createProject(baseProjectData)
