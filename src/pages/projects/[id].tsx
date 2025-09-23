@@ -11,7 +11,8 @@ import {
   Zap,
   TrendingUp,
   UserCheck,
-  BarChart3
+  BarChart3,
+  RefreshCw
 } from 'lucide-react'
 import { useProject } from '../../contexts/ProjectContext'
 import { ProjectService } from '../../services/projectService'
@@ -21,6 +22,7 @@ import { CollaborativeWorkspace } from '../../components/realtime/CollaborativeW
 import { DocumentManager } from '../../components/documents/DocumentManager'
 import { ProjectWorkflowCard } from '../../components/projects/ProjectWorkflowCard'
 import { useProjectMembers } from '../../lib/queries/projectMembers'
+import { usePreAnalysisStatus } from '../../hooks/usePreAnalysisStatus'
 import { supabase } from '../../lib/supabase'
 import { PageContainer, PageHeader, PageContent, Card } from '../../components/LinearComponents'
 
@@ -39,6 +41,15 @@ export function ProjectDetailPage() {
 
   // 프로젝트 멤버 데이터 조회
   const { data: projectMembers = [] } = useProjectMembers(id || '')
+
+  // 사전 분석 상태 조회
+  const {
+    status: analysisStatus,
+    loading: analysisLoading,
+    getStatusColor: getAnalysisStatusColor,
+    getStatusLabel: getAnalysisStatusLabel,
+    refreshStatus
+  } = usePreAnalysisStatus(id || '')
 
   // 문서 수 로드 함수
   const loadDocumentCount = async (projectId: string) => {
@@ -252,8 +263,8 @@ export function ProjectDetailPage() {
           </Card>
         </div>
 
-        {/* 프로젝트 워크플로우 + 팀 멤버 */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        {/* 프로젝트 워크플로우 + 사전 분석 + 팀 멤버 */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
           {/* 프로젝트 워크플로우 */}
           <Card className="lg:col-span-2">
             <div className="flex items-center space-x-3 mb-4">
@@ -263,6 +274,125 @@ export function ProjectDetailPage() {
               <h2 className="text-lg font-semibold text-text-primary">프로젝트 워크플로우</h2>
             </div>
             <ProjectWorkflowCard projectId={id!} />
+          </Card>
+
+          {/* 사전 분석 */}
+          <Card>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-purple-500/10 rounded-lg">
+                  <BarChart3 className="w-5 h-5 text-purple-500" />
+                </div>
+                <h3 className="text-lg font-semibold text-text-primary">사전 분석</h3>
+              </div>
+              {!analysisLoading && (
+                <button
+                  onClick={refreshStatus}
+                  className="p-1.5 text-text-muted hover:text-text-primary rounded-lg hover:bg-bg-tertiary transition-colors"
+                  title="상태 새로고침"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
+            {analysisLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="text-text-secondary text-sm">상태를 확인하는 중...</div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-text-secondary">분석 상태</span>
+                  <span className={`px-2 py-1 text-xs rounded-full ${getAnalysisStatusColor(analysisStatus.status)}`}>
+                    {getAnalysisStatusLabel(analysisStatus.status)}
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-text-secondary">분석 진행률</span>
+                    <span className="text-xs text-text-secondary">{analysisStatus.progress}% 완료</span>
+                  </div>
+                  <div className="w-full bg-bg-tertiary rounded-full h-2">
+                    <div
+                      className="bg-purple-500 h-2 rounded-full transition-all duration-500"
+                      style={{ width: `${analysisStatus.progress}%` }}
+                    ></div>
+                  </div>
+                  {analysisStatus.currentStep && (
+                    <div className="text-xs text-text-secondary">{analysisStatus.currentStep}</div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div className="bg-bg-tertiary rounded-lg p-2">
+                    <div className="text-text-secondary">문서 분석</div>
+                    <div className="text-text-primary font-medium">{analysisStatus.analysisCount}개</div>
+                  </div>
+                  <div className="bg-bg-tertiary rounded-lg p-2">
+                    <div className="text-text-secondary">생성 질문</div>
+                    <div className="text-text-primary font-medium">{analysisStatus.questionCount}개</div>
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-border-primary/30">
+                  {analysisStatus.status === 'completed' ? (
+                    <div className="space-y-2">
+                      <button
+                        onClick={() => navigate(`/projects/${id}/pre-analysis`)}
+                        className="w-full px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm font-medium"
+                      >
+                        분석 결과 보기
+                      </button>
+                      {analysisStatus.reportExists && (
+                        <button
+                          onClick={() => navigate(`/projects/${id}/reports`)}
+                          className="w-full px-3 py-2 border border-border-primary text-text-primary rounded-lg hover:bg-bg-tertiary transition-colors text-sm"
+                        >
+                          분석 보고서 보기
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => navigate(`/projects/${id}/pre-analysis`)}
+                      className="w-full px-3 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors text-sm font-medium"
+                      disabled={analysisStatus.status === 'in_progress'}
+                    >
+                      {analysisStatus.status === 'in_progress' ? '분석 진행 중...' : '사전 분석 시작'}
+                    </button>
+                  )}
+                </div>
+
+                {analysisStatus.lastUpdated && (
+                  <div className="text-xs text-text-secondary text-center pt-2 border-t border-border-primary/30">
+                    마지막 업데이트: {analysisStatus.lastUpdated.toLocaleString('ko-KR')}
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <div className="text-xs text-text-secondary font-medium">주요 기능</div>
+                  <div className="space-y-1">
+                    <div className="flex items-center space-x-2">
+                      <div className={`w-1.5 h-1.5 rounded-full ${analysisStatus.analysisCount > 0 ? 'bg-green-500' : 'bg-purple-500'}`}></div>
+                      <span className="text-xs text-text-secondary">문서 AI 분석</span>
+                      {analysisStatus.analysisCount > 0 && <span className="text-xs text-green-500">✓</span>}
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className={`w-1.5 h-1.5 rounded-full ${analysisStatus.questionCount > 0 ? 'bg-green-500' : 'bg-purple-500'}`}></div>
+                      <span className="text-xs text-text-secondary">질문-답변 생성</span>
+                      {analysisStatus.questionCount > 0 && <span className="text-xs text-green-500">✓</span>}
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className={`w-1.5 h-1.5 rounded-full ${analysisStatus.reportExists ? 'bg-green-500' : 'bg-purple-500'}`}></div>
+                      <span className="text-xs text-text-secondary">분석 보고서</span>
+                      {analysisStatus.reportExists && <span className="text-xs text-green-500">✓</span>}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </Card>
 
           {/* 팀 멤버 */}
@@ -304,34 +434,52 @@ export function ProjectDetailPage() {
                 <h3 className="text-lg font-semibold text-text-primary">빠른 액션</h3>
               </div>
               <div className="space-y-2">
-                <button className="w-full flex items-center space-x-3 px-3 py-2.5 text-left text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors">
-                  <FileText className="w-4 h-4" />
-                  <span className="text-sm">문서 추가</span>
+                <button
+                  onClick={() => navigate(`/projects/${id}/pre-analysis`)}
+                  className="w-full flex items-center space-x-3 px-3 py-2.5 text-left text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors"
+                >
+                  <BarChart3 className="w-4 h-4 text-purple-500" />
+                  <div className="flex-1 text-left">
+                    <div className="text-sm text-text-primary font-medium">사전 분석</div>
+                    <div className="text-xs text-text-secondary">AI 문서 분석 및 Q&A</div>
+                  </div>
                 </button>
                 <button
                   onClick={() => navigate(`/projects/${id}/lifecycle`)}
                   className="w-full flex items-center space-x-3 px-3 py-2.5 text-left text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors"
                 >
-                  <TrendingUp className="w-4 h-4" />
-                  <span className="text-sm">라이프사이클 관리</span>
+                  <TrendingUp className="w-4 h-4 text-primary-500" />
+                  <div className="flex-1 text-left">
+                    <div className="text-sm text-text-primary font-medium">전체 라이프사이클</div>
+                    <div className="text-xs text-text-secondary">계획→제안→구축→운영</div>
+                  </div>
                 </button>
                 <button
                   onClick={() => navigate(`/projects/${id}/reports`)}
                   className="w-full flex items-center space-x-3 px-3 py-2.5 text-left text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors"
                 >
-                  <BarChart3 className="w-4 h-4" />
-                  <span className="text-sm">분석 보고서</span>
+                  <FileText className="w-4 h-4 text-blue-500" />
+                  <div className="flex-1 text-left">
+                    <div className="text-sm text-text-primary font-medium">분석 보고서</div>
+                    <div className="text-xs text-text-secondary">종합 분석 결과 보고서</div>
+                  </div>
                 </button>
                 <button
                   onClick={() => setIsInviteModalOpen(true)}
                   className="w-full flex items-center space-x-3 px-3 py-2.5 text-left text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors"
                 >
-                  <Users className="w-4 h-4" />
-                  <span className="text-sm">멤버 초대</span>
+                  <Users className="w-4 h-4 text-green-500" />
+                  <div className="flex-1 text-left">
+                    <div className="text-sm text-text-primary font-medium">멤버 초대</div>
+                    <div className="text-xs text-text-secondary">팀원 추가 및 권한 관리</div>
+                  </div>
                 </button>
                 <button className="w-full flex items-center space-x-3 px-3 py-2.5 text-left text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors">
-                  <Settings className="w-4 h-4" />
-                  <span className="text-sm">프로젝트 설정</span>
+                  <Settings className="w-4 h-4 text-gray-500" />
+                  <div className="flex-1 text-left">
+                    <div className="text-sm text-text-primary font-medium">프로젝트 설정</div>
+                    <div className="text-xs text-text-secondary">기본 정보 및 권한 설정</div>
+                  </div>
                 </button>
               </div>
             </Card>
