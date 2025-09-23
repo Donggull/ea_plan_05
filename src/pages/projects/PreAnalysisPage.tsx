@@ -10,8 +10,6 @@ import {
   BarChart3,
   CheckCircle,
   Clock,
-  ChevronRight,
-  Home,
   Archive
 } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
@@ -154,35 +152,6 @@ export const PreAnalysisPage: React.FC = () => {
     if (stepIndex === currentIndex) return 'in_progress';
     return 'pending';
   };
-
-  // 브레드크럼 내비게이션 렌더링
-  const renderBreadcrumbs = () => (
-    <div className="flex items-center space-x-2 text-sm text-text-secondary mb-6">
-      <button
-        onClick={() => navigate('/')}
-        className="flex items-center space-x-1 hover:text-text-primary transition-colors"
-      >
-        <Home className="w-4 h-4" />
-        <span>홈</span>
-      </button>
-      <ChevronRight className="w-4 h-4" />
-      <button
-        onClick={() => navigate('/projects')}
-        className="hover:text-text-primary transition-colors"
-      >
-        프로젝트
-      </button>
-      <ChevronRight className="w-4 h-4" />
-      <button
-        onClick={() => navigate(`/projects/${id}`)}
-        className="hover:text-text-primary transition-colors"
-      >
-        {project?.name || '프로젝트'}
-      </button>
-      <ChevronRight className="w-4 h-4" />
-      <span className="text-text-primary font-medium">사전 분석</span>
-    </div>
-  );
 
   // 진행 상태 표시 카드 렌더링
   const renderProgressCard = () => {
@@ -327,11 +296,6 @@ export const PreAnalysisPage: React.FC = () => {
 
   return (
     <PageContainer>
-      {/* 브레드크럼 내비게이션 */}
-      <div className="px-6 pt-6">
-        {renderBreadcrumbs()}
-      </div>
-
       <PageHeader
         title="사전 분석"
         subtitle={project?.name || '프로젝트'}
@@ -339,7 +303,7 @@ export const PreAnalysisPage: React.FC = () => {
         actions={
           <div className="flex items-center space-x-3">
             {/* 문서 상태 표시 */}
-            <div className="flex items-center space-x-2 px-3 py-2 bg-bg-secondary rounded-lg border border-border-primary">
+            <div className="flex items-center space-x-2 px-3 py-2 bg-bg-tertiary border border-border-primary rounded-lg">
               <Archive className="w-4 h-4 text-text-secondary" />
               <span className="text-sm text-text-secondary">
                 문서: {documentsLoading ? '...' : documentCount}개
@@ -377,7 +341,7 @@ export const PreAnalysisPage: React.FC = () => {
             >
               <div className="flex items-center space-x-2">
                 <ArrowLeft className="w-4 h-4" />
-                <span>프로젝트</span>
+                <span>프로젝트로 돌아가기</span>
               </div>
             </Button.Secondary>
           </div>
