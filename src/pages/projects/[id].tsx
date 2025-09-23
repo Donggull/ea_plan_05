@@ -12,7 +12,10 @@ import {
   TrendingUp,
   UserCheck,
   BarChart3,
-  RefreshCw
+  RefreshCw,
+  CheckCircle,
+  Clock,
+  MessageSquare
 } from 'lucide-react'
 import { useProject } from '../../contexts/ProjectContext'
 import { ProjectService } from '../../services/projectService'
@@ -84,6 +87,34 @@ export function ProjectDetailPage() {
     if (id) {
       loadDocumentCount(id)
     }
+  }
+
+  // 사전 분석 단계 정의
+  const analysisSteps = [
+    { id: 'setup', label: '설정', icon: Settings, description: 'AI 모델 및 MCP 설정' },
+    { id: 'analysis', label: '문서 분석', icon: FileText, description: '업로드된 문서 AI 분석' },
+    { id: 'questions', label: '질문 답변', icon: MessageSquare, description: 'AI 생성 질문에 답변' },
+    { id: 'report', label: '보고서', icon: BarChart3, description: '분석 결과 보고서 생성' },
+  ]
+
+  // 분석 상태에 따른 현재 단계 계산
+  const getCurrentAnalysisStep = () => {
+    if (analysisStatus.status === 'not_started') return 0
+    if (analysisStatus.status === 'in_progress') {
+      if (analysisStatus.currentStep?.includes('문서 분석')) return 1
+      if (analysisStatus.currentStep?.includes('질문')) return 2
+      if (analysisStatus.currentStep?.includes('보고서')) return 3
+    }
+    if (analysisStatus.status === 'completed') return 4
+    return 0
+  }
+
+  // 단계별 상태 가져오기
+  const getStepStatus = (stepIndex: number) => {
+    const currentStep = getCurrentAnalysisStep()
+    if (stepIndex < currentStep) return 'completed'
+    if (stepIndex === currentStep && analysisStatus.status === 'in_progress') return 'in_progress'
+    return 'pending'
   }
 
   // 프로젝트 상세 정보 로딩
@@ -309,19 +340,66 @@ export function ProjectDetailPage() {
                   </span>
                 </div>
 
-                <div className="space-y-2">
+                {/* 단계별 진행 상황 시각화 */}
+                <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-text-secondary">분석 진행률</span>
                     <span className="text-xs text-text-secondary">{analysisStatus.progress}% 완료</span>
                   </div>
+
+                  {/* SNB 스타일 단계 표시 */}
+                  <div className="grid grid-cols-4 gap-1">
+                    {analysisSteps.map((step, index) => {
+                      const status = getStepStatus(index)
+                      const Icon = step.icon
+
+                      return (
+                        <div key={step.id} className="flex flex-col items-center">
+                          <div
+                            className={`
+                              w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all duration-200
+                              ${status === 'completed'
+                                ? 'bg-success border-success'
+                                : status === 'in_progress'
+                                ? 'bg-primary-500 border-primary-500'
+                                : 'bg-bg-secondary border-border-primary'
+                              }
+                            `}
+                          >
+                            {status === 'completed' ? (
+                              <CheckCircle className="w-4 h-4 text-white" />
+                            ) : status === 'in_progress' ? (
+                              <Clock className="w-4 h-4 text-white" />
+                            ) : (
+                              <Icon className={`w-4 h-4 ${status === 'pending' ? 'text-text-muted' : 'text-white'}`} />
+                            )}
+                          </div>
+                          <span className={`
+                            mt-1 text-xs font-medium text-center
+                            ${status === 'completed'
+                              ? 'text-success'
+                              : status === 'in_progress'
+                              ? 'text-primary-500'
+                              : 'text-text-muted'
+                            }
+                          `}>
+                            {step.label}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {/* 진행률 바 */}
                   <div className="w-full bg-bg-tertiary rounded-full h-2">
                     <div
-                      className="bg-purple-500 h-2 rounded-full transition-all duration-500"
+                      className="bg-gradient-to-r from-primary-500 to-primary-600 h-2 rounded-full transition-all duration-500"
                       style={{ width: `${analysisStatus.progress}%` }}
                     ></div>
                   </div>
+
                   {analysisStatus.currentStep && (
-                    <div className="text-xs text-text-secondary">{analysisStatus.currentStep}</div>
+                    <div className="text-xs text-text-secondary text-center">{analysisStatus.currentStep}</div>
                   )}
                 </div>
 

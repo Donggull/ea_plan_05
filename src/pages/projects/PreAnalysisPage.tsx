@@ -155,17 +155,12 @@ export const PreAnalysisPage: React.FC = () => {
     return 'pending';
   };
 
-  // 탭 이동 처리
+  // 탭 이동 처리 (모든 단계로 자유 이동 가능)
   const handleStepChange = (stepId: string) => {
-    const status = getStepStatus(stepId);
-
-    // 완료된 단계나 현재 단계로만 이동 가능
-    if (status === 'completed' || status === 'in_progress') {
-      setCurrentStep(stepId as 'setup' | 'analysis' | 'questions' | 'report');
-    }
+    setCurrentStep(stepId as 'setup' | 'analysis' | 'questions' | 'report');
   };
 
-  // 이전/다음 단계로 이동
+  // 이전/다음 단계로 이동 (자유 이동)
   const goToPreviousStep = () => {
     const currentIndex = steps.findIndex(s => s.id === currentStep);
     if (currentIndex > 0) {
@@ -178,12 +173,7 @@ export const PreAnalysisPage: React.FC = () => {
     const currentIndex = steps.findIndex(s => s.id === currentStep);
     if (currentIndex < steps.length - 1) {
       const nextStep = steps[currentIndex + 1];
-      const nextStatus = getStepStatus(nextStep.id);
-
-      // 다음 단계가 완료되었거나 현재 단계가 완료되어 다음 단계가 진행 중인 경우에만 이동
-      if (nextStatus === 'completed' || nextStatus === 'in_progress') {
-        handleStepChange(nextStep.id);
-      }
+      handleStepChange(nextStep.id);
     }
   };
 
@@ -197,19 +187,15 @@ export const PreAnalysisPage: React.FC = () => {
               const Icon = step.icon;
               const isActive = currentStep === step.id;
               const status = getStepStatus(step.id);
-              const isDisabled = status === 'pending';
 
               return (
                 <button
                   key={step.id}
                   onClick={() => handleStepChange(step.id)}
-                  disabled={isDisabled}
                   className={`
                     group inline-flex items-center py-4 px-1 border-b-2 font-medium text-sm transition-all duration-200
                     ${isActive
                       ? 'border-primary-500 text-primary-500'
-                      : isDisabled
-                      ? 'border-transparent text-text-muted cursor-not-allowed'
                       : 'border-transparent text-text-secondary hover:text-text-primary hover:border-border-secondary'
                     }
                   `}
@@ -221,8 +207,6 @@ export const PreAnalysisPage: React.FC = () => {
                         ? 'bg-primary-500/10'
                         : status === 'completed'
                         ? 'bg-success/10'
-                        : isDisabled
-                        ? 'bg-bg-tertiary'
                         : 'bg-bg-secondary group-hover:bg-bg-tertiary'
                       }
                     `}>
@@ -231,7 +215,7 @@ export const PreAnalysisPage: React.FC = () => {
                       ) : status === 'in_progress' ? (
                         <Clock className={`w-4 h-4 ${isActive ? 'text-primary-500' : 'text-primary-400'}`} />
                       ) : (
-                        <Icon className={`w-4 h-4 ${isActive ? 'text-primary-500' : isDisabled ? 'text-text-muted' : 'text-text-secondary'}`} />
+                        <Icon className={`w-4 h-4 ${isActive ? 'text-primary-500' : 'text-text-secondary group-hover:text-text-primary'}`} />
                       )}
                     </div>
                     <span className="hidden sm:block">{step.label}</span>
@@ -282,7 +266,7 @@ export const PreAnalysisPage: React.FC = () => {
               </button>
               <button
                 onClick={goToNextStep}
-                disabled={currentIndex === steps.length - 1 || getStepStatus(steps[currentIndex + 1]?.id) === 'pending'}
+                disabled={currentIndex === steps.length - 1}
                 className="p-2 rounded-lg bg-bg-secondary hover:bg-bg-tertiary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 title="다음 단계"
               >
