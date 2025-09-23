@@ -77,11 +77,13 @@ export class PreAnalysisService {
 
       // 문서 ID를 키로 하는 상태 맵 생성
       const statusMap = (data || []).reduce((acc, item) => {
-        acc[item.document_id] = {
-          status: item.status,
-          processingTime: item.processing_time,
-          confidenceScore: item.confidence_score,
-        };
+        if (item?.document_id) {
+          acc[item.document_id] = {
+            status: item.status,
+            processingTime: item.processing_time,
+            confidenceScore: item.confidence_score,
+          };
+        }
         return acc;
       }, {} as Record<string, any>);
 

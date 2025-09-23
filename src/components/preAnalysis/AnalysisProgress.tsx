@@ -71,7 +71,6 @@ export const AnalysisProgress = React.forwardRef<
   ]);
 
   const [documentStatuses, setDocumentStatuses] = useState<DocumentStatus[]>([]);
-  const [projectDocuments, setProjectDocuments] = useState<any[]>([]);
 
   const [overallProgress, setOverallProgress] = useState(0);
   const [, setCurrentStage] = useState<string>('document_analysis');
@@ -114,7 +113,6 @@ export const AnalysisProgress = React.forwardRef<
       const documentsResponse = await preAnalysisService.getProjectDocuments(session.projectId);
       if (documentsResponse.success && documentsResponse.data) {
         const documents = documentsResponse.data;
-        setProjectDocuments(documents);
 
         // 문서별 초기 상태 설정
         const initialStatuses: DocumentStatus[] = documents.map(doc => ({
@@ -241,10 +239,10 @@ export const AnalysisProgress = React.forwardRef<
   const generateQuestions = async () => {
     try {
       const response = await preAnalysisService.generateQuestions(sessionId, {
-        categories: ['business', 'technical', 'timeline', 'stakeholders', 'constraints'],
+        categories: ['business', 'technical', 'timeline', 'stakeholders', 'risks'],
         maxQuestions: 15,
-        includeFollowUps: true,
-        contextDepth: 'detailed',
+        includeRequired: true,
+        customContext: 'detailed analysis context',
       });
 
       if (response.success) {
