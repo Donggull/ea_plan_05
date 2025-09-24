@@ -116,7 +116,36 @@ export const AnalysisProgress = React.forwardRef<
     };
   }, [sessionId, isPaused, analysisCompleted, pollInterval]);
 
-  // documentStatuses 변경 시 진행률 업데이트 (debounced)
+  // 전체 진행률 계산 개선 (단계별 가중치 적용)
+  const updateOverallProgress = useCallback(() => {
+    // 단계별 진행률 계산
+    const documentStageProgress = stages.find(s => s.id === 'document_analysis')?.progress || 0;
+    const questionStageProgress = stages.find(s => s.id === 'question_generation')?.progress || 0;
+
+    // 단계별 가중치: 문서 분석 70%, 질문 생성 30%
+    const documentWeight = 0.7;
+    const questionWeight = 0.3;
+
+    // 전체 진행률 계산
+    const calculatedProgress = Math.round(
+      (documentStageProgress * documentWeight) + (questionStageProgress * questionWeight)
+    );
+
+    const finalProgress = Math.min(100, Math.max(0, calculatedProgress));
+
+    // 의미있는 변경만 업데이트
+    if (Math.abs(overallProgress - finalProgress) >= 1) {
+      console.log('🔄 진행률 업데이트:', {
+        이전: overallProgress,
+        새로운: finalProgress,
+        문서분석: documentStageProgress,
+        질문생성: questionStageProgress
+      });
+      setOverallProgress(finalProgress);
+    }
+  }, [stages, overallProgress]);
+
+  // stages 변경 시 진행률 업데이트 (debounced)
   const debouncedUpdateProgress = useMemo(
     () => {
       let timeoutId: NodeJS.Timeout;
@@ -127,14 +156,14 @@ export const AnalysisProgress = React.forwardRef<
         }, 300); // 300ms debounce
       };
     },
-    []
+    [updateOverallProgress]
   );
 
   useEffect(() => {
-    if (documentStatuses.length > 0) {
+    if (stages.length > 0) {
       debouncedUpdateProgress();
     }
-  }, [documentStatuses, debouncedUpdateProgress]);
+  }, [stages, debouncedUpdateProgress]);
 
   const initializeAnalysis = async () => {
     setStartTime(new Date());
@@ -209,14 +238,15 @@ export const AnalysisProgress = React.forwardRef<
       return;
     }
 
-    updateStageStatus('document_analysis', 'in_progress');
+    // 문서 분석 단계 시작 (즉시 진행률 반영)
+    updateStageStatus('document_analysis', 'in_progress', 10, '문서 분석을 시작합니다...');
     addToActivityLog('🚀 문서 분석을 시작합니다...');
 
     // 문서 상태를 분석 중으로 변경
     setDocumentStatuses(prev => prev.map(doc => ({
       ...doc,
       status: 'analyzing' as const,
-      progress: 10,
+      progress: 20,
       startedAt: new Date(),
     })));
 
@@ -424,37 +454,6 @@ export const AnalysisProgress = React.forwardRef<
     }
   }, [sessionId, documentStatuses, analysisCompleted, lastUpdateTime, stages]);
 
-  // 전체 진행률 계산 개선 (가중치 적용)
-  const updateOverallProgress = useCallback(() => {
-    if (documentStatuses.length === 0) {
-      setOverallProgress(0);
-      return;
-    }
-
-    // 문서 상태에 따른 가중치 적용
-    const weightedProgress = documentStatuses.reduce((sum, doc) => {
-      const weight = doc.status === 'completed' ? 1.0 :
-                    doc.status === 'analyzing' ? 0.8 :
-                    doc.status === 'error' ? 0.2 : 0.1;
-      return sum + (doc.progress || 0) * weight;
-    }, 0);
-
-    const totalWeight = documentStatuses.reduce((sum, doc) => {
-      const weight = doc.status === 'completed' ? 1.0 :
-                    doc.status === 'analyzing' ? 0.8 :
-                    doc.status === 'error' ? 0.2 : 0.1;
-      return sum + weight;
-    }, 0);
-
-    const avgProgress = totalWeight > 0 ? weightedProgress / totalWeight : 0;
-    const roundedProgress = Math.round(Math.min(100, Math.max(0, avgProgress)));
-
-    // 의미있는 변경만 업데이트
-    if (Math.abs(overallProgress - roundedProgress) >= 1) {
-      setOverallProgress(roundedProgress);
-    }
-  }, [documentStatuses, overallProgress]);
-
   const updateStageStatus = useCallback((stageId: string, status: AnalysisStage['status'], progress?: number, message?: string) => {
     setStages(prev => {
       const stageIndex = prev.findIndex(s => s.id === stageId);
@@ -477,9 +476,14 @@ export const AnalysisProgress = React.forwardRef<
         endTime: (status === 'completed' || status === 'failed') ? new Date() : currentStage.endTime,
       };
 
+      // 단계 업데이트 후 전체 진행률 재계산 (비동기로 처리)
+      setTimeout(() => {
+        updateOverallProgress();
+      }, 100);
+
       return updated;
     });
-  }, []);
+  }, [updateOverallProgress]);
 
   const addToActivityLog = useCallback((message: string) => {
     const timestamp = new Date().toLocaleTimeString('ko-KR');
