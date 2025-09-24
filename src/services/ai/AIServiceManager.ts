@@ -686,9 +686,9 @@ export async function initializeAIServiceManager(): Promise<void> {
   console.log('🤖 AIServiceManager 초기화 중...')
 
   // 환경변수에서 API 키 읽기 (VITE_ 접두사 제거됨)
-  const anthropicApiKey = import.meta.env.ANTHROPIC_API_KEY
-  const openaiApiKey = import.meta.env.OPENAI_API_KEY
-  const googleApiKey = import.meta.env.GOOGLE_AI_API_KEY
+  const anthropicApiKey = import.meta.env['ANTHROPIC_API_KEY']
+  const openaiApiKey = import.meta.env['OPENAI_API_KEY']
+  const googleApiKey = import.meta.env['GOOGLE_AI_API_KEY']
 
   console.log('🔑 API 키 확인:')
   console.log('- Anthropic:', anthropicApiKey ? '✅ 설정됨' : '❌ 누락')
