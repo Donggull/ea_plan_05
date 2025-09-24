@@ -334,7 +334,7 @@ export class AIQuestionGenerator {
       console.log('🚀 서버사이드 AI API 호출 시작...');
 
       // 프로덕션 환경과 개발 환경에 따른 API URL 설정
-      const apiUrl = process.env.NODE_ENV === 'production'
+      const apiUrl = process.env['NODE_ENV'] === 'production'
         ? 'https://ea-plan-05.vercel.app/api/ai/completion'
         : '/api/ai/completion';
       console.log('🌐 API 호출 URL:', apiUrl);
