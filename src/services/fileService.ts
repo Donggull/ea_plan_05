@@ -1,5 +1,11 @@
 import { supabase } from '../lib/supabase'
+import * as pdfjs from 'pdfjs-dist'
+import { createWorker } from 'tesseract.js'
+import * as mammoth from 'mammoth'
 // import { fileTypeFromBuffer } from 'file-type'
+
+// PDF.js 워커 설정
+pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`
 
 export interface FileMetadata {
   name: string
@@ -311,6 +317,42 @@ class FileService {
 
       console.log('✅ 데이터베이스 저장 성공')
 
+      // 진행률 85% 보고 (텍스트 추출이 남음)
+      onProgress?.(85)
+
+      // 텍스트 추출 및 document_content 테이블에 저장
+      try {
+        console.log('📝 텍스트 추출 및 저장 시작...')
+        const textData = await this.extractFullTextContent(file)
+
+        if (textData.rawText.length > 0) {
+          await this.saveToDocumentContent(dbResponse.data.id, textData)
+
+          // documents 테이블의 is_processed를 true로 업데이트
+          await supabase
+            .from('documents')
+            .update({ is_processed: true })
+            .eq('id', dbResponse.data.id)
+
+          console.log('✅ 텍스트 추출 및 저장 완료')
+        } else {
+          console.warn('⚠️ 추출된 텍스트가 없습니다')
+        }
+      } catch (textError) {
+        console.error('❌ 텍스트 추출 실패:', textError)
+        // 텍스트 추출 실패해도 파일 업로드는 성공으로 처리
+        // documents 테이블에 오류 상태 기록
+        await supabase
+          .from('documents')
+          .update({
+            metadata: {
+              ...options.metadata,
+              text_extraction_error: textError instanceof Error ? textError.message : String(textError)
+            }
+          })
+          .eq('id', dbResponse.data.id)
+      }
+
       // 진행률 100% 보고
       onProgress?.(100)
 
@@ -452,6 +494,165 @@ class FileService {
       console.warn('Text content extraction failed:', error)
       return ''
     }
+  }
+
+  private async extractPdfText(file: File): Promise<string> {
+    try {
+      console.log('📄 PDF 텍스트 추출 시작')
+      const arrayBuffer = await file.arrayBuffer()
+      const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise
+
+      let fullText = ''
+      const numPages = pdf.numPages
+      console.log(`📄 PDF 페이지 수: ${numPages}`)
+
+      for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+        try {
+          const page = await pdf.getPage(pageNum)
+          const textContent = await page.getTextContent()
+          const pageText = textContent.items
+            .map((item: any) => item.str)
+            .join(' ')
+
+          fullText += pageText + '\n'
+          console.log(`📄 페이지 ${pageNum} 텍스트 추출 완료: ${pageText.length}자`)
+        } catch (pageError) {
+          console.warn(`📄 페이지 ${pageNum} 처리 실패:`, pageError)
+        }
+      }
+
+      console.log(`📄 PDF 텍스트 추출 완료: 총 ${fullText.length}자`)
+      return fullText.trim()
+    } catch (error) {
+      console.error('PDF 텍스트 추출 실패:', error)
+      throw new Error(`PDF 텍스트 추출 실패: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  private async extractDocxText(file: File): Promise<string> {
+    try {
+      console.log('📝 DOCX 텍스트 추출 시작')
+      const arrayBuffer = await file.arrayBuffer()
+      const result = await mammoth.extractRawText({ arrayBuffer })
+
+      console.log(`📝 DOCX 텍스트 추출 완료: ${result.value.length}자`)
+      if (result.messages.length > 0) {
+        console.warn('📝 DOCX 추출 경고:', result.messages)
+      }
+
+      return result.value
+    } catch (error) {
+      console.error('DOCX 텍스트 추출 실패:', error)
+      throw new Error(`DOCX 텍스트 추출 실패: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+
+  private async extractFullTextContent(file: File): Promise<{
+    rawText: string;
+    ocrText?: string;
+    confidenceScore?: number;
+  }> {
+    try {
+      let rawText = ''
+      let ocrText: string | undefined
+      let confidenceScore: number | undefined
+
+      if (file.type === 'application/pdf') {
+        rawText = await this.extractPdfText(file)
+      } else if (
+        file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      ) {
+        rawText = await this.extractDocxText(file)
+      } else if (file.type.startsWith('text/')) {
+        rawText = await file.text()
+      } else if (file.type.startsWith('image/')) {
+        const worker = await createWorker('kor+eng')
+        const { data: { text, confidence } } = await worker.recognize(file)
+        await worker.terminate()
+
+        ocrText = text
+        confidenceScore = confidence
+        rawText = text // 이미지의 경우 OCR 결과가 주 텍스트
+      }
+
+      return {
+        rawText: rawText.trim(),
+        ocrText: ocrText?.trim(),
+        confidenceScore
+      }
+    } catch (error) {
+      console.error('텍스트 추출 실패:', error)
+      throw error
+    }
+  }
+
+  private async saveToDocumentContent(
+    documentId: string,
+    textData: {
+      rawText: string;
+      ocrText?: string;
+      confidenceScore?: number;
+    }
+  ): Promise<void> {
+    try {
+      console.log('💾 document_content 테이블에 텍스트 저장 중...')
+
+      const contentData = {
+        document_id: documentId,
+        content_type: 'text',
+        raw_text: textData.rawText,
+        ocr_text: textData.ocrText || null,
+        processed_text: textData.rawText, // 기본적으로 raw_text와 동일
+        language: this.detectLanguage(textData.rawText),
+        confidence_score: textData.confidenceScore || null,
+        extraction_status: 'completed',
+        extracted_at: new Date().toISOString(),
+        metadata: {
+          text_length: textData.rawText.length,
+          extraction_method: textData.ocrText ? 'ocr' : 'direct',
+          has_ocr: Boolean(textData.ocrText)
+        }
+      }
+
+      console.log('💾 저장할 텍스트 데이터:', {
+        document_id: documentId,
+        raw_text_length: textData.rawText.length,
+        has_ocr_text: Boolean(textData.ocrText),
+        confidence_score: textData.confidenceScore
+      })
+
+      if (!supabase) {
+        throw new Error('Supabase 클라이언트가 초기화되지 않았습니다.')
+      }
+
+      const { error } = await supabase
+        .from('document_content')
+        .insert(contentData)
+
+      if (error) {
+        console.error('❌ document_content 저장 실패:', error)
+        throw new Error(`텍스트 저장 실패: ${error instanceof Error ? error.message : String(error)}`)
+      }
+
+      console.log('✅ document_content 저장 성공')
+    } catch (error) {
+      console.error('document_content 저장 중 오류:', error)
+      throw error
+    }
+  }
+
+  private detectLanguage(text: string): string {
+    if (!text || text.length < 10) return 'unknown'
+
+    // 한글 문자 비율 계산
+    const koreanChars = text.match(/[가-힣]/g)?.length || 0
+    const totalChars = text.replace(/\s/g, '').length
+    const koreanRatio = totalChars > 0 ? koreanChars / totalChars : 0
+
+    if (koreanRatio > 0.3) return 'ko'
+    if (/[a-zA-Z]/.test(text)) return 'en'
+    return 'mixed'
   }
 
 }

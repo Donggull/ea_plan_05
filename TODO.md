@@ -1362,13 +1362,73 @@ Phase 8의 상세 구현을 위해 `docs/pre_analysis_prompts.md` 파일의 프�
    - 프로덕션환경: /api/ai/completion
    - 실제 AI API 연동 테스트 필요
 
-#### 📋 Phase 9.2에서 테스트할 핵심 사항
-1. **파일 업로드 → 텍스트 추출 → document_content 저장 프로세스**
+## ✅ Phase 9.2: 파일 업로드 텍스트 추출 프로세스 수정 완료 (2025-09-24)
+
+### 🔍 문제점 발견 및 해결
+**발견된 핵심 문제**: 파일 업로드는 정상 작동하지만 텍스트 추출 및 document_content 테이블 저장 로직이 누락되어 AI 모델이 문서 내용을 분석할 수 없었음
+
+### 🛠️ 구현 완료된 수정 사항
+
+#### 1. **mammoth 패키지 설치** ✅
+- DOCX 파일 텍스트 추출을 위한 mammoth 패키지 추가
+- package.json에 "mammoth": "^1.11.0" 추가
+
+#### 2. **fileService.ts 완전한 텍스트 추출 시스템 구현** ✅
+- **PDF 텍스트 추출**: pdfjs-dist 기반 `extractPdfText()` 함수 구현
+- **DOCX 텍스트 추출**: mammoth 기반 `extractDocxText()` 함수 구현
+- **이미지 OCR 추출**: tesseract.js 기반 한국어+영어 지원 OCR 구현
+- **통합 추출 함수**: `extractFullTextContent()` - 파일 타입별 자동 판별 및 추출
+
+#### 3. **document_content 테이블 저장 로직 구현** ✅
+- `saveToDocumentContent()` 함수 구현
+- raw_text, ocr_text, confidence_score 등 상세 정보 저장
+- 언어 감지 기능 (한국어/영어/혼합) 추가
+- 추출 상태 및 메타데이터 자동 관리
+
+#### 4. **업로드 워크플로우 통합 수정** ✅
+**기존**: 파일 업로드 → Storage 저장 → documents 테이블 저장
+**수정 후**: 파일 업로드 → Storage 저장 → documents 테이블 저장 → **텍스트 추출 → document_content 테이블 저장**
+
+- 진행률 표시 개선 (85% → 텍스트 추출 중 → 100%)
+- 텍스트 추출 실패 시에도 파일 업로드는 성공으로 처리
+- documents.is_processed 상태 자동 업데이트
+- 오류 정보를 metadata에 저장하여 디버깅 지원
+
+#### 5. **TypeScript 타입 안전성 완전 보장** ✅
+- 모든 error 객체 안전한 처리 (error instanceof Error 체크)
+- supabase null 체크 추가
+- 중복 함수 제거 및 코드 최적화
+
+### 📊 구현된 주요 기능
+
+#### **지원하는 파일 형식별 처리**
+| 파일 타입 | 처리 방식 | 구현 함수 |
+|-----------|----------|----------|
+| PDF | PDF.js 텍스트 추출 | `extractPdfText()` |
+| DOCX | Mammoth 텍스트 변환 | `extractDocxText()` |
+| 텍스트 파일 | 직접 읽기 | `file.text()` |
+| 이미지 | Tesseract OCR (한+영) | OCR 처리 |
+
+#### **document_content 테이블 저장 정보**
+- `raw_text`: 추출된 원본 텍스트
+- `ocr_text`: OCR로 추출된 텍스트 (이미지의 경우)
+- `processed_text`: 전처리된 텍스트 (현재는 raw_text와 동일)
+- `language`: 자동 감지된 언어 (ko/en/mixed)
+- `confidence_score`: OCR 신뢰도 (이미지의 경우)
+- `extraction_status`: 추출 상태 ('completed')
+- `metadata`: 추출 방식 및 통계 정보
+
+### 🔗 AI 모델 연결 준비 완료
+- document_content 테이블이 채워짐으로써 PreAnalysisService의 AI 분석 기능 활성화 가능
+- 텍스트 데이터가 준비되어 Claude 4, GPT-4 등 AI 모델로 전달 가능한 상태
+
+#### 📋 Phase 9.2에서 테스트할 핵심 사항 (사용자 테스트 대기)
+1. **파일 업로드 → 텍스트 추출 → document_content 저장 프로세스** ✅ 구현 완료
 2. **사전 분석 세션 생성 → 문서 분석 실행 프로세스**
 3. **AI 모델 API 호출 → 분석 결과 저장 프로세스**
 4. **질문 생성 → 답변 수집 → 보고서 생성 전체 워크플로우**
 
-#### 📁 Phase 9.2: 파일 업로드 프로세스 테스트
+#### 📁 Phase 9.2: 파일 업로드 프로세스 테스트 (구현 완료 - 사용자 테스트 필요)
 - [ ] **파일 업로드 UI 동작 확인**
   - [ ] 문서 선택 및 업로드 버튼 정상 작동 여부
   - [ ] 지원 파일 형식 (PDF, DOCX, TXT) 검증
