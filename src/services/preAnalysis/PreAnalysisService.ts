@@ -142,14 +142,24 @@ export class PreAnalysisService {
     projectId: string
   ): Promise<ServiceResponse<any>> {
     try {
+      console.log(`🚀 analyzeAllProjectDocuments 메서드 호출됨`);
+      console.log(`📊 입력 파라미터: sessionId=${sessionId}, projectId=${projectId}`);
+
       // 프로젝트 문서 목록 조회
+      console.log(`📂 프로젝트 문서 목록을 조회합니다...`);
       const documentsResponse = await this.getProjectDocuments(projectId);
+      console.log(`📄 문서 조회 결과:`, documentsResponse);
+
       if (!documentsResponse.success || !documentsResponse.data) {
+        console.error(`❌ 문서 조회 실패:`, documentsResponse.error);
         return { success: false, error: '프로젝트 문서를 조회할 수 없습니다.' };
       }
 
       const documents = documentsResponse.data;
+      console.log(`📋 발견된 문서 개수: ${documents.length}`);
+
       if (documents.length === 0) {
+        console.warn(`⚠️ 업로드된 문서가 없습니다.`);
         return {
           success: false,
           error: '프로젝트에 업로드된 문서가 없습니다. 사전 분석을 진행하려면 먼저 문서를 업로드해주세요.',
@@ -258,12 +268,17 @@ export class PreAnalysisService {
       });
 
       // 문서 분석 완료 후 자동으로 AI 질문 생성 시작
+      console.log(`🔍 문서 분석 결과: 성공 ${successCount}개, 실패 ${errorCount}개, 총 ${totalDocuments}개`);
+
       if (successCount > 0) {
         console.log('📝 문서 분석 완료, AI 질문 생성을 자동으로 시작합니다...');
+        console.log(`📍 세션 ID: ${sessionId}, 프로젝트 ID: ${projectId}`);
 
         // 비동기로 질문 생성 시작 (await 하지 않음으로써 응답을 먼저 반환)
         setTimeout(async () => {
           try {
+            console.log('⏰ 1초 대기 완료, 이제 generateQuestions 메서드를 호출합니다...');
+
             const questionResult = await this.generateQuestions(sessionId, {
               categories: ['technical', 'business', 'risks', 'budget', 'timeline'],
               maxQuestions: 20,
@@ -272,15 +287,21 @@ export class PreAnalysisService {
               documentTypes: [DocumentCategory.TECHNICAL, DocumentCategory.BUSINESS, DocumentCategory.REQUIREMENTS]
             });
 
+            console.log('🔄 generateQuestions 메서드 결과:', questionResult);
+
             if (questionResult.success) {
               console.log('✅ AI 질문 생성이 자동으로 완료되었습니다.');
+              console.log('📊 생성된 질문 데이터:', questionResult.data);
             } else {
               console.error('❌ AI 질문 생성 자동 실행 실패:', questionResult.error);
             }
           } catch (error) {
             console.error('❌ AI 질문 생성 자동 실행 중 오류:', error);
+            console.error('❌ 오류 스택:', error.stack);
           }
         }, 1000); // 1초 후 실행
+      } else {
+        console.warn('⚠️ 성공한 문서가 없어서 AI 질문 생성을 건너뛰었습니다.');
       }
 
       return {
