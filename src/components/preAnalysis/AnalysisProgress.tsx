@@ -58,8 +58,8 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
   const [stages, setStages] = useState<AnalysisStage[]>([
     {
       id: 'document_analysis',
-      name: '문서 분석',
-      description: '업로드된 문서들을 AI로 분석합니다',
+      name: '📄 문서 분석',
+      description: 'AI가 업로드된 문서들을 지능적으로 분석하고 핵심 내용을 파악합니다',
       icon: FileText,
       estimatedDuration: 120,
       status: 'pending',
@@ -67,8 +67,8 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
     },
     {
       id: 'question_generation',
-      name: '질문 생성',
-      description: '분석 결과를 바탕으로 맞춤형 질문을 생성합니다',
+      name: '🤖 AI 질문 생성',
+      description: '분석된 문서 내용을 바탕으로 프로젝트에 적합한 맞춤형 질문을 생성합니다',
       icon: MessageSquare,
       estimatedDuration: 45,
       status: 'pending',
@@ -86,7 +86,8 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
   const [elapsedTime, setElapsedTime] = useState(0);
   const [pollInterval, setPollInterval] = useState<number>(3000); // 동적 폴링 간격
   const [lastUpdateTime, setLastUpdateTime] = useState<number>(Date.now());
-  const [analysisCompleted] = useState(false);
+  const [analysisCompleted, setAnalysisCompleted] = useState(false);
+  const [questionGenerationTriggered, setQuestionGenerationTriggered] = useState(false);
 
   useEffect(() => {
     // 세션 시작 시 초기화
@@ -354,25 +355,27 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
           docStage.status = 'completed';
           docStage.endTime = new Date();
           docStage.progress = 100;
+          docStage.message = `모든 문서 분석 완료 (성공: ${completedDocs}개, 오류: ${errorDocs}개)`;
 
           addToActivityLog(`✅ 문서 분석이 완료되었습니다! (성공: ${completedDocs}개, 오류: ${errorDocs}개)`);
+          setAnalysisCompleted(true);
 
-          // 질문 생성 시작 - 성공한 문서가 하나라도 있어야 진행
-          const questionStage = updated.find(s => s.id === 'question_generation');
-          if (questionStage && questionStage.status === 'pending') {
-            if (completedDocs > 0) {
-              questionStage.status = 'in_progress';
-              questionStage.startTime = new Date();
-              addToActivityLog('🤖 AI 질문 생성을 시작합니다...');
+          // 질문 생성 자동 시작 - 성공한 문서가 하나라도 있어야 진행
+          if (completedDocs > 0 && !questionGenerationTriggered) {
+            setQuestionGenerationTriggered(true);
+            addToActivityLog('🔄 AI 질문 생성 단계로 자동 진행합니다...');
 
-              // 실제 질문 생성 호출
-              setTimeout(() => {
-                generateQuestions();
-              }, 2000);
-            } else {
-              // 모든 문서가 실패한 경우
+            // 즉시 질문 생성 시작
+            setTimeout(() => {
+              triggerQuestionGeneration();
+            }, 1000);
+          } else if (completedDocs === 0) {
+            // 모든 문서가 실패한 경우
+            const questionStage = updated.find(s => s.id === 'question_generation');
+            if (questionStage && questionStage.status === 'pending') {
               questionStage.status = 'failed';
               questionStage.endTime = new Date();
+              questionStage.message = '분석 성공한 문서가 없음';
               addToActivityLog('❌ 분석 성공한 문서가 없어 질문을 생성할 수 없습니다.');
             }
           }
@@ -414,8 +417,43 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
     });
   };
 
+  // 질문 생성 단계 트리거 함수 (분석 완료 후 호출)
+  const triggerQuestionGeneration = () => {
+    setStages(prev => {
+      const updated = [...prev];
+      const questionStage = updated.find(s => s.id === 'question_generation');
+
+      if (questionStage && questionStage.status === 'pending') {
+        questionStage.status = 'in_progress';
+        questionStage.startTime = new Date();
+        questionStage.progress = 10;
+        questionStage.message = 'AI 질문 생성 중...';
+
+        addToActivityLog('🤖 AI 질문 생성을 시작합니다...');
+
+        // 실제 질문 생성 실행
+        setTimeout(() => {
+          generateQuestions();
+        }, 500);
+      }
+
+      return updated;
+    });
+  };
+
   const generateQuestions = async () => {
     try {
+      // 질문 생성 진행률 업데이트
+      setStages(prev => {
+        const updated = [...prev];
+        const questionStage = updated.find(s => s.id === 'question_generation');
+        if (questionStage) {
+          questionStage.progress = 50;
+          questionStage.message = 'AI가 맞춤형 질문을 생성하고 있습니다...';
+        }
+        return updated;
+      });
+
       const response = await preAnalysisService.generateQuestions(sessionId, {
         categories: ['business', 'technical', 'timeline', 'stakeholders', 'risks'],
         maxQuestions: 15,
@@ -433,108 +471,236 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
             questionStage.status = 'completed';
             questionStage.progress = 100;
             questionStage.endTime = new Date();
+            questionStage.message = `${response.data?.length || 0}개 맞춤형 질문 생성 완료!`;
           }
 
           return updated;
         });
 
         setOverallProgress(100);
-        addToActivityLog(`🎯 ${response.data?.length || 0}개 질문이 생성되었습니다!`);
-        addToActivityLog('🎉 사전 분석이 완료되었습니다!');
+        addToActivityLog(`🎯 ${response.data?.length || 0}개 맞춤형 질문이 생성되었습니다!`);
+        addToActivityLog('🎉 모든 사전 분석이 완료되었습니다!');
 
         // 완료 콜백 호출
         setTimeout(() => {
           onComplete();
         }, 1500);
       } else {
-        addToActivityLog('❌ 질문 생성 중 오류가 발생했습니다.');
+        // 질문 생성 실패
+        setStages(prev => {
+          const updated = [...prev];
+          const questionStage = updated.find(s => s.id === 'question_generation');
+          if (questionStage) {
+            questionStage.status = 'failed';
+            questionStage.endTime = new Date();
+            questionStage.message = '질문 생성 실패';
+          }
+          return updated;
+        });
+
+        addToActivityLog(`❌ 질문 생성 실패: ${response.error || '알 수 없는 오류'}`);
       }
     } catch (error) {
       console.error('Question generation error:', error);
-      addToActivityLog('❌ 질문 생성 중 오류가 발생했습니다.');
+
+      // 질문 생성 오류 상태 업데이트
+      setStages(prev => {
+        const updated = [...prev];
+        const questionStage = updated.find(s => s.id === 'question_generation');
+        if (questionStage) {
+          questionStage.status = 'failed';
+          questionStage.endTime = new Date();
+          questionStage.message = '질문 생성 중 오류 발생';
+        }
+        return updated;
+      });
+
+      addToActivityLog(`❌ 질문 생성 중 오류: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
     }
   };
 
   const renderDocumentProgress = () => {
     if (documentStatuses.length === 0) {
       return (
-        <Card className="p-4">
+        <Card className="p-6 bg-gradient-to-br from-bg-secondary to-bg-tertiary border-2 border-primary/20">
           <div className="text-center text-text-muted">
-            <Loader className="w-8 h-8 animate-spin mx-auto mb-2" />
-            <p>문서 정보를 로드하는 중...</p>
+            <div className="relative">
+              <Loader className="w-12 h-12 animate-spin mx-auto mb-4 text-primary" />
+              <div className="absolute inset-0 w-12 h-12 mx-auto mb-4 border-4 border-primary/20 rounded-full animate-ping" />
+            </div>
+            <h4 className="text-lg font-medium text-text-primary mb-2">문서 정보 준비 중</h4>
+            <p className="text-sm text-text-secondary">프로젝트 문서 목록을 불러오고 있습니다...</p>
           </div>
         </Card>
       );
     }
 
-    return (
-      <Card className="p-4">
-        <h4 className="font-medium text-text-primary mb-4 flex items-center gap-2">
-          <FileCheck className="w-5 h-5" />
-          문서별 분석 상태 ({documentStatuses.filter(d => d.status === 'completed').length}/{documentStatuses.length})
-        </h4>
+    const completedCount = documentStatuses.filter(d => d.status === 'completed').length;
+    const analyzingCount = documentStatuses.filter(d => d.status === 'analyzing').length;
+    const errorCount = documentStatuses.filter(d => d.status === 'error').length;
+    const pendingCount = documentStatuses.filter(d => d.status === 'pending').length;
 
-        <div className="space-y-3 max-h-64 overflow-y-auto">
+    return (
+      <Card className="p-6 bg-gradient-to-br from-bg-primary to-bg-secondary border-2 border-primary/20">
+        <div className="flex items-center justify-between mb-6">
+          <h4 className="text-xl font-bold text-text-primary flex items-center gap-3">
+            <div className="relative">
+              <FileCheck className="w-6 h-6 text-primary" />
+              {analyzingCount > 0 && (
+                <div className="absolute -top-1 -right-1 w-3 h-3 bg-primary rounded-full animate-pulse" />
+              )}
+            </div>
+            문서별 분석 현황
+          </h4>
+          <div className="flex items-center gap-4 text-sm">
+            {completedCount > 0 && (
+              <div className="flex items-center gap-1 px-2 py-1 bg-success/20 text-success rounded-full">
+                <CheckCircle className="w-3 h-3" />
+                <span className="font-medium">{completedCount}</span>
+              </div>
+            )}
+            {analyzingCount > 0 && (
+              <div className="flex items-center gap-1 px-2 py-1 bg-primary/20 text-primary rounded-full">
+                <Loader className="w-3 h-3 animate-spin" />
+                <span className="font-medium">{analyzingCount}</span>
+              </div>
+            )}
+            {errorCount > 0 && (
+              <div className="flex items-center gap-1 px-2 py-1 bg-error/20 text-error rounded-full">
+                <AlertCircle className="w-3 h-3" />
+                <span className="font-medium">{errorCount}</span>
+              </div>
+            )}
+            {pendingCount > 0 && (
+              <div className="flex items-center gap-1 px-2 py-1 bg-text-muted/20 text-text-muted rounded-full">
+                <Clock className="w-3 h-3" />
+                <span className="font-medium">{pendingCount}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* 전체 문서 진행률 미니 차트 */}
+        <div className="mb-6 p-4 bg-bg-tertiary/30 rounded-lg">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-text-secondary">전체 문서 처리 현황</span>
+            <span className="text-sm font-bold text-text-primary">
+              {completedCount + errorCount}/{documentStatuses.length} 처리됨
+            </span>
+          </div>
+          <div className="w-full bg-bg-secondary rounded-full h-2 overflow-hidden">
+            <div className="flex h-2">
+              <div
+                className="bg-success transition-all duration-1000"
+                style={{ width: `${(completedCount / documentStatuses.length) * 100}%` }}
+              />
+              <div
+                className="bg-primary animate-pulse transition-all duration-1000"
+                style={{ width: `${(analyzingCount / documentStatuses.length) * 100}%` }}
+              />
+              <div
+                className="bg-error transition-all duration-1000"
+                style={{ width: `${(errorCount / documentStatuses.length) * 100}%` }}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-4 max-h-80 overflow-y-auto custom-scrollbar">
           {documentStatuses.map((doc) => {
             const getStatusIcon = () => {
               switch (doc.status) {
                 case 'completed':
-                  return <CheckCircle className="w-4 h-4 text-success" />;
+                  return <CheckCircle className="w-5 h-5 text-success" />;
                 case 'analyzing':
-                  return <Loader className="w-4 h-4 text-primary animate-spin" />;
+                  return <Loader className="w-5 h-5 text-primary animate-spin" />;
                 case 'error':
-                  return <AlertCircle className="w-4 h-4 text-error" />;
+                  return <AlertCircle className="w-5 h-5 text-error" />;
                 default:
-                  return <Clock className="w-4 h-4 text-text-muted" />;
+                  return <Clock className="w-5 h-5 text-text-muted" />;
               }
             };
 
-            const getStatusColor = () => {
+            const getDocumentCardStyle = () => {
               switch (doc.status) {
-                case 'completed': return 'border-success/30 bg-success/5';
-                case 'analyzing': return 'border-primary/30 bg-primary/5';
-                case 'error': return 'border-error/30 bg-error/5';
-                default: return 'border-border-primary bg-bg-secondary';
+                case 'completed': return 'border-success/40 bg-gradient-to-r from-success/10 to-success/5 shadow-success/20';
+                case 'analyzing': return 'border-primary/40 bg-gradient-to-r from-primary/10 to-primary/5 shadow-primary/20 animate-pulse';
+                case 'error': return 'border-error/40 bg-gradient-to-r from-error/10 to-error/5 shadow-error/20';
+                default: return 'border-border-primary bg-gradient-to-r from-bg-secondary to-bg-tertiary hover:border-primary/30';
+              }
+            };
+
+            const getStatusBadge = () => {
+              switch (doc.status) {
+                case 'completed': return <span className="px-2 py-1 bg-success/20 text-success text-xs font-bold rounded-full">✓ 완료</span>;
+                case 'analyzing': return <span className="px-2 py-1 bg-primary/20 text-primary text-xs font-bold rounded-full animate-pulse">🔄 분석중</span>;
+                case 'error': return <span className="px-2 py-1 bg-error/20 text-error text-xs font-bold rounded-full">⚠ 오류</span>;
+                default: return <span className="px-2 py-1 bg-text-muted/20 text-text-muted text-xs font-bold rounded-full">⏸ 대기</span>;
               }
             };
 
             return (
-              <div key={doc.id} className={`p-3 rounded-lg border ${getStatusColor()}`}>
-                <div className="flex items-center gap-3">
-                  {getStatusIcon()}
+              <div
+                key={doc.id}
+                className={`p-4 rounded-xl border-2 transition-all duration-300 shadow-md hover:shadow-lg transform hover:scale-[1.02] ${getDocumentCardStyle()}`}
+              >
+                <div className="flex items-center gap-4">
+                  <div className="flex-shrink-0">
+                    {getStatusIcon()}
+                  </div>
+
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium text-text-primary truncate">
-                        {doc.fileName}
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-sm font-semibold text-text-primary truncate">
+                        📄 {doc.fileName}
                       </p>
-                      <span className="text-xs text-text-muted">
-                        {doc.status === 'completed' ? '완료' :
-                         doc.status === 'analyzing' ? '분석중' :
-                         doc.status === 'error' ? '오류' : '대기'}
-                      </span>
+                      {getStatusBadge()}
                     </div>
 
+                    {/* 분석 중 진행률 표시 */}
                     {doc.status === 'analyzing' && (
-                      <div className="mt-2">
-                        <div className="w-full bg-bg-tertiary rounded-full h-1.5">
+                      <div className="mb-2">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs text-primary font-medium">AI 분석 진행률</span>
+                          <span className="text-xs text-primary font-bold">{doc.progress}%</span>
+                        </div>
+                        <div className="w-full bg-bg-secondary/50 rounded-full h-2 overflow-hidden">
                           <div
-                            className="bg-primary h-1.5 rounded-full transition-all duration-500"
+                            className="bg-gradient-to-r from-primary to-primary/80 h-2 rounded-full transition-all duration-500 relative"
                             style={{ width: `${doc.progress}%` }}
-                          />
+                          >
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer" />
+                          </div>
                         </div>
                       </div>
                     )}
 
+                    {/* 완료된 문서 정보 */}
                     {doc.status === 'completed' && doc.confidenceScore && (
-                      <div className="mt-1 text-xs text-text-muted">
-                        신뢰도: {Math.round(doc.confidenceScore * 100)}%
-                        {doc.processingTime && ` • 처리시간: ${doc.processingTime}초`}
+                      <div className="flex items-center gap-4 mt-2 p-2 bg-success/10 rounded-lg">
+                        <div className="flex items-center gap-1 text-xs text-success">
+                          <div className="w-2 h-2 bg-success rounded-full" />
+                          <span className="font-medium">신뢰도: {Math.round(doc.confidenceScore * 100)}%</span>
+                        </div>
+                        {doc.processingTime && (
+                          <div className="flex items-center gap-1 text-xs text-success">
+                            <Clock className="w-3 h-3" />
+                            <span className="font-medium">처리시간: {doc.processingTime}초</span>
+                          </div>
+                        )}
                       </div>
                     )}
 
+                    {/* 오류 정보 */}
                     {doc.status === 'error' && doc.error && (
-                      <div className="mt-1 text-xs text-error">
-                        {doc.error}
+                      <div className="mt-2 p-3 bg-error/10 border border-error/20 rounded-lg">
+                        <div className="flex items-center gap-2 mb-1">
+                          <AlertTriangle className="w-4 h-4 text-error" />
+                          <span className="text-xs font-bold text-error">분석 실패</span>
+                        </div>
+                        <p className="text-xs text-error/80">
+                          {doc.error}
+                        </p>
                       </div>
                     )}
                   </div>
@@ -542,6 +708,13 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
               </div>
             );
           })}
+        </div>
+
+        {/* 도움말 텍스트 */}
+        <div className="mt-4 p-3 bg-bg-tertiary/30 rounded-lg">
+          <p className="text-xs text-text-muted text-center">
+            💡 각 문서는 AI가 개별적으로 분석하며, 완료된 문서는 즉시 질문 생성에 활용됩니다
+          </p>
         </div>
       </Card>
     );
@@ -580,15 +753,17 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
 
     // 진행률에 따른 동적 폴링 간격 조정
     const overallProgressNum = Math.floor(overallProgress);
-    const completedDocs = documentStatuses.filter(doc => doc.status === 'completed').length;
     const analyzingDocs = documentStatuses.filter(doc => doc.status === 'analyzing').length;
-    const totalDocs = documentStatuses.length;
 
     let newInterval = pollInterval;
 
-    // 분석이 완료된 경우 폴링 중지
-    if (overallProgressNum >= 100 || (totalDocs > 0 && completedDocs === totalDocs)) {
-      newInterval = 30000; // 30초로 대폭 늘림
+    // 전체 분석이 완료된 경우 폴링 중지
+    if (overallProgressNum >= 100 || analysisCompleted) {
+      newInterval = 60000; // 1분으로 대폭 늘림 (거의 중지)
+    }
+    // 문서 분석이 완료되고 질문 생성 중일 때
+    else if (analysisCompleted && !questionGenerationTriggered) {
+      newInterval = 2000; // 2초 간격으로 빠르게 체크
     }
     // 활발한 분석 중일 때
     else if (analyzingDocs > 0) {
@@ -700,147 +875,239 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
         </div>
       </div>
 
-      {/* 전체 진행률 */}
-      <Card className="p-6">
-        <div className="flex items-center justify-between mb-4">
+      {/* 전체 진행률 - 향상된 디자인 */}
+      <Card className="p-6 bg-gradient-to-br from-bg-primary to-bg-secondary border-2 border-primary/20 shadow-xl">
+        <div className="flex items-center justify-between mb-6">
           <div>
-            <h4 className="text-lg font-medium text-text-primary">전체 진행률</h4>
-            <p className="text-sm text-text-secondary">
-              {Math.round(overallProgress)}% 완료 •
-              경과 시간: {formatDuration(elapsedTime)} •
-              예상 남은 시간: {formatDuration(getEstimatedTimeRemaining())}
-            </p>
+            <h4 className="text-xl font-bold text-text-primary flex items-center gap-2">
+              <div className="w-3 h-3 bg-primary rounded-full animate-pulse" />
+              사전 분석 전체 진행률
+            </h4>
+            <div className="flex items-center gap-4 mt-2 text-sm text-text-secondary">
+              <div className="flex items-center gap-1">
+                <CheckCircle className="w-4 h-4 text-success" />
+                <span>{Math.round(overallProgress)}% 완료</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Clock className="w-4 h-4 text-primary" />
+                <span>경과 시간: {formatDuration(elapsedTime)}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <AlertCircle className="w-4 h-4 text-warning" />
+                <span>예상 남은 시간: {formatDuration(getEstimatedTimeRemaining())}</span>
+              </div>
+            </div>
           </div>
           <div className="text-right">
-            <div className="text-2xl font-bold text-text-primary">
+            <div className="text-4xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">
               {Math.round(overallProgress)}%
             </div>
             {isPaused && (
-              <div className="text-sm text-warning">일시정지됨</div>
+              <div className="text-sm text-warning font-medium flex items-center gap-1">
+                <Pause className="w-3 h-3" />
+                일시정지됨
+              </div>
+            )}
+            {overallProgress === 100 && (
+              <div className="text-sm text-success font-medium flex items-center gap-1">
+                <CheckCircle className="w-3 h-3" />
+                모든 작업 완료!
+              </div>
             )}
           </div>
         </div>
 
-        <div className="w-full bg-bg-tertiary rounded-full h-3">
-          <div
-            className="bg-gradient-to-r from-primary to-primary/80 h-3 rounded-full transition-all duration-500 ease-out"
-            style={{ width: `${overallProgress}%` }}
-          />
+        {/* 향상된 진행률 바 */}
+        <div className="relative">
+          <div className="w-full bg-bg-tertiary/30 rounded-full h-4 overflow-hidden shadow-inner">
+            <div
+              className="bg-gradient-to-r from-primary via-primary/90 to-primary/80 h-4 rounded-full transition-all duration-1000 ease-out relative shadow-md"
+              style={{ width: `${overallProgress}%` }}
+            >
+              {/* 진행률 바 애니메이션 효과 */}
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer" />
+
+              {/* 진행률 표시 라벨 */}
+              {overallProgress > 10 && (
+                <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
+                  <span className="text-xs font-bold text-white drop-shadow">
+                    {Math.round(overallProgress)}%
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 진행률 마일스톤 표시 */}
+          <div className="flex justify-between mt-2 text-xs text-text-muted">
+            <span>0%</span>
+            <span className="text-primary font-medium">25%</span>
+            <span className="text-primary font-medium">50%</span>
+            <span className="text-primary font-medium">75%</span>
+            <span className="text-success font-bold">100%</span>
+          </div>
         </div>
       </Card>
 
       {/* 문서별 분석 상태 */}
       {renderDocumentProgress()}
 
-      {/* 단계별 진행 상황 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {stages.map((stage, index) => {
+      {/* 단계별 진행 상황 - 향상된 UI */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {stages.map((stage) => {
           const Icon = stage.icon;
           const isActive = stage.status === 'in_progress';
           const isCompleted = stage.status === 'completed';
           const isFailed = stage.status === 'failed';
 
+          // 상태별 스타일 정의
+          const getStageStyle = () => {
+            if (isCompleted) return 'border-success/40 bg-gradient-to-br from-success/10 to-success/5 shadow-success/20';
+            if (isFailed) return 'border-error/40 bg-gradient-to-br from-error/10 to-error/5 shadow-error/20';
+            if (isActive) return 'border-primary/40 bg-gradient-to-br from-primary/10 to-primary/5 shadow-primary/20 animate-pulse';
+            return 'border-border-primary bg-gradient-to-br from-bg-secondary to-bg-tertiary hover:border-primary/30 transition-all';
+          };
+
+          const getIconStyle = () => {
+            if (isCompleted) return 'bg-gradient-to-br from-success to-success/80 text-white shadow-lg';
+            if (isFailed) return 'bg-gradient-to-br from-error to-error/80 text-white shadow-lg';
+            if (isActive) return 'bg-gradient-to-br from-primary to-primary/80 text-white shadow-lg animate-bounce';
+            return 'bg-gradient-to-br from-bg-tertiary to-bg-secondary text-text-muted';
+          };
+
+          const getStatusBadge = () => {
+            if (isCompleted) return <span className="px-2 py-1 bg-success/20 text-success text-xs font-medium rounded-full">✓ 완료</span>;
+            if (isFailed) return <span className="px-2 py-1 bg-error/20 text-error text-xs font-medium rounded-full">✗ 실패</span>;
+            if (isActive) return <span className="px-2 py-1 bg-primary/20 text-primary text-xs font-medium rounded-full animate-pulse">🔄 진행중</span>;
+            return <span className="px-2 py-1 bg-text-muted/20 text-text-muted text-xs font-medium rounded-full">⏸ 대기중</span>;
+          };
+
           return (
-            <div
+            <Card
               key={stage.id}
               className={`
-                p-4 rounded-lg border-2 transition-all
-                ${isActive
-                  ? 'border-primary bg-primary/10'
-                  : isCompleted
-                  ? 'border-success bg-success/10'
-                  : isFailed
-                  ? 'border-error bg-error/10'
-                  : 'border-border-primary bg-bg-secondary'
-                }
+                p-6 border-2 transition-all duration-500 shadow-lg hover:shadow-xl
+                ${getStageStyle()}
                 ${isPaused && isActive ? 'opacity-60' : ''}
+                transform hover:scale-105
               `}
             >
-              <div className="flex items-start gap-3">
+              <div className="flex items-start gap-4">
+                {/* 아이콘 */}
                 <div className={`
-                  p-2 rounded-lg
-                  ${isActive
-                    ? 'bg-primary text-white'
-                    : isCompleted
-                    ? 'bg-success text-white'
-                    : isFailed
-                    ? 'bg-error text-white'
-                    : 'bg-bg-tertiary text-text-muted'
-                  }
+                  p-3 rounded-xl transition-all duration-300
+                  ${getIconStyle()}
                 `}>
                   {isCompleted ? (
-                    <CheckCircle className="w-5 h-5" />
+                    <CheckCircle className="w-6 h-6" />
                   ) : isFailed ? (
-                    <AlertTriangle className="w-5 h-5" />
+                    <AlertTriangle className="w-6 h-6" />
                   ) : isActive ? (
-                    <Clock className="w-5 h-5 animate-pulse" />
+                    <Loader className="w-6 h-6 animate-spin" />
                   ) : (
-                    <Icon className="w-5 h-5" />
+                    <Icon className="w-6 h-6" />
                   )}
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h5 className={`font-medium ${
+                  {/* 단계 제목 및 상태 */}
+                  <div className="flex items-center justify-between mb-2">
+                    <h5 className={`text-lg font-semibold transition-colors ${
                       isCompleted ? 'text-success' :
                       isActive ? 'text-primary' :
                       isFailed ? 'text-error' :
-                      'text-text-muted'
+                      'text-text-primary'
                     }`}>
                       {stage.name}
                     </h5>
-                    <span className="text-xs text-text-muted">
-                      #{index + 1}
-                    </span>
+                    {getStatusBadge()}
                   </div>
 
-                  <p className="text-sm text-text-secondary mb-3">
+                  {/* 설명 */}
+                  <p className="text-sm text-text-secondary mb-4 leading-relaxed">
                     {stage.description}
                   </p>
 
-                  {/* 진행률 바 */}
-                  {(isActive || isCompleted) && (
-                    <div className="mb-2">
-                      <div className="w-full bg-bg-tertiary rounded-full h-2">
+                  {/* 진행률 바 (향상된 디자인) */}
+                  {(isActive || isCompleted || isFailed) && (
+                    <div className="mb-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-medium text-text-muted">
+                          진행률
+                        </span>
+                        <span className={`text-xs font-bold ${
+                          isCompleted ? 'text-success' :
+                          isActive ? 'text-primary' :
+                          isFailed ? 'text-error' :
+                          'text-text-muted'
+                        }`}>
+                          {Math.round(stage.progress)}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-bg-tertiary/50 rounded-full h-3 overflow-hidden">
                         <div
-                          className={`h-2 rounded-full transition-all duration-300 ${
-                            isCompleted ? 'bg-success' :
-                            isActive ? 'bg-primary' :
+                          className={`h-3 rounded-full transition-all duration-700 ease-out relative ${
+                            isCompleted ? 'bg-gradient-to-r from-success/80 to-success' :
+                            isActive ? 'bg-gradient-to-r from-primary/80 to-primary' :
+                            isFailed ? 'bg-gradient-to-r from-error/80 to-error' :
                             'bg-text-muted'
                           }`}
                           style={{ width: `${stage.progress}%` }}
-                        />
+                        >
+                          {/* 진행률 바 애니메이션 */}
+                          {isActive && (
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer" />
+                          )}
+                        </div>
                       </div>
                     </div>
                   )}
 
                   {/* 상태 메시지 */}
                   {stage.message && (
-                    <p className={`text-xs ${
-                      isCompleted ? 'text-success' :
-                      isActive ? 'text-primary' :
-                      isFailed ? 'text-error' :
-                      'text-text-muted'
+                    <div className={`p-3 rounded-lg mb-3 ${
+                      isCompleted ? 'bg-success/10 border border-success/20' :
+                      isActive ? 'bg-primary/10 border border-primary/20' :
+                      isFailed ? 'bg-error/10 border border-error/20' :
+                      'bg-bg-tertiary/50 border border-border-primary'
                     }`}>
-                      {stage.message}
-                    </p>
+                      <p className={`text-sm font-medium ${
+                        isCompleted ? 'text-success' :
+                        isActive ? 'text-primary' :
+                        isFailed ? 'text-error' :
+                        'text-text-muted'
+                      }`}>
+                        {stage.message}
+                      </p>
+                    </div>
                   )}
 
-                  {/* 시간 정보 */}
+                  {/* 시간 정보 (향상된 디자인) */}
                   {(stage.startTime || stage.endTime) && (
-                    <div className="mt-2 text-xs text-text-muted">
+                    <div className="flex items-center gap-4 text-xs text-text-muted bg-bg-tertiary/30 p-2 rounded-lg">
                       {stage.startTime && (
-                        <span>시작: {stage.startTime.toLocaleTimeString()}</span>
+                        <div className="flex items-center gap-1">
+                          <Play className="w-3 h-3" />
+                          <span>시작: {stage.startTime.toLocaleTimeString()}</span>
+                        </div>
                       )}
-                      {stage.startTime && stage.endTime && <span> • </span>}
                       {stage.endTime && (
-                        <span>완료: {stage.endTime.toLocaleTimeString()}</span>
+                        <div className="flex items-center gap-1">
+                          <CheckCircle className="w-3 h-3" />
+                          <span>완료: {stage.endTime.toLocaleTimeString()}</span>
+                        </div>
+                      )}
+                      {stage.startTime && stage.endTime && (
+                        <div className="flex items-center gap-1 text-primary">
+                          <Clock className="w-3 h-3" />
+                          <span>소요시간: {Math.round((stage.endTime.getTime() - stage.startTime.getTime()) / 1000)}초</span>
+                        </div>
                       )}
                     </div>
                   )}
                 </div>
               </div>
-            </div>
+            </Card>
           );
         })}
       </div>
