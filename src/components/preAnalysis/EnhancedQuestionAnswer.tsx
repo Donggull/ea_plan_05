@@ -430,8 +430,8 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
 
 50단어 이내로 간결하게 작성해주세요.`
 
-      // 서버사이드 API 엔드포인트로 변경
-      const apiUrl = process.env['NODE_ENV'] === 'production'
+      // 서버사이드 API 엔드포인트로 변경 (문서 분석과 동일한 패턴)
+      const apiUrl = import.meta.env.DEV
         ? 'https://ea-plan-05.vercel.app/api/ai/completion'
         : '/api/ai/completion'
 
