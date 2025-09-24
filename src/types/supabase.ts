@@ -876,6 +876,50 @@ export type Database = {
           },
         ]
       }
+      pre_analysis_progress: {
+        Row: {
+          created_at: string | null
+          details: Json | null
+          id: string
+          message: string | null
+          progress: number | null
+          session_id: string | null
+          stage: string
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          details?: Json | null
+          id?: string
+          message?: string | null
+          progress?: number | null
+          session_id?: string | null
+          stage: string
+          status: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          details?: Json | null
+          id?: string
+          message?: string | null
+          progress?: number | null
+          session_id?: string | null
+          stage?: string
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pre_analysis_progress_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "pre_analysis_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pre_analysis_sessions: {
         Row: {
           ai_model: string
@@ -1034,6 +1078,97 @@ export type Database = {
           },
           {
             foreignKeyName: "project_ai_settings_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_baseline: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          data: Json
+          id: string
+          is_active: boolean | null
+          project_id: string
+          source: string
+          version: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          data?: Json
+          id?: string
+          is_active?: boolean | null
+          project_id: string
+          source: string
+          version?: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          data?: Json
+          id?: string
+          is_active?: boolean | null
+          project_id?: string
+          source?: string
+          version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_baseline_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_lifecycle: {
+        Row: {
+          actual_end_date: string | null
+          created_at: string | null
+          created_by: string | null
+          current_phase: string
+          estimated_end_date: string | null
+          id: string
+          phases: Json
+          project_id: string
+          start_date: string | null
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          actual_end_date?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          current_phase: string
+          estimated_end_date?: string | null
+          id?: string
+          phases?: Json
+          project_id: string
+          start_date?: string | null
+          status: string
+          updated_at?: string | null
+        }
+        Update: {
+          actual_end_date?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          current_phase?: string
+          estimated_end_date?: string | null
+          id?: string
+          phases?: Json
+          project_id?: string
+          start_date?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_lifecycle_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: true
             referencedRelation: "projects"
@@ -1944,6 +2079,56 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflow_handoffs: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string | null
+          created_by: string | null
+          from_phase: string
+          handoff_data: Json
+          id: string
+          project_id: string
+          to_phase: string
+          validation_notes: string | null
+          validation_status: string | null
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          from_phase: string
+          handoff_data?: Json
+          id?: string
+          project_id: string
+          to_phase: string
+          validation_notes?: string | null
+          validation_status?: string | null
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          from_phase?: string
+          handoff_data?: Json
+          id?: string
+          project_id?: string
+          to_phase?: string
+          validation_notes?: string | null
+          validation_status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_handoffs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]
