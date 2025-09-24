@@ -1157,7 +1157,7 @@ ${content}
 
       // 세션에서 AI 설정 추출 시도
       console.log('🔍 세션 데이터 확인:', {
-        sessionId,
+        sessionId: session.id,
         sessionData: session,
         settings: session.settings,
         ai_provider: session.ai_provider,
