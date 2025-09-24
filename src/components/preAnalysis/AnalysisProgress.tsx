@@ -4,12 +4,9 @@ import {
   MessageSquare,
   CheckCircle,
   Clock,
-  AlertTriangle,
   Play,
   Pause,
-  RotateCcw,
   FileCheck,
-  Loader,
   AlertCircle,
   Activity,
   Timer,
@@ -78,7 +75,7 @@ export const AnalysisProgress = React.forwardRef<
 
   const [documentStatuses, setDocumentStatuses] = useState<DocumentStatus[]>([]);
   const [overallProgress, setOverallProgress] = useState(0);
-  const [, setCurrentStage] = useState<string>('document_analysis');
+  // const [currentStage, setCurrentStage] = useState<string>('document_analysis'); // 현재 사용하지 않음
   const [isPaused, setIsPaused] = useState(false);
   const [activityLog, setActivityLog] = useState<string[]>([]);
   const [startTime, setStartTime] = useState<Date>(new Date());
@@ -501,11 +498,16 @@ export const AnalysisProgress = React.forwardRef<
     addToActivityLog('📝 AI 기반 맞춤형 질문을 생성합니다...');
 
     try {
-      const questionResponse = await preAnalysisService.generateQuestions(sessionId);
+      const questionResponse = await preAnalysisService.generateQuestions(sessionId, {
+        categories: ['technical', 'business', 'budget'],
+        maxQuestions: 10,
+        includeRequired: true
+      });
 
       if (questionResponse.success) {
-        updateStageStatus('question_generation', 'completed', 100, `${questionResponse.data?.totalQuestions || 0}개 질문 생성 완료`);
-        addToActivityLog(`✅ ${questionResponse.data?.totalQuestions || 0}개의 맞춤형 질문이 생성되었습니다!`);
+        const totalQuestions = Array.isArray(questionResponse.data) ? questionResponse.data.length : 0;
+        updateStageStatus('question_generation', 'completed', 100, `${totalQuestions}개 질문 생성 완료`);
+        addToActivityLog(`✅ ${totalQuestions}개의 맞춤형 질문이 생성되었습니다!`);
 
         // 전체 분석 완료 및 자동 이동
         setTimeout(() => {
