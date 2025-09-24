@@ -48,7 +48,8 @@
       "Bash(git add:*)",
       "Bash(dir:*)",
       "Bash(copy:*)",
-      "mcp__github-mcp__git-flow"
+      "mcp__github-mcp__git-flow",
+      "mcp__playwright-stealth__playwright_get_visible_text"
     ],
     "deny": [],
     "ask": []

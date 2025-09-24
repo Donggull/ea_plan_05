@@ -272,6 +272,7 @@ export interface ProgressUpdate {
   message?: string;
   details?: Record<string, any>;
   timestamp: Date;
+  documentId?: string; // 문서별 상태 업데이트를 위한 문서 ID
 }
 
 // MCP 서버 응답

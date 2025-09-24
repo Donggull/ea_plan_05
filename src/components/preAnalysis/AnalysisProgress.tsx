@@ -94,6 +94,14 @@ export const AnalysisProgress = React.forwardRef<
     return () => clearInterval(interval);
   }, [sessionId, isPaused]);
 
+  // documentStatuses 변경 시 진행률 업데이트
+  useEffect(() => {
+    if (documentStatuses.length > 0) {
+      console.log('📈 documentStatuses 변경 감지, 진행률 업데이트 실행');
+      updateOverallProgress();
+    }
+  }, [documentStatuses]);
+
   const initializeAnalysis = async () => {
     setStartTime(new Date());
     addToActivityLog('사전 분석 섽션을 로드합니다...');
@@ -209,7 +217,46 @@ export const AnalysisProgress = React.forwardRef<
     try {
       console.log('🔍 진행률 체크 시작:', { sessionId, documentCount: documentStatuses.length });
 
-      // 세션의 문서 분석 상태 조회
+      // 1. 전체 진행 상황 조회
+      const progressResponse = await preAnalysisService.getSessionProgress(sessionId);
+      if (progressResponse.success && progressResponse.data) {
+        console.log('📊 전체 진행 상황 수신:', progressResponse.data);
+
+        // 단계별 진행 상황 업데이트
+        const progressData = progressResponse.data;
+        setStages(prev => {
+          const updated = [...prev];
+
+          progressData.forEach((progress: any) => {
+            const stageIndex = updated.findIndex(s => s.id === progress.stage);
+            if (stageIndex !== -1) {
+              const stage = updated[stageIndex];
+
+              // 실제 변경이 있을 때만 업데이트
+              if (stage.status !== progress.status || Math.abs(stage.progress - progress.progress) > 0.1) {
+                updated[stageIndex] = {
+                  ...stage,
+                  status: progress.status,
+                  progress: progress.progress,
+                  message: progress.message,
+                  startTime: progress.status === 'in_progress' && !stage.startTime ? new Date(progress.updated_at) : stage.startTime,
+                  endTime: (progress.status === 'completed' || progress.status === 'failed') ? new Date(progress.updated_at) : stage.endTime,
+                };
+
+                console.log(`🎯 단계 "${progress.stage}" 업데이트:`, {
+                  status: progress.status,
+                  progress: progress.progress + '%',
+                  message: progress.message
+                });
+              }
+            }
+          });
+
+          return updated;
+        });
+      }
+
+      // 2. 세션의 문서 분석 상태 조회
       const statusResponse = await preAnalysisService.getSessionDocumentStatus(sessionId);
 
       if (statusResponse.success && statusResponse.data) {
@@ -218,7 +265,7 @@ export const AnalysisProgress = React.forwardRef<
 
         let hasUpdates = false;
 
-        // 문서 상태 업데이트
+        // 문서 상태 업데이트 (React.useCallback으로 최적화)
         setDocumentStatuses(prev => {
           const updated = prev.map(doc => {
             const status = statusMap[doc.id];
@@ -227,18 +274,16 @@ export const AnalysisProgress = React.forwardRef<
               let documentStatus: DocumentStatus['status'] = 'pending';
               if (status.status === 'completed') {
                 documentStatus = 'completed';
-                hasUpdates = true;
               } else if (status.status === 'error') {
                 documentStatus = 'error';
-                hasUpdates = true;
               } else if (status.status === 'analyzing' || status.status === 'in_progress') {
                 documentStatus = 'analyzing';
-                hasUpdates = true;
               }
 
               // 상태가 실제로 변경된 경우에만 업데이트
               if (doc.status !== documentStatus) {
                 console.log(`📄 문서 상태 변경: ${doc.fileName} ${doc.status} → ${documentStatus}`);
+                hasUpdates = true;
 
                 return {
                   ...doc,
@@ -253,15 +298,23 @@ export const AnalysisProgress = React.forwardRef<
             return doc;
           });
 
-          return updated;
+          // 실제 변경이 있었는지 확인
+          const hasRealChanges = updated.some((doc, index) =>
+            doc.status !== prev[index]?.status ||
+            doc.progress !== prev[index]?.progress
+          );
+
+          if (hasRealChanges) {
+            console.log('📈 문서 상태에 실제 변경 발생, 새로운 배열 반환');
+            return updated;
+          }
+
+          // 변경이 없으면 기존 배열 반환 (리렌더링 방지)
+          return prev;
         });
 
         if (hasUpdates) {
-          console.log('✅ 문서 상태 업데이트 완료, 전체 진행률 계산 중...');
-          // 전체 진행률 계산을 약간 지연시켜 상태 업데이트가 완료된 후 실행
-          setTimeout(() => {
-            updateOverallProgress();
-          }, 100);
+          console.log('✅ 문서 상태 업데이트 완료, 전체 진행률 계산은 useEffect에서 처리');
         }
       } else {
         console.warn('⚠️ 분석 상태 조회 실패:', statusResponse.error);
@@ -271,7 +324,7 @@ export const AnalysisProgress = React.forwardRef<
     }
   };
 
-  const updateOverallProgress = () => {
+  const updateOverallProgress = React.useCallback(() => {
     const completedDocs = documentStatuses.filter(doc => doc.status === 'completed').length;
     const analyzingDocs = documentStatuses.filter(doc => doc.status === 'analyzing').length;
     const errorDocs = documentStatuses.filter(doc => doc.status === 'error').length;
@@ -285,67 +338,92 @@ export const AnalysisProgress = React.forwardRef<
       documentStatuses: documentStatuses.map(d => ({ id: d.id, fileName: d.fileName, status: d.status }))
     });
 
-    if (totalDocs > 0) {
-      // 문서 분석 진행률 (60% 할당)
-      const docProgress = (completedDocs / totalDocs) * 60;
-      const analyzingProgress = (analyzingDocs / totalDocs) * 20; // 분석 중인 문서들에 부분 점수
+    if (totalDocs === 0) return;
 
-      setStages(prev => {
-        const updated = [...prev];
-        const docStage = updated.find(s => s.id === 'document_analysis');
+    // 문서 분석 진행률 (60% 할당)
+    const docProgress = (completedDocs / totalDocs) * 60;
+    const analyzingProgress = (analyzingDocs / totalDocs) * 20; // 분석 중인 문서들에 부분 점수
 
-        if (docStage) {
-          const newProgress = Math.min(100, (docProgress + analyzingProgress) * (100/60));
+    setStages(prev => {
+      const updated = [...prev];
+      const docStage = updated.find(s => s.id === 'document_analysis');
+
+      if (docStage) {
+        const newProgress = Math.min(100, (docProgress + analyzingProgress) * (100/60));
+
+        // 실제로 변경이 있을 때만 업데이트
+        if (Math.abs(docStage.progress - newProgress) > 0.1) {
           docStage.progress = newProgress;
 
           console.log('🎯 문서 분석 단계 진행률 업데이트:', {
-            docProgress,
-            analyzingProgress,
+            docProgress: docProgress.toFixed(1) + '%',
+            analyzingProgress: analyzingProgress.toFixed(1) + '%',
             newProgress: newProgress.toFixed(1) + '%'
           });
-
-          // 모든 문서 분석 완료 시 다음 단계로
-          if (completedDocs === totalDocs && docStage.status !== 'completed') {
-            docStage.status = 'completed';
-            docStage.endTime = new Date();
-            docStage.progress = 100;
-
-            addToActivityLog(`✅ 모든 문서 분석이 완료되었습니다! (성공: ${completedDocs}개, 오류: ${errorDocs}개)`);
-
-            // 질문 생성 시작
-            const questionStage = updated.find(s => s.id === 'question_generation');
-            if (questionStage && questionStage.status === 'pending') {
-              questionStage.status = 'in_progress';
-              questionStage.startTime = new Date();
-              addToActivityLog('🤖 AI 질문 생성을 시작합니다...');
-
-              // 실제 질문 생성 호출
-              setTimeout(() => {
-                generateQuestions();
-              }, 1000);
-            }
-          }
         }
 
-        return updated;
-      });
+        // 모든 문서 분석 완료 시 다음 단계로
+        if (completedDocs === totalDocs && docStage.status !== 'completed') {
+          docStage.status = 'completed';
+          docStage.endTime = new Date();
+          docStage.progress = 100;
 
-      // 전체 진행률 업데이트
-      const questionStage = stages.find(s => s.id === 'question_generation');
-      const questionProgress = questionStage?.status === 'completed' ? 40 :
-                              questionStage?.status === 'in_progress' ? (questionStage.progress * 0.4) : 0;
+          addToActivityLog(`✅ 모든 문서 분석이 완료되었습니다! (성공: ${completedDocs}개, 오류: ${errorDocs}개)`);
 
-      const totalProgress = Math.min(100, docProgress + analyzingProgress + questionProgress);
-      setOverallProgress(totalProgress);
+          // 질문 생성 시작
+          const questionStage = updated.find(s => s.id === 'question_generation');
+          if (questionStage && questionStage.status === 'pending') {
+            questionStage.status = 'in_progress';
+            questionStage.startTime = new Date();
+            addToActivityLog('🤖 AI 질문 생성을 시작합니다...');
+
+            // 실제 질문 생성 호출
+            setTimeout(() => {
+              generateQuestions();
+            }, 1000);
+          }
+        }
+      }
+
+      return updated;
+    });
+
+    // 전체 진행률을 단계별 가중 평균으로 계산
+    setStages(currentStages => {
+      const docStage = currentStages.find(s => s.id === 'document_analysis');
+      const questionStage = currentStages.find(s => s.id === 'question_generation');
+
+      // 각 단계별 가중치 적용한 진행률 계산
+      let totalProgress = 0;
+
+      if (docStage) {
+        const docWeight = 60; // 문서 분석이 60% 비중
+        totalProgress += (docStage.progress / 100) * docWeight;
+        console.log('📈 문서 분석 단계 진행률:', docStage.progress + '%', `가중치 적용: ${((docStage.progress / 100) * docWeight).toFixed(1)}%`);
+      }
+
+      if (questionStage) {
+        const questionWeight = 40; // 질문 생성이 40% 비중
+        totalProgress += (questionStage.progress / 100) * questionWeight;
+        console.log('📈 질문 생성 단계 진행률:', questionStage.progress + '%', `가중치 적용: ${((questionStage.progress / 100) * questionWeight).toFixed(1)}%`);
+      }
+
+      // 전체 진행률 업데이트 (0-100 범위로 제한)
+      const finalProgress = Math.min(100, Math.max(0, totalProgress));
+
+      setTimeout(() => {
+        setOverallProgress(finalProgress);
+      }, 100);
 
       console.log('🎯 전체 진행률 업데이트:', {
-        docProgress: docProgress.toFixed(1) + '%',
-        analyzingProgress: analyzingProgress.toFixed(1) + '%',
-        questionProgress: questionProgress.toFixed(1) + '%',
-        totalProgress: totalProgress.toFixed(1) + '%'
+        docProgress: docStage?.progress + '%' || '0%',
+        questionProgress: questionStage?.progress + '%' || '0%',
+        totalProgress: finalProgress.toFixed(1) + '%'
       });
-    }
-  };
+
+      return currentStages;
+    });
+  }, [documentStatuses]);
 
   const generateQuestions = async () => {
     try {

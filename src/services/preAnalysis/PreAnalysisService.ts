@@ -57,6 +57,39 @@ export class PreAnalysisService {
   }
 
   /**
+   * 세션별 전체 진행 상황 조회
+   */
+  async getSessionProgress(sessionId: string): Promise<ServiceResponse<any>> {
+    try {
+      if (!supabase) {
+        throw new Error('Supabase client not initialized');
+      }
+
+      const { data, error } = await supabase
+        .from('pre_analysis_progress')
+        .select('*')
+        .eq('session_id', sessionId)
+        .order('updated_at', { ascending: false });
+
+      if (error) {
+        console.error('세션 진행 상황 조회 오류:', error);
+        return { success: false, error: error.message };
+      }
+
+      return {
+        success: true,
+        data: data || [],
+      };
+    } catch (error) {
+      console.error('세션 진행 상황 조회 중 오류:', error);
+      return {
+        success: false,
+        error: '세션 진행 상황 조회 중 오류가 발생했습니다.',
+      };
+    }
+  }
+
+  /**
    * 세션별 문서 분석 상태 조회
    */
   async getSessionDocumentStatus(sessionId: string): Promise<ServiceResponse<Record<string, any>>> {
@@ -127,7 +160,7 @@ export class PreAnalysisService {
       }
 
       // 진행 상황 업데이트
-      this.emitProgressUpdate({
+      await this.emitProgressUpdate({
         sessionId,
         stage: 'document_analysis',
         status: 'in_progress',
@@ -146,13 +179,14 @@ export class PreAnalysisService {
 
         try {
           // 문서별 분석 시작 알림
-          this.emitProgressUpdate({
+          await this.emitProgressUpdate({
             sessionId,
             stage: 'document_analysis',
             status: 'in_progress',
             progress: progressPercent,
             message: `"${document.file_name}" 문서 분석 중... (${i + 1}/${totalDocuments})`,
             timestamp: new Date(),
+            documentId: document.id,
           });
 
           const analysisResult = await this.analyzeDocument(
@@ -162,6 +196,17 @@ export class PreAnalysisService {
           );
 
           if (analysisResult.success) {
+            // 문서 분석 성공 상태 업데이트
+            await this.emitProgressUpdate({
+              sessionId,
+              stage: 'document_analysis',
+              status: 'completed',
+              progress: 100,
+              message: `"${document.file_name}" 분석 완료`,
+              timestamp: new Date(),
+              documentId: document.id,
+            });
+
             results.push({
               documentId: document.id,
               fileName: document.file_name,
@@ -169,6 +214,17 @@ export class PreAnalysisService {
               result: analysisResult.data,
             });
           } else {
+            // 문서 분석 실패 상태 업데이트
+            await this.emitProgressUpdate({
+              sessionId,
+              stage: 'document_analysis',
+              status: 'failed',
+              progress: 0,
+              message: `"${document.file_name}" 분석 실패: ${analysisResult.error}`,
+              timestamp: new Date(),
+              documentId: document.id,
+            });
+
             results.push({
               documentId: document.id,
               fileName: document.file_name,
@@ -191,7 +247,7 @@ export class PreAnalysisService {
       const successCount = results.filter(r => r.status === 'completed').length;
       const errorCount = results.filter(r => r.status === 'error').length;
 
-      this.emitProgressUpdate({
+      await this.emitProgressUpdate({
         sessionId,
         stage: 'document_analysis',
         status: 'completed',
@@ -269,7 +325,7 @@ export class PreAnalysisService {
       }
 
       // 진행 상황 업데이트 발송
-      this.emitProgressUpdate({
+      await this.emitProgressUpdate({
         sessionId: data.id,
         stage: 'session_created',
         status: 'completed',
@@ -306,7 +362,7 @@ export class PreAnalysisService {
 
     try {
       // 진행 상황 업데이트
-      this.emitProgressUpdate({
+      await this.emitProgressUpdate({
         sessionId,
         stage: 'document_analysis',
         status: 'in_progress',
@@ -404,7 +460,7 @@ export class PreAnalysisService {
       }
 
       // 진행 상황 업데이트
-      this.emitProgressUpdate({
+      await this.emitProgressUpdate({
         sessionId,
         stage: 'document_analysis',
         status: 'completed',
@@ -437,7 +493,7 @@ export class PreAnalysisService {
     console.log('❓ PreAnalysisService.generateQuestions 호출됨', { sessionId, options });
     try {
       // 진행 상황 업데이트
-      this.emitProgressUpdate({
+      await this.emitProgressUpdate({
         sessionId,
         stage: 'question_generation',
         status: 'in_progress',
@@ -504,7 +560,7 @@ export class PreAnalysisService {
       }
 
       // 진행 상황 업데이트
-      this.emitProgressUpdate({
+      await this.emitProgressUpdate({
         sessionId,
         stage: 'question_generation',
         status: 'completed',
@@ -589,7 +645,7 @@ export class PreAnalysisService {
     try {
       console.log('📊 [ultrathink] 진행 상황 업데이트 중...');
       // 진행 상황 업데이트
-      this.emitProgressUpdate({
+      await this.emitProgressUpdate({
         sessionId,
         stage: 'report_generation',
         status: 'in_progress',
@@ -665,7 +721,7 @@ export class PreAnalysisService {
 
       console.log('📈 [ultrathink] 최종 진행 상황 업데이트...');
       // 진행 상황 업데이트
-      this.emitProgressUpdate({
+      await this.emitProgressUpdate({
         sessionId,
         stage: 'report_generation',
         status: 'completed',
@@ -1400,10 +1456,62 @@ ${answersContext}
       .eq('id', sessionId);
   }
 
-  private emitProgressUpdate(update: ProgressUpdate): void {
-    // Supabase Realtime을 통한 진행 상황 업데이트
-    // 추후 구현
-    console.log('Progress Update:', update);
+  private async emitProgressUpdate(update: ProgressUpdate): Promise<void> {
+    try {
+      console.log('📡 Progress Update:', update);
+
+      if (!supabase) {
+        console.error('❌ Supabase client not initialized');
+        return;
+      }
+
+      // 진행 상황을 데이터베이스에 저장 또는 업데이트
+      const progressData = {
+        session_id: update.sessionId,
+        stage: update.stage,
+        status: update.status,
+        progress: update.progress,
+        message: update.message,
+        updated_at: update.timestamp.toISOString(),
+      };
+
+      const { error } = await supabase
+        .from('pre_analysis_progress')
+        .upsert(progressData, {
+          onConflict: 'session_id,stage'
+        });
+
+      if (error) {
+        console.error('❌ 진행 상황 저장 오류:', error);
+      } else {
+        console.log('✅ 진행 상황 저장 완료:', progressData);
+      }
+
+      // 문서별 상태가 있다면 document_analyses 테이블도 업데이트
+      if (update.documentId && update.status) {
+        const analysisData = {
+          session_id: update.sessionId,
+          document_id: update.documentId,
+          status: update.status,
+          progress: update.progress,
+          updated_at: update.timestamp.toISOString(),
+        };
+
+        const { error: docError } = await supabase
+          .from('document_analyses')
+          .upsert(analysisData, {
+            onConflict: 'session_id,document_id'
+          });
+
+        if (docError) {
+          console.error('❌ 문서 분석 상태 저장 오류:', docError);
+        } else {
+          console.log('✅ 문서 분석 상태 저장 완료:', analysisData);
+        }
+      }
+    } catch (error) {
+      console.error('❌ emitProgressUpdate 오류:', error);
+    }
   }
 
   // 환경별 AI 완성 호출 (개발환경: 직접 호출, 프로덕션: API 라우트)
