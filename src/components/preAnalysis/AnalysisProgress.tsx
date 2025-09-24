@@ -380,37 +380,41 @@ export const AnalysisProgress = React.forwardRef<
             return hasDocumentUpdates ? updated : prev;
           });
 
-          // 3. 분석 완료 체크 및 자동 다음 단계 진행
-          const completedCount = documentStatuses.filter(doc => doc.status === 'completed').length;
-          const errorCount = documentStatuses.filter(doc => doc.status === 'error').length;
-          const totalCount = documentStatuses.length;
+                  // 3. 분석 완료 체크 및 자동 다음 단계 진행 (최신 상태 사용)
+          setDocumentStatuses(currentDocuments => {
+            const completedCount = currentDocuments.filter(doc => doc.status === 'completed').length;
+            const errorCount = currentDocuments.filter(doc => doc.status === 'error').length;
+            const totalCount = currentDocuments.length;
 
-          if (totalCount > 0) {
-            const isAllCompleted = completedCount === totalCount;
-            const hasErrors = errorCount > 0;
+            if (totalCount > 0) {
+              const isAllCompleted = completedCount === totalCount;
+              const hasErrors = errorCount > 0;
 
-            // 진행률 메시지 업데이트
-            if (completedCount > 0 || hasErrors) {
-              const progressMessage = hasErrors ?
-                `${completedCount}/${totalCount} 완료, ${errorCount}개 오류` :
-                `${completedCount}/${totalCount} 문서 분석 완료`;
+              // 진행률 메시지 업데이트
+              if (completedCount > 0 || hasErrors) {
+                const progressMessage = hasErrors ?
+                  `${completedCount}/${totalCount} 완료, ${errorCount}개 오류` :
+                  `${completedCount}/${totalCount} 문서 분석 완료`;
 
-              updateStageStatus('document_analysis', 'in_progress', Math.round((completedCount / totalCount) * 100), progressMessage);
+                updateStageStatus('document_analysis', 'in_progress', Math.round((completedCount / totalCount) * 100), progressMessage);
+              }
+
+              // 모든 문서 분석 완료 시 자동 다음 단계 진행
+              if (isAllCompleted && !analysisCompleted) {
+                console.log('✨ 모든 문서 분석 완료! 다음 단계 준비 중...');
+                setAnalysisCompleted(true);
+                updateStageStatus('document_analysis', 'completed', 100, '모든 문서 분석 완료');
+                addToActivityLog('✅ 문서 분석이 성공적으로 완료되었습니다!');
+
+                // 질문 생성 단계로 자동 진행 (1초 딜레이)
+                setTimeout(() => {
+                  startQuestionGeneration();
+                }, 1000);
+              }
             }
 
-            // 모든 문서 분석 완료 시 자동 다음 단계 진행
-            if (isAllCompleted && !analysisCompleted) {
-              console.log('✨ 모든 문서 분석 완료! 다음 단계 준비 중...');
-              setAnalysisCompleted(true);
-              updateStageStatus('document_analysis', 'completed', 100, '모든 문서 분석 완료');
-              addToActivityLog('✅ 문서 분석이 성공적으로 완료되었습니다!');
-
-              // 질문 생성 단계로 자동 진행 (1초 딜레이)
-              setTimeout(() => {
-                startQuestionGeneration();
-              }, 1000);
-            }
-          }
+            return currentDocuments; // 상태 변경하지 않고 현재 상태 유지
+          });
         }
       }
     } catch (error) {
@@ -494,35 +498,50 @@ export const AnalysisProgress = React.forwardRef<
 
   const startQuestionGeneration = useCallback(async () => {
     console.log('📝 질문 생성 단계 시작');
-    updateStageStatus('question_generation', 'in_progress', 0, '맞춤형 질문 생성 중...');
+    updateStageStatus('question_generation', 'in_progress', 10, '맞춤형 질문 생성 중...');
     addToActivityLog('📝 AI 기반 맞춤형 질문을 생성합니다...');
 
     try {
+      // 진행률 업데이트
+      updateStageStatus('question_generation', 'in_progress', 30, 'AI 모델에서 질문을 생성하는 중...');
+
       const questionResponse = await preAnalysisService.generateQuestions(sessionId, {
         categories: ['technical', 'business', 'budget'],
         maxQuestions: 10,
         includeRequired: true
       });
 
-      if (questionResponse.success) {
-        const totalQuestions = Array.isArray(questionResponse.data) ? questionResponse.data.length : 0;
-        updateStageStatus('question_generation', 'completed', 100, `${totalQuestions}개 질문 생성 완료`);
-        addToActivityLog(`✅ ${totalQuestions}개의 맞춤형 질문이 생성되었습니다!`);
+      if (questionResponse.success && questionResponse.data) {
+        // 안전한 데이터 접근
+        const questionsArray = Array.isArray(questionResponse.data) ? questionResponse.data : [];
+        const totalQuestions = questionsArray.length;
 
-        // 전체 분석 완료 및 자동 이동
+        updateStageStatus('question_generation', 'in_progress', 80, '질문 생성 완료 처리 중...');
+        addToActivityLog(`🎯 ${totalQuestions}개의 맞춤형 질문이 생성되었습니다!`);
+
+        // 완료 상태로 업데이트
         setTimeout(() => {
-          addToActivityLog('🎉 사전 분석이 성공적으로 완료되었습니다!');
-          setIsPolling(false); // 폴링 중단
-          onComplete(); // 다음 단계로 이동
-        }, 1000);
+          updateStageStatus('question_generation', 'completed', 100, `${totalQuestions}개 질문 생성 완료`);
+          addToActivityLog('✅ 질문 생성 단계가 완료되었습니다!');
+
+          // 전체 분석 완료 및 자동 이동
+          setTimeout(() => {
+            addToActivityLog('🎉 사전 분석이 성공적으로 완료되었습니다!');
+            setIsPolling(false); // 폴링 중단
+            onComplete(); // 다음 단계로 이동
+          }, 1500);
+        }, 800);
       } else {
+        const errorMsg = questionResponse.error || '알 수 없는 오류가 발생했습니다.';
         updateStageStatus('question_generation', 'failed', 0, '질문 생성 실패');
-        addToActivityLog(`❌ 질문 생성 실패: ${questionResponse.error}`);
+        addToActivityLog(`❌ 질문 생성 실패: ${errorMsg}`);
+        console.error('질문 생성 응답 오류:', questionResponse);
       }
     } catch (error) {
       console.error('Question generation error:', error);
+      const errorMsg = error instanceof Error ? error.message : '질문 생성 중 예상치 못한 오류가 발생했습니다.';
       updateStageStatus('question_generation', 'failed', 0, '질문 생성 오류');
-      addToActivityLog('❌ 질문 생성 중 오류가 발생했습니다.');
+      addToActivityLog(`❌ 질문 생성 오류: ${errorMsg}`);
     }
   }, [sessionId, updateStageStatus, addToActivityLog, onComplete]);
 
