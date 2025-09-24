@@ -324,117 +324,122 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
 
     if (totalDocs === 0) return;
 
-    // 문서 분석 진행률 (60% 할당)
+    // 문서 분석 진행률 계산
     const docProgress = (completedDocs / totalDocs) * 60;
-    const analyzingProgress = (analyzingDocs / totalDocs) * 20; // 분석 중인 문서들에 부분 점수
+    const analyzingProgress = (analyzingDocs / totalDocs) * 20;
+    const processedDocs = completedDocs + errorDocs;
 
     setStages(prev => {
       const updated = [...prev];
       const docStage = updated.find(s => s.id === 'document_analysis');
+      const questionStage = updated.find(s => s.id === 'question_generation');
 
       if (docStage) {
         const newProgress = Math.min(100, (docProgress + analyzingProgress) * (100/60));
 
-        // 실제로 변경이 있을 때만 업데이트
-        if (Math.abs(docStage.progress - newProgress) > 5) { // 5% 이상 변경시에만 업데이트
+        // 진행률 업데이트
+        if (Math.abs(docStage.progress - newProgress) > 5) {
           docStage.progress = newProgress;
 
-          // 사용자 친화적 메시지 업데이트
+          // 메시지 업데이트
           if (analyzingDocs > 0) {
             docStage.message = `${analyzingDocs}개 문서 분석 중...`;
-          } else if (completedDocs === totalDocs) {
-            docStage.message = `모든 문서 분석 완료`;
+          } else if (processedDocs === totalDocs) {
+            docStage.message = `모든 문서 분석 완료 (성공: ${completedDocs}개, 오류: ${errorDocs}개)`;
           } else {
             docStage.message = `${completedDocs}/${totalDocs}개 문서 완료`;
           }
         }
 
-        // 모든 문서 분석 완료 시 다음 단계로 (오류 문서 포함)
-        const processedDocs = completedDocs + errorDocs;
+        // 🎯 핵심: 문서 분석 완료 조건 확인 및 질문 생성 트리거
         if (processedDocs === totalDocs && docStage.status !== 'completed' && totalDocs > 0) {
+          console.log('📋 문서 분석 완료 조건 충족:', {
+            processedDocs,
+            totalDocs,
+            completedDocs,
+            errorDocs,
+            questionGenerationTriggered
+          });
+
           docStage.status = 'completed';
           docStage.endTime = new Date();
           docStage.progress = 100;
-          docStage.message = `모든 문서 분석 완료 (성공: ${completedDocs}개, 오류: ${errorDocs}개)`;
 
           addToActivityLog(`✅ 문서 분석이 완료되었습니다! (성공: ${completedDocs}개, 오류: ${errorDocs}개)`);
           setAnalysisCompleted(true);
 
-          // 질문 생성 자동 시작 - 성공한 문서가 하나라도 있어야 진행
+          // 질문 생성 자동 시작
           if (completedDocs > 0 && !questionGenerationTriggered) {
+            console.log('🚀 AI 질문 생성을 시작합니다!');
             setQuestionGenerationTriggered(true);
             addToActivityLog('🔄 AI 질문 생성 단계로 자동 진행합니다...');
 
-            // 즉시 질문 생성 시작
+            // 즉시 질문 생성 실행
             setTimeout(() => {
+              console.log('⚡ triggerQuestionGeneration 호출');
               triggerQuestionGeneration();
-            }, 1000);
+            }, 500); // 0.5초 후 실행
           } else if (completedDocs === 0) {
-            // 모든 문서가 실패한 경우
-            const questionStage = updated.find(s => s.id === 'question_generation');
+            console.log('❌ 성공한 문서가 없음');
             if (questionStage && questionStage.status === 'pending') {
               questionStage.status = 'failed';
               questionStage.endTime = new Date();
               questionStage.message = '분석 성공한 문서가 없음';
               addToActivityLog('❌ 분석 성공한 문서가 없어 질문을 생성할 수 없습니다.');
             }
+          } else {
+            console.log('🔄 질문 생성이 이미 트리거됨 또는 조건 불충족:', { completedDocs, questionGenerationTriggered });
           }
         }
       }
 
-      return updated;
-    });
-
-    // 전체 진행률을 단계별 가중 평균으로 계산
-    setStages(currentStages => {
-      const docStage = currentStages.find(s => s.id === 'document_analysis');
-      const questionStage = currentStages.find(s => s.id === 'question_generation');
-
-      // 각 단계별 가중치 적용한 진행률 계산
+      // 전체 진행률 계산
       let totalProgress = 0;
-
       if (docStage) {
-        const docWeight = 60; // 문서 분석이 60% 비중
-        totalProgress += (docStage.progress / 100) * docWeight;
+        totalProgress += (docStage.progress / 100) * 60; // 60% 비중
       }
-
       if (questionStage) {
-        const questionWeight = 40; // 질문 생성이 40% 비중
-        totalProgress += (questionStage.progress / 100) * questionWeight;
+        totalProgress += (questionStage.progress / 100) * 40; // 40% 비중
       }
 
-      // 전체 진행률 업데이트 (0-100 범위로 제한)
       const finalProgress = Math.min(100, Math.max(0, totalProgress));
-
-      // 진행률이 실제로 변경된 경우에만 업데이트
       if (Math.abs(finalProgress - overallProgress) > 1) {
-        setTimeout(() => {
-          setOverallProgress(finalProgress);
-        }, 100);
+        setOverallProgress(finalProgress);
       }
 
-      return currentStages;
+      return updated;
     });
   };
 
   // 질문 생성 단계 트리거 함수 (분석 완료 후 호출)
   const triggerQuestionGeneration = () => {
+    console.log('🎯 triggerQuestionGeneration 실행됨');
+
     setStages(prev => {
       const updated = [...prev];
       const questionStage = updated.find(s => s.id === 'question_generation');
 
+      console.log('📊 현재 질문 생성 단계 상태:', questionStage?.status);
+
       if (questionStage && questionStage.status === 'pending') {
+        console.log('✅ 질문 생성 단계 시작');
         questionStage.status = 'in_progress';
         questionStage.startTime = new Date();
         questionStage.progress = 10;
-        questionStage.message = 'AI 질문 생성 중...';
+        questionStage.message = 'AI가 맞춤형 질문을 생성하고 있습니다...';
 
         addToActivityLog('🤖 AI 질문 생성을 시작합니다...');
 
         // 실제 질문 생성 실행
         setTimeout(() => {
+          console.log('🔧 generateQuestions 함수 호출');
           generateQuestions();
-        }, 500);
+        }, 1000);
+      } else {
+        console.log('⚠️ 질문 생성을 시작할 수 없음:', {
+          status: questionStage?.status,
+          exists: !!questionStage
+        });
       }
 
       return updated;
