@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   FileText,
   MessageSquare,
@@ -11,8 +11,6 @@ import {
   FileCheck,
   Loader,
   AlertCircle,
-  Activity,
-  Timer,
 } from 'lucide-react';
 import { preAnalysisService } from '../../services/preAnalysis/PreAnalysisService';
 import { Card } from '../LinearComponents';
@@ -86,10 +84,9 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
   const [activityLog, setActivityLog] = useState<string[]>([]);
   const [startTime, setStartTime] = useState<Date>(new Date());
   const [elapsedTime, setElapsedTime] = useState(0);
-  const [isPolling, setIsPolling] = useState(false);
   const [pollInterval, setPollInterval] = useState<number>(3000); // 동적 폴링 간격
   const [lastUpdateTime, setLastUpdateTime] = useState<number>(Date.now());
-  const [analysisCompleted, setAnalysisCompleted] = useState(false);
+  const [analysisCompleted] = useState(false);
 
   useEffect(() => {
     // 세션 시작 시 초기화
@@ -110,8 +107,6 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
         // 동적 폴링 간격 조정
         adjustPollingInterval();
       }, pollInterval);
-
-      setIsPolling(true);
     };
 
     startPolling();
@@ -349,7 +344,7 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
     }
   };
 
-  const updateOverallProgress = React.useCallback(() => {
+  const updateOverallProgress = () => {
     const completedDocs = documentStatuses.filter(doc => doc.status === 'completed').length;
     const analyzingDocs = documentStatuses.filter(doc => doc.status === 'analyzing').length;
     const errorDocs = documentStatuses.filter(doc => doc.status === 'error').length;
@@ -448,7 +443,7 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
 
       return currentStages;
     });
-  }, [documentStatuses]);
+  };
 
   const generateQuestions = async () => {
     try {
