@@ -3,6 +3,12 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 export default defineConfig({
     plugins: [react()],
+    define: {
+        // Vercel 환경에 맞춰 VITE_ 접두사 없는 환경변수들을 클라이언트에 노출
+        'import.meta.env.ANTHROPIC_API_KEY': JSON.stringify(process.env.ANTHROPIC_API_KEY),
+        'import.meta.env.OPENAI_API_KEY': JSON.stringify(process.env.OPENAI_API_KEY),
+        'import.meta.env.GOOGLE_AI_API_KEY': JSON.stringify(process.env.GOOGLE_AI_API_KEY),
+    },
     resolve: {
         alias: {
             '@': path.resolve(__dirname, './src'),

@@ -257,6 +257,32 @@ export class PreAnalysisService {
         timestamp: new Date(),
       });
 
+      // 문서 분석 완료 후 자동으로 AI 질문 생성 시작
+      if (successCount > 0) {
+        console.log('📝 문서 분석 완료, AI 질문 생성을 자동으로 시작합니다...');
+
+        // 비동기로 질문 생성 시작 (await 하지 않음으로써 응답을 먼저 반환)
+        setTimeout(async () => {
+          try {
+            const questionResult = await this.generateQuestions(sessionId, {
+              categories: ['technical', 'business', 'risks', 'budget', 'timeline'],
+              maxQuestions: 20,
+              includeRequired: true,
+              customContext: '문서 분석이 완료된 프로젝트에 대한 추가 질문을 생성합니다.',
+              documentTypes: [DocumentCategory.TECHNICAL, DocumentCategory.BUSINESS, DocumentCategory.REQUIREMENTS]
+            });
+
+            if (questionResult.success) {
+              console.log('✅ AI 질문 생성이 자동으로 완료되었습니다.');
+            } else {
+              console.error('❌ AI 질문 생성 자동 실행 실패:', questionResult.error);
+            }
+          } catch (error) {
+            console.error('❌ AI 질문 생성 자동 실행 중 오류:', error);
+          }
+        }, 1000); // 1초 후 실행
+      }
+
       return {
         success: true,
         data: {
