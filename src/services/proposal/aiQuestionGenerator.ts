@@ -309,21 +309,30 @@ export class AIQuestionGenerator {
     userId?: string
   ): Promise<Question[]> {
     try {
+      console.log('🤖 AIQuestionGenerator.generateAIQuestions 시작');
+      console.log('📊 입력 파라미터:', { step, projectId, userId, context });
+
       const provider = aiServiceManager.getCurrentProvider()
+      console.log('🔌 현재 AI 제공자:', provider ? provider.name : 'null');
+
       if (!provider) {
         console.warn('AI 제공자가 설정되지 않음. 기본 질문만 반환합니다.')
         return this.generateQuestions(step, projectId)
       }
 
       // AI 프롬프트 구성
+      console.log('📝 AI 프롬프트 생성 중...');
       const prompt = this.buildAIPrompt(step, context)
+      console.log('📄 생성된 프롬프트 길이:', prompt.length);
 
       const options: CompletionOptions = {
         model: 'gpt-4o-mini', // 비용 효율적인 모델 사용
         maxTokens: 2000,
         temperature: 0.7
       }
+      console.log('⚙️ AI 호출 옵션:', options);
 
+      console.log('🚀 aiServiceManager.generateCompletion 호출 시작...');
       const response = await aiServiceManager.generateCompletion(
         prompt,
         options,
@@ -333,6 +342,7 @@ export class AIQuestionGenerator {
           requestType: 'question_generation'
         }
       )
+      console.log('✅ AI 응답 수신 완료:', response ? '성공' : '실패');
 
       // AI 응답 파싱하여 질문 생성
       const aiQuestions = this.parseAIResponse(response.content, step, projectId)
@@ -349,11 +359,17 @@ export class AIQuestionGenerator {
       const baseQuestions = this.generateQuestions(step, projectId)
       return [...baseQuestions, ...aiQuestions]
     } catch (error) {
-      console.error('AI 질문 생성 실패:', error)
+      console.error('❌ AI 질문 생성 실패:', error)
+      console.error('❌ 오류 타입:', error instanceof Error ? error.constructor.name : typeof error);
+      console.error('❌ 오류 메시지:', error instanceof Error ? error.message : String(error));
+      console.error('❌ 오류 스택:', error instanceof Error ? error.stack : 'Stack trace not available');
 
       // 사전 분석의 경우 AI 생성 질문이 필수이므로 에러 발생
       if (step === 'pre_analysis' || step === 'questions') {
-        throw new Error('사전 분석을 위한 AI 질문 생성에 실패했습니다. AI 서비스 연결을 확인해주세요.')
+        const errorMessage = error instanceof Error ?
+          `사전 분석을 위한 AI 질문 생성에 실패했습니다: ${error.message}` :
+          '사전 분석을 위한 AI 질문 생성에 실패했습니다. AI 서비스 연결을 확인해주세요.';
+        throw new Error(errorMessage)
       }
 
       // 다른 단계의 경우 기본 질문 반환
