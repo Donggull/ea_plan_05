@@ -146,10 +146,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   refreshSession: async () => {
-    const { isInitializing } = get()
+    const currentState = get()
 
     // 초기화 중이면 refreshSession 생략 (중복 호출 방지)
-    if (isInitializing) {
+    if (currentState.isInitializing) {
       console.log('⚠️ RefreshSession skipped - initialization in progress')
       return
     }
@@ -160,13 +160,34 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (error) throw error
 
       if (data.session) {
-        set({
-          user: data.session.user,
-          session: data.session,
-          isAuthenticated: true,
-          error: null // 성공 시 에러 클리어
-        })
-        console.log('✅ Session refresh successful')
+        // 기존 프로필 정보 유지 (프로필 재로드 방지)
+        const currentProfile = currentState.profile
+        let updatedUser = data.session.user
+
+        // 기존 프로필이 있고 같은 사용자인 경우 user_metadata 업데이트
+        if (currentProfile && currentProfile.id === updatedUser.id) {
+          updatedUser = {
+            ...updatedUser,
+            user_metadata: {
+              ...updatedUser.user_metadata,
+              role: currentProfile.role,
+              user_level: currentProfile.user_level
+            }
+          }
+        }
+
+        // 세션이 실제로 변경된 경우에만 업데이트
+        if (currentState.session?.access_token !== data.session.access_token) {
+          set({
+            user: updatedUser,
+            session: data.session,
+            isAuthenticated: true,
+            error: null // 성공 시 에러 클리어
+          })
+          console.log('✅ Session refresh successful')
+        } else {
+          console.log('⚡ Session refresh skipped - no token changes')
+        }
       }
     } catch (error: any) {
       console.error('❌ Session refresh error:', error)
@@ -319,12 +340,37 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         console.log('⚙️ Setting up auth state change listener (once only)')
 
         const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-          console.log('Auth state changed:', event, session?.user?.email)
+          // 디버그 로그 최소화 - 브라우저 포커스 시 불필요한 메시지 방지
+          if (event === 'SIGNED_OUT') {
+            console.log('🚪 Auth state changed: SIGNED_OUT')
+          } else if (event === 'TOKEN_REFRESHED') {
+            console.log('🔄 Auth state changed: TOKEN_REFRESHED')
+          } else {
+            // SIGNED_IN 이벤트 로그 최소화 (브라우저 포커스 시 스팸 방지)
+            console.log(`🔐 Auth state changed: ${event}`)
+          }
 
-          // TOKEN_REFRESHED 시에는 프로필 로딩 생략으로 무한 루프 방지
+          const currentState = get()
+
+          // SIGNED_IN 이벤트 시 중복 처리 방지
           if (event === 'SIGNED_IN') {
+            // 이미 같은 사용자로 인증되어 있고 프로필이 로드되어 있다면 스킵
+            if (currentState.isAuthenticated &&
+                currentState.user?.id === session?.user?.id &&
+                currentState.profile) {
+              console.log('⚡ SIGNED_IN event skipped - user already authenticated with profile')
+              // 세션만 업데이트하고 프로필 재로드는 하지 않음
+              set({
+                session,
+                isAuthenticated: !!session
+              })
+              return
+            }
+
+            // 새로운 사용자이거나 프로필이 없는 경우에만 프로필 로드
             if (session?.user) {
               try {
+                console.log('👤 Loading profile for new user session...')
                 await get().loadProfile(session.user.id)
               } catch (error) {
                 console.warn('Profile load failed during auth state change:', error)
@@ -332,7 +378,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             }
           } else if (event === 'TOKEN_REFRESHED') {
             // TOKEN_REFRESHED시에는 프로필 로딩 없이 세션만 업데이트
-            console.log('⚙️ Token refreshed - updating session only')
+            console.log('⚙️ Token refreshed - updating session only (no profile reload)')
           }
 
           if (event === 'SIGNED_OUT') {
@@ -344,12 +390,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
               isInitializing: false,
             })
           } else {
-            // SIGNED_OUT이 아닌 모든 이벤트에서 세션 업데이트
-            const currentProfile = get().profile
+            // SIGNED_OUT이 아닌 이벤트에서 세션 업데이트 (중복 처리 방지)
+            const currentState = get()
+            const currentProfile = currentState.profile
             let updatedUser = session?.user ?? null
 
-            // 기존 프로필 정보가 있는 경우만 user_metadata 업데이트
-            if (updatedUser && currentProfile) {
+            // 기존 프로필 정보가 있고 같은 사용자인 경우만 user_metadata 업데이트
+            if (updatedUser && currentProfile && currentProfile.id === updatedUser.id) {
               updatedUser = {
                 ...updatedUser,
                 user_metadata: {
@@ -360,12 +407,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
               }
             }
 
-            set({
-              user: updatedUser,
-              session,
-              isAuthenticated: !!session,
-              isInitializing: false,
-            })
+            // 상태가 실제로 변경된 경우에만 업데이트 (불필요한 리렌더링 방지)
+            const shouldUpdate =
+              currentState.user?.id !== updatedUser?.id ||
+              currentState.session?.access_token !== session?.access_token ||
+              currentState.isAuthenticated !== !!session
+
+            if (shouldUpdate) {
+              set({
+                user: updatedUser,
+                session,
+                isAuthenticated: !!session,
+                isInitializing: false,
+              })
+            } else {
+              console.log('⚡ Auth state update skipped - no changes detected')
+            }
           }
         })
 

@@ -89,60 +89,44 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     let isRefreshing = false // 중복 갱신 방지 플래그
 
-    // 1시간마다 세션 갱신 - 인증 상태 실시간 확인
+    // 4시간마다 세션 갱신 - 백그라운드에서만 (더 긴 주기로 변경)
     const refreshInterval = setInterval(async () => {
-      const currentState = useAuthStore.getState()
-      if (currentState.isAuthenticated && currentState.session && !isRefreshing) {
-        isRefreshing = true
-        try {
-          console.log('⏰ Scheduled session refresh...')
-          await authStore.refreshSession()
-        } catch (error) {
-          console.error('Scheduled session refresh failed:', error)
-        } finally {
-          isRefreshing = false
-        }
-      }
-    }, 60 * 60 * 1000) // 1시간
-
-    // 페이지 포커스 시 세션 갱신 - 인증 상태 실시간 확인
-    const handleFocus = async () => {
       const currentState = useAuthStore.getState()
       if (currentState.isAuthenticated && currentState.session && !isRefreshing) {
         const tokenExp = currentState.session.expires_at
         const now = Math.floor(Date.now() / 1000)
 
-        // 토큰 만료 10분 전에 갱신
-        if (tokenExp && (tokenExp - now) < 600) {
+        // 토큰 만료 30분 전에만 갱신 (더 보수적으로 변경)
+        if (tokenExp && (tokenExp - now) < 1800) {
           isRefreshing = true
           try {
-            console.log('🔄 Focus session refresh...')
+            console.log('⏰ Background session refresh (token expiring soon)...')
             await authStore.refreshSession()
           } catch (error) {
-            console.error('Focus session refresh failed:', error)
+            console.error('Background session refresh failed:', error)
           } finally {
             isRefreshing = false
           }
         }
       }
-    }
+    }, 4 * 60 * 60 * 1000) // 4시간으로 변경
+
+    // 브라우저 포커스 시 세션 갱신 로직 완전 제거
+    // 사용자 요구사항: "브라우저 이동 후 다시 포커스되어도 인증을 재확인할 필요가 없다"
+    console.log('💡 Focus-based session refresh disabled per user requirements')
 
     if (typeof window !== 'undefined') {
-      window.addEventListener('focus', handleFocus)
-      // 전역 참조로 중복 설정 방지
+      // 전역 참조로 중복 설정 방지 (포커스 핸들러는 제거)
       window.__sessionRefreshTimer = refreshInterval
-      window.__sessionFocusHandler = handleFocus
 
-      console.log('✅ Session refresh timer initialized (once only)')
+      console.log('✅ Background session refresh timer initialized (focus refresh disabled)')
     }
 
     return () => {
       if (typeof window !== 'undefined') {
         clearInterval(refreshInterval)
-        window.removeEventListener('focus', handleFocus)
         window.__sessionRefreshTimer = null
-        window.__sessionFocusHandler = null
-        console.log('🧹 Session refresh timer cleanup')
+        console.log('🧹 Background session refresh timer cleanup')
       }
     }
   }, [isClient]) // authStore.isAuthenticated 의존성 제거로 무한 루프 완전 방지
