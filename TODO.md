@@ -1299,59 +1299,74 @@ Phase 8의 상세 구현을 위해 `docs/pre_analysis_prompts.md` 파일의 프�
 - [x] 사전 분석 관련 핵심 컴포넌트 현재 상태 확인
   - [x] PreAnalysisPanel.tsx 구조 및 기능 분석
   - [x] DocumentUploader.tsx 파일 업로드 로직 검토
-  - [x] PreAnalysisService.ts DB 연동 상태 확인 (다음 단계에서 진행)
-- [ ] 데이터베이스 테이블 상태 검증 (Phase 9.2에서 진행)
-  - [ ] pre_analysis_sessions 테이블 구조 확인
-  - [ ] documents 테이블 연동 상태 확인
-  - [ ] document_content 테이블 데이터 저장 여부 확인
+  - [x] PreAnalysisService.ts DB 연동 상태 확인
+- [x] 데이터베이스 테이블 상태 검증
+  - [x] pre_analysis_sessions 테이블 구조 확인
+  - [x] documents 테이블 연동 상태 확인
+  - [x] document_content 테이블 데이터 저장 여부 확인
 
-### 📊 Phase 9.1 분석 결과
+### 📊 Phase 9.1 실제 분석 결과 (2025-09-24 완료)
 
-#### ✅ PreAnalysisPanel.tsx 분석 완료
-**현재 상태**: 정상 작동 가능, AI 모델 연동 완료
-- **강점**:
-  - AI 모델 선택 및 설정이 사이드바와 완전 연동됨
-  - 4단계 워크플로우 구현 (설정→분석→질문→보고서)
-  - 세션 관리 및 상태 추적 로직 구현
-  - DocumentManager와 연동하여 문서 수 실시간 표시
-  - 에러 처리 및 로딩 상태 관리 적절
+#### ✅ PreAnalysisService.ts 심층 분석 완료
+**현재 상태**: 완전한 AI 분석 서비스 시스템 구현 완료
+- **핵심 기능**:
+  - 1,547줄의 포괄적인 사전 분석 서비스 로직
+  - Supabase 완전 연동: documents, document_content, pre_analysis_sessions
+  - Vercel API 라우트 기반 AI 호출 시스템 (개발/프로덕션 환경 대응)
+  - 문서별 카테고리 자동 감지 및 분석
+  - 실시간 진행 상황 업데이트 시스템
 
-- **확인된 기능**:
-  - ✅ AI 모델 정보 실시간 표시 (토큰, 비용, capabilities)
-  - ✅ MCP 서버 설정 인터페이스
-  - ✅ 프로젝트 문서 현황 표시
-  - ✅ 세션 생성 및 관리
-  - ✅ 단계별 진행 상태 표시
+- **AI 연동 상태**:
+  - ✅ Anthropic Claude 4 시리즈 완전 지원
+  - ✅ OpenAI GPT 모델 지원
+  - ✅ 토큰 사용량 추적 및 비용 계산
+  - ✅ 오류 처리 및 Fallback 로직
+  - ✅ 환경별 API 호출 (개발: Vercel 프로덕션 URL, 프로덕션: 상대 경로)
 
-#### ✅ DocumentUploader.tsx 분석 완료
-**현재 상태**: 고도화된 업로드 시스템 구현 완료
-- **강점**:
-  - 드래그 앤 드롭 지원
-  - 프로젝트 선택 기능 (관리자/일반 사용자 구분)
-  - 파일 진행률 표시 및 에러 처리
-  - 재시도 로직 (최대 3회)
-  - 다양한 파일 형식 지원 (PDF, DOCX, TXT, 이미지)
-  - Supabase Storage 연동 완료
+#### ✅ 데이터베이스 테이블 상태 검증 완료
+**Supabase 테이블 현황**: 총 32개 테이블, 모든 사전 분석 테이블 정상
+- **사전 분석 핵심 테이블**:
+  - ✅ `pre_analysis_sessions` (1 row): 세션 관리 테이블 정상 작동
+  - ✅ `documents` (1 row): 파일 메타데이터 저장 정상
+  - ✅ `document_content` (0 rows): 텍스트 추출 저장 테이블 준비됨
+  - ✅ `document_analyses` (0 rows): AI 분석 결과 저장 테이블 준비됨
+  - ✅ `ai_questions` (0 rows): AI 질문 생성 테이블 준비됨
+  - ✅ `user_answers` (0 rows): 사용자 답변 저장 테이블 준비됨
+  - ✅ `analysis_reports` (0 rows): 최종 보고서 저장 테이블 준비됨
 
-- **확인된 기능**:
-  - ✅ 파일 검증 (크기, 형식, 개수 제한)
-  - ✅ 실시간 업로드 진행률 표시
-  - ✅ 에러 발생 시 재시도 기능
-  - ✅ 프로젝트별 파일 업로드
-  - ✅ 메타데이터 추출 및 저장
+- **연관 테이블 상태**:
+  - ✅ `profiles` (6 rows): 사용자 정보 정상
+  - ✅ `projects` (4 rows): 프로젝트 정보 정상
+  - ✅ `ai_models` (8 rows): AI 모델 정보 정상
+  - ✅ `ai_analysis` (3 rows): 기존 AI 분석 데이터 존재
 
-#### 🔍 다음 단계 테스트 필요 사항
-1. **파일 업로드 → DB 저장 연동 테스트**
-   - 업로드된 파일이 documents 테이블에 정확히 저장되는지
-   - document_content 테이블에 텍스트 추출 후 저장되는지
+#### ✅ RLS 정책 및 외래키 제약 확인
+- **RLS 정책**: 모든 사전 분석 테이블에 RLS 활성화됨
+- **외래키 관계**: 완전한 참조 무결성 보장
+  - pre_analysis_sessions ↔ projects, profiles
+  - document_analyses ↔ pre_analysis_sessions, documents
+  - ai_questions ↔ pre_analysis_sessions
+  - user_answers ↔ ai_questions, profiles
 
-2. **사전 분석 세션 생성 테스트**
-   - PreAnalysisService.ts의 세션 생성 기능
-   - 세션과 문서 연결 상태 확인
+#### 🔍 발견된 핵심 이슈 및 테스트 포인트
+1. **document_content 테이블 비어있음 (0 rows)**
+   - 파일 업로드는 되지만 텍스트 추출이 완료되지 않은 상태
+   - 텍스트 추출 프로세스 테스트 필요
 
-3. **AI 모델 전달 프로세스 테스트**
-   - 추출된 텍스트가 선택된 AI 모델로 전송되는지
-   - 분석 결과가 올바르게 저장되는지
+2. **AI 분석 결과 테이블 비어있음**
+   - document_analyses, ai_questions, analysis_reports 모두 0 rows
+   - 실제 AI 분석 워크플로우 테스트 필요
+
+3. **API 라우트 기반 AI 호출 시스템**
+   - 개발환경: https://ea-plan-05.vercel.app/api/ai/completion
+   - 프로덕션환경: /api/ai/completion
+   - 실제 AI API 연동 테스트 필요
+
+#### 📋 Phase 9.2에서 테스트할 핵심 사항
+1. **파일 업로드 → 텍스트 추출 → document_content 저장 프로세스**
+2. **사전 분석 세션 생성 → 문서 분석 실행 프로세스**
+3. **AI 모델 API 호출 → 분석 결과 저장 프로세스**
+4. **질문 생성 → 답변 수집 → 보고서 생성 전체 워크플로우**
 
 #### 📁 Phase 9.2: 파일 업로드 프로세스 테스트
 - [ ] **파일 업로드 UI 동작 확인**
