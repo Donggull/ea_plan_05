@@ -800,7 +800,17 @@ export class PreAnalysisService {
         model: settings.aiModel,
         provider: settings.aiProvider,
         maxTokens: 4000,
-        temperature: 0.3
+        temperature: 0.3,
+        promptPreview: analysisPrompt.substring(0, 200) + '...',
+        sessionId
+      });
+
+      console.log('🔗 callAICompletionAPI 호출 전 환경 체크:', {
+        isDev: import.meta.env.DEV,
+        mode: import.meta.env.MODE,
+        apiUrl: import.meta.env.DEV
+          ? 'https://ea-plan-05.vercel.app/api/ai/completion'
+          : '/api/ai/completion'
       });
 
       const response = await this.callAICompletionAPI(
@@ -810,6 +820,13 @@ export class PreAnalysisService {
         4000,
         0.3
       );
+
+      console.log('🔗 callAICompletionAPI 호출 후 응답 확인:', {
+        hasResponse: !!response,
+        hasContent: !!response?.content,
+        hasUsage: !!response?.usage,
+        hasCost: !!response?.cost
+      });
 
       console.log('✅ AI 응답 수신 완료', {
         responseLength: response.content.length,

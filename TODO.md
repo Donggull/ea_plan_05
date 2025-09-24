@@ -3,8 +3,8 @@
 ## 📅 프로젝트 개요
 - **목표**: 기존 ELUO 시스템에 사전 분석(Pre-Analysis) 단계 추가
 - **시작일**: 2025-01-27
-- **최신 업데이트**: 2025-09-23 - AI 모델 사이드바 연동 및 최신 모델 적용 완료
-- **현재 상태**: Phase 8.9 완료 - AI 모델 연동 및 최신 모델 데이터 업데이트
+- **최신 업데이트**: 2025-09-24 - 사전 분석 API 연동 문제 해결
+- **현재 상태**: Phase 9.0 진행 중 - API 환경변수 및 분석 시작 문제 해결
 - **참조 문서**:
   - `docs/pre_analysis_prd.md`
   - `docs/pre_analysis_prompts.md`
@@ -26,6 +26,43 @@
 ### ⏳ 대기 중인 작업
 - [ ] Supabase 테이블 스키마 검토
 - [ ] 필요한 환경변수 확인
+
+---
+
+## 🔧 Phase 9.0: 사전 분석 API 연동 문제 해결 (2025-09-24 진행 중)
+
+### 🐛 문제 진단 및 해결
+- [x] **사전 분석 시작 안됨 문제 진단**
+  - [x] 문서 업로드 및 텍스트 추출 정상 확인
+  - [x] 분석 시작 버튼 클릭 후 진행되지 않음 확인
+  - [x] PreAnalysisPanel.tsx 및 AnalysisProgress.tsx 플로우 분석
+
+- [x] **API 라우트 및 환경변수 문제 해결**
+  - [x] Vercel API 라우트 (`/api/ai/completion`) 존재 확인
+  - [x] 환경변수 이름 통일: `VITE_ANTHROPIC_API_KEY` → `ANTHROPIC_API_KEY`
+  - [x] `.env.local`에 서버사이드 환경변수 추가
+  - [x] PreAnalysisService 로그 상세화 추가
+
+- [x] **코드 수정 사항**
+  - [x] `.env.local`에 Vercel 환경변수와 동일한 이름으로 통일
+  - [x] PreAnalysisService `performAIAnalysis` 메서드 로깅 강화
+  - [x] API 호출 전후 환경 상태 체크 로직 추가
+
+### 🧪 테스트 및 검증
+- [ ] **분석 기능 테스트**
+  - [ ] 개발 서버에서 분석 시작 버튼 클릭 테스트
+  - [ ] 브라우저 콘솔 및 서버 콘솔 로그 확인
+  - [ ] AI API 호출 성공 여부 확인
+  - [ ] 분석 결과 저장 및 표시 확인
+
+- [ ] **오류 처리 개선**
+  - [ ] API 호출 실패 시 사용자 친화적 오류 메시지
+  - [ ] 네트워크 오류 및 타임아웃 처리
+  - [ ] 환경변수 미설정 시 명확한 안내
+
+### 📝 현재 수정된 파일들
+- `D:\ea_plan_05\.env.local` - 환경변수 이름 통일
+- `D:\ea_plan_05\src\services\preAnalysis\PreAnalysisService.ts` - 상세 로깅 추가
 
 ---
 
