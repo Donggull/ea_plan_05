@@ -51,7 +51,7 @@ const MCPServerInfo = {
     requiredFor: ['리스크 분석', '예산 추정', '일정 계획'],
     costImpact: 'none' as const,
     timeImpact: 'low' as const,
-    connectionString: import.meta.env.VITE_SUPABASE_URL,
+    connectionString: import.meta.env['VITE_SUPABASE_URL'],
   },
   websearch: {
     name: '웹 검색',
@@ -61,7 +61,7 @@ const MCPServerInfo = {
     requiredFor: ['시장 분석', '경쟁력 평가'],
     costImpact: 'medium' as const,
     timeImpact: 'medium' as const,
-    connectionString: import.meta.env.VITE_BRAVE_API_KEY ? 'brave://search' : undefined,
+    connectionString: import.meta.env['VITE_BRAVE_API_KEY'] ? 'brave://search' : undefined,
   },
   github: {
     name: 'GitHub',
@@ -71,7 +71,7 @@ const MCPServerInfo = {
     requiredFor: ['기술적 참조', '아키텍처 벤치마킹'],
     costImpact: 'low' as const,
     timeImpact: 'medium' as const,
-    connectionString: import.meta.env.VITE_GITHUB_TOKEN ? 'github://api' : undefined,
+    connectionString: import.meta.env['VITE_GITHUB_TOKEN'] ? 'github://api' : undefined,
   }
 } as const;
 
