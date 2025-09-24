@@ -681,5 +681,81 @@ export class AIServiceManager {
   }
 }
 
+// AIServiceManager 자동 초기화 함수
+export async function initializeAIServiceManager(): Promise<void> {
+  console.log('🤖 AIServiceManager 초기화 중...')
+
+  // 환경변수에서 API 키 읽기 (VITE_ 접두사 제거됨)
+  const anthropicApiKey = import.meta.env.ANTHROPIC_API_KEY
+  const openaiApiKey = import.meta.env.OPENAI_API_KEY
+  const googleApiKey = import.meta.env.GOOGLE_AI_API_KEY
+
+  console.log('🔑 API 키 확인:')
+  console.log('- Anthropic:', anthropicApiKey ? '✅ 설정됨' : '❌ 누락')
+  console.log('- OpenAI:', openaiApiKey ? '✅ 설정됨' : '❌ 누락')
+  console.log('- Google AI:', googleApiKey ? '✅ 설정됨' : '❌ 누락')
+
+  const manager = aiServiceManager
+
+  // 우선순위: Anthropic > OpenAI > Google AI
+  let initialized = false
+
+  // Anthropic API 키가 있으면 우선 사용
+  if (anthropicApiKey && anthropicApiKey !== 'your-anthropic-key-here') {
+    try {
+      const success = await manager.setProvider('anthropic', anthropicApiKey)
+      if (success) {
+        console.log('✅ Anthropic 제공자가 초기화되었습니다.')
+        initialized = true
+      } else {
+        console.warn('⚠️ Anthropic 인증에 실패했습니다.')
+      }
+    } catch (error) {
+      console.error('❌ Anthropic 초기화 실패:', error)
+    }
+  }
+
+  // Anthropic 실패 시 OpenAI 시도
+  if (!initialized && openaiApiKey && openaiApiKey !== 'sk-your-openai-key-here') {
+    try {
+      const success = await manager.setProvider('openai', openaiApiKey)
+      if (success) {
+        console.log('✅ OpenAI 제공자가 초기화되었습니다.')
+        initialized = true
+      } else {
+        console.warn('⚠️ OpenAI 인증에 실패했습니다.')
+      }
+    } catch (error) {
+      console.error('❌ OpenAI 초기화 실패:', error)
+    }
+  }
+
+  // OpenAI 실패 시 Google AI 시도
+  if (!initialized && googleApiKey && googleApiKey !== 'your-google-ai-key-here') {
+    try {
+      const success = await manager.setProvider('google', googleApiKey)
+      if (success) {
+        console.log('✅ Google AI 제공자가 초기화되었습니다.')
+        initialized = true
+      } else {
+        console.warn('⚠️ Google AI 인증에 실패했습니다.')
+      }
+    } catch (error) {
+      console.error('❌ Google AI 초기화 실패:', error)
+    }
+  }
+
+  if (!initialized) {
+    console.error('❌ 사용 가능한 AI 제공자가 없습니다.')
+    console.error('다음 환경변수 중 하나 이상을 설정해주세요:')
+    console.error('- ANTHROPIC_API_KEY: Anthropic API 키')
+    console.error('- OPENAI_API_KEY: OpenAI API 키')
+    console.error('- GOOGLE_AI_API_KEY: Google AI API 키')
+  } else {
+    const currentProvider = manager.getCurrentProvider()
+    console.log(`🎯 현재 활성 제공자: ${currentProvider?.name || '없음'}`)
+  }
+}
+
 // 싱글톤 인스턴스 내보내기
 export const aiServiceManager = AIServiceManager.getInstance()

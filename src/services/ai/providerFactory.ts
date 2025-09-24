@@ -128,7 +128,7 @@ class OpenAIProvider extends BaseAIProvider {
       // API 키 확인 - 반드시 실제 API 키가 있어야 함
       if (!this.config.api_key || this.config.api_key === 'sk-your-openai-key-here') {
         throw new AIProviderError(
-          'OpenAI API 키가 설정되지 않았습니다. 환경 변수 VITE_OPENAI_API_KEY를 설정해주세요.',
+          'OpenAI API 키가 설정되지 않았습니다. 환경 변수 OPENAI_API_KEY를 설정해주세요.',
           'openai',
           this.config.model_id,
           401,
@@ -220,7 +220,7 @@ class AnthropicProvider extends BaseAIProvider {
       // API 키 확인 - 반드시 실제 API 키가 있어야 함
       if (!this.config.api_key || this.config.api_key === 'your-anthropic-key-here') {
         throw new AIProviderError(
-          'Anthropic API 키가 설정되지 않았습니다. 환경 변수 VITE_ANTHROPIC_API_KEY를 설정해주세요.',
+          'Anthropic API 키가 설정되지 않았습니다. 환경 변수 ANTHROPIC_API_KEY를 설정해주세요.',
           'anthropic',
           this.config.model_id,
           401,
@@ -321,7 +321,7 @@ class GoogleProvider extends BaseAIProvider {
       // API 키 확인 - 반드시 실제 API 키가 있어야 함
       if (!this.config.api_key || this.config.api_key === 'your-google-ai-key-here') {
         throw new AIProviderError(
-          'Google AI API 키가 설정되지 않았습니다. 환경 변수 VITE_GOOGLE_AI_API_KEY를 설정해주세요.',
+          'Google AI API 키가 설정되지 않았습니다. 환경 변수 GOOGLE_AI_API_KEY를 설정해주세요.',
           'google',
           this.config.model_id,
           401,
@@ -664,12 +664,12 @@ export class AIProviderFactory {
 
 // 기본 모델들 등록
 export function initializeDefaultModels(): void {
-  // 환경 변수에서 API 키 읽기
-  const openaiApiKey = import.meta.env.VITE_OPENAI_API_KEY
-  const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
-  const googleApiKey = import.meta.env.VITE_GOOGLE_AI_API_KEY
+  // 환경 변수에서 API 키 읽기 (VITE_ 접두사 제거 - Vercel 환경 대응)
+  const openaiApiKey = import.meta.env.OPENAI_API_KEY
+  const anthropicApiKey = import.meta.env.ANTHROPIC_API_KEY
+  const googleApiKey = import.meta.env.GOOGLE_AI_API_KEY
 
-  console.log('🔑 AI API 키 확인:')
+  console.log('🔑 AI API 키 확인 (Vercel 환경):')
   console.log('OpenAI:', openaiApiKey ? '✅ 설정됨' : '❌ 누락')
   console.log('Anthropic:', anthropicApiKey ? '✅ 설정됨' : '❌ 누락')
   console.log('Google:', googleApiKey ? '✅ 설정됨' : '❌ 누락')
@@ -751,9 +751,9 @@ export function initializeDefaultModels(): void {
   if (defaultModels.length === 0) {
     console.error('❌ AI API 키가 설정되지 않았습니다.')
     console.error('다음 환경 변수 중 하나 이상을 설정해주세요:')
-    console.error('- VITE_OPENAI_API_KEY: OpenAI API 키')
-    console.error('- VITE_ANTHROPIC_API_KEY: Anthropic API 키')
-    console.error('- VITE_GOOGLE_AI_API_KEY: Google AI API 키')
+    console.error('- OPENAI_API_KEY: OpenAI API 키')
+    console.error('- ANTHROPIC_API_KEY: Anthropic API 키')
+    console.error('- GOOGLE_AI_API_KEY: Google AI API 키')
     console.error('설정 후 애플리케이션을 다시 시작해주세요.')
     // 모델이 없으면 아무것도 등록하지 않음
     return

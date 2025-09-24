@@ -5,9 +5,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import App from './App.tsx'
 import './index.css'
 
-// AI Provider Factory 초기화
-import { initializeDefaultModels } from './services/ai/providerFactory'
-initializeDefaultModels()
+// AIServiceManager 초기화
+import { initializeAIServiceManager } from './services/ai/AIServiceManager'
+initializeAIServiceManager().catch(console.error)
 
 const queryClient = new QueryClient({
   defaultOptions: {
