@@ -84,27 +84,85 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
     return undefined
   }, [answers, autoSaveEnabled])
 
-  // 질문 로드 및 AI 생성 (AI 생성 필수)
+  // 질문 로드 (기존 질문 우선, 없으면 AI 생성)
   const loadQuestions = async (): Promise<void> => {
     setIsLoading(true)
-    setIsGeneratingQuestions(true)
     setError(null)
 
     try {
+      console.log('🔍 질문 로드 시작:', { projectId, workflowStep, sessionId })
+
+      if (!supabase) {
+        throw new Error('Supabase 클라이언트가 초기화되지 않았습니다.')
+      }
+
+      // 1. 먼저 사전 분석 세션에서 기존 질문 확인
+      const { data: sessions } = await supabase
+        .from('pre_analysis_sessions')
+        .select('id')
+        .eq('project_id', projectId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+
+      const currentSessionId = sessions?.[0]?.id || sessionId
+
+      if (currentSessionId) {
+        // 2. 기존 질문이 있는지 확인
+        const { data: existingQuestions, error: questionsError } = await supabase
+          .from('ai_questions')
+          .select('*')
+          .eq('session_id', currentSessionId)
+          .order('order_index', { ascending: true })
+
+        if (questionsError) {
+          console.error('❌ 기존 질문 조회 오류:', questionsError)
+        } else if (existingQuestions && existingQuestions.length > 0) {
+          console.log('✅ 기존 질문 발견:', existingQuestions.length + '개')
+
+          // 3. 기존 질문을 Question 형식으로 변환
+          const convertedQuestions: Question[] = existingQuestions.map((q, index) => ({
+            id: q.id,
+            category: q.category || 'business',
+            text: q.question,
+            type: 'textarea' as const,
+            options: undefined,
+            required: q.required || false,
+            order: q.order_index || index + 1,
+            helpText: q.context || undefined,
+            priority: 'high' as const,
+            confidence: q.confidence_score || 0.8,
+            aiGenerated: q.generated_by_ai || false
+          }))
+
+          setQuestions(convertedQuestions)
+
+          // 4. 기존 답변 로드
+          await loadExistingAnswers()
+
+          setIsLoading(false)
+          return
+        }
+      }
+
+      console.log('⚠️ 기존 질문이 없어서 새로 생성합니다.')
+
+      // 5. 기존 질문이 없으면 AI 생성
+      setIsGeneratingQuestions(true)
+
       // 프로젝트 정보 조회
       const projectResponse = await supabase
-        ?.from('projects')
+        .from('projects')
         .select('name, description, metadata')
         .eq('id', projectId)
         .single()
 
       // 프로젝트 문서 조회
       const documentsResponse = await supabase
-        ?.from('documents')
+        .from('documents')
         .select('file_name, metadata')
         .eq('project_id', projectId)
 
-      // AI 기반 질문 생성 (필수)
+      // AI 기반 질문 생성
       const generatedQuestions = await AIQuestionGenerator.generateAIQuestions(
         workflowStep,
         projectId,
@@ -123,14 +181,11 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
       const sortedQuestions = AIQuestionGenerator.sortQuestionsByPriority(generatedQuestions)
       setQuestions(sortedQuestions)
 
-      // 기존 답변 로드 (있다면)
-      await loadExistingAnswers()
-
     } catch (error) {
-      console.error('AI 질문 생성 실패:', error)
+      console.error('❌ 질문 로드/생성 실패:', error)
       const errorMessage = error instanceof Error
         ? error.message
-        : 'AI 질문 생성 중 오류가 발생했습니다. AI 서비스 연결을 확인해주세요.'
+        : '질문을 불러오는 중 오류가 발생했습니다.'
       setError(errorMessage)
     } finally {
       setIsLoading(false)

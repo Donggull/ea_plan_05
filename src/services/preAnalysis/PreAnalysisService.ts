@@ -585,48 +585,10 @@ export class PreAnalysisService {
       }
 
       if (!Array.isArray(generatedQuestions) || generatedQuestions.length === 0) {
-        console.warn('❌ 생성된 질문이 없습니다. fallback 질문 사용');
-        // fallback 질문들로 처리
-        const fallbackQuestions = this.getFallbackQuestions(options);
-
-        // 질문들을 데이터베이스에 저장
-        const questionsData = fallbackQuestions.map((question, index) => ({
-          session_id: sessionId,
-          category: question.category,
-          question: question.question,
-          context: question.context || '기본 질문',
-          required: question.required || false,
-          expected_format: question.expectedFormat || '구체적인 답변',
-          related_documents: question.relatedDocuments || [],
-          order_index: index + 1,
-          generated_by_ai: false, // fallback은 AI가 생성한 것이 아님
-          ai_model: session.ai_model,
-          confidence_score: question.confidenceScore || 0.7,
-        }));
-
-        const { data: savedQuestions, error: saveError } = await supabase
-          .from('ai_questions')
-          .insert(questionsData)
-          .select();
-
-        if (saveError) {
-          console.error('fallback 질문 저장 오류:', saveError);
-          return { success: false, error: saveError.message };
-        }
-
-        await this.emitProgressUpdate({
-          sessionId,
-          stage: 'question_generation',
-          status: 'completed',
-          progress: 100,
-          message: `${savedQuestions.length}개의 기본 질문이 생성되었습니다.`,
-          timestamp: new Date(),
-        });
-
+        console.error('❌ AI 질문 생성에 실패했습니다.');
         return {
-          success: true,
-          data: savedQuestions.map(this.transformQuestionData),
-          message: 'fallback 질문 생성이 완료되었습니다.',
+          success: false,
+          error: 'AI 질문 생성에 실패했습니다. 문서 분석을 다시 시도하거나 AI 설정을 확인해주세요.'
         };
       }
 
@@ -1234,10 +1196,7 @@ ${content}
       return questions;
     } catch (error) {
       console.error('AI 질문 생성 오류:', error);
-
-      // 오류 발생 시 기본 질문 반환 (getFallbackQuestions 메서드 재사용)
-      console.warn('AI 질문 생성 실패, fallback 질문 사용');
-      return this.getFallbackQuestions(options);
+      throw error; // 에러를 다시 throw하여 상위에서 처리하게 함
     }
   }
 
@@ -1341,78 +1300,7 @@ ${contextSummary}
     return availableCategories[0] || 'business';
   }
 
-  private getFallbackQuestions(options: QuestionGenerationOptions): any[] {
-    const allFallbackQuestions = [
-      {
-        category: 'business' as const,
-        question: '프로젝트의 핵심 비즈니스 목표는 무엇입니까?',
-        context: '사업적 관점에서의 주요 목표',
-        required: true,
-        expectedFormat: '구체적인 목표 설명',
-        relatedDocuments: [],
-        confidenceScore: 0.8,
-      },
-      {
-        category: 'technical' as const,
-        question: '기존 시스템과의 통합 요구사항이 있습니까?',
-        context: 'API 연동, 데이터 마이그레이션 등',
-        required: false,
-        expectedFormat: '통합 범위 및 방법',
-        relatedDocuments: [],
-        confidenceScore: 0.7,
-      },
-      {
-        category: 'technical' as const,
-        question: '주요 기술 스택 및 아키텍처 방향성은?',
-        context: '프론트엔드, 백엔드, 데이터베이스 등',
-        required: true,
-        expectedFormat: '기술 스택 목록과 선택 이유',
-        relatedDocuments: [],
-        confidenceScore: 0.8,
-      },
-      {
-        category: 'budget' as const,
-        question: '프로젝트 예산 규모와 주요 투자 영역은?',
-        context: '개발비용, 인프라비용, 운영비용 등',
-        required: true,
-        expectedFormat: '예산 항목별 분배 계획',
-        relatedDocuments: [],
-        confidenceScore: 0.7,
-      },
-      {
-        category: 'timeline' as const,
-        question: '프로젝트의 주요 마일스톤과 일정은?',
-        context: '주요 단계별 완료 목표일',
-        required: true,
-        expectedFormat: '마일스톤명: 목표일자 형식',
-        relatedDocuments: [],
-        confidenceScore: 0.8,
-      },
-      {
-        category: 'business' as const,
-        question: '예상 사용자 규모와 성능 요구사항은?',
-        context: '동시 접속자, 응답시간, 처리량 등',
-        required: false,
-        expectedFormat: '구체적인 수치와 근거',
-        relatedDocuments: [],
-        confidenceScore: 0.7,
-      },
-      {
-        category: 'business' as const,
-        question: '프로젝트 성공 지표는 무엇입니까?',
-        context: 'KPI, ROI, 사용자 만족도 등',
-        required: true,
-        expectedFormat: '측정 가능한 지표 목록',
-        relatedDocuments: [],
-        confidenceScore: 0.8,
-      }
-    ];
-
-    // 요청된 카테고리에 맞는 질문들만 필터링하고 최대 개수 제한
-    return allFallbackQuestions
-      .filter(q => options.categories.includes(q.category))
-      .slice(0, options.maxQuestions);
-  }
+  // getFallbackQuestions 메서드 제거 - 무조건 AI 생성 질문만 사용
 
   private async collectSessionData(sessionId: string): Promise<ServiceResponse<any>> {
     try {

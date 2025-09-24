@@ -87,31 +87,40 @@ export function usePreAnalysisStatus(projectId: string) {
         .eq('session_id', latestSession.id)
 
       // 5. 진행률 계산
-      let progress = 0
-      let currentStep = '세션 시작'
+      let progress = 10 // 세션 생성 완료
+      let currentStep = '분석 준비 중'
       let sessionStatus: PreAnalysisStatus['status'] = 'in_progress'
 
       if (latestSession.status === 'completed') {
         progress = 100
         currentStep = '분석 완료'
         sessionStatus = 'completed'
-      } else if (latestSession.status === 'error') {
+      } else if (latestSession.status === 'failed') {
         sessionStatus = 'error'
-        currentStep = '오류 발생'
+        currentStep = '분석 실패'
       } else {
-        // 진행 단계별 계산
+        // 진행 단계별 계산 (더 세밀하게)
         if (analysisCount && analysisCount > 0) {
-          progress = Math.max(progress, 25)
-          currentStep = '문서 분석 중'
+          progress = Math.max(progress, 30)
+          currentStep = '문서 분석 완료'
         }
+
         if (questionCount && questionCount > 0) {
-          progress = Math.max(progress, 50)
-          currentStep = '질문 생성 중'
+          progress = Math.max(progress, 70)
+          currentStep = '질문 준비 완료'
+
+          // 질문이 있으면 답변 대기 상태로 전환
+          if (progress < 85) {
+            currentStep = '답변 입력 대기 중'
+          }
         }
+
         if (reportCount && reportCount > 0) {
-          progress = Math.max(progress, 85)
-          currentStep = '보고서 생성 중'
+          progress = Math.max(progress, 90)
+          currentStep = '보고서 생성 완료'
         }
+
+        // 최종 완료 상태 체크
         if (latestSession.status === 'completed') {
           progress = 100
           currentStep = '분석 완료'
