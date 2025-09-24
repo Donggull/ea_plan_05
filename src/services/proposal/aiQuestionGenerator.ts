@@ -253,58 +253,8 @@ const BUDGET_QUESTIONS: Omit<Question, 'id' | 'priority' | 'confidence' | 'aiGen
   }
 ]
 
-// 사전 분석 질문 템플릿
-const PRE_ANALYSIS_QUESTIONS: Omit<Question, 'id' | 'priority' | 'confidence' | 'aiGenerated'>[] = [
-  {
-    category: '프로젝트 목표',
-    text: '이 프로젝트의 주요 목표는 무엇입니까?',
-    type: 'textarea',
-    required: true,
-    order: 1,
-    helpText: '프로젝트를 통해 달성하고자 하는 핵심 목표를 상세히 설명해주세요'
-  },
-  {
-    category: '현재 상황',
-    text: '현재 직면하고 있는 주요 문제나 과제는 무엇입니까?',
-    type: 'textarea',
-    required: true,
-    order: 2,
-    helpText: '해결해야 할 문제점이나 개선이 필요한 영역을 설명해주세요'
-  },
-  {
-    category: '기대 효과',
-    text: '프로젝트 완료 후 기대하는 효과는?',
-    type: 'multiselect',
-    options: ['비용 절감', '효율성 향상', '매출 증가', '고객 만족도 향상', '업무 자동화', '데이터 활용 개선', '기타'],
-    required: true,
-    order: 3,
-    helpText: '프로젝트를 통해 얻고자 하는 효과를 모두 선택해주세요'
-  },
-  {
-    category: '이해관계자',
-    text: '프로젝트의 주요 이해관계자는 누구입니까?',
-    type: 'textarea',
-    required: true,
-    order: 4,
-    helpText: '프로젝트에 영향을 받거나 관련된 부서, 팀, 개인을 설명해주세요'
-  },
-  {
-    category: '제약 조건',
-    text: '프로젝트 진행 시 고려해야 할 제약 조건이 있습니까?',
-    type: 'textarea',
-    required: false,
-    order: 5,
-    helpText: '시간, 예산, 기술적 제약, 규정 등 고려사항을 설명해주세요'
-  },
-  {
-    category: '성공 지표',
-    text: '프로젝트 성공을 어떻게 측정할 계획입니까?',
-    type: 'textarea',
-    required: true,
-    order: 6,
-    helpText: '구체적인 KPI나 성과 측정 방법을 설명해주세요'
-  }
-]
+// 사전 분석 질문 템플릿 - 목업 데이터 제거, AI 생성 질문만 사용
+const PRE_ANALYSIS_QUESTIONS: Omit<Question, 'id' | 'priority' | 'confidence' | 'aiGenerated'>[] = []
 
 export class AIQuestionGenerator {
   /**
@@ -387,13 +337,26 @@ export class AIQuestionGenerator {
       // AI 응답 파싱하여 질문 생성
       const aiQuestions = this.parseAIResponse(response.content, step, projectId)
 
-      // 기본 질문과 AI 질문 결합
-      const baseQuestions = this.generateQuestions(step, projectId)
+      // 사전 분석의 경우 AI 생성 질문만 반환 (기본 질문 없음)
+      if (step === 'pre_analysis' || step === 'questions') {
+        if (aiQuestions.length === 0) {
+          throw new Error('AI 질문 생성 결과가 없습니다. 문서를 먼저 업로드하고 다시 시도해주세요.')
+        }
+        return aiQuestions
+      }
 
+      // 다른 단계의 경우 기본 질문과 AI 질문 결합
+      const baseQuestions = this.generateQuestions(step, projectId)
       return [...baseQuestions, ...aiQuestions]
     } catch (error) {
       console.error('AI 질문 생성 실패:', error)
-      // 실패 시 기본 질문만 반환
+
+      // 사전 분석의 경우 AI 생성 질문이 필수이므로 에러 발생
+      if (step === 'pre_analysis' || step === 'questions') {
+        throw new Error('사전 분석을 위한 AI 질문 생성에 실패했습니다. AI 서비스 연결을 확인해주세요.')
+      }
+
+      // 다른 단계의 경우 기본 질문 반환
       return this.generateQuestions(step, projectId)
     }
   }

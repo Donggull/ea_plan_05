@@ -12,6 +12,7 @@ import {
   ReportGenerationOptions,
   DocumentCategory,
 } from '../../types/preAnalysis';
+import { AIQuestionGenerator } from '../proposal/aiQuestionGenerator';
 
 export class PreAnalysisService {
   private static instance: PreAnalysisService;
@@ -570,25 +571,54 @@ export class PreAnalysisService {
         timestamp: new Date(),
       });
 
+      // 프로젝트 정보 조회 for AIQuestionGenerator
+      const { data: project } = await supabase
+        .from('projects')
+        .select('name, description')
+        .eq('id', session.project_id)
+        .single();
+
       // AI를 통한 질문 생성 시도
       let generatedQuestions: any[] = [];
       try {
-        generatedQuestions = await this.generateAIQuestions(
-          analyses || [],
-          options,
-          session
+        const aiQuestions = await AIQuestionGenerator.generateAIQuestions(
+          'pre_analysis',
+          session.project_id,
+          {
+            projectName: project?.name,
+            projectDescription: project?.description,
+            // 분석된 문서 정보를 컨텍스트로 제공
+            documents: analyses?.map(analysis => ({
+              name: analysis.document_id,
+              content: analysis.analysis_result?.summary || ''
+            })) || []
+          }
         );
+
+        // AIQuestionGenerator의 Question 형식을 PreAnalysis 형식으로 변환
+        generatedQuestions = aiQuestions.map(q => ({
+          category: q.category,
+          question: q.text,
+          context: q.helpText,
+          required: q.required,
+          expectedFormat: q.type === 'textarea' ? 'text' : q.type,
+          relatedDocuments: [],
+          confidenceScore: q.confidence
+        }));
+
       } catch (aiError) {
         console.error('AI 질문 생성 실패:', aiError);
-        // AI 실패시에도 fallback으로 진행
-        generatedQuestions = [];
+        return {
+          success: false,
+          error: aiError instanceof Error ? aiError.message : 'AI 질문 생성에 실패했습니다. AI 서비스 연결을 확인해주세요.'
+        };
       }
 
       if (!Array.isArray(generatedQuestions) || generatedQuestions.length === 0) {
-        console.error('❌ AI 질문 생성에 실패했습니다.');
+        console.error('❌ AI 질문 생성 결과가 없습니다.');
         return {
           success: false,
-          error: 'AI 질문 생성에 실패했습니다. 문서 분석을 다시 시도하거나 AI 설정을 확인해주세요.'
+          error: 'AI 질문 생성 결과가 없습니다. 문서를 먼저 업로드하고 분석을 완료한 후 다시 시도해주세요.'
         };
       }
 
@@ -1096,209 +1126,7 @@ ${content}
     return DocumentCategory.REFERENCE;
   }
 
-  private async generateAIQuestions(
-    analyses: any[],
-    options: QuestionGenerationOptions,
-    session: any
-  ): Promise<any[]> {
-    try {
-      // 분석 결과 요약 생성
-      const analysisContext = analyses.map(analysis => ({
-        summary: analysis.analysis_result?.summary || '분석 요약 없음',
-        keyRequirements: analysis.analysis_result?.keyRequirements || [],
-        stakeholders: analysis.analysis_result?.stakeholders || [],
-        technicalStack: analysis.analysis_result?.technicalStack || []
-      }));
 
-      // 질문 생성 프롬프트
-      const questionsPrompt = this.generateQuestionsPrompt(analysisContext, options);
-
-      // AI 모델 설정 확인 및 기본값 설정
-      let aiProvider = 'anthropic';
-      let aiModel = 'claude-sonnet-4-20250514';
-
-      // 세션에서 AI 설정 추출 시도
-      console.log('🔍 세션 데이터 확인:', {
-        sessionId: session.id,
-        sessionData: session,
-        settings: session.settings,
-        ai_provider: session.ai_provider,
-        ai_model: session.ai_model
-      });
-
-      // 여러 경로로 AI 설정 확인
-      if (session.settings) {
-        // settings 객체에서 확인
-        if (typeof session.settings === 'string') {
-          try {
-            const parsedSettings = JSON.parse(session.settings);
-            aiProvider = parsedSettings.aiProvider || aiProvider;
-            aiModel = parsedSettings.aiModel || aiModel;
-          } catch (parseError) {
-            console.warn('⚠️ 세션 설정 파싱 실패:', parseError);
-          }
-        } else if (typeof session.settings === 'object') {
-          aiProvider = session.settings.aiProvider || aiProvider;
-          aiModel = session.settings.aiModel || aiModel;
-        }
-      } else if (session.ai_provider && session.ai_model) {
-        // 직접 필드에서 확인
-        aiProvider = session.ai_provider;
-        aiModel = session.ai_model;
-      }
-
-      console.log('⚙️ 사용할 AI 설정:', { aiProvider, aiModel });
-
-      // AI 제공자 유효성 검증
-      if (!aiProvider || !aiModel) {
-        console.error('❌ AI 제공자가 설정되지 않았습니다:', { aiProvider, aiModel });
-        throw new Error('AI 제공자가 설정되지 않았습니다. 프로젝트 설정을 확인해주세요.');
-      }
-
-      // AI 호출 시도 - 타임아웃 및 재시도 로직 추가
-      let response;
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30초 타임아웃
-
-        console.log('🤖 AI 호출 시작:', { aiProvider, aiModel, promptLength: questionsPrompt.length });
-
-        response = await this.callAICompletionAPI(
-          aiProvider,
-          aiModel,
-          questionsPrompt,
-          3000,
-          0.4
-        );
-
-        clearTimeout(timeoutId);
-        console.log('✅ AI 호출 성공:', { responseLength: response?.content?.length });
-
-      } catch (aiCallError) {
-        console.error('❌ AI API 호출 실패:', aiCallError);
-        // API 호출 실패시 즉시 fallback 사용
-        throw new Error(`AI API 호출 실패: ${aiCallError instanceof Error ? aiCallError.message : 'Unknown error'}`);
-      }
-
-      // 응답 검증
-      if (!response || !response.content) {
-        throw new Error('AI 응답이 비어있습니다');
-      }
-
-      // 응답 파싱
-      const questions = this.parseQuestionsResponse(response.content, options);
-
-      // 파싱된 질문 검증
-      if (!Array.isArray(questions) || questions.length === 0) {
-        throw new Error('질문 파싱 결과가 비어있습니다');
-      }
-
-      return questions;
-    } catch (error) {
-      console.error('AI 질문 생성 오류:', error);
-      throw error; // 에러를 다시 throw하여 상위에서 처리하게 함
-    }
-  }
-
-  private generateQuestionsPrompt(analysisContext: any[], options: QuestionGenerationOptions): string {
-    const contextSummary = analysisContext.map((context, index) =>
-      `문서 ${index + 1}: ${context.summary}`
-    ).join('\n');
-
-    const categoryList = options.categories.join(', ');
-
-    return `다음 문서 분석 결과를 바탕으로 프로젝트 진행에 필요한 핵심 질문들을 생성해주세요:
-
-분석 결과:
-${contextSummary}
-
-요청 사항:
-- 카테고리: ${categoryList}
-- 최대 질문 수: ${options.maxQuestions}
-
-다음 JSON 형식으로 질문들을 제공해주세요:
-
-[
-  {
-    "category": "business|technical|timeline|budget|stakeholder",
-    "question": "구체적이고 명확한 질문",
-    "context": "질문의 배경 설명",
-    "required": true/false,
-    "expectedFormat": "기대하는 답변 형식",
-    "relatedDocuments": [],
-    "confidenceScore": 0.0-1.0
-  }
-]
-
-프로젝트 성공에 핵심적인 질문들을 우선적으로 생성해주세요.`;
-  }
-
-  private parseQuestionsResponse(response: string, options: QuestionGenerationOptions): any[] {
-    try {
-      // JSON 응답 파싱 시도
-      const jsonMatch = response.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        const parsedQuestions = JSON.parse(jsonMatch[0]);
-        return parsedQuestions.slice(0, options.maxQuestions);
-      }
-    } catch (error) {
-      console.warn('AI 질문 응답 JSON 파싱 실패:', error);
-    }
-
-    // JSON 파싱 실패시 텍스트에서 질문 추출
-    const lines = response.split('\n');
-    const questions: any[] = [];
-    let currentQuestion: any = null;
-
-    for (const line of lines) {
-      const trimmed = line.trim();
-
-      // 질문으로 보이는 라인 감지 (? 로 끝나는 문장)
-      if (trimmed.endsWith('?')) {
-        if (currentQuestion) {
-          questions.push(currentQuestion);
-        }
-
-        currentQuestion = {
-          category: this.detectQuestionCategory(trimmed, options.categories),
-          question: trimmed,
-          context: '분석 결과를 바탕으로 생성된 질문',
-          required: true,
-          expectedFormat: '구체적인 답변',
-          relatedDocuments: [],
-          confidenceScore: 0.8,
-        };
-      }
-    }
-
-    if (currentQuestion) {
-      questions.push(currentQuestion);
-    }
-
-    return questions.slice(0, options.maxQuestions);
-  }
-
-  private detectQuestionCategory(question: string, availableCategories: string[]): string {
-    const lowerQuestion = question.toLowerCase();
-
-    if ((lowerQuestion.includes('비즈니스') || lowerQuestion.includes('사업') || lowerQuestion.includes('목표')) && availableCategories.includes('business')) {
-      return 'business';
-    }
-    if ((lowerQuestion.includes('기술') || lowerQuestion.includes('시스템') || lowerQuestion.includes('개발')) && availableCategories.includes('technical')) {
-      return 'technical';
-    }
-    if ((lowerQuestion.includes('일정') || lowerQuestion.includes('기간') || lowerQuestion.includes('마일스톤')) && availableCategories.includes('timeline')) {
-      return 'timeline';
-    }
-    if ((lowerQuestion.includes('예산') || lowerQuestion.includes('비용') || lowerQuestion.includes('투자')) && availableCategories.includes('budget')) {
-      return 'budget';
-    }
-    if ((lowerQuestion.includes('이해관계자') || lowerQuestion.includes('팀') || lowerQuestion.includes('역할')) && availableCategories.includes('stakeholder')) {
-      return 'stakeholder';
-    }
-
-    return availableCategories[0] || 'business';
-  }
 
   // getFallbackQuestions 메서드 제거 - 무조건 AI 생성 질문만 사용
 

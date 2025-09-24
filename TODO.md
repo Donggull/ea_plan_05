@@ -1860,3 +1860,108 @@ if (shouldUpdate) {
 - ✅ **정상 작동 부분 미수정 (기존 로직 보존)**
 
 이로써 사용자의 요구사항에 완벽히 부합하는 안정적인 인증 시스템이 구축되었습니다.
+
+---
+
+## 🚀 **사전 분석 질문 생성 시스템 개선** (2025-09-24 완료)
+
+### 🎯 **문제 상황**
+사전 분석 단계에서 AI 생성 질문이 아닌 목업(mock) 질문들이 표시되는 문제가 발생했습니다.
+- 스크린샷: "이 프로젝트의 주요 목표는 무엇입니까?" 등 하드코딩된 목업 질문 노출
+- AI 질문 생성 실패 시 fallback으로 목업 데이터 사용
+- PreAnalysisService와 AIQuestionGenerator 간 불일치
+
+### 🔧 **주요 수정사항**
+
+#### 1. **목업 데이터 완전 제거**
+```typescript
+// ❌ 기존: 하드코딩된 목업 질문들
+const PRE_ANALYSIS_QUESTIONS = [
+  { text: '이 프로젝트의 주요 목표는 무엇입니까?', ... },
+  { text: '현재 직면하고 있는 주요 문제나 과제는 무엇입니까?', ... },
+  // ... 6개 목업 질문
+]
+
+// ✅ 수정 후: 빈 배열로 변경, AI 생성 질문만 사용
+const PRE_ANALYSIS_QUESTIONS: Omit<Question, 'id' | 'priority' | 'confidence' | 'aiGenerated'>[] = []
+```
+
+#### 2. **AI 질문 생성 실패 처리 강화**
+```typescript
+// ✅ 사전 분석에서는 AI 생성 질문 필수화
+if (step === 'pre_analysis' || step === 'questions') {
+  if (aiQuestions.length === 0) {
+    throw new Error('AI 질문 생성 결과가 없습니다. 문서를 먼저 업로드하고 다시 시도해주세요.')
+  }
+  return aiQuestions // 기본 질문 없이 AI 질문만 반환
+}
+
+// ✅ 실패 시 명확한 에러 메시지
+if (step === 'pre_analysis' || step === 'questions') {
+  throw new Error('사전 분석을 위한 AI 질문 생성에 실패했습니다. AI 서비스 연결을 확인해주세요.')
+}
+```
+
+#### 3. **서비스 통합 및 동기화**
+```typescript
+// ✅ PreAnalysisService에서 AIQuestionGenerator 직접 사용
+const aiQuestions = await AIQuestionGenerator.generateAIQuestions(
+  'pre_analysis',
+  session.project_id,
+  {
+    projectName: project?.name,
+    projectDescription: project?.description,
+    documents: analyses?.map(analysis => ({
+      name: analysis.document_id,
+      content: analysis.analysis_result?.summary || ''
+    })) || []
+  }
+);
+
+// ✅ 형식 변환을 통한 호환성 확보
+generatedQuestions = aiQuestions.map(q => ({
+  category: q.category,
+  question: q.text,
+  context: q.helpText,
+  required: q.required,
+  expectedFormat: q.type === 'textarea' ? 'text' : q.type,
+  relatedDocuments: [],
+  confidenceScore: q.confidence
+}));
+```
+
+#### 4. **불필요한 코드 제거**
+- 사용되지 않는 `generateAIQuestions` 메서드 제거
+- `generateQuestionsPrompt`, `parseQuestionsResponse` 메서드 제거
+- `detectQuestionCategory` 메서드 제거
+- 중복된 로직 정리
+
+### ✅ **해결 결과**
+
+#### **기능 개선**
+- ✅ **목업 데이터 완전 제거**: 하드코딩된 질문 더 이상 표시되지 않음
+- ✅ **AI 생성 질문만 사용**: 사전 분석에서는 100% AI 기반 질문 생성
+- ✅ **명확한 에러 처리**: 실패 시 구체적인 해결 방법 제시
+- ✅ **서비스 일관성**: PreAnalysisService와 AIQuestionGenerator 완전 동기화
+
+#### **사용자 경험 향상**
+- ✅ **개인화된 질문**: 프로젝트와 문서에 특화된 맞춤형 질문 생성
+- ✅ **정확한 안내**: AI 질문 생성 실패 시 정확한 원인 및 해결방법 안내
+- ✅ **일관된 워크플로우**: 전체 사전 분석 프로세스의 통일성 확보
+
+#### **기술적 개선**
+- ✅ **코드 정리**: 사용되지 않는 메서드 및 중복 로직 제거
+- ✅ **타입 안정성**: TypeScript 컴파일 에러 없음
+- ✅ **성능 최적화**: 불필요한 처리 단계 제거
+
+### 📋 **수정된 파일**
+1. `src/services/proposal/aiQuestionGenerator.ts` - 목업 데이터 제거 및 실패 처리 강화
+2. `src/services/preAnalysis/PreAnalysisService.ts` - AIQuestionGenerator 통합 및 코드 정리
+
+### 🎯 **결과 검증**
+- ✅ 개발 서버 정상 실행 (http://localhost:5174)
+- ✅ TypeScript 컴파일 에러 없음
+- ✅ HMR (Hot Module Replacement) 정상 작동
+- ✅ 사전 분석 단계에서 목업 질문 더 이상 표시되지 않음
+
+이제 사전 분석에서는 프로젝트의 실제 문서를 기반으로 한 AI 생성 질문만이 표시되어, 더욱 정확하고 유용한 사전 분석을 수행할 수 있게 되었습니다.
