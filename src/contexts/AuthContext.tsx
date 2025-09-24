@@ -42,7 +42,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setIsClient(true)
   }, [])
 
-  // 디버깅용 상태 로그 (클라이언트에서만)
+  // 디버깅용 상태 로그 (클라이언트에서만) - 의존성 최소화로 무한 루프 방지
   useEffect(() => {
     if (!isClient) return
 
@@ -58,12 +58,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [
     isClient,
     isInitialized,
-    isInitializing,
-    isLoading,
-    isAuthenticated,
-    user,
-    session,
-    error
+    isInitializing
+    // isLoading, isAuthenticated, user, session, error 제거로 무한 루프 방지
   ])
 
   useEffect(() => {
@@ -82,26 +78,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [isClient, isInitialized, isInitializing])
 
-  // 세션 갱신 타이머 설정 (브라우저 창 이동 시 세션 유지) - 클라이언트에서만, 한 번만 설정
+  // 세션 갱신 타이머 설정 (브라우저 창 이동 시 세션 유지) - 한 번만 설정하고 무한 루프 방지
   useEffect(() => {
-    if (!isClient || !authStore.isAuthenticated || !authStore.session) return
+    if (!isClient) return
 
-    // 중복 타이머 설정 방지
+    // 이미 설정된 경우 중복 설정 방지 (무한 루프 방지)
     if (typeof window !== 'undefined' && window.__sessionRefreshTimer) {
-      clearInterval(window.__sessionRefreshTimer)
-      if (window.__sessionFocusHandler) {
-        window.removeEventListener('focus', window.__sessionFocusHandler)
-      }
+      return
     }
 
     let isRefreshing = false // 중복 갱신 방지 플래그
 
-    // 1시간마다 세션 갱신
+    // 1시간마다 세션 갱신 - 인증 상태 실시간 확인
     const refreshInterval = setInterval(async () => {
       const currentState = useAuthStore.getState()
-      if (currentState.isAuthenticated && !isRefreshing) {
+      if (currentState.isAuthenticated && currentState.session && !isRefreshing) {
         isRefreshing = true
         try {
+          console.log('⏰ Scheduled session refresh...')
           await authStore.refreshSession()
         } catch (error) {
           console.error('Scheduled session refresh failed:', error)
@@ -111,7 +105,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
     }, 60 * 60 * 1000) // 1시간
 
-    // 페이지 포커스 시 세션 갱신
+    // 페이지 포커스 시 세션 갱신 - 인증 상태 실시간 확인
     const handleFocus = async () => {
       const currentState = useAuthStore.getState()
       if (currentState.isAuthenticated && currentState.session && !isRefreshing) {
@@ -122,6 +116,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (tokenExp && (tokenExp - now) < 600) {
           isRefreshing = true
           try {
+            console.log('🔄 Focus session refresh...')
             await authStore.refreshSession()
           } catch (error) {
             console.error('Focus session refresh failed:', error)
@@ -137,17 +132,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // 전역 참조로 중복 설정 방지
       window.__sessionRefreshTimer = refreshInterval
       window.__sessionFocusHandler = handleFocus
+
+      console.log('✅ Session refresh timer initialized (once only)')
     }
 
     return () => {
-      clearInterval(refreshInterval)
       if (typeof window !== 'undefined') {
+        clearInterval(refreshInterval)
         window.removeEventListener('focus', handleFocus)
         window.__sessionRefreshTimer = null
         window.__sessionFocusHandler = null
+        console.log('🧹 Session refresh timer cleanup')
       }
     }
-  }, [isClient, authStore.isAuthenticated]) // session 의존성 제거로 중복 실행 방지
+  }, [isClient]) // authStore.isAuthenticated 의존성 제거로 무한 루프 완전 방지
 
   // 브라우저 종료 시 세션 정리 - 클라이언트에서만
   useEffect(() => {

@@ -146,6 +146,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   refreshSession: async () => {
+    const { isInitializing } = get()
+
+    // 초기화 중이면 refreshSession 생략 (중복 호출 방지)
+    if (isInitializing) {
+      console.log('⚠️ RefreshSession skipped - initialization in progress')
+      return
+    }
+
     try {
       const supabase = getSupabaseClient()
       const { data, error } = await supabase.auth.refreshSession()
@@ -156,10 +164,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           user: data.session.user,
           session: data.session,
           isAuthenticated: true,
+          error: null // 성공 시 에러 클리어
         })
+        console.log('✅ Session refresh successful')
       }
     } catch (error: any) {
-      console.error('Session refresh error:', error)
+      console.error('❌ Session refresh error:', error)
+      // 세션 갱신 실패시 에러 상태만 설정, 로그아웃은 하지 않음
       set({ error: error.message })
     }
   },
@@ -302,14 +313,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isAuthenticated: !!session
       })
 
-      // Auth 상태 변경 리스너 (클라이언트에서만, 한 번만 설정)
+      // Auth 상태 변경 리스너 (클라이언트에서만, 한 번만 설정) - 중복 설정 완전 방지
       if (typeof window !== 'undefined' && !window.__supabaseAuthListenerSet) {
         window.__supabaseAuthListenerSet = true
+        console.log('⚙️ Setting up auth state change listener (once only)')
 
-        supabase.auth.onAuthStateChange(async (event, session) => {
+        const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
           console.log('Auth state changed:', event, session?.user?.email)
 
-          if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          // TOKEN_REFRESHED 시에는 프로필 로딩 생략으로 무한 루프 방지
+          if (event === 'SIGNED_IN') {
             if (session?.user) {
               try {
                 await get().loadProfile(session.user.id)
@@ -317,6 +330,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 console.warn('Profile load failed during auth state change:', error)
               }
             }
+          } else if (event === 'TOKEN_REFRESHED') {
+            // TOKEN_REFRESHED시에는 프로필 로딩 없이 세션만 업데이트
+            console.log('⚙️ Token refreshed - updating session only')
           }
 
           if (event === 'SIGNED_OUT') {
@@ -328,10 +344,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
               isInitializing: false,
             })
           } else {
-            // 프로필 정보가 있는 경우 user_metadata에 role 정보 포함
+            // SIGNED_OUT이 아닌 모든 이벤트에서 세션 업데이트
             const currentProfile = get().profile
             let updatedUser = session?.user ?? null
 
+            // 기존 프로필 정보가 있는 경우만 user_metadata 업데이트
             if (updatedUser && currentProfile) {
               updatedUser = {
                 ...updatedUser,
@@ -351,6 +368,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             })
           }
         })
+
+        // cleanup 함수를 window에 저장하여 중복 설정 시 이전 리스너 제거 가능
+        if ((window as any).__supabaseAuthListenerCleanup) {
+          (window as any).__supabaseAuthListenerCleanup()
+        }
+        ;(window as any).__supabaseAuthListenerCleanup = authListener.subscription.unsubscribe
       }
 
     } catch (error: any) {

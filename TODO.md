@@ -1551,3 +1551,109 @@ Phase 8의 상세 구현을 위해 `docs/pre_analysis_prompts.md` 파일의 프�
 - ✅ **확장성**: 향후 기능 추가 시 유연한 대응 가능
 
 이로써 사전 분석 페이지에 전문적이고 직관적인 SNB 탭 네비게이션이 완벽하게 구현되었습니다.
+
+---
+
+## 🔐 인증 시스템 무한 로딩 및 상태 변화 문제 해결 (2025-09-24)
+
+### 🎯 문제 상황
+- **무한 로딩**: 페이지 이동시 무한 로딩 화면이 지속적으로 표시
+- **Auth state changed 로그 반복**: 콘솔에 "Auth state changed: SIGNED_IN" 메시지가 계속 출력
+- **사용자 경험 저하**: 로그인된 상태에서도 페이지 접근 불가능
+
+### 🔍 원인 분석
+
+#### ✅ 1. 무한 루프 구조 발견
+```
+페이지 이동 → AuthContext useEffect → refreshSession() → TOKEN_REFRESHED 이벤트
+→ onAuthStateChange 콜백 → loadProfile() → 상태 업데이트 → useEffect 재실행 → 무한 반복
+```
+
+#### ✅ 2. 핵심 문제점들
+1. **AuthContext useEffect 과도한 의존성**: `user`, `session`, `error` 등 모든 상태 변화에 반응
+2. **세션 타이머 무한 재설정**: `authStore.isAuthenticated` 변경시마다 타이머 시스템 재생성
+3. **TOKEN_REFRESHED 시 불필요한 프로필 로딩**: 매번 `loadProfile()` 호출로 추가 상태 변화
+4. **ProtectedRoute 중복 세션 확인**: 무한 루프를 유발하는 의존성 구조
+
+### ✅ 해결 방안 구현
+
+#### 🛠️ 1. AuthContext 최적화
+```typescript
+// ✅ 디버깅 useEffect 의존성 최소화
+}, [
+  isClient,
+  isInitialized,
+  isInitializing
+  // isLoading, isAuthenticated, user, session, error 제거로 무한 루프 방지
+])
+
+// ✅ 세션 타이머를 한 번만 설정하도록 개선
+}, [isClient]) // authStore.isAuthenticated 의존성 제거로 무한 루프 완전 방지
+```
+
+#### 🛠️ 2. authStore onAuthStateChange 최적화
+```typescript
+// ✅ TOKEN_REFRESHED 시에는 프로필 로딩 생략으로 무한 루프 방지
+if (event === 'SIGNED_IN') {
+  // 로그인 시에만 프로필 로딩
+  await get().loadProfile(session.user.id)
+} else if (event === 'TOKEN_REFRESHED') {
+  // TOKEN_REFRESHED시에는 세션만 업데이트
+  console.log('⚙️ Token refreshed - updating session only')
+}
+```
+
+#### 🛠️ 3. ProtectedRoute 세션 확인 최적화
+```typescript
+// ✅ 마운트 시에만 한 번 확인하고 무한 루프 방지
+}, [isAuthenticated]) // session 의존성 제거
+```
+
+#### 🛠️ 4. refreshSession 함수 개선
+```typescript
+// ✅ 초기화 중일 때 호출 생략 (중복 호출 방지)
+if (isInitializing) {
+  console.log('⚠️ RefreshSession skipped - initialization in progress')
+  return
+}
+```
+
+#### 🛠️ 5. 리스너 중복 설정 완전 방지
+```typescript
+// ✅ cleanup 함수를 window에 저장하여 중복 설정 시 이전 리스너 제거 가능
+if ((window as any).__supabaseAuthListenerCleanup) {
+  (window as any).__supabaseAuthListenerCleanup()
+}
+(window as any).__supabaseAuthListenerCleanup = authListener.subscription.unsubscribe
+```
+
+### 🎯 테스트 결과
+
+#### ✅ 성공 지표
+- ✅ **TypeScript 타입 체크 통과**: 모든 타입 오류 해결
+- ✅ **개발 서버 정상 동작**: HMR 업데이트 정상 작동
+- ✅ **무한 루프 완전 제거**: useEffect 의존성 최적화로 근본 해결
+- ✅ **Auth state changed 로그 최소화**: 필요한 경우에만 출력
+- ✅ **세션 관리 안정화**: 타이머 중복 설정 방지
+
+#### 🚀 개선 효과
+1. **페이지 이동 안정성**: 무한 로딩 없는 부드러운 네비게이션
+2. **성능 향상**: 불필요한 상태 업데이트 및 API 호출 제거
+3. **개발자 경험 개선**: 콘솔 로그 정리 및 명확한 상태 추적
+4. **메모리 효율성**: 중복 타이머 및 리스너 방지로 메모리 누수 해결
+5. **코드 안정성**: TypeScript 타입 안전성 확보
+
+### 📝 향후 유지보수 가이드
+
+#### ⚠️ 주의사항
+1. **useEffect 의존성 추가 시 신중 검토**: 무한 루프 가능성 사전 점검
+2. **authStore 상태 변경 시 영향 분석**: 다른 컴포넌트에 미치는 파급 효과 고려
+3. **세션 관리 로직 수정 시 테스트 필수**: 다양한 시나리오에서 동작 검증
+
+#### 🔧 모니터링 포인트
+1. **브라우저 콘솔 로그**: "Auth state changed" 메시지 빈도 체크
+2. **네트워크 탭**: 불필요한 API 호출 발생 여부 확인
+3. **메모리 사용량**: 타이머 및 리스너 정리 상태 점검
+4. **사용자 세션 안정성**: 페이지 이동 시 인증 상태 유지 확인
+
+이로써 ELUO 프로젝트의 인증 시스템이 안정적이고 효율적으로 개선되었습니다.

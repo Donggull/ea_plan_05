@@ -17,7 +17,7 @@ export function ProtectedRoute() {
     })
   }, [isInitialized, isInitializing, isLoading, isAuthenticated, session, error])
 
-  // 세션 유효성 확인 (AuthContext에서 관리하므로 여기서는 간단한 확인만)
+  // 세션 유효성 확인 - 마운트 시에만 한 번 확인 (무한 루프 방지)
   useEffect(() => {
     if (!isAuthenticated || !session) return
 
@@ -26,12 +26,12 @@ export function ProtectedRoute() {
     const expiresAt = session.expires_at
 
     if (expiresAt && expiresAt <= now) {
-      console.log('Session already expired, requesting refresh...')
+      console.log('🔄 ProtectedRoute: Session expired, requesting refresh...')
       refreshSession().catch((error) => {
         console.error('Session refresh failed in ProtectedRoute:', error)
       })
     }
-  }, [isAuthenticated, session]) // refreshSession 의존성 제거로 중복 실행 방지
+  }, [isAuthenticated]) // session 의존성 제거 - 마운트시에만 확인하고 무한 루프 방지
 
   // 에러가 있고 초기화되지 않은 경우 로그인으로 리다이렉트
   if (error && !isInitialized) {
