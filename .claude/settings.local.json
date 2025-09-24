@@ -49,7 +49,10 @@
       "Bash(dir:*)",
       "Bash(copy:*)",
       "mcp__github-mcp__git-flow",
-      "mcp__playwright-stealth__playwright_get_visible_text"
+      "mcp__playwright-stealth__playwright_get_visible_text",
+      "Bash(xargs sed:*)",
+      "Bash(powershell:*)",
+      "Bash(findstr:*)"
     ],
     "deny": [],
     "ask": []

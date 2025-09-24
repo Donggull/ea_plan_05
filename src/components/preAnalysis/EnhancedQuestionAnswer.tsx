@@ -84,9 +84,10 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
     return undefined
   }, [answers, autoSaveEnabled])
 
-  // 질문 로드 및 AI 생성
+  // 질문 로드 및 AI 생성 (AI 생성 필수)
   const loadQuestions = async (): Promise<void> => {
     setIsLoading(true)
+    setIsGeneratingQuestions(true)
     setError(null)
 
     try {
@@ -103,8 +104,7 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
         .select('file_name, metadata')
         .eq('project_id', projectId)
 
-      // AI 기반 질문 생성
-      setIsGeneratingQuestions(true)
+      // AI 기반 질문 생성 (필수)
       const generatedQuestions = await AIQuestionGenerator.generateAIQuestions(
         workflowStep,
         projectId,
@@ -115,6 +115,10 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
         }
       )
 
+      if (!generatedQuestions || generatedQuestions.length === 0) {
+        throw new Error('AI 질문 생성에 실패했습니다. 생성된 질문이 없습니다.')
+      }
+
       // 우선순위 기반 정렬
       const sortedQuestions = AIQuestionGenerator.sortQuestionsByPriority(generatedQuestions)
       setQuestions(sortedQuestions)
@@ -123,8 +127,11 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
       await loadExistingAnswers()
 
     } catch (error) {
-      console.error('질문 로드 실패:', error)
-      setError('질문을 불러오는 중 오류가 발생했습니다.')
+      console.error('AI 질문 생성 실패:', error)
+      const errorMessage = error instanceof Error
+        ? error.message
+        : 'AI 질문 생성 중 오류가 발생했습니다. AI 서비스 연결을 확인해주세요.'
+      setError(errorMessage)
     } finally {
       setIsLoading(false)
       setIsGeneratingQuestions(false)
@@ -134,28 +141,36 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
   // 기존 답변 로드
   const loadExistingAnswers = async () => {
     try {
+      if (!supabase) {
+        console.warn('Supabase 클라이언트가 초기화되지 않았습니다.')
+        return
+      }
+
       const response = await supabase
-        ?.from('user_answers')
+        .from('user_answers')
         .select('*')
         .eq('session_id', sessionId)
 
-      if (response?.data) {
+      if (response?.data && Array.isArray(response.data)) {
         const answersMap = new Map<string, AnswerState>()
         response.data.forEach((answer: any) => {
-          answersMap.set(answer.question_id, {
-            questionId: answer.question_id,
-            answer: answer.answer_text || answer.answer_data,
-            confidence: answer.confidence_score || 0.5,
-            notes: answer.notes || '',
-            isComplete: true,
-            timeSpent: answer.response_time || 0,
-            lastUpdated: new Date(answer.updated_at)
-          })
+          if (answer && answer.question_id) {
+            answersMap.set(answer.question_id, {
+              questionId: answer.question_id,
+              answer: answer.answer_text || answer.answer_data || '',
+              confidence: Math.max(0, Math.min(1, answer.confidence_score || 0.5)),
+              notes: answer.notes || '',
+              isComplete: true,
+              timeSpent: Math.max(0, answer.response_time || 0),
+              lastUpdated: answer.updated_at ? new Date(answer.updated_at) : new Date()
+            })
+          }
         })
         setAnswers(answersMap)
       }
     } catch (error) {
-      console.error('기존 답변 로드 실패:', error)
+      console.warn('기존 답변 로드 실패:', error)
+      // 답변 로드 실패는 치명적이지 않으므로 계속 진행
     }
   }
 
@@ -234,6 +249,10 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
   const handleSave = async () => {
     setIsSaving(true)
     try {
+      if (!supabase) {
+        throw new Error('데이터베이스 연결이 초기화되지 않았습니다.')
+      }
+
       const responses: QuestionResponse[] = Array.from(answers.values()).map(answer => ({
         questionId: answer.questionId,
         answer: answer.answer,
@@ -241,17 +260,39 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
         notes: answer.notes
       }))
 
-      // Supabase에 저장
-      for (const response of responses) {
-        await supabase?.from('user_answers').upsert({
+      if (responses.length === 0) {
+        console.warn('저장할 답변이 없습니다.')
+        return
+      }
+
+      // Supabase에 저장 (배치 처리)
+      const savePromises = responses.map(response => {
+        const answerData = {
           session_id: sessionId,
           question_id: response.questionId,
           answer_text: typeof response.answer === 'string' ? response.answer : null,
           answer_data: typeof response.answer !== 'string' ? response.answer : null,
-          confidence_score: response.confidence,
-          notes: response.notes,
+          confidence_score: Math.max(0, Math.min(1, response.confidence || 0.5)),
+          notes: response.notes || '',
           response_time: answers.get(response.questionId)?.timeSpent || 0
-        })
+        }
+
+        return supabase
+          .from('user_answers')
+          .upsert(answerData, {
+            onConflict: 'session_id,question_id'
+          })
+      })
+
+      const results = await Promise.allSettled(savePromises)
+
+      // 실패한 저장 확인
+      const failures = results.filter(result => result.status === 'rejected')
+      if (failures.length > 0) {
+        console.error('일부 답변 저장 실패:', failures)
+        setError(`${responses.length - failures.length}/${responses.length}개 답변이 저장되었습니다.`)
+      } else {
+        console.log(`${responses.length}개 답변이 모두 저장되었습니다.`)
       }
 
       if (onSave) {
@@ -259,7 +300,8 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
       }
     } catch (error) {
       console.error('저장 실패:', error)
-      setError('답변 저장 중 오류가 발생했습니다.')
+      const errorMessage = error instanceof Error ? error.message : '답변 저장 중 오류가 발생했습니다.'
+      setError(errorMessage)
     } finally {
       setIsSaving(false)
     }
@@ -339,9 +381,18 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
         temperature: 0.7
       })
 
-      alert(response.content) // 임시로 alert 사용, 나중에 모달로 변경
+      // 힌트를 일시적으로 질문의 helpText에 추가하여 표시
+      const updatedQuestions = questions.map(q =>
+        q.id === questionId
+          ? { ...q, helpText: `${q.helpText ? q.helpText + '\n\n' : ''}💡 AI 힌트: ${response.content}` }
+          : q
+      )
+      setQuestions(updatedQuestions)
+
+      console.log('AI 힌트 생성 완료:', response.content)
     } catch (error) {
       console.error('AI 힌트 생성 실패:', error)
+      setError('AI 힌트 생성에 실패했습니다. 잠시 후 다시 시도해주세요.')
     }
   }
 
