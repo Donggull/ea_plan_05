@@ -83,13 +83,13 @@ export const AnalysisProgress = React.forwardRef<
     // 세션 시작 시 초기화
     initializeAnalysis();
 
-    // 실시간 업데이트
+    // 실시간 업데이트 (더 자주 체크)
     const interval = setInterval(() => {
       if (!isPaused) {
         checkAnalysisProgress();
       }
       updateElapsedTime();
-    }, 2000);
+    }, 1500); // 1.5초마다 체크
 
     return () => clearInterval(interval);
   }, [sessionId, isPaused]);
@@ -207,73 +207,122 @@ export const AnalysisProgress = React.forwardRef<
 
   const checkAnalysisProgress = async () => {
     try {
+      console.log('🔍 진행률 체크 시작:', { sessionId, documentCount: documentStatuses.length });
+
       // 세션의 문서 분석 상태 조회
       const statusResponse = await preAnalysisService.getSessionDocumentStatus(sessionId);
+
       if (statusResponse.success && statusResponse.data) {
         const statusMap = statusResponse.data;
+        console.log('📊 분석 상태 맵 수신:', statusMap);
+
+        let hasUpdates = false;
 
         // 문서 상태 업데이트
-        setDocumentStatuses(prev => prev.map(doc => {
-          const status = statusMap[doc.id];
-          if (status) {
-            // 유효한 상태 값인지 확인
-            let documentStatus: DocumentStatus['status'] = 'pending';
-            if (status.status === 'completed') {
-              documentStatus = 'completed';
-            } else if (status.status === 'error') {
-              documentStatus = 'error';
-            } else if (status.status === 'analyzing' || status.status === 'in_progress') {
-              documentStatus = 'analyzing';
+        setDocumentStatuses(prev => {
+          const updated = prev.map(doc => {
+            const status = statusMap[doc.id];
+            if (status) {
+              // 유효한 상태 값인지 확인
+              let documentStatus: DocumentStatus['status'] = 'pending';
+              if (status.status === 'completed') {
+                documentStatus = 'completed';
+                hasUpdates = true;
+              } else if (status.status === 'error') {
+                documentStatus = 'error';
+                hasUpdates = true;
+              } else if (status.status === 'analyzing' || status.status === 'in_progress') {
+                documentStatus = 'analyzing';
+                hasUpdates = true;
+              }
+
+              // 상태가 실제로 변경된 경우에만 업데이트
+              if (doc.status !== documentStatus) {
+                console.log(`📄 문서 상태 변경: ${doc.fileName} ${doc.status} → ${documentStatus}`);
+
+                return {
+                  ...doc,
+                  status: documentStatus,
+                  progress: documentStatus === 'completed' ? 100 :
+                           documentStatus === 'analyzing' ? Math.min(95, (doc.progress || 0) + 10) : (doc.progress || 0),
+                  processingTime: status.processingTime,
+                  confidenceScore: status.confidenceScore,
+                };
+              }
             }
+            return doc;
+          });
 
-            return {
-              ...doc,
-              status: documentStatus,
-              progress: documentStatus === 'completed' ? 100 :
-                       documentStatus === 'analyzing' ? Math.min(95, (doc.progress || 0) + 5) : (doc.progress || 0),
-              processingTime: status.processingTime,
-              confidenceScore: status.confidenceScore,
-            };
-          }
-          return doc;
-        }));
+          return updated;
+        });
 
-        // 전체 진행률 계산
-        updateOverallProgress();
+        if (hasUpdates) {
+          console.log('✅ 문서 상태 업데이트 완료, 전체 진행률 계산 중...');
+          // 전체 진행률 계산을 약간 지연시켜 상태 업데이트가 완료된 후 실행
+          setTimeout(() => {
+            updateOverallProgress();
+          }, 100);
+        }
+      } else {
+        console.warn('⚠️ 분석 상태 조회 실패:', statusResponse.error);
       }
     } catch (error) {
-      console.error('Progress check error:', error);
+      console.error('❌ Progress check error:', error);
     }
   };
 
   const updateOverallProgress = () => {
     const completedDocs = documentStatuses.filter(doc => doc.status === 'completed').length;
+    const analyzingDocs = documentStatuses.filter(doc => doc.status === 'analyzing').length;
+    const errorDocs = documentStatuses.filter(doc => doc.status === 'error').length;
     const totalDocs = documentStatuses.length;
 
+    console.log('📊 진행률 계산:', {
+      completedDocs,
+      analyzingDocs,
+      errorDocs,
+      totalDocs,
+      documentStatuses: documentStatuses.map(d => ({ id: d.id, fileName: d.fileName, status: d.status }))
+    });
+
     if (totalDocs > 0) {
-      const docProgress = (completedDocs / totalDocs) * 60; // 문서 분석 60%
+      // 문서 분석 진행률 (60% 할당)
+      const docProgress = (completedDocs / totalDocs) * 60;
+      const analyzingProgress = (analyzingDocs / totalDocs) * 20; // 분석 중인 문서들에 부분 점수
 
       setStages(prev => {
         const updated = [...prev];
         const docStage = updated.find(s => s.id === 'document_analysis');
 
         if (docStage) {
-          docStage.progress = Math.min(100, docProgress * (100/60));
+          const newProgress = Math.min(100, (docProgress + analyzingProgress) * (100/60));
+          docStage.progress = newProgress;
 
+          console.log('🎯 문서 분석 단계 진행률 업데이트:', {
+            docProgress,
+            analyzingProgress,
+            newProgress: newProgress.toFixed(1) + '%'
+          });
+
+          // 모든 문서 분석 완료 시 다음 단계로
           if (completedDocs === totalDocs && docStage.status !== 'completed') {
             docStage.status = 'completed';
             docStage.endTime = new Date();
-            addToActivityLog('✅ 모든 문서 분석이 완료되었습니다!');
+            docStage.progress = 100;
+
+            addToActivityLog(`✅ 모든 문서 분석이 완료되었습니다! (성공: ${completedDocs}개, 오류: ${errorDocs}개)`);
 
             // 질문 생성 시작
             const questionStage = updated.find(s => s.id === 'question_generation');
-            if (questionStage) {
+            if (questionStage && questionStage.status === 'pending') {
               questionStage.status = 'in_progress';
               questionStage.startTime = new Date();
               addToActivityLog('🤖 AI 질문 생성을 시작합니다...');
 
               // 실제 질문 생성 호출
-              generateQuestions();
+              setTimeout(() => {
+                generateQuestions();
+              }, 1000);
             }
           }
         }
@@ -284,9 +333,17 @@ export const AnalysisProgress = React.forwardRef<
       // 전체 진행률 업데이트
       const questionStage = stages.find(s => s.id === 'question_generation');
       const questionProgress = questionStage?.status === 'completed' ? 40 :
-                              questionStage?.status === 'in_progress' ? questionStage.progress * 0.4 : 0;
+                              questionStage?.status === 'in_progress' ? (questionStage.progress * 0.4) : 0;
 
-      setOverallProgress(Math.min(100, docProgress + questionProgress));
+      const totalProgress = Math.min(100, docProgress + analyzingProgress + questionProgress);
+      setOverallProgress(totalProgress);
+
+      console.log('🎯 전체 진행률 업데이트:', {
+        docProgress: docProgress.toFixed(1) + '%',
+        analyzingProgress: analyzingProgress.toFixed(1) + '%',
+        questionProgress: questionProgress.toFixed(1) + '%',
+        totalProgress: totalProgress.toFixed(1) + '%'
+      });
     }
   };
 
