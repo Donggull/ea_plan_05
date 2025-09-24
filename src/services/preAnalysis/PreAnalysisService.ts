@@ -1151,15 +1151,55 @@ ${content}
       // 질문 생성 프롬프트
       const questionsPrompt = this.generateQuestionsPrompt(analysisContext, options);
 
-      // Vercel API 라우트를 통한 AI 호출
-      const aiProvider = session.settings?.aiProvider || 'anthropic';
-      const aiModel = session.settings?.aiModel || 'claude-sonnet-4-20250514';
+      // AI 모델 설정 확인 및 기본값 설정
+      let aiProvider = 'anthropic';
+      let aiModel = 'claude-sonnet-4-20250514';
+
+      // 세션에서 AI 설정 추출 시도
+      console.log('🔍 세션 데이터 확인:', {
+        sessionId,
+        sessionData: session,
+        settings: session.settings,
+        ai_provider: session.ai_provider,
+        ai_model: session.ai_model
+      });
+
+      // 여러 경로로 AI 설정 확인
+      if (session.settings) {
+        // settings 객체에서 확인
+        if (typeof session.settings === 'string') {
+          try {
+            const parsedSettings = JSON.parse(session.settings);
+            aiProvider = parsedSettings.aiProvider || aiProvider;
+            aiModel = parsedSettings.aiModel || aiModel;
+          } catch (parseError) {
+            console.warn('⚠️ 세션 설정 파싱 실패:', parseError);
+          }
+        } else if (typeof session.settings === 'object') {
+          aiProvider = session.settings.aiProvider || aiProvider;
+          aiModel = session.settings.aiModel || aiModel;
+        }
+      } else if (session.ai_provider && session.ai_model) {
+        // 직접 필드에서 확인
+        aiProvider = session.ai_provider;
+        aiModel = session.ai_model;
+      }
+
+      console.log('⚙️ 사용할 AI 설정:', { aiProvider, aiModel });
+
+      // AI 제공자 유효성 검증
+      if (!aiProvider || !aiModel) {
+        console.error('❌ AI 제공자가 설정되지 않았습니다:', { aiProvider, aiModel });
+        throw new Error('AI 제공자가 설정되지 않았습니다. 프로젝트 설정을 확인해주세요.');
+      }
 
       // AI 호출 시도 - 타임아웃 및 재시도 로직 추가
       let response;
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30000); // 30초 타임아웃
+
+        console.log('🤖 AI 호출 시작:', { aiProvider, aiModel, promptLength: questionsPrompt.length });
 
         response = await this.callAICompletionAPI(
           aiProvider,
@@ -1170,8 +1210,10 @@ ${content}
         );
 
         clearTimeout(timeoutId);
+        console.log('✅ AI 호출 성공:', { responseLength: response?.content?.length });
+
       } catch (aiCallError) {
-        console.error('AI API 호출 실패:', aiCallError);
+        console.error('❌ AI API 호출 실패:', aiCallError);
         // API 호출 실패시 즉시 fallback 사용
         throw new Error(`AI API 호출 실패: ${aiCallError instanceof Error ? aiCallError.message : 'Unknown error'}`);
       }

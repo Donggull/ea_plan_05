@@ -1,16 +1,18 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, forwardRef, useImperativeHandle } from 'react';
 import {
   FileText,
   MessageSquare,
   CheckCircle,
   Clock,
+  AlertTriangle,
   Play,
   Pause,
+  RotateCcw,
   FileCheck,
+  Loader,
   AlertCircle,
   Activity,
   Timer,
-  TrendingUp,
 } from 'lucide-react';
 import { preAnalysisService } from '../../services/preAnalysis/PreAnalysisService';
 import { Card } from '../LinearComponents';
@@ -48,811 +50,465 @@ interface AnalysisStage {
   endTime?: Date;
 }
 
-export const AnalysisProgress = React.forwardRef<
-  { startAnalysis: () => void },
-  AnalysisProgressProps
->(({ sessionId, onComplete }, ref) => {
-  const [stages, setStages] = useState<AnalysisStage[]>([
-    {
-      id: 'document_analysis',
-      name: '문서 분석',
-      description: '업로드된 문서들을 AI로 분석합니다',
-      icon: FileText,
-      estimatedDuration: 120,
-      status: 'pending',
-      progress: 0,
-    },
-    {
-      id: 'question_generation',
-      name: '질문 생성',
-      description: '분석 결과를 바탕으로 맞춤형 질문을 생성합니다',
-      icon: MessageSquare,
-      estimatedDuration: 45,
-      status: 'pending',
-      progress: 0,
-    },
-  ]);
+export interface AnalysisProgressRef {
+  startAnalysis: () => void;
+}
 
-  const [documentStatuses, setDocumentStatuses] = useState<DocumentStatus[]>([]);
-  const [overallProgress, setOverallProgress] = useState(0);
-  // const [currentStage, setCurrentStage] = useState<string>('document_analysis'); // 현재 사용하지 않음
-  const [isPaused, setIsPaused] = useState(false);
-  const [activityLog, setActivityLog] = useState<string[]>([]);
-  const [startTime, setStartTime] = useState<Date>(new Date());
-  const [elapsedTime, setElapsedTime] = useState(0);
-  const [isPolling, setIsPolling] = useState(false);
-  const [pollInterval, setPollInterval] = useState<number>(3000); // 동적 폴링 간격
-  const [lastUpdateTime, setLastUpdateTime] = useState<number>(Date.now());
-  const [analysisCompleted, setAnalysisCompleted] = useState(false);
-
-  useEffect(() => {
-    // 세션 시작 시 초기화
-    initializeAnalysis();
-
-    // 적응형 폴링 - 상태에 따라 간격 조정
-    let interval: NodeJS.Timeout;
-
-    const startPolling = () => {
-      if (interval) clearInterval(interval);
-
-      interval = setInterval(() => {
-        if (!isPaused && !analysisCompleted) {
-          checkAnalysisProgress();
-        }
-        updateElapsedTime();
-
-        // 동적 폴링 간격 조정
-        adjustPollingInterval();
-      }, pollInterval);
-
-      setIsPolling(true);
-    };
-
-    startPolling();
-
-    return () => {
-      if (interval) clearInterval(interval);
-      setIsPolling(false);
-    };
-  }, [sessionId, isPaused, analysisCompleted, pollInterval]);
-
-  // 전체 진행률 계산 개선 (단계별 가중치 적용)
-  const updateOverallProgress = useCallback(() => {
-    // 단계별 진행률 계산
-    const documentStageProgress = stages.find(s => s.id === 'document_analysis')?.progress || 0;
-    const questionStageProgress = stages.find(s => s.id === 'question_generation')?.progress || 0;
-
-    // 단계별 가중치: 문서 분석 70%, 질문 생성 30%
-    const documentWeight = 0.7;
-    const questionWeight = 0.3;
-
-    // 전체 진행률 계산
-    const calculatedProgress = Math.round(
-      (documentStageProgress * documentWeight) + (questionStageProgress * questionWeight)
-    );
-
-    const finalProgress = Math.min(100, Math.max(0, calculatedProgress));
-
-    // 의미있는 변경만 업데이트
-    if (Math.abs(overallProgress - finalProgress) >= 1) {
-      console.log('🔄 진행률 업데이트:', {
-        이전: overallProgress,
-        새로운: finalProgress,
-        문서분석: documentStageProgress,
-        질문생성: questionStageProgress
-      });
-      setOverallProgress(finalProgress);
-    }
-  }, [stages, overallProgress]);
-
-  // stages 변경 시 진행률 업데이트 (debounced)
-  const debouncedUpdateProgress = useMemo(
-    () => {
-      let timeoutId: NodeJS.Timeout;
-      return () => {
-        clearTimeout(timeoutId);
-        timeoutId = setTimeout(() => {
-          updateOverallProgress();
-        }, 300); // 300ms debounce
-      };
-    },
-    [updateOverallProgress]
-  );
-
-  useEffect(() => {
-    if (stages.length > 0) {
-      debouncedUpdateProgress();
-    }
-  }, [stages, debouncedUpdateProgress]);
-
-  const initializeAnalysis = async () => {
-    setStartTime(new Date());
-    addToActivityLog('사전 분석 섽션을 로드합니다...');
-
-    try {
-      // 세션 정보 조회
-      const sessionResponse = await preAnalysisService.getSession(sessionId);
-      if (!sessionResponse.success || !sessionResponse.data) {
-        addToActivityLog('❌ 세션 정보를 조회할 수 없습니다.');
-        return;
+export const AnalysisProgress = forwardRef<AnalysisProgressRef, AnalysisProgressProps>(
+  ({ sessionId, onComplete }, ref) => {
+    const [stages, setStages] = useState<AnalysisStage[]>([
+      {
+        id: 'document_analysis',
+        name: '문서 분석',
+        description: '업로드된 문서들을 AI로 분석합니다',
+        icon: FileText,
+        estimatedDuration: 180, // 3분
+        status: 'pending',
+        progress: 0,
+        message: '분석 준비 중...'
+      },
+      {
+        id: 'question_generation',
+        name: '질문 생성',
+        description: '분석 결과를 바탕으로 핵심 질문들을 생성합니다',
+        icon: MessageSquare,
+        estimatedDuration: 120, // 2분
+        status: 'pending',
+        progress: 0,
+        message: '대기 중...'
       }
+    ]);
 
-      const session = sessionResponse.data;
-      addToActivityLog(`✓ 세션 정보 로드 완료: ${session.projectId}`);
+    const [documentStatuses, setDocumentStatuses] = useState<DocumentStatus[]>([]);
+    const [overallProgress, setOverallProgress] = useState(0);
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [startTime, setStartTime] = useState<Date | null>(null);
+    const [elapsedTime, setElapsedTime] = useState(0);
+    const [isPaused, setIsPaused] = useState(false);
+    const [currentPhase, setCurrentPhase] = useState<'idle' | 'document_analysis' | 'question_generation' | 'completed'>('idle');
+    const [sessionInfo, setSessionInfo] = useState<any>(null);
 
-      // 프로젝트 문서 목록 조회
-      const documentsResponse = await preAnalysisService.getProjectDocuments(session.projectId);
-      if (documentsResponse.success && documentsResponse.data) {
-        const documents = documentsResponse.data;
+    // 전체 진행률 계산 (단계별 가중치 적용)
+    const updateOverallProgress = useCallback(() => {
+      // 단계별 진행률 계산
+      const documentStageProgress = stages.find(s => s.id === 'document_analysis')?.progress || 0;
+      const questionStageProgress = stages.find(s => s.id === 'question_generation')?.progress || 0;
 
-        // 문서별 초기 상태 설정
-        const initialStatuses: DocumentStatus[] = documents.map(doc => ({
-          id: doc.id,
-          fileName: doc.file_name,
-          status: 'pending',
-          progress: 0,
-          category: undefined,
-        }));
+      // 단계별 가중치: 문서 분석 70%, 질문 생성 30%
+      const documentWeight = 0.7;
+      const questionWeight = 0.3;
 
-        setDocumentStatuses(initialStatuses);
-        addToActivityLog(`📁 ${documents.length}개 문서 발견`);
-        addToActivityLog('📋 분석 준비 완료 - 시작 대기 중...');
-      } else {
-        addToActivityLog('⚠️ 분석할 문서가 없습니다.');
-      }
-    } catch (error) {
-      console.error('Analysis initialization error:', error);
-      addToActivityLog('❌ 분석 초기화 중 오류가 발생했습니다.');
-    }
-  };
-
-  // 폴링 간격 동적 조정
-  const adjustPollingInterval = useCallback(() => {
-    const now = Date.now();
-    const timeSinceLastUpdate = now - lastUpdateTime;
-
-    // 진행 상황에 따른 적응형 간격 조정
-    const completedCount = documentStatuses.filter(doc => doc.status === 'completed').length;
-    const analyzingCount = documentStatuses.filter(doc => doc.status === 'analyzing').length;
-
-    if (completedCount === documentStatuses.length && documentStatuses.length > 0) {
-      // 모든 문서 완료 시 폴링 중단
-      setPollInterval(0);
-      setAnalysisCompleted(true);
-    } else if (analyzingCount > 0) {
-      // 분석 중인 문서가 있으면 빠른 업데이트
-      setPollInterval(2000);
-    } else if (timeSinceLastUpdate > 30000) {
-      // 30초 이상 업데이트가 없으면 느리게
-      setPollInterval(Math.min(10000, pollInterval + 1000));
-    } else {
-      // 기본 간격
-      setPollInterval(3000);
-    }
-  }, [documentStatuses, lastUpdateTime, pollInterval]);
-
-  // 실제 분석 시작 메서드 (외부에서 호출됨)
-  const startDocumentAnalysis = useCallback(async () => {
-    if (documentStatuses.length === 0) {
-      addToActivityLog('❌ 분석할 문서가 없습니다.');
-      return;
-    }
-
-    // 문서 분석 단계 시작 (즉시 진행률 반영)
-    updateStageStatus('document_analysis', 'in_progress', 10, '문서 분석을 시작합니다...');
-    addToActivityLog('🚀 문서 분석을 시작합니다...');
-
-    // 문서 상태를 분석 중으로 변경
-    setDocumentStatuses(prev => prev.map(doc => ({
-      ...doc,
-      status: 'analyzing' as const,
-      progress: 20,
-      startedAt: new Date(),
-    })));
-
-    try {
-      // 세션 정보 조회하여 프로젝트 ID 가져오기
-      const sessionResponse = await preAnalysisService.getSession(sessionId);
-      if (!sessionResponse.success || !sessionResponse.data) {
-        addToActivityLog('❌ 세션 정보를 조회할 수 없습니다.');
-        updateStageStatus('document_analysis', 'failed');
-        return;
-      }
-
-      const projectId = sessionResponse.data.projectId;
-      addToActivityLog(`📋 프로젝트 ${projectId}의 문서 분석을 진행합니다...`);
-
-      // 실제 문서 분석 시작
-      const analysisResponse = await preAnalysisService.analyzeAllProjectDocuments(
-        sessionId,
-        projectId
+      // 전체 진행률 계산
+      const calculatedProgress = Math.round(
+        (documentStageProgress * documentWeight) + (questionStageProgress * questionWeight)
       );
 
-      if (analysisResponse.success) {
-        addToActivityLog('✅ 문서 분석이 성공적으로 시작되었습니다.');
-        addToActivityLog(`📊 총 ${analysisResponse.data?.total || 0}개 문서 분석 중...`);
-      } else {
-        addToActivityLog(`❌ 문서 분석 시작 실패: ${analysisResponse.error}`);
-        updateStageStatus('document_analysis', 'failed');
+      const finalProgress = Math.min(100, Math.max(0, calculatedProgress));
 
-        // 모든 문서를 오류 상태로 변경
-        setDocumentStatuses(prev => prev.map(doc => ({
-          ...doc,
-          status: 'error' as const,
-          error: analysisResponse.error || '분석 시작 실패',
-        })));
-      }
-    } catch (error) {
-      console.error('Document analysis start error:', error);
-      addToActivityLog(`❌ 문서 분석 중 예외 발생: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
-      updateStageStatus('document_analysis', 'failed');
-
-      // 모든 문서를 오류 상태로 변경
-      setDocumentStatuses(prev => prev.map(doc => ({
-        ...doc,
-        status: 'error' as const,
-        error: '분석 중 예외 발생',
-      })));
-    }
-  }, [sessionId, documentStatuses.length]);
-
-  // 분석 시작을 위한 외부 인터페이스
-  React.useImperativeHandle(ref, () => ({
-    startAnalysis: startDocumentAnalysis,
-  }));
-
-  const checkAnalysisProgress = useCallback(async () => {
-    if (analysisCompleted) return;
-
-    try {
-      // 1. 전체 진행 상황 조회 (로그 감소)
-      const progressResponse = await preAnalysisService.getSessionProgress(sessionId);
-      if (progressResponse.success && progressResponse.data) {
-        setLastUpdateTime(Date.now());
-
-        // 단계별 진행 상황 업데이트 (최적화된)
-        const progressData = progressResponse.data;
-        let hasStageUpdates = false;
-
-        setStages(prev => {
-          const updated = [...prev];
-
-          progressData.forEach((progress: any) => {
-            const stageIndex = updated.findIndex(s => s.id === progress.stage);
-            if (stageIndex !== -1) {
-              const stage = updated[stageIndex];
-
-              // 의미있는 변경이 있을 때만 업데이트
-              const statusChanged = stage.status !== progress.status;
-              const progressChanged = Math.abs(stage.progress - progress.progress) > 1;
-              const messageChanged = stage.message !== progress.message;
-
-              if (statusChanged || progressChanged || messageChanged) {
-                updated[stageIndex] = {
-                  ...stage,
-                  status: progress.status,
-                  progress: Math.min(100, Math.max(0, progress.progress)),
-                  message: progress.message,
-                  startTime: progress.status === 'in_progress' && !stage.startTime ? new Date(progress.updated_at) : stage.startTime,
-                  endTime: (progress.status === 'completed' || progress.status === 'failed') ? new Date(progress.updated_at) : stage.endTime,
-                };
-                hasStageUpdates = true;
-
-                // 중요한 변경만 로깅
-                if (statusChanged) {
-                  console.log(`✨ 단계 "${progress.stage}" 상태 변경: ${stage.status} → ${progress.status}`);
-                }
-              }
-            }
-          });
-
-          return hasStageUpdates ? updated : prev;
+      // 의미있는 변경만 업데이트
+      if (Math.abs(overallProgress - finalProgress) >= 1) {
+        console.log('🔄 진행률 업데이트:', {
+          이전: overallProgress,
+          새로운: finalProgress,
+          문서분석: documentStageProgress,
+          질문생성: questionStageProgress
         });
-
-        // 2. 문서 분석 상태 조회 (최적화된)
-        const statusResponse = await preAnalysisService.getSessionDocumentStatus(sessionId);
-
-        if (statusResponse.success && statusResponse.data) {
-          const statusMap = statusResponse.data;
-          let hasDocumentUpdates = false;
-
-          setDocumentStatuses(prev => {
-            const updated = prev.map(doc => {
-              const status = statusMap[doc.id];
-              if (!status) return doc;
-
-              // 상태 변환 로직 개선
-              const getDocumentStatus = (apiStatus: string): DocumentStatus['status'] => {
-                switch (apiStatus) {
-                  case 'completed': return 'completed';
-                  case 'error': case 'failed': return 'error';
-                  case 'analyzing': case 'in_progress': case 'processing': return 'analyzing';
-                  default: return 'pending';
-                }
-              };
-
-              const newStatus = getDocumentStatus(status.status);
-              const statusChanged = doc.status !== newStatus;
-
-              // 상태가 변경된 경우만 업데이트
-              if (statusChanged) {
-                hasDocumentUpdates = true;
-
-                // 시간 정보 및 예상 시간 계산
-                const now = new Date();
-                const newDoc: DocumentStatus = {
-                  ...doc,
-                  status: newStatus,
-                  progress: newStatus === 'completed' ? 100 :
-                           newStatus === 'error' ? doc.progress :
-                           newStatus === 'analyzing' ? Math.min(95, Math.max(doc.progress + 5, 20)) :
-                           doc.progress,
-                  processingTime: status.processingTime,
-                  confidenceScore: status.confidenceScore,
-                  startedAt: newStatus === 'analyzing' && !doc.startedAt ? now : doc.startedAt,
-                  completedAt: newStatus === 'completed' || newStatus === 'error' ? now : doc.completedAt,
-                };
-
-                // 예상 시간 계산 (분석 중인 경우)
-                if (newStatus === 'analyzing' && doc.startedAt) {
-                  const elapsedMs = now.getTime() - doc.startedAt.getTime();
-                  const progressRate = (doc.progress - 20) / Math.max(1, elapsedMs / 1000); // 초당 진행률
-                  const remainingProgress = 100 - doc.progress;
-                  newDoc.estimatedTimeRemaining = progressRate > 0 ? Math.ceil(remainingProgress / progressRate) : undefined;
-                }
-
-                return newDoc;
-              }
-
-              return doc;
-            });
-
-            return hasDocumentUpdates ? updated : prev;
-          });
-
-                  // 3. 분석 완료 체크 및 자동 다음 단계 진행 (최신 상태 사용)
-          setDocumentStatuses(currentDocuments => {
-            const completedCount = currentDocuments.filter(doc => doc.status === 'completed').length;
-            const errorCount = currentDocuments.filter(doc => doc.status === 'error').length;
-            const totalCount = currentDocuments.length;
-
-            if (totalCount > 0) {
-              const isAllCompleted = completedCount === totalCount;
-              const hasErrors = errorCount > 0;
-
-              // 진행률 메시지 업데이트
-              if (completedCount > 0 || hasErrors) {
-                const progressMessage = hasErrors ?
-                  `${completedCount}/${totalCount} 완료, ${errorCount}개 오류` :
-                  `${completedCount}/${totalCount} 문서 분석 완료`;
-
-                updateStageStatus('document_analysis', 'in_progress', Math.round((completedCount / totalCount) * 100), progressMessage);
-              }
-
-              // 모든 문서 분석 완료 시 자동 다음 단계 진행
-              if (isAllCompleted && !analysisCompleted) {
-                console.log('✨ 모든 문서 분석 완료! 다음 단계 준비 중...');
-                setAnalysisCompleted(true);
-                updateStageStatus('document_analysis', 'completed', 100, '모든 문서 분석 완료');
-                addToActivityLog('✅ 문서 분석이 성공적으로 완료되었습니다!');
-
-                // 질문 생성 단계로 자동 진행 (1초 딜레이)
-                setTimeout(() => {
-                  startQuestionGeneration();
-                }, 1000);
-              }
-            }
-
-            return currentDocuments; // 상태 변경하지 않고 현재 상태 유지
-          });
-        }
+        setOverallProgress(finalProgress);
       }
-    } catch (error) {
-      console.error('Progress check error:', error);
-      // 오류 빈도 감소를 위한 지수 백오프
-      setPollInterval(prev => Math.min(prev * 1.5, 10000));
-    }
-  }, [sessionId, documentStatuses, analysisCompleted, lastUpdateTime, stages]);
+    }, [stages, overallProgress]);
 
-  const updateStageStatus = useCallback((stageId: string, status: AnalysisStage['status'], progress?: number, message?: string) => {
-    setStages(prev => {
-      const stageIndex = prev.findIndex(s => s.id === stageId);
-      if (stageIndex === -1) return prev;
+    // stages 변경 시 즉시 진행률 업데이트
+    useEffect(() => {
+      updateOverallProgress();
+    }, [stages, updateOverallProgress]);
 
-      const currentStage = prev[stageIndex];
-      const hasChanges = currentStage.status !== status ||
-                        (progress !== undefined && Math.abs(currentStage.progress - progress) >= 1) ||
-                        (message !== undefined && currentStage.message !== message);
+    // 경과 시간 업데이트
+    useEffect(() => {
+      if (!isAnalyzing || isPaused || !startTime) return;
 
-      if (!hasChanges) return prev;
+      const timer = setInterval(() => {
+        setElapsedTime(Math.floor((Date.now() - startTime.getTime()) / 1000));
+      }, 1000);
 
-      const updated = [...prev];
-      updated[stageIndex] = {
-        ...currentStage,
-        status,
-        progress: progress ?? currentStage.progress,
-        message: message ?? currentStage.message,
-        startTime: status === 'in_progress' && !currentStage.startTime ? new Date() : currentStage.startTime,
-        endTime: (status === 'completed' || status === 'failed') ? new Date() : currentStage.endTime,
+      return () => clearInterval(timer);
+    }, [isAnalyzing, isPaused, startTime]);
+
+    // 세션 상태 모니터링
+    useEffect(() => {
+      if (!sessionId) return;
+
+      const monitorSession = async () => {
+        try {
+          const session = await preAnalysisService.getSessionStatus(sessionId);
+          setSessionInfo(session);
+
+          if (session?.status === 'completed') {
+            setCurrentPhase('completed');
+            setIsAnalyzing(false);
+            onComplete();
+          }
+        } catch (error) {
+          console.error('세션 모니터링 오류:', error);
+        }
       };
 
-      // 단계 업데이트 후 전체 진행률 재계산 (비동기로 처리)
-      setTimeout(() => {
-        updateOverallProgress();
-      }, 100);
+      const interval = setInterval(monitorSession, 2000);
+      return () => clearInterval(interval);
+    }, [sessionId, onComplete]);
 
-      return updated;
-    });
-  }, [updateOverallProgress]);
+    // 단계 상태 업데이트
+    const updateStageStatus = useCallback((stageId: string, updates: Partial<AnalysisStage>) => {
+      console.log(`🔄 단계 상태 업데이트: ${stageId}`, updates);
 
-  const addToActivityLog = useCallback((message: string) => {
-    const timestamp = new Date().toLocaleTimeString('ko-KR');
-    const logEntry = `[${timestamp}] ${message}`;
+      setStages(prev => prev.map(stage =>
+        stage.id === stageId ? { ...stage, ...updates } : stage
+      ));
+    }, []);
 
-    setActivityLog(prev => {
-      // 중복 메시지 방지
-      const lastEntry = prev[prev.length - 1];
-      if (lastEntry && lastEntry.includes(message.slice(0, 20))) {
-        return prev;
-      }
-
-      return [...prev, logEntry].slice(-15); // 최대 15개로 감소
-    });
-  }, []);
-
-  const startQuestionGeneration = useCallback(async () => {
-    console.log('📝 질문 생성 단계 시작');
-    updateStageStatus('question_generation', 'in_progress', 10, '맞춤형 질문 생성 중...');
-    addToActivityLog('📝 AI 기반 맞춤형 질문을 생성합니다...');
-
-    try {
-      // 진행률 업데이트
-      updateStageStatus('question_generation', 'in_progress', 30, 'AI 모델에서 질문을 생성하는 중...');
-
-      const questionResponse = await preAnalysisService.generateQuestions(sessionId, {
-        categories: ['technical', 'business', 'budget'],
-        maxQuestions: 10,
-        includeRequired: true
+    // 문서 상태 업데이트
+    const updateDocumentStatus = useCallback((docId: string, updates: Partial<DocumentStatus>) => {
+      setDocumentStatuses(prev => {
+        const existing = prev.find(doc => doc.id === docId);
+        if (existing) {
+          return prev.map(doc => doc.id === docId ? { ...doc, ...updates } : doc);
+        } else {
+          return [...prev, { id: docId, fileName: '문서', status: 'pending', progress: 0, ...updates }];
+        }
       });
+    }, []);
 
-      if (questionResponse.success && questionResponse.data) {
-        // 안전한 데이터 접근
-        const questionsArray = Array.isArray(questionResponse.data) ? questionResponse.data : [];
-        const totalQuestions = questionsArray.length;
+    // 분석 시작 함수
+    const startAnalysis = useCallback(async () => {
+      try {
+        console.log('🚀 사전 분석 시작:', sessionId);
 
-        updateStageStatus('question_generation', 'in_progress', 80, '질문 생성 완료 처리 중...');
-        addToActivityLog(`🎯 ${totalQuestions}개의 맞춤형 질문이 생성되었습니다!`);
+        setIsAnalyzing(true);
+        setIsPaused(false);
+        setStartTime(new Date());
+        setCurrentPhase('document_analysis');
 
-        // 완료 상태로 업데이트
-        setTimeout(() => {
-          updateStageStatus('question_generation', 'completed', 100, `${totalQuestions}개 질문 생성 완료`);
-          addToActivityLog('✅ 질문 생성 단계가 완료되었습니다!');
+        // 문서 분석 단계 시작
+        updateStageStatus('document_analysis', {
+          status: 'in_progress',
+          progress: 0,
+          message: '문서 분석을 시작합니다...',
+          startTime: new Date()
+        });
 
-          // 전체 분석 완료 및 자동 이동
-          setTimeout(() => {
-            addToActivityLog('🎉 사전 분석이 성공적으로 완료되었습니다!');
-            setIsPolling(false); // 폴링 중단
-            onComplete(); // 다음 단계로 이동
-          }, 1500);
-        }, 800);
-      } else {
-        const errorMsg = questionResponse.error || '알 수 없는 오류가 발생했습니다.';
-        updateStageStatus('question_generation', 'failed', 0, '질문 생성 실패');
-        addToActivityLog(`❌ 질문 생성 실패: ${errorMsg}`);
-        console.error('질문 생성 응답 오류:', questionResponse);
+        // 문서 분석 실행
+        const analysisResult = await preAnalysisService.analyzeDocuments(sessionId, (progress, message) => {
+          updateStageStatus('document_analysis', {
+            progress: Math.round(progress),
+            message: message || `문서 분석 중... ${Math.round(progress)}%`
+          });
+        });
+
+        if (analysisResult.success) {
+          // 문서 분석 완료
+          updateStageStatus('document_analysis', {
+            status: 'completed',
+            progress: 100,
+            message: '문서 분석 완료',
+            endTime: new Date(),
+            details: analysisResult
+          });
+
+          console.log('✅ 문서 분석 완료, 질문 생성 시작');
+          setCurrentPhase('question_generation');
+
+          // 질문 생성 단계 시작
+          updateStageStatus('question_generation', {
+            status: 'in_progress',
+            progress: 0,
+            message: '질문 생성을 시작합니다...',
+            startTime: new Date()
+          });
+
+          // 질문 생성 실행
+          const questionResult = await preAnalysisService.generateQuestions(sessionId, (progress, message) => {
+            updateStageStatus('question_generation', {
+              progress: Math.round(progress),
+              message: message || `질문 생성 중... ${Math.round(progress)}%`
+            });
+          });
+
+          if (questionResult.success) {
+            // 질문 생성 완료
+            updateStageStatus('question_generation', {
+              status: 'completed',
+              progress: 100,
+              message: '질문 생성 완료',
+              endTime: new Date(),
+              details: questionResult
+            });
+
+            console.log('✅ 전체 사전 분석 완료');
+            setCurrentPhase('completed');
+            setIsAnalyzing(false);
+            onComplete();
+
+          } else {
+            throw new Error(questionResult.error || '질문 생성 실패');
+          }
+
+        } else {
+          throw new Error(analysisResult.error || '문서 분석 실패');
+        }
+
+      } catch (error) {
+        console.error('❌ 사전 분석 오류:', error);
+
+        // 현재 단계 실패 처리
+        const failedStageId = currentPhase === 'document_analysis' ? 'document_analysis' : 'question_generation';
+        updateStageStatus(failedStageId, {
+          status: 'failed',
+          message: error instanceof Error ? error.message : '분석 중 오류가 발생했습니다',
+          endTime: new Date()
+        });
+
+        setIsAnalyzing(false);
       }
-    } catch (error) {
-      console.error('Question generation error:', error);
-      const errorMsg = error instanceof Error ? error.message : '질문 생성 중 예상치 못한 오류가 발생했습니다.';
-      updateStageStatus('question_generation', 'failed', 0, '질문 생성 오류');
-      addToActivityLog(`❌ 질문 생성 오류: ${errorMsg}`);
-    }
-  }, [sessionId, updateStageStatus, addToActivityLog, onComplete]);
+    }, [sessionId, currentPhase, onComplete, updateStageStatus]);
 
-  const updateElapsedTime = useCallback(() => {
-    const now = new Date();
-    const elapsed = Math.floor((now.getTime() - startTime.getTime()) / 1000);
-    setElapsedTime(elapsed);
-  }, [startTime]);
+    // ref를 통해 외부에서 호출 가능하도록 설정
+    useImperativeHandle(ref, () => ({
+      startAnalysis
+    }), [startAnalysis]);
 
-  // 진행 상태 요약 정보
-  const progressSummary = useMemo(() => {
-    const totalDocs = documentStatuses.length;
-    const completed = documentStatuses.filter(doc => doc.status === 'completed').length;
-    const analyzing = documentStatuses.filter(doc => doc.status === 'analyzing').length;
-    const errors = documentStatuses.filter(doc => doc.status === 'error').length;
-    const pending = documentStatuses.filter(doc => doc.status === 'pending').length;
+    // 일시정지/재개 기능
+    const togglePause = useCallback(() => {
+      setIsPaused(prev => !prev);
+    }, []);
 
-    return { totalDocs, completed, analyzing, errors, pending };
-  }, [documentStatuses]);
+    // 분석 재시작 기능
+    const resetAnalysis = useCallback(() => {
+      setIsAnalyzing(false);
+      setIsPaused(false);
+      setStartTime(null);
+      setElapsedTime(0);
+      setCurrentPhase('idle');
+      setOverallProgress(0);
+      setDocumentStatuses([]);
 
-  const formatProcessingTime = useCallback((timeInSeconds?: number) => {
-    if (!timeInSeconds) return '미수신';
+      // 모든 단계 초기화
+      setStages(prev => prev.map(stage => ({
+        ...stage,
+        status: 'pending',
+        progress: 0,
+        message: stage.id === 'document_analysis' ? '분석 준비 중...' : '대기 중...',
+        startTime: undefined,
+        endTime: undefined
+      })));
+    }, []);
 
-    if (timeInSeconds < 60) {
-      return `${Math.round(timeInSeconds)}초`;
-    } else if (timeInSeconds < 3600) {
-      const minutes = Math.floor(timeInSeconds / 60);
-      const seconds = Math.round(timeInSeconds % 60);
-      return `${minutes}분 ${seconds > 0 ? seconds + '초' : ''}`;
-    } else {
-      const hours = Math.floor(timeInSeconds / 3600);
-      const minutes = Math.floor((timeInSeconds % 3600) / 60);
-      return `${hours}시간 ${minutes > 0 ? minutes + '분' : ''}`;
-    }
-  }, []);
+    // 시간 포맷팅
+    const formatTime = useCallback((seconds: number) => {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }, []);
 
-  // 예상 시간 포맷팅
-  const formatEstimatedTime = useCallback((timeInSeconds?: number) => {
-    if (!timeInSeconds) return null;
+    // 전체 상태 계산
+    const overallStatus = useMemo(() => {
+      if (currentPhase === 'completed') return 'completed';
+      if (isAnalyzing && !isPaused) return 'analyzing';
+      if (isPaused) return 'paused';
+      if (stages.some(s => s.status === 'failed')) return 'failed';
+      return 'idle';
+    }, [currentPhase, isAnalyzing, isPaused, stages]);
 
-    if (timeInSeconds < 60) {
-      return `약 ${Math.ceil(timeInSeconds / 10) * 10}초 남음`;
-    } else if (timeInSeconds < 3600) {
-      const minutes = Math.ceil(timeInSeconds / 60);
-      return `약 ${minutes}분 남음`;
-    } else {
-      const hours = Math.ceil(timeInSeconds / 3600);
-      return `약 ${hours}시간 남음`;
-    }
-  }, []);
+    return (
+      <Card className="w-full bg-[var(--color-surface)] border-[var(--color-border)] rounded-lg">
+        <div className="p-6">
+          {/* 헤더 */}
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className={`
+                w-10 h-10 rounded-full flex items-center justify-center
+                ${overallStatus === 'completed'
+                  ? 'bg-green-500/20 text-green-400'
+                  : overallStatus === 'failed'
+                  ? 'bg-red-500/20 text-red-400'
+                  : overallStatus === 'analyzing'
+                  ? 'bg-blue-500/20 text-blue-400'
+                  : 'bg-gray-500/20 text-gray-400'}
+              `}>
+                {overallStatus === 'completed' ? (
+                  <CheckCircle className="w-5 h-5" />
+                ) : overallStatus === 'failed' ? (
+                  <AlertTriangle className="w-5 h-5" />
+                ) : overallStatus === 'analyzing' ? (
+                  <Activity className="w-5 h-5" />
+                ) : (
+                  <Clock className="w-5 h-5" />
+                )}
+              </div>
 
-  const handlePauseResume = () => {
-    setIsPaused(!isPaused);
-    addToActivityLog(isPaused ? '▶️ 분석을 재개했습니다.' : '⏸️ 분석을 일시정지했습니다.');
-  };
+              <div>
+                <h3 className="text-lg font-semibold text-[var(--color-text-primary)]">
+                  사전 분석 진행 상황
+                </h3>
+                <p className="text-sm text-[var(--color-text-secondary)]">
+                  {overallStatus === 'completed'
+                    ? '분석이 완료되었습니다'
+                    : overallStatus === 'analyzing'
+                    ? `${currentPhase === 'document_analysis' ? '문서 분석' : '질문 생성'} 진행 중...`
+                    : overallStatus === 'failed'
+                    ? '분석 중 오류가 발생했습니다'
+                    : '분석을 시작할 준비가 되었습니다'}
+                </p>
+              </div>
+            </div>
 
-  return (
-    <Card className="w-full max-w-4xl mx-auto p-6 bg-linear-background border-linear-border">
-      <div className="space-y-6">
-        {/* 헤더 및 전체 진행률 */}
-        <div className="text-center">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <TrendingUp className="w-8 h-8 text-linear-accent" />
-            <h2 className="text-2xl font-bold text-linear-text">분석 진행 상황</h2>
+            {/* 컨트롤 버튼 */}
+            <div className="flex items-center gap-2">
+              {startTime && (
+                <div className="flex items-center gap-1 text-sm text-[var(--color-text-secondary)]">
+                  <Timer className="w-4 h-4" />
+                  {formatTime(elapsedTime)}
+                </div>
+              )}
+
+              {isAnalyzing && (
+                <button
+                  onClick={togglePause}
+                  className="p-2 rounded-lg hover:bg-[var(--color-surface-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                  title={isPaused ? '재개' : '일시정지'}
+                >
+                  {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
+                </button>
+              )}
+
+              {!isAnalyzing && overallProgress > 0 && (
+                <button
+                  onClick={resetAnalysis}
+                  className="p-2 rounded-lg hover:bg-[var(--color-surface-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                  title="다시 시작"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                </button>
+              )}
+            </div>
           </div>
 
-          <div className="mb-4">
-            <div className="text-6xl font-bold text-linear-accent mb-2">{overallProgress}%</div>
-            <div className="w-full bg-linear-border rounded-full h-3 mb-2">
+          {/* 전체 진행률 바 */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-[var(--color-text-primary)]">
+                전체 진행률
+              </span>
+              <span className="text-sm text-[var(--color-text-secondary)]">
+                {overallProgress}%
+              </span>
+            </div>
+
+            <div className="w-full bg-[var(--color-surface-secondary)] rounded-full h-3">
               <div
-                className="h-3 rounded-full bg-gradient-to-r from-linear-accent to-linear-accent/70 transition-all duration-1000 ease-out"
+                className={`h-full rounded-full transition-all duration-300 ${
+                  overallStatus === 'completed'
+                    ? 'bg-green-500'
+                    : overallStatus === 'failed'
+                    ? 'bg-red-500'
+                    : 'bg-blue-500'
+                }`}
                 style={{ width: `${overallProgress}%` }}
               />
             </div>
-            <div className="text-sm text-linear-text-muted">
-              전체 진행률: {progressSummary.completed}/{progressSummary.totalDocs} 완료 · 경과 시간: {formatProcessingTime(elapsedTime)}
-            </div>
           </div>
 
-          <div className="flex items-center justify-center gap-2">
-            <button
-              onClick={handlePauseResume}
-              className="flex items-center gap-2 px-3 py-1.5 text-xs bg-linear-surface border border-linear-border rounded-lg hover:bg-linear-border-light transition-colors"
-            >
-              {isPaused ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
-              {isPaused ? '재개' : '일시정지'}
-            </button>
+          {/* 단계별 진행 상황 */}
+          <div className="space-y-4">
+            {stages.map((stage, index) => {
+              const Icon = stage.icon;
+              const isActive = currentPhase === stage.id;
 
-            {isPolling && (
-              <div className="flex items-center gap-1 text-xs text-linear-text-muted">
-                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                실시간 모니터링 중
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* 단계별 진행 상황 */}
-        <div className="space-y-4">
-          {stages.map((stage) => {
-            const Icon = stage.icon;
-
-            return (
-              <div
-                key={stage.id}
-                className={`p-4 rounded-lg border transition-all duration-300 ${
-                  stage.status === 'completed'
-                    ? 'bg-linear-accent/5 border-linear-accent/30'
-                    : stage.status === 'in_progress'
-                    ? 'bg-blue-500/5 border-blue-500/30 ring-1 ring-blue-500/20'
-                    : stage.status === 'failed'
-                    ? 'bg-red-500/5 border-red-500/30'
-                    : 'bg-linear-surface border-linear-border'
-                }`}
-              >
-                <div className="flex items-center justify-between text-sm text-linear-text mb-3">
-                  <div className="flex items-center gap-2">
-                    <Icon className={`w-5 h-5 ${
-                      stage.status === 'completed' ? 'text-linear-accent' :
-                      stage.status === 'in_progress' ? 'text-blue-500 animate-pulse' :
-                      stage.status === 'failed' ? 'text-red-500' :
-                      'text-linear-text-muted'
-                    }`} />
-                    <div>
-                      <div className="font-medium">{stage.name}</div>
-                      {stage.message && (
-                        <div className="text-xs text-linear-text-muted mt-0.5">{stage.message}</div>
+              return (
+                <div
+                  key={stage.id}
+                  className={`
+                    p-4 rounded-lg border transition-all duration-300
+                    ${isActive
+                      ? 'bg-blue-500/10 border-blue-500/30'
+                      : stage.status === 'completed'
+                      ? 'bg-green-500/10 border-green-500/30'
+                      : stage.status === 'failed'
+                      ? 'bg-red-500/10 border-red-500/30'
+                      : 'bg-[var(--color-surface-secondary)] border-[var(--color-border)]'}
+                  `}
+                >
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className={`
+                      w-8 h-8 rounded-full flex items-center justify-center
+                      ${stage.status === 'completed'
+                        ? 'bg-green-500/20 text-green-400'
+                        : stage.status === 'failed'
+                        ? 'bg-red-500/20 text-red-400'
+                        : isActive
+                        ? 'bg-blue-500/20 text-blue-400'
+                        : 'bg-gray-500/20 text-gray-400'}
+                    `}>
+                      {stage.status === 'completed' ? (
+                        <CheckCircle className="w-4 h-4" />
+                      ) : stage.status === 'failed' ? (
+                        <AlertCircle className="w-4 h-4" />
+                      ) : stage.status === 'in_progress' ? (
+                        <Loader className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Icon className="w-4 h-4" />
                       )}
                     </div>
-                  </div>
-                  <div className="text-right">
-                    <div className={`text-lg font-bold ${
-                      stage.status === 'completed' ? 'text-linear-accent' :
-                      stage.status === 'in_progress' ? 'text-blue-500' :
-                      stage.status === 'failed' ? 'text-red-500' :
-                      'text-linear-text-muted'
-                    }`}>
-                      {stage.progress}%
-                    </div>
-                    {stage.status === 'in_progress' && (
-                      <div className="text-xs text-blue-500">진행 중</div>
-                    )}
-                  </div>
-                </div>
 
-                <div className="w-full bg-linear-border rounded-full h-3 mb-3 overflow-hidden">
-                  <div
-                    className={`h-3 rounded-full transition-all duration-700 ease-out ${
-                      stage.status === 'completed' ? 'bg-gradient-to-r from-linear-accent to-linear-accent/80' :
-                      stage.status === 'in_progress' ? 'bg-gradient-to-r from-blue-500 to-blue-400' :
-                      stage.status === 'failed' ? 'bg-gradient-to-r from-red-500 to-red-400' :
-                      'bg-linear-border-light'
-                    } ${
-                      stage.status === 'in_progress' ? 'animate-pulse' : ''
-                    }`}
-                    style={{ width: `${Math.min(100, Math.max(0, stage.progress))}%` }}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between text-xs text-linear-text-muted">
-                  <span>{stage.description}</span>
-                  {stage.startTime && stage.status === 'in_progress' && (
-                    <span>시작: {stage.startTime.toLocaleTimeString('ko-KR')}</span>
-                  )}
-                  {stage.endTime && (stage.status === 'completed' || stage.status === 'failed') && (
-                    <span>완료: {stage.endTime.toLocaleTimeString('ko-KR')}</span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* 문서별 상세 진행률 */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-linear-text flex items-center gap-2">
-            <FileCheck className="w-5 h-5" />
-            문서별 분석 상태 ({documentStatuses.length}개)
-          </h3>
-
-          {documentStatuses.length > 0 ? (
-            documentStatuses.map((doc) => (
-              <div key={doc.id} className="mb-2 p-3 bg-linear-surface rounded-lg border border-linear-border">
-                <div className="flex items-center justify-between text-sm mb-2">
-                  <div className="flex items-center gap-2">
-                    {doc.status === 'completed' && <CheckCircle className="w-4 h-4 text-linear-accent" />}
-                    {doc.status === 'analyzing' && <Activity className="w-4 h-4 text-blue-500 animate-pulse" />}
-                    {doc.status === 'error' && <AlertCircle className="w-4 h-4 text-red-500" />}
-                    {doc.status === 'pending' && <Clock className="w-4 h-4 text-linear-text-muted" />}
-                    <span className="font-medium truncate" title={doc.fileName}>
-                      {doc.fileName.length > 30 ? `${doc.fileName.slice(0, 27)}...` : doc.fileName}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-linear-text-muted">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      doc.status === 'completed' ? 'bg-linear-accent/10 text-linear-accent' :
-                      doc.status === 'analyzing' ? 'bg-blue-500/10 text-blue-500' :
-                      doc.status === 'error' ? 'bg-red-500/10 text-red-500' :
-                      'bg-linear-text-muted/10 text-linear-text-muted'
-                    }`}>
-                      {doc.status === 'pending' ? '대기' :
-                       doc.status === 'analyzing' ? '분석중' :
-                       doc.status === 'completed' ? '완료' : '오류'}
-                    </span>
-                    <span className="font-mono">{doc.progress}%</span>
-                  </div>
-                </div>
-
-                <div className="w-full bg-linear-border rounded-full h-2 mb-2">
-                  <div
-                    className={`h-2 rounded-full transition-all duration-300 ${
-                      doc.status === 'completed' ? 'bg-linear-accent' :
-                      doc.status === 'error' ? 'bg-red-500' :
-                      doc.status === 'analyzing' ? 'bg-gradient-to-r from-blue-500 to-blue-400' :
-                      'bg-linear-border-light'
-                    }`}
-                    style={{ width: `${Math.min(100, Math.max(0, doc.progress))}%` }}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between text-xs text-linear-text-muted">
-                  <div className="flex items-center gap-4">
-                    {doc.processingTime && (
-                      <div className="flex items-center gap-1">
-                        <Timer className="w-3 h-3" />
-                        <span>처리: {formatProcessingTime(doc.processingTime)}</span>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-medium text-[var(--color-text-primary)]">
+                          {stage.name}
+                        </h4>
+                        <span className="text-sm text-[var(--color-text-secondary)]">
+                          {stage.progress}%
+                        </span>
                       </div>
-                    )}
-                    {doc.confidenceScore && (
-                      <span>신뢰도: {Math.round(doc.confidenceScore)}%</span>
-                    )}
+                      <p className="text-sm text-[var(--color-text-secondary)] mt-1">
+                        {stage.message || stage.description}
+                      </p>
+                    </div>
                   </div>
-                  {doc.estimatedTimeRemaining && doc.status === 'analyzing' && (
-                    <span className="text-blue-500">{formatEstimatedTime(doc.estimatedTimeRemaining)}</span>
-                  )}
-                </div>
 
-                {doc.error && (
-                  <div className="mt-2 p-2 bg-red-500/10 border border-red-500/20 rounded text-xs text-red-400">
-                    {doc.error}
+                  {/* 단계별 진행률 바 */}
+                  <div className="w-full bg-[var(--color-surface)] rounded-full h-2">
+                    <div
+                      className={`h-full rounded-full transition-all duration-300 ${
+                        stage.status === 'completed'
+                          ? 'bg-green-500'
+                          : stage.status === 'failed'
+                          ? 'bg-red-500'
+                          : 'bg-blue-500'
+                      }`}
+                      style={{ width: `${stage.progress}%` }}
+                    />
                   </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* 하단 상태 정보 */}
+          {sessionInfo && (
+            <div className="mt-4 p-3 bg-[var(--color-surface-secondary)] rounded-lg">
+              <div className="text-xs text-[var(--color-text-secondary)] space-y-1">
+                <div>세션 ID: {sessionId}</div>
+                {sessionInfo.documentsCount && (
+                  <div>처리된 문서: {sessionInfo.documentsCount}개</div>
+                )}
+                {sessionInfo.totalTokens && (
+                  <div>사용된 토큰: {sessionInfo.totalTokens.toLocaleString()}</div>
                 )}
               </div>
-            ))
-          ) : (
-            <div className="text-center py-8">
-              <FileText className="w-12 h-12 text-linear-text-muted mx-auto mb-3" />
-              <p className="text-linear-text-muted">분석할 문서가 없습니다.</p>
-              <p className="text-xs text-linear-text-muted mt-1">문서를 먼저 업로드해 주세요.</p>
             </div>
           )}
         </div>
-
-        {/* 실시간 활동 로그 */}
-        <div className="bg-linear-surface rounded-lg p-4 border border-linear-border">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-medium text-linear-text flex items-center gap-2">
-              <Activity className="w-4 h-4" />
-              실시간 활동 로그
-            </h3>
-            <div className="text-xs text-linear-text-muted bg-linear-border-light px-2 py-1 rounded">
-              경과: {formatProcessingTime(elapsedTime)}
-            </div>
-          </div>
-
-          {/* 진행 상태 요약 */}
-          <div className="mb-3 p-2 bg-linear-border-light rounded text-xs">
-            <div className="flex items-center justify-between text-linear-text-muted">
-              <span>전체 진행률: {overallProgress}%</span>
-              <span>{progressSummary.completed}/{progressSummary.totalDocs} 완료</span>
-            </div>
-            {progressSummary.analyzing > 0 && (
-              <div className="text-blue-500 mt-1">
-                {progressSummary.analyzing}개 문서 분석 중...
-              </div>
-            )}
-            {progressSummary.errors > 0 && (
-              <div className="text-red-500 mt-1">
-                {progressSummary.errors}개 문서 오류 발생
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-1 max-h-40 overflow-y-auto">
-            {activityLog.length === 0 ? (
-              <div className="text-xs text-linear-text-muted italic py-2">
-                활동 로그가 비어있습니다.
-              </div>
-            ) : (
-              activityLog.slice(-8).map((log, index) => (
-                <div key={index} className={`text-xs font-mono p-1 rounded ${
-                  log.includes('❌') || log.includes('❗') ? 'text-red-400 bg-red-500/5' :
-                  log.includes('✅') || log.includes('✨') ? 'text-linear-accent bg-linear-accent/5' :
-                  log.includes('🚀') || log.includes('📝') ? 'text-blue-400 bg-blue-500/5' :
-                  'text-linear-text-muted'
-                }`}>
-                  {log}
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </div>
-    </Card>
-  );
-});
+      </Card>
+    );
+  }
+);
 
 AnalysisProgress.displayName = 'AnalysisProgress';
-
-export default AnalysisProgress;
