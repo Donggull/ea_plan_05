@@ -1,5 +1,10 @@
 import { supabase } from '../../lib/supabase'
-import { aiServiceManager, CompletionOptions } from '../ai/AIServiceManager'
+// CompletionOptions 타입 정의
+interface CompletionOptions {
+  model: string
+  maxTokens?: number
+  temperature?: number
+}
 
 // 워크플로우 단계별 질문 타입 정의
 export interface Question {
@@ -312,13 +317,7 @@ export class AIQuestionGenerator {
       console.log('🤖 AIQuestionGenerator.generateAIQuestions 시작');
       console.log('📊 입력 파라미터:', { step, projectId, userId, context });
 
-      const provider = aiServiceManager.getCurrentProvider()
-      console.log('🔌 현재 AI 제공자:', provider ? provider.name : 'null');
-
-      if (!provider) {
-        console.warn('AI 제공자가 설정되지 않음. 기본 질문만 반환합니다.')
-        return this.generateQuestions(step, projectId)
-      }
+      console.log('🔌 서버사이드 API 엔드포인트를 사용하여 AI 질문을 생성합니다.');
 
       // AI 프롬프트 구성
       console.log('📝 AI 프롬프트 생성 중...');
@@ -332,16 +331,38 @@ export class AIQuestionGenerator {
       }
       console.log('⚙️ AI 호출 옵션:', options);
 
-      console.log('🚀 aiServiceManager.generateCompletion 호출 시작...');
-      const response = await aiServiceManager.generateCompletion(
-        prompt,
-        options,
-        {
-          userId,
-          projectId,
-          requestType: 'question_generation'
-        }
-      )
+      console.log('🚀 서버사이드 AI API 호출 시작...');
+
+      // 프로덕션 환경과 개발 환경에 따른 API URL 설정
+      const apiUrl = process.env.NODE_ENV === 'production'
+        ? 'https://ea-plan-05.vercel.app/api/ai/completion'
+        : '/api/ai/completion';
+      console.log('🌐 API 호출 URL:', apiUrl);
+
+      const apiResponse = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          provider: 'anthropic', // 기본 제공자
+          model: options.model,
+          prompt,
+          maxTokens: options.maxTokens,
+          temperature: options.temperature,
+          context: {
+            userId,
+            projectId,
+            requestType: 'question_generation'
+          }
+        })
+      });
+
+      if (!apiResponse.ok) {
+        throw new Error(`AI API 호출 실패: ${apiResponse.status} ${apiResponse.statusText}`);
+      }
+
+      const response = await apiResponse.json();
       console.log('✅ AI 응답 수신 완료:', response ? '성공' : '실패');
 
       // AI 응답 파싱하여 질문 생성
