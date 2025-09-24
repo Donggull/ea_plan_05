@@ -117,7 +117,6 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
   // documentStatuses 변경 시 진행률 업데이트
   useEffect(() => {
     if (documentStatuses.length > 0) {
-      console.log('📈 documentStatuses 변경 감지, 진행률 업데이트 실행');
       updateOverallProgress();
     }
   }, [documentStatuses]);
@@ -235,13 +234,9 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
 
   const checkAnalysisProgress = async () => {
     try {
-      console.log('🔍 진행률 체크 시작:', { sessionId, documentCount: documentStatuses.length });
-
       // 1. 전체 진행 상황 조회
       const progressResponse = await preAnalysisService.getSessionProgress(sessionId);
       if (progressResponse.success && progressResponse.data) {
-        console.log('📊 전체 진행 상황 수신:', progressResponse.data);
-
         // 단계별 진행 상황 업데이트
         const progressData = progressResponse.data;
         setStages(prev => {
@@ -253,7 +248,7 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
               const stage = updated[stageIndex];
 
               // 실제 변경이 있을 때만 업데이트
-              if (stage.status !== progress.status || Math.abs(stage.progress - progress.progress) > 0.1) {
+              if (stage.status !== progress.status || Math.abs(stage.progress - progress.progress) > 5) {
                 updated[stageIndex] = {
                   ...stage,
                   status: progress.status,
@@ -262,12 +257,6 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
                   startTime: progress.status === 'in_progress' && !stage.startTime ? new Date(progress.updated_at) : stage.startTime,
                   endTime: (progress.status === 'completed' || progress.status === 'failed') ? new Date(progress.updated_at) : stage.endTime,
                 };
-
-                console.log(`🎯 단계 "${progress.stage}" 업데이트:`, {
-                  status: progress.status,
-                  progress: progress.progress + '%',
-                  message: progress.message
-                });
               }
             }
           });
@@ -281,11 +270,8 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
 
       if (statusResponse.success && statusResponse.data) {
         const statusMap = statusResponse.data;
-        console.log('📊 분석 상태 맵 수신:', statusMap);
 
-        let hasUpdates = false;
-
-        // 문서 상태 업데이트 (React.useCallback으로 최적화)
+        // 문서 상태 업데이트
         setDocumentStatuses(prev => {
           const updated = prev.map(doc => {
             const status = statusMap[doc.id];
@@ -302,9 +288,6 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
 
               // 상태가 실제로 변경된 경우에만 업데이트
               if (doc.status !== documentStatus) {
-                console.log(`📄 문서 상태 변경: ${doc.fileName} ${doc.status} → ${documentStatus}`);
-                hasUpdates = true;
-
                 return {
                   ...doc,
                   status: documentStatus,
@@ -324,20 +307,8 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
             doc.progress !== prev[index]?.progress
           );
 
-          if (hasRealChanges) {
-            console.log('📈 문서 상태에 실제 변경 발생, 새로운 배열 반환');
-            return updated;
-          }
-
-          // 변경이 없으면 기존 배열 반환 (리렌더링 방지)
-          return prev;
+          return hasRealChanges ? updated : prev;
         });
-
-        if (hasUpdates) {
-          console.log('✅ 문서 상태 업데이트 완료, 전체 진행률 계산은 useEffect에서 처리');
-        }
-      } else {
-        console.warn('⚠️ 분석 상태 조회 실패:', statusResponse.error);
       }
     } catch (error) {
       console.error('❌ Progress check error:', error);
@@ -349,14 +320,6 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
     const analyzingDocs = documentStatuses.filter(doc => doc.status === 'analyzing').length;
     const errorDocs = documentStatuses.filter(doc => doc.status === 'error').length;
     const totalDocs = documentStatuses.length;
-
-    console.log('📊 진행률 계산:', {
-      completedDocs,
-      analyzingDocs,
-      errorDocs,
-      totalDocs,
-      documentStatuses: documentStatuses.map(d => ({ id: d.id, fileName: d.fileName, status: d.status }))
-    });
 
     if (totalDocs === 0) return;
 
@@ -372,35 +335,46 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
         const newProgress = Math.min(100, (docProgress + analyzingProgress) * (100/60));
 
         // 실제로 변경이 있을 때만 업데이트
-        if (Math.abs(docStage.progress - newProgress) > 0.1) {
+        if (Math.abs(docStage.progress - newProgress) > 5) { // 5% 이상 변경시에만 업데이트
           docStage.progress = newProgress;
 
-          console.log('🎯 문서 분석 단계 진행률 업데이트:', {
-            docProgress: docProgress.toFixed(1) + '%',
-            analyzingProgress: analyzingProgress.toFixed(1) + '%',
-            newProgress: newProgress.toFixed(1) + '%'
-          });
+          // 사용자 친화적 메시지 업데이트
+          if (analyzingDocs > 0) {
+            docStage.message = `${analyzingDocs}개 문서 분석 중...`;
+          } else if (completedDocs === totalDocs) {
+            docStage.message = `모든 문서 분석 완료`;
+          } else {
+            docStage.message = `${completedDocs}/${totalDocs}개 문서 완료`;
+          }
         }
 
-        // 모든 문서 분석 완료 시 다음 단계로
-        if (completedDocs === totalDocs && docStage.status !== 'completed') {
+        // 모든 문서 분석 완료 시 다음 단계로 (오류 문서 포함)
+        const processedDocs = completedDocs + errorDocs;
+        if (processedDocs === totalDocs && docStage.status !== 'completed' && totalDocs > 0) {
           docStage.status = 'completed';
           docStage.endTime = new Date();
           docStage.progress = 100;
 
-          addToActivityLog(`✅ 모든 문서 분석이 완료되었습니다! (성공: ${completedDocs}개, 오류: ${errorDocs}개)`);
+          addToActivityLog(`✅ 문서 분석이 완료되었습니다! (성공: ${completedDocs}개, 오류: ${errorDocs}개)`);
 
-          // 질문 생성 시작
+          // 질문 생성 시작 - 성공한 문서가 하나라도 있어야 진행
           const questionStage = updated.find(s => s.id === 'question_generation');
           if (questionStage && questionStage.status === 'pending') {
-            questionStage.status = 'in_progress';
-            questionStage.startTime = new Date();
-            addToActivityLog('🤖 AI 질문 생성을 시작합니다...');
+            if (completedDocs > 0) {
+              questionStage.status = 'in_progress';
+              questionStage.startTime = new Date();
+              addToActivityLog('🤖 AI 질문 생성을 시작합니다...');
 
-            // 실제 질문 생성 호출
-            setTimeout(() => {
-              generateQuestions();
-            }, 1000);
+              // 실제 질문 생성 호출
+              setTimeout(() => {
+                generateQuestions();
+              }, 2000);
+            } else {
+              // 모든 문서가 실패한 경우
+              questionStage.status = 'failed';
+              questionStage.endTime = new Date();
+              addToActivityLog('❌ 분석 성공한 문서가 없어 질문을 생성할 수 없습니다.');
+            }
           }
         }
       }
@@ -419,27 +393,22 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
       if (docStage) {
         const docWeight = 60; // 문서 분석이 60% 비중
         totalProgress += (docStage.progress / 100) * docWeight;
-        console.log('📈 문서 분석 단계 진행률:', docStage.progress + '%', `가중치 적용: ${((docStage.progress / 100) * docWeight).toFixed(1)}%`);
       }
 
       if (questionStage) {
         const questionWeight = 40; // 질문 생성이 40% 비중
         totalProgress += (questionStage.progress / 100) * questionWeight;
-        console.log('📈 질문 생성 단계 진행률:', questionStage.progress + '%', `가중치 적용: ${((questionStage.progress / 100) * questionWeight).toFixed(1)}%`);
       }
 
       // 전체 진행률 업데이트 (0-100 범위로 제한)
       const finalProgress = Math.min(100, Math.max(0, totalProgress));
 
-      setTimeout(() => {
-        setOverallProgress(finalProgress);
-      }, 100);
-
-      console.log('🎯 전체 진행률 업데이트:', {
-        docProgress: docStage?.progress + '%' || '0%',
-        questionProgress: questionStage?.progress + '%' || '0%',
-        totalProgress: finalProgress.toFixed(1) + '%'
-      });
+      // 진행률이 실제로 변경된 경우에만 업데이트
+      if (Math.abs(finalProgress - overallProgress) > 1) {
+        setTimeout(() => {
+          setOverallProgress(finalProgress);
+        }, 100);
+      }
 
       return currentStages;
     });
@@ -613,30 +582,31 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
     const overallProgressNum = Math.floor(overallProgress);
     const completedDocs = documentStatuses.filter(doc => doc.status === 'completed').length;
     const analyzingDocs = documentStatuses.filter(doc => doc.status === 'analyzing').length;
+    const totalDocs = documentStatuses.length;
 
     let newInterval = pollInterval;
 
-    // 활발한 상태 변화가 있을 때는 더 자주 폴링
-    if (analyzingDocs > 0 || overallProgressNum < 100) {
-      if (timeSinceLastUpdate < 10000) { // 10초 이내에 업데이트가 있었다면
-        newInterval = Math.max(2000, pollInterval - 500); // 최소 2초로 줄임
-      } else {
-        newInterval = Math.min(5000, pollInterval + 1000); // 최대 5초로 늘림
-      }
-    } else {
-      // 완료 상태나 변화가 없을 때는 덜 자주 폴링
-      newInterval = 10000; // 10초 간격
+    // 분석이 완료된 경우 폴링 중지
+    if (overallProgressNum >= 100 || (totalDocs > 0 && completedDocs === totalDocs)) {
+      newInterval = 30000; // 30초로 대폭 늘림
+    }
+    // 활발한 분석 중일 때
+    else if (analyzingDocs > 0) {
+      newInterval = 5000; // 5초 간격
+    }
+    // 대기 상태일 때
+    else {
+      newInterval = 8000; // 8초 간격
     }
 
     // 간격이 실제로 변경되었을 때만 업데이트
-    if (newInterval !== pollInterval) {
+    if (Math.abs(newInterval - pollInterval) > 1000) {
       setPollInterval(newInterval);
       console.log('🔄 폴링 간격 조정:', `${pollInterval}ms → ${newInterval}ms`);
     }
 
-    // 최근 업데이트 시간 갱신 (상태 변화가 있었던 경우)
-    if (completedDocs !== documentStatuses.filter(doc => doc.status === 'completed').length ||
-        analyzingDocs !== documentStatuses.filter(doc => doc.status === 'analyzing').length) {
+    // 상태 변화가 있었을 때만 최근 업데이트 시간 갱신
+    if (timeSinceLastUpdate > 10000) { // 10초 이상 변화가 없으면
       setLastUpdateTime(now);
     }
   };
