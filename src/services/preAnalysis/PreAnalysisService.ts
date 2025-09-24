@@ -297,7 +297,7 @@ export class PreAnalysisService {
             }
           } catch (error) {
             console.error('❌ AI 질문 생성 자동 실행 중 오류:', error);
-            console.error('❌ 오류 스택:', error.stack);
+            console.error('❌ 오류 스택:', error instanceof Error ? error.stack : 'Stack trace not available');
           }
         }, 1000); // 1초 후 실행
       } else {
