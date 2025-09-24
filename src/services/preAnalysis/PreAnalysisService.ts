@@ -571,6 +571,11 @@ export class PreAnalysisService {
         timestamp: new Date(),
       });
 
+      // project_id null 체크
+      if (!session.project_id) {
+        throw new Error('프로젝트 ID가 없습니다.');
+      }
+
       // 프로젝트 정보 조회 for AIQuestionGenerator
       const { data: project } = await supabase
         .from('projects')
@@ -585,13 +590,22 @@ export class PreAnalysisService {
           'pre_analysis',
           session.project_id,
           {
-            projectName: project?.name,
-            projectDescription: project?.description,
+            projectName: project?.name || '',
+            projectDescription: project?.description || '',
             // 분석된 문서 정보를 컨텍스트로 제공
-            documents: analyses?.map(analysis => ({
-              name: analysis.document_id,
-              content: analysis.analysis_result?.summary || ''
-            })) || []
+            documents: analyses?.filter(analysis => analysis.document_id).map(analysis => {
+              // analysis_result 타입 안전성 체크
+              const analysisResult = analysis.analysis_result;
+              let summary = '';
+              if (analysisResult && typeof analysisResult === 'object' && analysisResult !== null) {
+                const summaryValue = (analysisResult as any)['summary'];
+                summary = summaryValue ? String(summaryValue) : '';
+              }
+              return {
+                name: analysis.document_id as string, // filter로 null이 제거되었으므로 안전
+                content: summary
+              };
+            }) || []
           }
         );
 
