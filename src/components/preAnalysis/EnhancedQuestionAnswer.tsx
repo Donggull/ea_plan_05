@@ -277,7 +277,7 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
           response_time: answers.get(response.questionId)?.timeSpent || 0
         }
 
-        return supabase
+        return supabase!
           .from('user_answers')
           .upsert(answerData, {
             onConflict: 'session_id,question_id'
