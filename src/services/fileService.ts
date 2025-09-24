@@ -33,6 +33,9 @@ export interface UploadResult {
   url: string
   path: string
   metadata: FileMetadata
+  textExtracted: boolean
+  textLength?: number
+  extractionError?: string
 }
 
 class FileService {
@@ -112,7 +115,7 @@ class FileService {
   async uploadFile(
     file: File,
     options: UploadOptions,
-    onProgress?: (progress: number) => void
+    onProgress?: (progress: number, message?: string) => void
   ): Promise<UploadResult> {
     console.log('📤 파일 업로드 시작:', {
       fileName: file.name,
@@ -169,7 +172,7 @@ class FileService {
         let progress = 20
         const interval = setInterval(() => {
           progress = Math.min(progress + 5, 50) // 최대 50%까지만
-          onProgress?.(progress)
+          onProgress?.(progress, 'Storage 업로드 중...')
         }, 300)
         return interval
       }
@@ -252,7 +255,7 @@ class FileService {
         console.log('✅ Storage 업로드 성공')
 
         // 진행률 60% 보고
-        onProgress?.(60)
+        onProgress?.(60, 'Storage 업로드 완료')
 
       } catch (error) {
         clearInterval(progressInterval)
@@ -267,7 +270,7 @@ class FileService {
       console.log('🔗 공개 URL 생성:', urlData.publicUrl)
 
       // 진행률 80% 보고
-      onProgress?.(80)
+      onProgress?.(80, '데이터베이스 저장 중...')
 
       // 데이터베이스에 문서 정보 저장
       console.log('💾 데이터베이스에 문서 정보 저장 중...')
@@ -318,11 +321,16 @@ class FileService {
       console.log('✅ 데이터베이스 저장 성공')
 
       // 진행률 85% 보고 (텍스트 추출이 남음)
-      onProgress?.(85)
+      onProgress?.(85, '텍스트 추출 준비 중...')
 
       // 텍스트 추출 및 document_content 테이블에 저장
+      let textExtracted = false;
+      let textLength = 0;
+      let extractionError: string | undefined;
+
       try {
         console.log('📝 텍스트 추출 및 저장 시작...')
+        onProgress?.(90, '텍스트 추출 중...')
         const textData = await this.extractFullTextContent(file)
 
         if (textData.rawText.length > 0) {
@@ -334,12 +342,18 @@ class FileService {
             .update({ is_processed: true })
             .eq('id', dbResponse.data.id)
 
+          textExtracted = true;
+          textLength = textData.rawText.length;
           console.log('✅ 텍스트 추출 및 저장 완료')
         } else {
           console.warn('⚠️ 추출된 텍스트가 없습니다')
+          extractionError = '추출된 텍스트가 없습니다';
         }
       } catch (textError) {
+        const errorMessage = textError instanceof Error ? textError.message : String(textError);
         console.error('❌ 텍스트 추출 실패:', textError)
+        extractionError = errorMessage;
+
         // 텍스트 추출 실패해도 파일 업로드는 성공으로 처리
         // documents 테이블에 오류 상태 기록
         await supabase
@@ -347,20 +361,23 @@ class FileService {
           .update({
             metadata: {
               ...options.metadata,
-              text_extraction_error: textError instanceof Error ? textError.message : String(textError)
+              text_extraction_error: errorMessage
             }
           })
           .eq('id', dbResponse.data.id)
       }
 
       // 진행률 100% 보고
-      onProgress?.(100)
+      onProgress?.(100, '업로드 완료!')
 
       const result = {
         id: dbResponse.data.id,
         url: urlData.publicUrl,
         path: filePath,
-        metadata: options.metadata
+        metadata: options.metadata,
+        textExtracted,
+        textLength,
+        extractionError
       }
 
       console.log('🎉 파일 업로드 완료:', result)

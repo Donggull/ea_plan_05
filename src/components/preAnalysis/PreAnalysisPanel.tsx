@@ -174,15 +174,21 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
 
       // 세션이 없으면 새로 생성
       let sessionToUse = currentSession;
+      console.log('🔍 현재 세션 상태:', { currentSession, sessionToUse });
+
       if (!sessionToUse) {
-        await createNewSession();
-        sessionToUse = currentSession;
+        console.log('📝 새 세션 생성 시작...');
+        sessionToUse = await createNewSession();
+        console.log('📝 세션 생성 결과:', sessionToUse);
       }
 
       if (!sessionToUse) {
+        console.error('❌ 세션 생성 최종 실패');
         setError('세션 생성에 실패했습니다.');
         return;
       }
+
+      console.log('✅ 사용할 세션 확정:', sessionToUse.id);
 
       // 문서 수 확인
       if (documentCount === 0) {
@@ -199,10 +205,10 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
           console.log('🚀 AnalysisProgress 컴포넌트에서 분석 시작');
           analysisProgressRef.current.startAnalysis();
         } else {
-          console.error('❌ AnalysisProgress ref가 설정되지 않았습니다.');
-          setError('분석 컴포넌트 초기화 오류');
+          console.warn('⚠️ AnalysisProgress ref가 아직 설정되지 않았습니다. 컴포넌트가 렌더링되면 자동으로 시작됩니다.');
+          // ref가 설정되지 않았어도 오류로 처리하지 않음 - 컴포넌트가 렌더링되면 자동으로 시작됨
         }
-      }, 500);
+      }, 1000); // 시간을 늘려서 컴포넌트 렌더링 시간을 확보
 
     } catch (error) {
       console.error('분석 시작 오류:', error);
@@ -216,7 +222,7 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
     try {
       if (!user?.id) {
         setError('사용자 인증이 필요합니다.');
-        return;
+        return null;
       }
 
       console.log('새 세션 생성 시도:', {
@@ -234,13 +240,16 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
       if (response.success && response.data) {
         setCurrentSession(response.data);
         console.log('세션 생성 성공:', response.data);
+        return response.data; // 생성된 세션을 반환
       } else {
         setError(response.error || '세션 생성에 실패했습니다.');
         console.error('세션 생성 오류:', response.error);
+        return null;
       }
     } catch (error) {
       setError('세션 생성 중 오류가 발생했습니다.');
       console.error('세션 생성 예외:', error);
+      return null;
     }
   };
 

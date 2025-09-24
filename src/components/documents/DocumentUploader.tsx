@@ -16,6 +16,10 @@ interface UploadFile {
   error?: string
   url?: string
   retryCount?: number
+  textExtracted?: boolean
+  textLength?: number
+  extractionError?: string
+  progressMessage?: string
 }
 
 interface Project {
@@ -238,7 +242,14 @@ export function DocumentUploader({
         )
       )
 
-      toast.success(`"${uploadFile.file.name}" 재시도 업로드 성공`)
+      // 텍스트 추출 상태에 따른 재시도 성공 메시지
+      if (result.textExtracted) {
+        toast.success(`"${uploadFile.file.name}" 재시도 업로드 및 텍스트 추출 완료 ✅`)
+      } else if (result.extractionError) {
+        toast.warning(`"${uploadFile.file.name}" 재시도 업로드 완료 (텍스트 추출 실패 ⚠️)`)
+      } else {
+        toast.success(`"${uploadFile.file.name}" 재시도 업로드 성공`)
+      }
       onUploadComplete?.([result])
 
     } catch (error) {
@@ -316,11 +327,11 @@ export function DocumentUploader({
           console.log('✅ 메타데이터 추출 완료:', metadata)
 
           // 진행률 콜백
-          const onProgress = (progress: number) => {
-            console.log(`📊 업로드 진행률: ${progress}%`)
+          const onProgress = (progress: number, message?: string) => {
+            console.log(`📊 업로드 진행률: ${progress}%`, message || '')
             setUploadFilesList((prev) =>
               prev.map((f) =>
-                f.id === uploadFile.id ? { ...f, progress } : f
+                f.id === uploadFile.id ? { ...f, progress, progressMessage: message } : f
               )
             )
           }
@@ -343,13 +354,30 @@ export function DocumentUploader({
           setUploadFilesList((prev) =>
             prev.map((f) =>
               f.id === uploadFile.id
-                ? { ...f, status: 'success', progress: 100, url: result.url }
+                ? {
+                    ...f,
+                    status: 'success',
+                    progress: 100,
+                    url: result.url,
+                    textExtracted: result.textExtracted,
+                    textLength: result.textLength,
+                    extractionError: result.extractionError,
+                    progressMessage: undefined
+                  }
                 : f
             )
           )
 
           completedFiles.push(result)
-          toast.success(`"${uploadFile.file.name}" 업로드 완료`)
+
+          // 텍스트 추출 상태에 따른 상세 메시지
+          if (result.textExtracted) {
+            toast.success(`"${uploadFile.file.name}" 업로드 및 텍스트 추출 완료 ✅\n추출된 텍스트: ${result.textLength?.toLocaleString()}자`)
+          } else if (result.extractionError) {
+            toast.warning(`"${uploadFile.file.name}" 업로드 완료 (텍스트 추출 실패 ⚠️)\n사유: ${result.extractionError}`)
+          } else {
+            toast.success(`"${uploadFile.file.name}" 업로드 완료`)
+          }
 
         } catch (error) {
           console.error('💥 파일 업로드 오류:', error)
@@ -638,6 +666,11 @@ export function DocumentUploader({
                           <span className="text-xs text-accent font-medium">
                             {uploadFile.progress}%
                           </span>
+                          {uploadFile.progressMessage && (
+                            <span className="text-xs text-text-tertiary">
+                              {uploadFile.progressMessage}
+                            </span>
+                          )}
                         </div>
                       )}
                       {uploadFile.status === 'success' && (
@@ -646,6 +679,19 @@ export function DocumentUploader({
                           <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded">
                             완료
                           </span>
+                          {uploadFile.textExtracted ? (
+                            <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded" title={`텍스트 ${uploadFile.textLength?.toLocaleString()}자 추출 완료`}>
+                              📝 텍스트 추출 성공
+                            </span>
+                          ) : uploadFile.extractionError ? (
+                            <span className="text-xs text-orange-600 bg-orange-50 px-2 py-1 rounded" title={uploadFile.extractionError}>
+                              ⚠️ 텍스트 추출 실패
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-600 bg-gray-50 px-2 py-1 rounded">
+                              📝 텍스트 없음
+                            </span>
+                          )}
                         </div>
                       )}
                       {uploadFile.status === 'error' && (
@@ -678,11 +724,23 @@ export function DocumentUploader({
                   </div>
 
                   <div className="flex items-center justify-between mt-1">
-                    <span className="text-xs text-text-tertiary">
-                      {(uploadFile.file.size / (1024 * 1024)).toFixed(2)} MB
-                    </span>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs text-text-tertiary">
+                        {(uploadFile.file.size / (1024 * 1024)).toFixed(2)} MB
+                      </span>
+                      {uploadFile.status === 'success' && uploadFile.textExtracted && uploadFile.textLength && (
+                        <span className="text-xs text-blue-600">
+                          📝 {uploadFile.textLength.toLocaleString()}자
+                        </span>
+                      )}
+                    </div>
                     {uploadFile.status === 'error' && uploadFile.error && (
                       <span className="text-xs text-red-500">{uploadFile.error}</span>
+                    )}
+                    {uploadFile.status === 'success' && uploadFile.extractionError && (
+                      <span className="text-xs text-orange-500" title={uploadFile.extractionError}>
+                        ⚠️ 텍스트 추출 실패
+                      </span>
                     )}
                   </div>
 
