@@ -2,7 +2,7 @@ import React, { createContext, useContext, useReducer, useEffect, useState } fro
 import { modelSettingsService } from '../services/ai/modelSettingsService'
 import { modelSyncService } from '../services/ai/modelSyncService'
 import { getRecommendedModels, allLatestModels, type LatestModelInfo } from '../services/ai/latestModelsData'
-import { aiServiceManager } from '../services/ai/AIServiceManager'
+// AIServiceManager 클라이언트사이드 제거 - 서버사이드 API 사용
 
 // AI 모델 타입 정의
 export interface AIModel {
@@ -151,8 +151,8 @@ export function AIModelProvider({ children }: { children: React.ReactNode }) {
         dispatch({ type: 'SELECT_PROVIDER', payload: defaultModel.provider })
         dispatch({ type: 'SELECT_MODEL', payload: defaultModel.id })
 
-        // AI 서비스 매니저에도 반영
-        await setupAIServiceManager(defaultModel)
+        // 서버사이드 API를 통한 AI 모델 선택 완료
+        console.log('✅ AI 모델 선택 완료 (서버사이드 API 사용):', defaultModel.name)
       } else {
         console.warn('⚠️ 사용 가능한 기본 모델을 찾을 수 없습니다.')
       }
@@ -173,12 +173,9 @@ export function AIModelProvider({ children }: { children: React.ReactNode }) {
       const latestModelsConverted: AIModel[] = allLatestModels.map(convertLatestModelToAIModel)
       console.log('📊 최신 모델 로드 완료:', latestModelsConverted.length, '개')
 
-      // 2. 기존 로컬 모델과 AI 매니저 모델도 로드 (백그라운드)
+      // 2. 기존 로컬 모델도 로드 (백그라운드) - AI매니저 모델은 서버사이드로 이동
       try {
-        const [localModels, aiManagerModels] = await Promise.all([
-          modelSettingsService.getActiveModels().catch(() => []),
-          aiServiceManager.getAllModels().catch(() => [])
-        ])
+        const localModels = await modelSettingsService.getActiveModels().catch(() => [])
 
         // 로컬 모델 포맷팅
         const formattedLocalModels: AIModel[] = localModels.map(model => ({
@@ -206,21 +203,13 @@ export function AIModelProvider({ children }: { children: React.ReactNode }) {
           }
         })
 
-        // AI 매니저 모델 추가 (중복되지 않는 것만)
-        aiManagerModels.forEach(aiModel => {
-          const exists = allModels.find(model => model.model_id === aiModel.model_id)
-          if (!exists) {
-            allModels.push(aiModel)
-          }
-        })
-
         console.log('✅ 전체 모델 로드 완료:', allModels.length, '개')
         dispatch({ type: 'SET_MODELS', payload: allModels })
 
         // 4. 기본 모델 선택 (Claude 4 Sonnet 우선)
         await setDefaultModel(allModels)
       } catch (error) {
-        console.warn('⚠️ 로컬/AI매니저 모델 로드 실패, 최신 모델만 사용:', error)
+        console.warn('⚠️ 로컬 모델 로드 실패, 최신 모델만 사용:', error)
         // 로컬 모델 로드에 실패해도 최신 모델은 표시
         dispatch({ type: 'SET_MODELS', payload: latestModelsConverted })
 
@@ -239,17 +228,7 @@ export function AIModelProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // AI 서비스 매니저 설정 함수 (API 라우트 사용으로 인해 더 이상 직접 설정 불필요)
-  const setupAIServiceManager = async (model: AIModel) => {
-    try {
-      // API 라우트를 통한 AI 호출로 변경되어 직접 API 키 설정이 불필요
-      // 모델 선택 정보만 로깅
-      console.log('✅ AI 모델 선택됨:', model.name, '(' + model.model_id + ')')
-      console.log('📍 API 라우트를 통한 서버사이드 처리 방식으로 동작')
-    } catch (error) {
-      console.error('AI 모델 선택 중 오류:', error)
-    }
-  }
+  // setupAIServiceManager 함수 제거됨 - 서버사이드 API 사용으로 불필요
 
   // AI 모델 동기화 함수
   const syncModels = async () => {
@@ -294,19 +273,19 @@ export function AIModelProvider({ children }: { children: React.ReactNode }) {
     selectProvider: async (providerId: string) => {
       dispatch({ type: 'SELECT_PROVIDER', payload: providerId })
 
-      // AI 서비스 매니저에도 반영
+      // 서버사이드 API를 통한 프로바이더 선택 완료
       const selectedModel = state.availableModels.find(m => m.provider === providerId)
       if (selectedModel) {
-        await setupAIServiceManager(selectedModel)
+        console.log('✅ 프로바이더 선택 완료 (서버사이드 API 사용):', selectedModel.provider)
       }
     },
     selectModel: async (modelId: string) => {
       dispatch({ type: 'SELECT_MODEL', payload: modelId })
 
-      // AI 서비스 매니저에도 반영
+      // 서버사이드 API를 통한 모델 선택 완료
       const selectedModel = state.availableModels.find(m => m.id === modelId)
       if (selectedModel) {
-        await setupAIServiceManager(selectedModel)
+        console.log('✅ 모델 선택 완료 (서버사이드 API 사용):', selectedModel.name)
       }
     },
     clearSelection: () => {

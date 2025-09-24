@@ -105,16 +105,13 @@ export function AIModelTest() {
     }
   }
 
-  // 환경 변수 상태 확인
+  // 서버사이드 API 사용으로 클라이언트 환경변수 확인 제거
   const checkEnvironmentStatus = () => {
-    const openaiKey = import.meta.env.VITE_OPENAI_API_KEY
-    const anthropicKey = import.meta.env.VITE_ANTHROPIC_API_KEY
-    const googleKey = import.meta.env.VITE_GOOGLE_AI_API_KEY
-
+    // 서버사이드 API를 사용하므로 모든 모델이 사용 가능하다고 가정
     return {
-      openai: openaiKey && openaiKey !== 'sk-your-openai-key-here',
-      anthropic: anthropicKey && anthropicKey !== 'your-anthropic-key-here',
-      google: googleKey && googleKey !== 'your-google-ai-key-here'
+      openai: true,
+      anthropic: true,
+      google: true
     }
   }
 
@@ -294,12 +291,12 @@ export function AIModelTest() {
             <span className="font-medium">API 키 설정 필요</span>
           </div>
           <p className="text-sm text-text-secondary">
-            Vercel Dashboard → Settings → Environment Variables에서 다음 환경 변수를 설정해주세요:
+            서버사이드 API를 사용합니다. Vercel Dashboard → Settings → Environment Variables에서 다음 환경 변수를 설정해주세요:
           </p>
           <ul className="text-sm text-text-secondary mt-2 ml-4 list-disc">
-            <li>VITE_OPENAI_API_KEY (OpenAI API 키)</li>
-            <li>VITE_ANTHROPIC_API_KEY (Anthropic API 키)</li>
-            <li>VITE_GOOGLE_AI_API_KEY (Google AI API 키)</li>
+            <li>ANTHROPIC_API_KEY (Anthropic API 키)</li>
+            <li>OPENAI_API_KEY (OpenAI API 키)</li>
+            <li>GOOGLE_AI_API_KEY (Google AI API 키)</li>
           </ul>
         </div>
       )}

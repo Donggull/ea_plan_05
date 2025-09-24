@@ -18,7 +18,7 @@ import {
   Lightbulb
 } from 'lucide-react'
 import { Question, QuestionResponse, AIQuestionGenerator } from '../../services/proposal/aiQuestionGenerator'
-import { aiServiceManager } from '../../services/ai/AIServiceManager'
+// aiServiceManager 클라이언트사이드 제거 - 서버사이드 API 사용
 import { supabase } from '../../lib/supabase'
 
 interface EnhancedQuestionAnswerProps {
@@ -430,21 +430,41 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
 
 50단어 이내로 간결하게 작성해주세요.`
 
-      const response = await aiServiceManager.generateCompletion(prompt, {
-        model: 'gpt-4o-mini',
-        maxTokens: 200,
-        temperature: 0.7
+      // 서버사이드 API 엔드포인트로 변경
+      const apiUrl = process.env['NODE_ENV'] === 'production'
+        ? 'https://ea-plan-05.vercel.app/api/ai/completion'
+        : '/api/ai/completion'
+
+      const apiResponse = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          provider: 'anthropic',
+          model: 'claude-3-5-sonnet-20241022',
+          prompt,
+          maxTokens: 200,
+          temperature: 0.7
+        })
       })
 
+      if (!apiResponse.ok) {
+        throw new Error(`AI 힌트 생성 API 오류: ${apiResponse.status}`)
+      }
+
+      const response = await apiResponse.json()
+
       // 힌트를 일시적으로 질문의 helpText에 추가하여 표시
+      const hintContent = response.content || response.message || '힌트 생성에 실패했습니다.'
       const updatedQuestions = questions.map(q =>
         q.id === questionId
-          ? { ...q, helpText: `${q.helpText ? q.helpText + '\n\n' : ''}💡 AI 힌트: ${response.content}` }
+          ? { ...q, helpText: `${q.helpText ? q.helpText + '\n\n' : ''}💡 AI 힌트: ${hintContent}` }
           : q
       )
       setQuestions(updatedQuestions)
 
-      console.log('AI 힌트 생성 완료:', response.content)
+      console.log('AI 힌트 생성 완료:', hintContent)
     } catch (error) {
       console.error('AI 힌트 생성 실패:', error)
       setError('AI 힌트 생성에 실패했습니다. 잠시 후 다시 시도해주세요.')

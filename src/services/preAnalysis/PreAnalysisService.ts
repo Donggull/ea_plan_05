@@ -333,11 +333,11 @@ export class PreAnalysisService {
   ): Promise<ServiceResponse<PreAnalysisSession>> {
     console.log('🎬 PreAnalysisService.startSession 호출됨', { projectId, settings, userId });
 
-    // 환경 상태 즉시 출력
+    // 환경 상태 출력 (서버사이드 API 사용으로 클라이언트 API 키 확인 제거)
     console.log('🔬 현재 환경 상태:', {
       isDev: import.meta.env.DEV,
       mode: import.meta.env.MODE,
-      anthropicKey: import.meta.env.VITE_ANTHROPIC_API_KEY ? `설정됨 (${import.meta.env.VITE_ANTHROPIC_API_KEY.length}글자)` : '미설정'
+      apiMode: 'server-side-only'
     });
 
     try {
