@@ -5,9 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import App from './App.tsx'
 import './index.css'
 
-// AIServiceManager 초기화
-import { initializeAIServiceManager } from './services/ai/AIServiceManager'
-initializeAIServiceManager().catch(console.error)
+// AIServiceManager 클라이언트사이드 초기화 제거됨 - 서버사이드 API만 사용
 
 const queryClient = new QueryClient({
   defaultOptions: {
