@@ -378,11 +378,22 @@ export class PreAnalysisService {
         stage: 'session_created',
         status: 'completed',
         progress: 10,
-        message: '사전 분석 세션이 생성되었습니다. 분석 시작 버튼을 클릭하여 진행하세요.',
+        message: '사전 분석 세션이 생성되었습니다. 문서 분석을 시작합니다.',
         timestamp: new Date(),
       });
 
-      // 자동 분석 제거 - 사용자가 수동으로 시작해야 함
+      // 세션 생성 후 자동으로 문서 분석 시작
+      console.log('🚀 자동 문서 분석 시작...', { sessionId: data.id, projectId });
+
+      // 비동기로 문서 분석 시작 (응답 지연 방지)
+      setTimeout(async () => {
+        try {
+          const analysisResult = await this.analyzeAllProjectDocuments(data.id, projectId);
+          console.log('📊 자동 문서 분석 완료:', analysisResult);
+        } catch (error) {
+          console.error('❌ 자동 문서 분석 실패:', error);
+        }
+      }, 1000); // 1초 후 시작
 
       return {
         success: true,
