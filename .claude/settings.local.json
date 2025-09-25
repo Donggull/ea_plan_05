@@ -52,7 +52,8 @@
       "mcp__playwright-stealth__playwright_get_visible_text",
       "Bash(xargs sed:*)",
       "Bash(powershell:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(git reset:*)"
     ],
     "deny": [],
     "ask": []

@@ -1,10 +1,4 @@
 import { supabase } from '../../lib/supabase'
-// CompletionOptions 타입 정의
-interface CompletionOptions {
-  model: string
-  maxTokens?: number
-  temperature?: number
-}
 
 // 워크플로우 단계별 질문 타입 정의
 export interface Question {
@@ -299,7 +293,7 @@ export class AIQuestionGenerator {
   }
 
   /**
-   * AI 기반 맞춤형 질문 생성
+   * AI 기반 맞춤형 질문 생성 (새로운 API 엔드포인트 사용)
    */
   static async generateAIQuestions(
     step: WorkflowStep,
@@ -314,71 +308,95 @@ export class AIQuestionGenerator {
     userId?: string
   ): Promise<Question[]> {
     try {
-      console.log('🤖 AIQuestionGenerator.generateAIQuestions 시작');
+      console.log('🤖 AIQuestionGenerator.generateAIQuestions 시작 (새로운 API)');
       console.log('📊 입력 파라미터:', { step, projectId, userId, context });
 
-      console.log('🔌 서버사이드 API 엔드포인트를 사용하여 AI 질문을 생성합니다.');
-
-      // AI 프롬프트 구성
-      console.log('📝 AI 프롬프트 생성 중...');
-      const prompt = this.buildAIPrompt(step, context)
-      console.log('📄 생성된 프롬프트 길이:', prompt.length);
-
-      const options: CompletionOptions = {
-        model: 'gpt-4o-mini', // 비용 효율적인 모델 사용
-        maxTokens: 2000,
-        temperature: 0.7
+      // 사전 분석이 아닌 경우 기본 질문과 AI 질문을 결합
+      if (step !== 'pre_analysis' && step !== 'questions') {
+        const baseQuestions = this.generateQuestions(step, projectId)
+        // AI 질문은 선택사항이므로 기본 질문만 반환
+        return baseQuestions
       }
-      console.log('⚙️ AI 호출 옵션:', options);
 
-      console.log('🚀 서버사이드 AI API 호출 시작...');
+      console.log('🔌 전용 AI 질문 생성 API 엔드포인트 사용');
 
-      // 프로덕션 환경과 개발 환경에 따른 API URL 설정 (문서 분석과 동일한 패턴)
+      // 개발환경에서는 Vercel 프로덕션 API 직접 호출, 프로덕션에서는 상대 경로 사용
       const apiUrl = import.meta.env.DEV
-        ? 'https://ea-plan-05.vercel.app/api/ai/completion'
-        : '/api/ai/completion';
+        ? 'https://ea-plan-05.vercel.app/api/ai/questions'
+        : '/api/ai/questions';
       console.log('🌐 API 호출 URL:', apiUrl);
+
+      const requestPayload = {
+        provider: 'anthropic',
+        model: 'claude-3-5-sonnet-20241022', // 적절한 모델 사용
+        projectId,
+        projectInfo: {
+          name: context.projectName,
+          description: context.projectDescription,
+          industry: context.industry
+        },
+        documents: context.documents?.map(doc => ({
+          name: doc.name,
+          summary: doc.content ? doc.content.substring(0, 200) : undefined,
+          content: doc.content
+        })) || [],
+        context: {
+          userId,
+          sessionId: `${projectId}_${Date.now()}`,
+          requestType: 'pre_analysis_questions'
+        }
+      };
+
+      console.log('📤 API 요청 페이로드:', {
+        provider: requestPayload.provider,
+        model: requestPayload.model,
+        projectId: requestPayload.projectId,
+        documentsCount: requestPayload.documents.length,
+        hasProjectInfo: !!requestPayload.projectInfo
+      });
 
       const apiResponse = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          provider: 'anthropic', // 기본 제공자
-          model: options.model,
-          prompt,
-          maxTokens: options.maxTokens,
-          temperature: options.temperature,
-          context: {
-            userId,
-            projectId,
-            requestType: 'question_generation'
-          }
-        })
+        body: JSON.stringify(requestPayload)
       });
 
       if (!apiResponse.ok) {
-        throw new Error(`AI API 호출 실패: ${apiResponse.status} ${apiResponse.statusText}`);
+        const errorData = await apiResponse.json().catch(() => ({}));
+        throw new Error(`AI 질문 생성 API 호출 실패: ${apiResponse.status} - ${errorData.error || apiResponse.statusText}`);
       }
 
       const response = await apiResponse.json();
-      console.log('✅ AI 응답 수신 완료:', response ? '성공' : '실패');
+      console.log('✅ AI 질문 생성 API 응답 수신 완료:', {
+        questionsCount: response.questions?.length || 0,
+        categories: response.metadata?.categories || [],
+        cost: response.cost?.totalCost || 0
+      });
 
-      // AI 응답 파싱하여 질문 생성
-      const aiQuestions = this.parseAIResponse(response.content, step, projectId)
-
-      // 사전 분석의 경우 AI 생성 질문만 반환 (기본 질문 없음)
-      if (step === 'pre_analysis' || step === 'questions') {
-        if (aiQuestions.length === 0) {
-          throw new Error('AI 질문 생성 결과가 없습니다. 문서를 먼저 업로드하고 다시 시도해주세요.')
-        }
-        return aiQuestions
+      if (!response.questions || response.questions.length === 0) {
+        throw new Error('AI에서 유효한 질문을 생성하지 못했습니다.');
       }
 
-      // 다른 단계의 경우 기본 질문과 AI 질문 결합
-      const baseQuestions = this.generateQuestions(step, projectId)
-      return [...baseQuestions, ...aiQuestions]
+      // API 응답을 내부 Question 형식으로 변환
+      const aiQuestions = response.questions.map((q: any, index: number) => ({
+        id: `${step}_ai_${projectId}_${index + 1}`,
+        category: q.category || '기타',
+        text: q.text,
+        type: q.type || 'textarea',
+        options: q.options,
+        required: q.required || false,
+        order: 1000 + index, // AI 질문은 뒤쪽에 배치
+        helpText: q.helpText,
+        priority: q.priority || 'medium',
+        confidence: q.confidence || 0.8,
+        aiGenerated: true
+      }));
+
+      console.log(`✅ AI 질문 변환 완료: ${aiQuestions.length}개 질문`);
+      return aiQuestions;
+
     } catch (error) {
       console.error('❌ AI 질문 생성 실패:', error)
       console.error('❌ 오류 타입:', error instanceof Error ? error.constructor.name : typeof error);
@@ -398,112 +416,9 @@ export class AIQuestionGenerator {
     }
   }
 
-  /**
-   * AI 프롬프트 구성
-   */
-  private static buildAIPrompt(
-    step: WorkflowStep,
-    context: {
-      projectName?: string
-      projectDescription?: string
-      industry?: string
-      documents?: Array<{ name: string; content?: string }>
-      existingAnswers?: QuestionResponse[]
-    }
-  ): string {
-    const stepDescriptions = {
-      market_research: '시장 조사 및 경쟁 분석',
-      personas: '타겟 고객 페르소나 분석',
-      proposal: '제안서 작성을 위한 프로젝트 분석',
-      budget: '예산 산정 및 비용 분석',
-      questions: '사전 분석 질문-답변',
-      pre_analysis: '사전 분석 및 요구사항 파악'
-    }
+  // buildAIPrompt 메서드 제거됨 - 새로운 API에서 처리
 
-    let prompt = `당신은 전문 프로젝트 컨설턴트입니다. 다음 프로젝트에 대한 ${stepDescriptions[step]} 단계에서 추가로 필요한 핵심 질문들을 생성해주세요.
-
-프로젝트 정보:
-- 이름: ${context.projectName || '미정'}
-- 설명: ${context.projectDescription || '미정'}
-- 산업: ${context.industry || '미정'}
-`
-
-    if (context.documents && context.documents.length > 0) {
-      prompt += `\n업로드된 문서들:
-${context.documents.map(doc => `- ${doc.name}`).join('\n')}
-`
-    }
-
-    if (context.existingAnswers && context.existingAnswers.length > 0) {
-      prompt += `\n이미 답변된 질문들:
-${context.existingAnswers.map(answer => `- ${answer.questionId}: ${answer.answer}`).join('\n')}
-`
-    }
-
-    prompt += `
-요구사항:
-1. ${stepDescriptions[step]}에 특화된 3-5개의 추가 질문을 생성하세요.
-2. 프로젝트의 특성을 고려한 맞춤형 질문이어야 합니다.
-3. 이미 기본 질문들이 있으므로, 더 구체적이고 심화된 질문을 생성하세요.
-4. 각 질문은 실행 가능하고 측정 가능한 답변을 유도해야 합니다.
-
-출력 형식 (JSON):
-{
-  "questions": [
-    {
-      "category": "카테고리명",
-      "text": "질문 내용",
-      "type": "text|select|multiselect|number|textarea",
-      "options": ["옵션1", "옵션2"] (select/multiselect인 경우),
-      "required": true|false,
-      "helpText": "도움말 텍스트",
-      "priority": "high|medium|low",
-      "confidence": 0.0-1.0
-    }
-  ]
-}
-
-JSON만 반환하고 다른 텍스트는 포함하지 마세요.`
-
-    return prompt
-  }
-
-  /**
-   * AI 응답 파싱
-   */
-  private static parseAIResponse(response: string, step: WorkflowStep, projectId: string): Question[] {
-    try {
-      // JSON 부분만 추출
-      const jsonMatch = response.match(/\{[\s\S]*\}/)
-      if (!jsonMatch) {
-        throw new Error('JSON 형식을 찾을 수 없습니다.')
-      }
-
-      const parsed = JSON.parse(jsonMatch[0])
-
-      if (!parsed.questions || !Array.isArray(parsed.questions)) {
-        throw new Error('questions 배열을 찾을 수 없습니다.')
-      }
-
-      return parsed.questions.map((q: any, index: number) => ({
-        id: `${step}_ai_${projectId}_${index + 1}`,
-        category: q.category || '기타',
-        text: q.text,
-        type: q.type || 'textarea',
-        options: q.options,
-        required: q.required || false,
-        order: 1000 + index, // AI 질문은 뒤쪽에 배치
-        helpText: q.helpText,
-        priority: q.priority || 'medium',
-        confidence: q.confidence || 0.8,
-        aiGenerated: true,
-        validation: q.validation
-      }))
-    } catch (error) {
-      console.error('AI 응답 파싱 실패:', error)
-      return []
-    }
-  }
+  // parseAIResponse 메서드 제거됨 - 새로운 API에서 처리
 
   /**
    * 질문 우선순위 기반 정렬

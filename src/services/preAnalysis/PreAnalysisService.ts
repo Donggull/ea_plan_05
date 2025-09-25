@@ -626,60 +626,109 @@ export class PreAnalysisService {
       // 프로젝트 정보 조회 for AIQuestionGenerator
       const { data: project } = await supabase
         .from('projects')
-        .select('name, description')
+        .select('name, description, project_types')
         .eq('id', session.project_id)
         .single();
 
-      // AI를 통한 질문 생성 시도
+      // 문서 정보 구성 - 더 상세한 컨텍스트 제공
+      const documentContext = await this.buildDocumentContext(analyses, session.project_id);
+
+      console.log('📑 문서 컨텍스트 구성 완료:', {
+        analysesCount: analyses?.length || 0,
+        documentsCount: documentContext.length
+      });
+
+      // AI를 통한 질문 생성 시도 (개선된 오류 처리)
       let generatedQuestions: any[] = [];
       try {
+        console.log('🤖 AIQuestionGenerator 호출 준비:', {
+          projectId: session.project_id,
+          projectName: project?.name,
+          hasDocuments: documentContext.length > 0
+        });
+
         const aiQuestions = await AIQuestionGenerator.generateAIQuestions(
           'pre_analysis',
           session.project_id,
           {
             projectName: project?.name || '',
-            projectDescription: project?.description || '',
-            // 분석된 문서 정보를 컨텍스트로 제공
-            documents: analyses?.filter(analysis => analysis.document_id).map(analysis => {
-              // analysis_result 타입 안전성 체크
-              const analysisResult = analysis.analysis_result;
-              let summary = '';
-              if (analysisResult && typeof analysisResult === 'object' && analysisResult !== null) {
-                const summaryValue = (analysisResult as any)['summary'];
-                summary = summaryValue ? String(summaryValue) : '';
-              }
-              return {
-                name: analysis.document_id as string, // filter로 null이 제거되었으므로 안전
-                content: summary
-              };
-            }) || []
-          }
+            projectDescription: project?.description ?? '',
+            industry: (project as any)?.project_types?.join?.(', ') || '',
+            // 개선된 문서 정보 제공
+            documents: documentContext
+          },
+          session.created_by ?? undefined
         );
+
+        console.log('✅ AIQuestionGenerator 응답 수신:', {
+          questionsCount: aiQuestions.length,
+          questionCategories: [...new Set(aiQuestions.map(q => q.category))]
+        });
 
         // AIQuestionGenerator의 Question 형식을 PreAnalysis 형식으로 변환
         generatedQuestions = aiQuestions.map(q => ({
           category: q.category,
           question: q.text,
-          context: q.helpText,
+          context: q.helpText || '',
           required: q.required,
           expectedFormat: q.type === 'textarea' ? 'text' : q.type,
-          relatedDocuments: [],
+          relatedDocuments: [], // 향후 문서 연관성 추가 가능
           confidenceScore: q.confidence
         }));
 
+        console.log('🔄 질문 형식 변환 완료:', generatedQuestions.length);
+
       } catch (aiError) {
-        console.error('AI 질문 생성 실패:', aiError);
+        console.error('❌ AI 질문 생성 실패 상세:', {
+          error: aiError instanceof Error ? aiError.message : String(aiError),
+          stack: aiError instanceof Error ? aiError.stack : undefined,
+          sessionId,
+          projectId: session.project_id,
+          documentCount: documentContext.length
+        });
+
+        // 구체적인 오류 메시지 제공
+        let errorMessage = 'AI 질문 생성에 실패했습니다.';
+        if (aiError instanceof Error) {
+          if (aiError.message.includes('API')) {
+            errorMessage = 'AI 서비스 연결에 문제가 있습니다. 잠시 후 다시 시도해주세요.';
+          } else if (aiError.message.includes('생성하지 못했습니다')) {
+            errorMessage = '문서 내용을 바탕으로 질문을 생성할 수 없습니다. 더 상세한 문서를 업로드해주세요.';
+          } else {
+            errorMessage = aiError.message;
+          }
+        }
+
         return {
           success: false,
-          error: aiError instanceof Error ? aiError.message : 'AI 질문 생성에 실패했습니다. AI 서비스 연결을 확인해주세요.'
+          error: errorMessage,
+          details: {
+            suggestion: 'RETRY_WITH_BETTER_DOCUMENTS',
+            documentCount: documentContext.length,
+            hasProjectInfo: !!(project?.name && project?.description)
+          }
         };
       }
 
       if (!Array.isArray(generatedQuestions) || generatedQuestions.length === 0) {
-        console.error('❌ AI 질문 생성 결과가 없습니다.');
+        console.error('❌ AI 질문 생성 결과가 없습니다.', {
+          isArray: Array.isArray(generatedQuestions),
+          length: generatedQuestions?.length,
+          documentCount: documentContext.length,
+          hasProject: !!(project?.name || project?.description)
+        });
+
         return {
           success: false,
-          error: 'AI 질문 생성 결과가 없습니다. 문서를 먼저 업로드하고 분석을 완료한 후 다시 시도해주세요.'
+          error: documentContext.length === 0
+            ? '문서를 먼저 업로드하고 분석을 완료한 후 다시 시도해주세요.'
+            : 'AI가 문서 내용을 바탕으로 질문을 생성하지 못했습니다. 프로젝트 설명을 더 상세히 입력하거나 다른 문서를 업로드해보세요.',
+          details: {
+            documentCount: documentContext.length,
+            hasProjectName: !!project?.name,
+            hasProjectDescription: !!project?.description,
+            suggestion: documentContext.length === 0 ? 'UPLOAD_DOCUMENTS' : 'ADD_PROJECT_DETAILS'
+          }
         };
       }
 
@@ -1646,6 +1695,79 @@ ${answersContext}
       generatedBy: data.generated_by,
       createdAt: new Date(data.created_at),
     };
+  }
+
+  /**
+   * 문서 분석 결과를 기반으로 AI 질문 생성용 컨텍스트 구성
+   */
+  private async buildDocumentContext(analyses: any[], _projectId: string): Promise<Array<{ name: string; summary?: string; content?: string }>> {
+    try {
+      if (!analyses || analyses.length === 0) {
+        console.log('📄 분석된 문서가 없습니다.');
+        return [];
+      }
+
+      const documentContext: Array<{ name: string; summary?: string; content?: string }> = [];
+
+      // 각 분석 결과에서 문서 정보 추출
+      for (const analysis of analyses) {
+        if (!analysis.document_id) continue;
+
+        try {
+          // 문서 기본 정보 조회
+          if (!supabase) continue;
+
+          const { data: document } = await supabase
+            .from('documents')
+            .select('file_name, file_type, metadata')
+            .eq('id', analysis.document_id)
+            .single();
+
+          if (!document) continue;
+
+          // 분석 결과에서 요약 정보 추출
+          const analysisResult = analysis.analysis_result;
+          let summary = '';
+          let keyRequirements: string[] = [];
+
+          if (analysisResult && typeof analysisResult === 'object' && analysisResult !== null) {
+            const summaryValue = (analysisResult as any)['summary'];
+            summary = summaryValue ? String(summaryValue) : '';
+
+            const requirements = (analysisResult as any)['keyRequirements'];
+            if (Array.isArray(requirements)) {
+              keyRequirements = requirements.slice(0, 3); // 상위 3개만
+            }
+          }
+
+          // 문서 컨텍스트 구성
+          const contextItem = {
+            name: document.file_name || `Document_${analysis.document_id}`,
+            summary: summary || `${document.file_type} 파일 분석 완료`,
+            content: [
+              summary,
+              keyRequirements.length > 0 ? `주요 요구사항: ${keyRequirements.join(', ')}` : '',
+              `파일 형식: ${document.file_type}`
+            ].filter(Boolean).join(' | ')
+          };
+
+          documentContext.push(contextItem);
+
+          console.log(`📋 문서 컨텍스트 추가: ${contextItem.name}`);
+
+        } catch (docError) {
+          console.warn(`⚠️ 문서 정보 조회 실패 (${analysis.document_id}):`, docError);
+          // 실패해도 계속 진행
+        }
+      }
+
+      console.log(`✅ 총 ${documentContext.length}개 문서 컨텍스트 구성 완료`);
+      return documentContext;
+
+    } catch (error) {
+      console.error('❌ buildDocumentContext 오류:', error);
+      return [];
+    }
   }
 }
 
