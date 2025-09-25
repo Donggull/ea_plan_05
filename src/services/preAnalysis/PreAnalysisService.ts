@@ -1554,6 +1554,16 @@ ${answersContext}
     try {
       console.log('🔗 [통합 API] AI 완성 요청:', { provider, model, promptLength: prompt.length });
 
+      // 인증 토큰 추출
+      let authToken: string | undefined
+      try {
+        const session = await supabase?.auth.getSession()
+        authToken = session?.data.session?.access_token
+        console.log('🔐 [통합 API] 인증 토큰:', authToken ? '있음' : '없음')
+      } catch (authError) {
+        console.warn('🔐 [통합 API] 인증 토큰 추출 실패:', authError)
+      }
+
       // 개발환경에서는 Vercel 프로덕션 API 직접 호출, 프로덕션에서는 상대 경로 사용
       const apiUrl = import.meta.env.DEV
         ? 'https://ea-plan-05.vercel.app/api/ai/completion'
@@ -1561,11 +1571,18 @@ ${answersContext}
 
       console.log('🌐 [통합 API] 호출 URL:', apiUrl);
 
+      // 인증 헤더 구성
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`
+      }
+
       const response = await fetch(apiUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
           provider,
           model,

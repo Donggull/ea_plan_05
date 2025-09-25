@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { useAuth } from '../../contexts/AuthContext'
 import {
   ChevronLeft,
   ChevronRight,
@@ -83,6 +84,9 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
   // 프로젝트 컨텍스트 사용
   const { state: projectState, selectProject } = useProject()
 
+  // 인증 컨텍스트 사용
+  const { user, isAuthenticated } = useAuth()
+
   // 권한 검증 사용
   const { isAdminUser, isSubAdminUser } = usePermissionCheck()
 
@@ -129,8 +133,13 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
   useEffect(() => {
     const loadCostData = async () => {
       try {
-        // TODO: 사용자 ID를 실제 인증된 사용자에서 가져와야 함
-        const userId = 'temp-user-id' // 임시 사용자 ID
+        // 인증된 사용자 ID 사용
+        if (!user?.id || !isAuthenticated) {
+          console.warn('사용자가 인증되지 않았습니다. 비용 데이터를 로드할 수 없습니다.')
+          return
+        }
+
+        const userId = user.id
 
         const realTimeUsage = await ApiUsageService.getRealTimeUsage(userId)
 
@@ -150,12 +159,18 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
       }
     }
 
-    loadCostData()
+    // 인증된 사용자가 있을 때만 비용 데이터 로드
+    if (user?.id && isAuthenticated) {
+      loadCostData()
 
-    // 30초마다 비용 데이터 새로고침
-    const interval = setInterval(loadCostData, 30000)
-    return () => clearInterval(interval)
-  }, [])
+      // 30초마다 비용 데이터 새로고침
+      const interval = setInterval(loadCostData, 30000)
+      return () => clearInterval(interval)
+    }
+
+    // 인증되지 않은 경우 빈 cleanup 함수 반환
+    return () => {}
+  }, [user?.id, isAuthenticated])
 
   // MCP 서버 상태 초기화 및 동기화
   useEffect(() => {

@@ -2,6 +2,7 @@
 // 사전 분석 단계에서 문서 기반 맞춤형 질문 생성에 특화
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { createClient } from '@supabase/supabase-js'
 
 interface QuestionRequest {
   provider: 'openai' | 'anthropic' | 'google'
@@ -56,6 +57,31 @@ interface QuestionResponse {
   }
 }
 
+// Supabase server client 생성 함수
+function createServerSupabaseClient(authToken?: string) {
+  const supabaseUrl = process.env.SUPABASE_URL
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error('Supabase 환경 변수가 설정되지 않았습니다.')
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+  // 인증 토큰이 있으면 사용자 컨텍스트 설정
+  if (authToken) {
+    supabase.auth.setSession({
+      access_token: authToken,
+      refresh_token: '',
+      expires_in: 3600,
+      token_type: 'bearer',
+      user: null as any
+    } as any)
+  }
+
+  return supabase
+}
+
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse
@@ -63,7 +89,8 @@ export default async function handler(
   console.log('🚀 [AI Questions API] 질문 생성 요청 수신:', {
     timestamp: new Date().toISOString(),
     method: req.method,
-    hasBody: !!req.body
+    hasBody: !!req.body,
+    hasAuth: !!req.headers.authorization
   })
 
   // CORS 헤더 추가
@@ -81,6 +108,30 @@ export default async function handler(
   }
 
   try {
+    // 인증 토큰 추출 및 검증
+    const authHeader = req.headers.authorization
+    let authToken: string | undefined
+    let authenticatedUser: any = null
+
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      authToken = authHeader.substring(7)
+
+      try {
+        // Supabase 클라이언트로 인증 검증
+        const supabase = createServerSupabaseClient(authToken)
+        const { data: { user }, error } = await supabase.auth.getUser()
+
+        if (error || !user) {
+          console.error('인증 검증 실패:', error)
+        } else {
+          authenticatedUser = user
+          console.log('인증 성공:', { userId: user.id, email: user.email })
+        }
+      } catch (authError) {
+        console.error('인증 처리 오류:', authError)
+      }
+    }
+
     const requestBody: QuestionRequest = req.body
 
     console.log('📝 [AI Questions API] 요청 분석:', {
@@ -89,7 +140,9 @@ export default async function handler(
       projectId: requestBody.projectId,
       documentsCount: requestBody.documents?.length || 0,
       hasProjectInfo: !!requestBody.projectInfo,
-      projectName: requestBody.projectInfo?.name
+      projectName: requestBody.projectInfo?.name,
+      authenticatedUserId: authenticatedUser?.id,
+      hasAuthToken: !!authToken
     })
 
     // 필수 파라미터 검증

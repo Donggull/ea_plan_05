@@ -355,11 +355,28 @@ export class AIQuestionGenerator {
         hasProjectInfo: !!requestPayload.projectInfo
       });
 
+      // 인증 토큰 추출
+      let authToken: string | undefined
+      try {
+        const session = await supabase?.auth.getSession()
+        authToken = session?.data.session?.access_token
+        console.log('🔐 [AIQuestionGenerator] 인증 토큰:', authToken ? '있음' : '없음')
+      } catch (authError) {
+        console.warn('🔐 [AIQuestionGenerator] 인증 토큰 추출 실패:', authError)
+      }
+
+      // 인증 헤더 구성
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`
+      }
+
       const apiResponse = await fetch(apiUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify(requestPayload)
       });
 
