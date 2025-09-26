@@ -149,21 +149,30 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
         const latestSession = response.data[0];
         setCurrentSession(latestSession);
 
-        // 세션 상태에 따른 단계 결정
+        console.log('📋 기존 세션 로드됨:', {
+          sessionId: latestSession.id,
+          status: latestSession.status
+        });
+
+        // ⚠️ 단계 결정은 상위 컴포넌트에서 처리하므로 여기서는 제거
+        // 중복 호출로 인한 탭 전환 문제를 방지하기 위해 주석 처리
+        /*
         if (latestSession.status === 'processing') {
-          // 진행 중인 세션은 자동으로 단계 결정
           await determineCurrentStep(latestSession);
         } else if (latestSession.status === 'completed') {
-          // 완료된 세션도 정확한 단계를 결정해야 함
           console.log('완료된 세션 발견:', latestSession.id);
           await determineCurrentStep(latestSession);
         }
+        */
       }
     } catch (error) {
       console.error('기존 세션 로드 오류:', error);
     }
   };
 
+  /*
+  // 현재 사용하지 않는 함수 - 중복 호출 방지를 위해 일시 비활성화
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const determineCurrentStep = async (session: PreAnalysisSession) => {
     try {
       if (!supabase) return;
@@ -254,6 +263,7 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
       onStepChange?.('analysis');
     }
   };
+  */
 
   const handleStartAnalysis = async () => {
     try {

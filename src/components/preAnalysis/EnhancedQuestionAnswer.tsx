@@ -351,6 +351,57 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
     }
   }
 
+  // 스킵된 답변 직접 저장 (로컬 상태 업데이트를 기다리지 않음)
+  const saveSkippedAnswer = async (questionId: string, answerData: any) => {
+    try {
+      if (!supabase || !user?.id) {
+        throw new Error('데이터베이스 연결 또는 사용자 인증이 필요합니다.')
+      }
+
+      console.log('💾 스킵된 답변 저장 시도:', {
+        sessionId,
+        questionId,
+        userId: user.id,
+        notes: answerData.notes
+      })
+
+      const saveData = {
+        session_id: sessionId,
+        question_id: questionId,
+        answer: '', // 스킵된 질문은 답변이 없음
+        answer_data: null,
+        confidence: 0, // 스킵된 질문은 신뢰도 0
+        notes: '스킵됨',
+        is_draft: false, // 사용자 요청: 스킵된 질문도 실제 답변과 동일하게 처리 (is_draft=false)
+        answered_by: user.id,
+        answered_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        metadata: {
+          timeSpent: answerData.timeSpent || 0,
+          lastUpdated: new Date().toISOString()
+        }
+      }
+
+      const { data, error } = await supabase
+        .from('user_answers')
+        .upsert(saveData, {
+          onConflict: 'session_id,question_id'
+        })
+        .select()
+
+      if (error) {
+        console.error('❌ 스킵된 답변 저장 실패:', error)
+        throw error
+      }
+
+      console.log('✅ 스킵된 답변 저장 성공:', data)
+      return data
+    } catch (error) {
+      console.error('스킵된 답변 저장 실패:', error)
+      throw error
+    }
+  }
+
   // 개별 답변 저장
   const saveIndividualAnswer = async (questionId: string, isDraft: boolean = false) => {
     try {
@@ -488,17 +539,22 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
     try {
       const timeSpent = Date.now() - questionStartTime.getTime()
 
-      // 스킵된 질문으로 마킹하여 저장 - isComplete를 true로 설정하여 완료된 것으로 처리
-      updateAnswer(questionId, {
+      // 스킵된 질문 데이터 직접 구성
+      const skippedAnswerData = {
+        questionId,
         answer: '',
         confidence: 0,
         notes: '스킵됨',
         isComplete: true, // 스킵된 질문도 완료된 것으로 처리
-        timeSpent: Math.round(timeSpent / 1000)
-      })
+        timeSpent: Math.round(timeSpent / 1000),
+        lastUpdated: new Date()
+      }
 
-      // 스킵된 답변은 초안으로 저장 (is_draft=true) - 실제 답변과 구분하기 위해
-      await saveIndividualAnswer(questionId, true)
+      // 먼저 로컬 상태 업데이트
+      updateAnswer(questionId, skippedAnswerData)
+
+      // 스킵된 답변을 데이터베이스에 직접 저장 (updateAnswer 결과를 기다리지 않음)
+      await saveSkippedAnswer(questionId, skippedAnswerData)
 
       console.log('✅ 질문 스킵 처리 완료:', questionId, {
         isDraft: true, // 스킵된 답변은 초안으로 저장됨
