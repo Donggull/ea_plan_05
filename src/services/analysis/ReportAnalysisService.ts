@@ -2,7 +2,6 @@
 // 웹 에이전시 관점에서 문서 분석과 질문 답변을 종합하여 세밀한 보고서 생성
 
 import { supabase } from '../../lib/supabase';
-import { aiServiceManager } from '../ai/AIServiceManager';
 import {
   AnalysisReport,
   RiskItem,
@@ -346,17 +345,40 @@ export class ReportAnalysisService {
 
     console.log('🤖 AI 분석 시작 - 웹 에이전시 관점');
 
-    // AI 서비스를 통한 분석 수행
-    const aiResponse = await aiServiceManager.generateCompletion(analysisPrompt, {
-      model: context.sessionInfo.ai_model,
-      maxTokens: 8000,
-      temperature: 0.2, // 일관성 있는 분석을 위해 낮은 temperature
+    // 서버사이드 AI API 엔드포인트를 통한 분석 수행
+    const apiUrl = import.meta.env.DEV
+      ? 'https://ea-plan-05.vercel.app/api/ai/completion'
+      : '/api/ai/completion';
+
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messages: [
+          {
+            role: 'user',
+            content: analysisPrompt
+          }
+        ],
+        model: context.sessionInfo.ai_model,
+        max_tokens: 8000,
+        temperature: 0.2, // 일관성 있는 분석을 위해 낮은 temperature
+      }),
     });
+
+    if (!response.ok) {
+      throw new Error(`AI 분석 API 호출 실패: ${response.status} ${response.statusText}`);
+    }
+
+    const aiResponse = await response.json();
 
     console.log('✅ AI 분석 완료');
 
     // AI 응답을 구조화된 분석으로 파싱
-    return this.parseWebAgencyAnalysis(aiResponse.content, context, comprehensiveAssessment);
+    const aiContent = aiResponse.choices?.[0]?.message?.content || aiResponse.content;
+    return this.parseWebAgencyAnalysis(aiContent, context, comprehensiveAssessment);
   }
 
   /**
