@@ -470,18 +470,32 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
   // 질문 스킵
   const skipQuestion = async (questionId: string) => {
     try {
-      // 스킵된 질문으로 마킹하여 저장
+      const timeSpent = Date.now() - questionStartTime.getTime()
+
+      // 스킵된 질문으로 마킹하여 저장 - isComplete를 true로 설정하여 완료된 것으로 처리
       updateAnswer(questionId, {
         answer: '',
         confidence: 0,
         notes: '스킵됨',
-        isComplete: false,
-        timeSpent: 0
+        isComplete: true, // 스킵된 질문도 완료된 것으로 처리
+        timeSpent: Math.round(timeSpent / 1000)
       })
 
-      await saveIndividualAnswer(questionId, true) // 초안으로 저장
+      // 스킵된 답변을 정식 답변으로 저장 (is_draft=false)
+      await saveIndividualAnswer(questionId, false)
 
       console.log('✅ 질문 스킵 처리 완료:', questionId)
+
+      // 자동 저장 트리거 - onSave 호출하여 상위 컴포넌트에 알림
+      if (onSave && autoSaveEnabled) {
+        const responses: QuestionResponse[] = Array.from(answers.values()).map(answer => ({
+          questionId: answer.questionId,
+          answer: answer.answer,
+          confidence: answer.confidence,
+          notes: answer.notes
+        }))
+        onSave(responses)
+      }
 
       // 다음 질문으로 이동
       if (currentQuestionIndex < questions.length - 1) {
@@ -682,7 +696,7 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
           {questions.map((question, index) => {
             const answer = answers.get(question.id)
             const isCompleted = answer?.isComplete || false
-            const isSkipped = answer?.notes === '스킵됨' && !isCompleted
+            const isSkipped = answer?.notes === '스킵됨' && isCompleted // 스킵된 질문도 완료된 것으로 처리
             const hasAnswer = answer && (answer.answer !== '' || answer.notes !== '')
             const isCurrent = index === currentQuestionIndex
 
@@ -693,10 +707,10 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
                   className={`w-full h-12 rounded-xl text-sm font-medium transition-all duration-200 relative overflow-hidden ${
                     isCurrent
                       ? 'bg-gradient-to-br from-primary to-primary/80 text-white shadow-lg scale-105 ring-2 ring-primary/30'
-                      : isCompleted
-                      ? 'bg-gradient-to-br from-status-success/20 to-status-success/10 text-status-success border border-status-success/30 hover:from-status-success/30 hover:to-status-success/20'
                       : isSkipped
                       ? 'bg-gradient-to-br from-text-tertiary/20 to-text-tertiary/10 text-text-tertiary border border-text-tertiary/30 hover:from-text-tertiary/30 hover:to-text-tertiary/20'
+                      : isCompleted
+                      ? 'bg-gradient-to-br from-status-success/20 to-status-success/10 text-status-success border border-status-success/30 hover:from-status-success/30 hover:to-status-success/20'
                       : hasAnswer && !isCompleted
                       ? 'bg-gradient-to-br from-status-info/20 to-status-info/10 text-status-info border border-status-info/30 hover:from-status-info/30 hover:to-status-info/20'
                       : 'bg-gradient-to-br from-bg-tertiary to-bg-secondary text-text-secondary border border-border-secondary hover:from-bg-secondary hover:to-bg-primary hover:text-text-primary'
@@ -708,19 +722,19 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
                       {index + 1}
                     </span>
                     <div className="flex items-center space-x-1">
-                      {question.required && !isCompleted && !isSkipped && (
+                      {question.required && !isCompleted && (
                         <div className="w-1 h-1 rounded-full bg-status-warning animate-pulse"></div>
                       )}
-                      {isCompleted && <CheckCircle className="w-3 h-3" />}
                       {isSkipped && <SkipForward className="w-3 h-3" />}
+                      {isCompleted && !isSkipped && <CheckCircle className="w-3 h-3" />}
                       {hasAnswer && !isCompleted && !isSkipped && <Edit3 className="w-3 h-3 opacity-60" />}
                     </div>
                   </div>
 
                   {/* 진행률 표시 */}
-                  {hasAnswer && !isSkipped && (
+                  {(hasAnswer || isSkipped) && (
                     <div className={`absolute bottom-0 left-0 h-1 transition-all duration-300 ${
-                      isCompleted ? 'bg-status-success' : 'bg-status-info'
+                      isSkipped ? 'bg-text-tertiary' : isCompleted ? 'bg-status-success' : 'bg-status-info'
                     }`} style={{ width: isCompleted ? '100%' : '60%' }}></div>
                   )}
                 </button>
@@ -875,6 +889,7 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
               onAnswerChange={(value) => handleAnswerChange(currentQuestion.id, value)}
               onConfidenceChange={(confidence) => handleConfidenceChange(currentQuestion.id, confidence)}
               onNotesChange={(notes) => handleNotesChange(currentQuestion.id, notes)}
+              onSkipQuestion={() => skipQuestion(currentQuestion.id)}
               isCompleted={answers.get(currentQuestion.id)?.isComplete || false}
             />
           </div>
@@ -894,24 +909,6 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
               <span className="text-sm text-text-secondary font-medium">
                 {currentQuestionIndex + 1} / {questions.length}
               </span>
-
-              {!answers.get(currentQuestion.id)?.isComplete && (
-                <button
-                  onClick={() => skipQuestion(currentQuestion.id)}
-                  className={`flex items-center space-x-2 px-3 py-1.5 border rounded-lg transition-colors text-sm ${
-                    currentQuestion.required
-                      ? 'text-status-warning hover:text-status-error hover:bg-status-error/10 border-status-error/20 bg-status-warning/5'
-                      : 'text-text-tertiary hover:text-status-warning hover:bg-status-warning/10 border-status-warning/20'
-                  }`}
-                  title={currentQuestion.required
-                    ? "필수 질문이지만 답변하지 못할 경우 건너뛸 수 있습니다"
-                    : "이 질문을 건너뛰기"
-                  }
-                >
-                  <SkipForward className="w-3 h-3" />
-                  <span>{currentQuestion.required ? '필수 질문 건너뛰기' : '건너뛰기'}</span>
-                </button>
-              )}
             </div>
 
             <button
@@ -948,6 +945,7 @@ interface QuestionFormProps {
   onAnswerChange: (value: any) => void
   onConfidenceChange: (confidence: number) => void
   onNotesChange: (notes: string) => void
+  onSkipQuestion: () => void
   isCompleted?: boolean
 }
 
@@ -957,6 +955,7 @@ const QuestionForm: React.FC<QuestionFormProps> = ({
   onAnswerChange,
   onConfidenceChange,
   onNotesChange,
+  onSkipQuestion,
   isCompleted = false
 }) => {
   const handleInputChange = (value: any) => {
@@ -1114,6 +1113,29 @@ const QuestionForm: React.FC<QuestionFormProps> = ({
           <div className="flex items-center space-x-2 text-sm text-text-secondary">
             <CheckCircle className="w-4 h-4 text-status-success" />
             <span>이 질문에 대한 답변이 완료되었습니다. 수정은 언제든지 가능합니다.</span>
+          </div>
+        </div>
+      )}
+
+      {/* 건너뛰기 버튼 - 완료되지 않은 질문에만 표시 */}
+      {!isCompleted && (
+        <div className="pt-4 border-t border-border-primary">
+          <div className="flex justify-center">
+            <button
+              onClick={onSkipQuestion}
+              className={`flex items-center space-x-2 px-4 py-2 border rounded-lg transition-colors text-sm ${
+                question.required
+                  ? 'text-status-warning hover:text-status-error hover:bg-status-error/10 border-status-error/20 bg-status-warning/5'
+                  : 'text-text-tertiary hover:text-status-warning hover:bg-status-warning/10 border-status-warning/20'
+              }`}
+              title={question.required
+                ? "필수 질문이지만 답변하지 못할 경우 건너뛸 수 있습니다"
+                : "이 질문을 건너뛰기"
+              }
+            >
+              <SkipForward className="w-4 h-4" />
+              <span>{question.required ? '필수 질문 건너뛰기' : '이 질문 건너뛰기'}</span>
+            </button>
           </div>
         </div>
       )}

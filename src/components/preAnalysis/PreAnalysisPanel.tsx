@@ -179,7 +179,7 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
         supabase.from('ai_questions')
           .select('id', { count: 'exact', head: true })
           .eq('session_id', session.id),
-        // 사용자 답변 완료 확인 (is_draft=false인 답변들)
+        // 사용자 답변 확인 (is_draft=false인 답변들 - 완료된 답변과 스킵된 답변 모두 포함)
         supabase.from('user_answers')
           .select('*')
           .eq('session_id', session.id)
@@ -192,31 +192,38 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
 
       const completedAnalysisCount = analysisResult.data?.length || 0;
       const totalQuestionCount = questionsResult.count || 0;
-      const completedAnswerCount = answersResult.data?.length || 0;
+      const processedAnswerCount = answersResult.data?.length || 0; // 답변 + 스킵 모두 포함
       const reportCount = reportResult.count || 0;
 
       console.log('📊 단계 결정을 위한 데이터:', {
         completedAnalysis: completedAnalysisCount,
         totalQuestions: totalQuestionCount,
-        completedAnswers: completedAnswerCount,
+        processedAnswers: processedAnswerCount,
         reports: reportCount
       });
 
-      // PreAnalysisPage와 동일한 로직으로 현재 단계 결정
+      // 개선된 단계 결정 로직
       if (reportCount > 0) {
+        // 보고서가 이미 생성된 경우
         onStepChange?.('report');
-      } else if (totalQuestionCount > 0 && completedAnswerCount === 0) {
-        // 질문이 생성되었지만 답변이 완료되지 않은 경우
-        onStepChange?.('questions');
-      } else if (completedAnalysisCount > 0 && totalQuestionCount === 0) {
+      } else if (totalQuestionCount > 0) {
+        // 질문이 생성된 경우
+        if (processedAnswerCount === 0) {
+          // 아직 답변/스킵이 하나도 없는 경우 → 질문 단계
+          onStepChange?.('questions');
+        } else if (processedAnswerCount < totalQuestionCount) {
+          // 일부만 답변/스킵한 경우 → 질문 단계 (계속 진행)
+          onStepChange?.('questions');
+        } else {
+          // 모든 질문이 처리된 경우 (답변 또는 스킵) → 보고서 단계로 진행
+          onStepChange?.('report');
+        }
+      } else if (completedAnalysisCount > 0) {
         // 문서 분석은 완료되었지만 질문이 아직 생성되지 않은 경우
         onStepChange?.('analysis');
-      } else if (completedAnalysisCount === 0) {
+      } else {
         // 문서 분석이 시작되지 않은 경우
         onStepChange?.('analysis');
-      } else {
-        // 모든 단계가 완료된 경우 보고서 단계로
-        onStepChange?.('report');
       }
     } catch (error) {
       console.error('단계 결정 오류:', error);
