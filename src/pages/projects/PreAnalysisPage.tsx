@@ -61,8 +61,8 @@ export const PreAnalysisPage: React.FC = () => {
 
       setCurrentSession(latestSession);
 
-      // 세션에 따라 완료된 단계들 검색
-      const [analysisResult, questionsResult, answersResult, reportResult] = await Promise.all([
+      // 세션에 따라 완료된 단계들 검색 - 실제 답변과 스킵 답변을 분리 조회
+      const [analysisResult, questionsResult, realAnswersResult, skippedAnswersResult, reportResult] = await Promise.all([
         // 문서 분석 완료 확인 (status='completed'인 분석이 있는지)
         supabase.from('document_analyses')
           .select('*')
@@ -72,11 +72,18 @@ export const PreAnalysisPage: React.FC = () => {
         supabase.from('ai_questions')
           .select('id', { count: 'exact', head: true })
           .eq('session_id', latestSession.id),
-        // 사용자 답변 완료 확인 (is_draft=false인 답변들)
+        // 실제 답변 확인 (is_draft=false이면서 answer가 빈 문자열이 아닌 답변들)
         supabase.from('user_answers')
           .select('*')
           .eq('session_id', latestSession.id)
-          .eq('is_draft', false),
+          .eq('is_draft', false)
+          .neq('answer', ''), // 빈 문자열이 아닌 실제 답변만
+        // 스킵된 답변 확인 (is_draft=false이면서 notes='스킵됨'인 답변들)
+        supabase.from('user_answers')
+          .select('*')
+          .eq('session_id', latestSession.id)
+          .eq('is_draft', false)
+          .eq('notes', '스킵됨'),
         // 보고서 생성 확인
         supabase.from('analysis_reports')
           .select('*', { count: 'exact', head: true })
@@ -85,8 +92,20 @@ export const PreAnalysisPage: React.FC = () => {
 
       const completedAnalysisCount = analysisResult.data?.length || 0;
       const totalQuestionCount = questionsResult.count || 0;
-      const completedAnswerCount = answersResult.data?.length || 0;
+      const realAnswerCount = realAnswersResult.data?.length || 0; // 실제 답변 수
+      const skippedAnswerCount = skippedAnswersResult.data?.length || 0; // 스킵된 답변 수
+      const totalProcessedCount = realAnswerCount + skippedAnswerCount; // 전체 처리된 답변 수
       const reportCount = reportResult.count || 0;
+
+      console.log('🔍 PreAnalysisPage 단계 결정을 위한 상세 데이터:', {
+        sessionId: latestSession.id,
+        completedAnalysis: completedAnalysisCount,
+        totalQuestions: totalQuestionCount,
+        realAnswers: realAnswerCount,
+        skippedAnswers: skippedAnswerCount,
+        totalProcessed: totalProcessedCount,
+        reports: reportCount
+      });
 
       // 완료된 단계들 업데이트
       const newCompletedSteps = new Set<string>(['setup']);
@@ -96,9 +115,9 @@ export const PreAnalysisPage: React.FC = () => {
         newCompletedSteps.add('analysis');
       }
 
-      // 질문 답변: 생성된 질문에 대해 최소 하나의 완료된 답변이 있으면 완료
-      // (또는 필수 질문들에 대한 답변이 모두 완료된 경우)
-      if (totalQuestionCount > 0 && completedAnswerCount > 0) {
+      // 질문 답변: 생성된 질문에 대해 최소 하나의 실제 답변이 있으면 완료
+      // 주의: 모든 답변이 스킵된 경우는 완료로 처리하지 않음
+      if (totalQuestionCount > 0 && realAnswerCount > 0) {
         newCompletedSteps.add('questions');
       }
 
@@ -111,20 +130,42 @@ export const PreAnalysisPage: React.FC = () => {
 
       // 현재 진행 중인 단계로 이동 (진행 중인 세션인 경우만)
       if (latestSession.status === 'processing') {
+        // 완전히 재설계된 단계 결정 로직
         if (reportCount > 0) {
+          // 보고서가 이미 생성된 경우 → 보고서 단계
+          console.log('🎯 PreAnalysisPage 단계 결정: report (보고서 존재)');
           setCurrentStep('report');
-        } else if (totalQuestionCount > 0 && completedAnswerCount === 0) {
-          // 질문이 생성되었지만 답변이 완료되지 않은 경우
-          setCurrentStep('questions');
-        } else if (completedAnalysisCount > 0 && totalQuestionCount === 0) {
-          // 문서 분석은 완료되었지만 질문이 아직 생성되지 않은 경우
-          setCurrentStep('analysis');
-        } else if (completedAnalysisCount === 0) {
-          // 문서 분석이 시작되지 않은 경우
-          setCurrentStep('analysis');
+        } else if (totalQuestionCount === 0) {
+          // 질문이 생성되지 않은 경우 → 분석 단계
+          if (completedAnalysisCount > 0) {
+            console.log('🎯 PreAnalysisPage 단계 결정: analysis (분석 완료, 질문 미생성)');
+            setCurrentStep('analysis');
+          } else {
+            console.log('🎯 PreAnalysisPage 단계 결정: analysis (분석 시작 필요)');
+            setCurrentStep('analysis');
+          }
         } else {
-          // 모든 단계가 완료된 경우 보고서 단계로
-          setCurrentStep('report');
+          // 질문이 생성된 경우
+          if (totalProcessedCount === 0) {
+            // 아무것도 처리되지 않음 → 질문 단계
+            console.log('🎯 PreAnalysisPage 단계 결정: questions (답변 시작 필요)');
+            setCurrentStep('questions');
+          } else if (totalProcessedCount < totalQuestionCount) {
+            // 일부만 처리됨 → 질문 단계
+            console.log('🎯 PreAnalysisPage 단계 결정: questions (답변 진행 중)');
+            setCurrentStep('questions');
+          } else if (totalProcessedCount === totalQuestionCount) {
+            // 모든 질문이 처리됨 → 실제 답변 여부에 따라 결정
+            if (realAnswerCount > 0) {
+              // 최소 하나 이상의 실제 답변 존재 → 보고서 가능
+              console.log('🎯 PreAnalysisPage 단계 결정: report (실제 답변 존재, 보고서 생성 가능)');
+              setCurrentStep('report');
+            } else {
+              // 모든 답변이 스킵됨 → 질문 단계 유지 (실제 답변 유도)
+              console.log('🎯 PreAnalysisPage 단계 결정: questions (모든 답변이 스킵됨, 실제 답변 필요)');
+              setCurrentStep('questions');
+            }
+          }
         }
       }
 

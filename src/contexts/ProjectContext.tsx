@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useEffect } from 'react'
+import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react'
 import { ProjectService } from '../services/projectService'
 import { useAuth } from './AuthContext'
 
@@ -211,8 +211,8 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // 프로젝트 선택
-  const selectProject = (project: Project) => {
+  // 프로젝트 선택 - useCallback으로 메모이제이션하여 불필요한 리렌더링 방지
+  const selectProject = useCallback((project: Project) => {
     dispatch({ type: 'SET_CURRENT_PROJECT', payload: project })
 
     // 로컬 스토리지에 현재 프로젝트 저장
@@ -221,7 +221,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Failed to save current project to localStorage:', error)
     }
-  }
+  }, []) // dispatch는 useReducer에서 안정적인 참조를 보장하므로 의존성에 포함하지 않음
 
   // 현재 프로젝트 가져오기
   const getCurrentProject = (): Project | null => {
