@@ -1534,23 +1534,61 @@ ${answersContext}
 
       // 문서별 상태가 있다면 문서 분석 결과만 업데이트 (progress 컬럼 제거)
       if (update.documentId && update.status) {
-        const analysisData = {
-          session_id: update.sessionId,
-          document_id: update.documentId,
-          status: update.status,
-          // progress 컬럼은 document_analyses 테이블에 없으므로 제거
-        };
+        try {
+          // 먼저 기존 레코드가 있는지 확인
+          const { data: existingAnalysis, error: selectError } = await supabase
+            .from('document_analyses')
+            .select('id')
+            .eq('session_id', update.sessionId)
+            .eq('document_id', update.documentId)
+            .single();
 
-        const { error: docError } = await supabase
-          .from('document_analyses')
-          .upsert(analysisData, {
-            onConflict: 'session_id,document_id'
-          });
+          if (selectError && selectError.code !== 'PGRST116') {
+            // PGRST116은 "no rows returned" 오류이므로 정상적인 경우
+            console.error('❌ 기존 분석 데이터 조회 오류:', selectError);
+            return;
+          }
 
-        if (docError) {
-          console.error('❌ 문서 분석 상태 저장 오류:', docError);
-        } else {
-          console.log('✅ 문서 분석 상태 저장 완료:', analysisData);
+          const analysisData = {
+            session_id: update.sessionId,
+            document_id: update.documentId,
+            status: update.status,
+            // progress 컬럼은 document_analyses 테이블에 없으므로 제거
+          };
+
+          if (existingAnalysis?.id) {
+            // 기존 레코드가 있으면 update
+            const { error: updateError } = await supabase
+              .from('document_analyses')
+              .update({ status: update.status })
+              .eq('id', existingAnalysis.id);
+
+            if (updateError) {
+              console.error('❌ 문서 분석 상태 업데이트 오류:', updateError);
+            } else {
+              console.log('✅ 문서 분석 상태 업데이트 완료:', { id: existingAnalysis.id, status: update.status });
+            }
+          } else {
+            // 기존 레코드가 없으면 insert (상태만 저장하는 간단한 레코드)
+            const { error: insertError } = await supabase
+              .from('document_analyses')
+              .insert({
+                session_id: update.sessionId,
+                document_id: update.documentId,
+                status: update.status,
+                category: 'progress_tracking', // 상태 추적용 임시 카테고리
+                analysis_result: {}, // 기본값
+                mcp_enrichment: {} // 기본값
+              });
+
+            if (insertError) {
+              console.error('❌ 문서 분석 상태 저장 오류:', insertError);
+            } else {
+              console.log('✅ 문서 분석 상태 저장 완료:', analysisData);
+            }
+          }
+        } catch (docError) {
+          console.error('❌ 문서 분석 상태 처리 중 오류:', docError);
         }
       }
     } catch (error) {
