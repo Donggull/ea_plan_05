@@ -51,7 +51,9 @@ export default async function handler(
     console.log('🚀 [Vercel API] AI 완성 요청 수신:', {
       timestamp: new Date().toISOString(),
       userAgent: req.headers['user-agent'],
-      hasBody: !!req.body
+      hasBody: !!req.body,
+      contentType: req.headers['content-type'],
+      bodySize: req.body ? JSON.stringify(req.body).length : 0
     })
 
     const { provider, model, prompt, maxTokens, temperature, topP }: CompletionRequest = req.body
@@ -90,6 +92,25 @@ export default async function handler(
         error: `${provider} API 키가 설정되지 않았습니다.`,
         provider,
         availableKeys: Object.keys(apiKeys).filter(key => apiKeys[key as keyof typeof apiKeys]),
+        timestamp: new Date().toISOString()
+      })
+    }
+
+    // API 키 형식 기본 검증
+    if (provider === 'anthropic' && !apiKey.startsWith('sk-ant-')) {
+      console.error(`❌ [Vercel API] ${provider} API 키 형식이 올바르지 않습니다.`)
+      return res.status(500).json({
+        error: `${provider} API 키 형식이 올바르지 않습니다.`,
+        provider,
+        timestamp: new Date().toISOString()
+      })
+    }
+
+    if (provider === 'openai' && !apiKey.startsWith('sk-')) {
+      console.error(`❌ [Vercel API] ${provider} API 키 형식이 올바르지 않습니다.`)
+      return res.status(500).json({
+        error: `${provider} API 키 형식이 올바르지 않습니다.`,
+        provider,
         timestamp: new Date().toISOString()
       })
     }
@@ -203,6 +224,15 @@ async function handleAnthropicRequest(
     }
   } catch (error: any) {
     clearTimeout(timeoutId)
+    console.error('❌ [Anthropic] 상세 오류 정보:', {
+      errorName: error.name,
+      errorMessage: error.message,
+      errorStack: error.stack,
+      model,
+      promptLength: prompt.length,
+      timestamp: new Date().toISOString()
+    })
+
     if (error.name === 'AbortError') {
       throw new Error(`Anthropic API timeout after 25 seconds`)
     }
@@ -272,6 +302,15 @@ async function handleOpenAIRequest(
     }
   } catch (error: any) {
     clearTimeout(timeoutId)
+    console.error('❌ [OpenAI] 상세 오류 정보:', {
+      errorName: error.name,
+      errorMessage: error.message,
+      errorStack: error.stack,
+      model,
+      promptLength: prompt.length,
+      timestamp: new Date().toISOString()
+    })
+
     if (error.name === 'AbortError') {
       throw new Error(`OpenAI API timeout after 25 seconds`)
     }
@@ -347,6 +386,15 @@ async function handleGoogleAIRequest(
     }
   } catch (error: any) {
     clearTimeout(timeoutId)
+    console.error('❌ [Google AI] 상세 오류 정보:', {
+      errorName: error.name,
+      errorMessage: error.message,
+      errorStack: error.stack,
+      model,
+      promptLength: prompt.length,
+      timestamp: new Date().toISOString()
+    })
+
     if (error.name === 'AbortError') {
       throw new Error(`Google AI API timeout after 25 seconds`)
     }

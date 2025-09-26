@@ -11,7 +11,7 @@ const ensureSupabase = () => {
 
 export interface PreAnalysisStatus {
   sessionId: string | null
-  status: 'not_started' | 'in_progress' | 'completed' | 'error'
+  status: 'not_started' | 'processing' | 'completed' | 'error'
   progress: number
   currentStep: string | null
   analysisCount: number
@@ -89,7 +89,7 @@ export function usePreAnalysisStatus(projectId: string) {
       // 5. 진행률 계산
       let progress = 10 // 세션 생성 완료
       let currentStep = '분석 준비 중'
-      let sessionStatus: PreAnalysisStatus['status'] = 'in_progress'
+      let sessionStatus: PreAnalysisStatus['status'] = 'processing'
 
       if (latestSession.status === 'completed') {
         progress = 100
@@ -240,7 +240,7 @@ export function usePreAnalysisStatus(projectId: string) {
     switch (status) {
       case 'not_started':
         return 'bg-gray-500/10 text-gray-500'
-      case 'in_progress':
+      case 'processing':
         return 'bg-blue-500/10 text-blue-500'
       case 'completed':
         return 'bg-green-500/10 text-green-500'
@@ -255,7 +255,7 @@ export function usePreAnalysisStatus(projectId: string) {
     switch (status) {
       case 'not_started':
         return '분석 대기'
-      case 'in_progress':
+      case 'processing':
         return '분석 진행중'
       case 'completed':
         return '분석 완료'

@@ -173,7 +173,7 @@ export class PreAnalysisService {
       await this.emitProgressUpdate({
         sessionId,
         stage: 'document_analysis',
-        status: 'in_progress',
+        status: 'processing',
         progress: 20,
         message: `${documents.length}개 문서 분석을 시작합니다.`,
         timestamp: new Date(),
@@ -192,7 +192,7 @@ export class PreAnalysisService {
           await this.emitProgressUpdate({
             sessionId,
             stage: 'document_analysis',
-            status: 'in_progress',
+            status: 'processing',
             progress: progressPercent,
             message: `"${document.file_name}" 문서 분석 중... (${i + 1}/${totalDocuments})`,
             timestamp: new Date(),
@@ -346,7 +346,7 @@ export class PreAnalysisService {
         ai_provider: settings.aiProvider,
         mcp_config: settings.mcpServers,
         analysis_depth: settings.analysisDepth,
-        status: 'in_progress',
+        status: 'processing',
         started_at: new Date().toISOString(),
         total_cost: 0,
         created_by: userId,
@@ -423,7 +423,7 @@ export class PreAnalysisService {
       await this.emitProgressUpdate({
         sessionId,
         stage: 'document_analysis',
-        status: 'in_progress',
+        status: 'processing',
         progress: 30,
         message: '문서 분석을 시작합니다.',
         timestamp: new Date(),
@@ -587,7 +587,7 @@ export class PreAnalysisService {
       await this.emitProgressUpdate({
         sessionId,
         stage: 'question_generation',
-        status: 'in_progress',
+        status: 'processing',
         progress: 60,
         message: 'AI 질문을 생성하고 있습니다.',
         timestamp: new Date(),
@@ -623,7 +623,7 @@ export class PreAnalysisService {
       await this.emitProgressUpdate({
         sessionId,
         stage: 'question_generation',
-        status: 'in_progress',
+        status: 'processing',
         progress: 30,
         message: 'AI 기반 맞춤형 질문을 생성 중...',
         timestamp: new Date(),
@@ -863,7 +863,7 @@ export class PreAnalysisService {
       await this.emitProgressUpdate({
         sessionId,
         stage: 'report_generation',
-        status: 'in_progress',
+        status: 'processing',
         progress: 80,
         message: '종합 분석 보고서를 생성하고 있습니다.',
         timestamp: new Date(),
@@ -1537,8 +1537,9 @@ ${answersContext}
         console.log('✅ 진행 상황 저장 완료:', progressData);
       }
 
-      // 문서별 상태가 있다면 문서 분석 결과만 업데이트 (progress 컬럼 제거)
-      if (update.documentId && update.status) {
+      // 문서별 상태가 있고 분석이 완료된 경우에만 document_analyses에 저장
+      // processing 상태는 아직 분석 결과가 없으므로 저장하지 않음
+      if (update.documentId && update.status && update.status !== 'processing') {
         try {
           // 먼저 기존 레코드가 있는지 확인
           const { data: existingAnalyses, error: selectError } = await supabase

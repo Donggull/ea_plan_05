@@ -193,7 +193,7 @@ export interface PreAnalysisSession {
   aiProvider: string;
   mcpConfig: PreAnalysisConfig['mcpServers'];
   analysisDepth: PreAnalysisConfig['analysisDepth'];
-  status: 'in_progress' | 'completed' | 'failed' | 'cancelled';
+  status: 'processing' | 'completed' | 'failed' | 'cancelled';
 
   // 시간 정보
   startedAt: Date;
@@ -267,7 +267,7 @@ export interface ServiceResponse<T> {
 export interface ProgressUpdate {
   sessionId: string;
   stage: string;
-  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  status: 'pending' | 'processing' | 'completed' | 'failed';
   progress: number; // 0-100
   message?: string;
   details?: Record<string, any>;

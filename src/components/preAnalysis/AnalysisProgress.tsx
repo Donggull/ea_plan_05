@@ -40,7 +40,7 @@ interface AnalysisStage {
   description: string;
   icon: React.ElementType;
   estimatedDuration: number; // 초
-  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  status: 'pending' | 'processing' | 'completed' | 'failed';
   progress: number; // 0-100
   message?: string;
   details?: any;
@@ -176,7 +176,7 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
         return;
       }
 
-      updateStageStatus('document_analysis', 'in_progress');
+      updateStageStatus('document_analysis', 'processing');
       addToActivityLog('🚀 AI 문서 분석을 시작합니다...');
 
       // 문서 상태를 분석 중으로 변경
@@ -267,7 +267,7 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
                     status: progress.status,
                     progress: progress.progress,
                     message: progress.message,
-                    startTime: progress.status === 'in_progress' && !stage.startTime ? new Date(progress.updated_at) : stage.startTime,
+                    startTime: progress.status === 'processing' && !stage.startTime ? new Date(progress.updated_at) : stage.startTime,
                     endTime: (progress.status === 'completed' || progress.status === 'failed') ? new Date(progress.updated_at) : stage.endTime,
                   };
                 }
@@ -296,7 +296,7 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
                   documentStatus = 'completed';
                 } else if (status.status === 'error') {
                   documentStatus = 'error';
-                } else if (status.status === 'analyzing' || status.status === 'in_progress') {
+                } else if (status.status === 'analyzing' || status.status === 'processing') {
                   documentStatus = 'analyzing';
                 }
 
@@ -449,7 +449,7 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
 
         if (questionStage && questionStage.status === 'pending') {
           console.log('✅ 질문 생성 단계 시작!');
-          questionStage.status = 'in_progress';
+          questionStage.status = 'processing';
           questionStage.startTime = new Date();
           questionStage.progress = 10;
           questionStage.message = 'AI가 맞춤형 질문을 생성하고 있습니다...';
@@ -758,7 +758,7 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
 
     const updateStageStatus = (stageId: string, status: AnalysisStage['status']) => {
       // 유효한 상태 값인지 확인
-      const validStatuses: AnalysisStage['status'][] = ['pending', 'in_progress', 'completed', 'failed'];
+      const validStatuses: AnalysisStage['status'][] = ['pending', 'processing', 'completed', 'failed'];
       if (!validStatuses.includes(status)) {
         console.error('❌ 잘못된 단계 상태:', status);
         return;
@@ -770,7 +770,7 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
             ? {
                 ...stage,
                 status,
-                startTime: status === 'in_progress' ? new Date() : stage.startTime,
+                startTime: status === 'processing' ? new Date() : stage.startTime,
                 endTime: status === 'completed' || status === 'failed' ? new Date() : stage.endTime,
               }
             : stage
@@ -864,7 +864,7 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
 
     const getEstimatedTimeRemaining = () => {
       const pendingStages = stages.filter(s => s.status === 'pending');
-      const inProgressStage = stages.find(s => s.status === 'in_progress');
+      const inProgressStage = stages.find(s => s.status === 'processing');
 
       let remainingTime = pendingStages.reduce((sum, stage) => sum + stage.estimatedDuration, 0);
 
@@ -994,7 +994,7 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {stages.map((stage) => {
             const Icon = stage.icon;
-            const isActive = stage.status === 'in_progress';
+            const isActive = stage.status === 'processing';
             const isCompleted = stage.status === 'completed';
             const isFailed = stage.status === 'failed';
 

@@ -147,7 +147,7 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
       const response = await preAnalysisService.getProjectSessions(projectId);
       if (response.success && response.data && response.data.length > 0) {
         const latestSession = response.data[0];
-        if (latestSession.status === 'in_progress') {
+        if (latestSession.status === 'processing') {
           setCurrentSession(latestSession);
           determineCurrentStep(latestSession);
         }
@@ -297,7 +297,7 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
     const stepIndex = stepOrder.indexOf(step);
 
     if (stepIndex < currentIndex) return 'completed';
-    if (stepIndex === currentIndex) return 'in_progress';
+    if (stepIndex === currentIndex) return 'processing';
     return 'pending';
   };
 
@@ -322,14 +322,14 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
                   flex items-center justify-center w-12 h-12 rounded-full border-2 transition-colors
                   ${status === 'completed'
                     ? 'bg-success border-success text-white'
-                    : status === 'in_progress'
+                    : status === 'processing'
                     ? 'bg-primary border-primary text-white'
                     : 'bg-bg-secondary border-border-primary text-text-muted'
                   }
                 `}>
                   {status === 'completed' ? (
                     <CheckCircle className="w-6 h-6" />
-                  ) : status === 'in_progress' ? (
+                  ) : status === 'processing' ? (
                     <Clock className="w-6 h-6 animate-pulse" />
                   ) : (
                     <Icon className="w-6 h-6" />
@@ -339,7 +339,7 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
                   mt-2 text-sm font-medium
                   ${status === 'completed'
                     ? 'text-success'
-                    : status === 'in_progress'
+                    : status === 'processing'
                     ? 'text-primary'
                     : 'text-text-muted'
                   }

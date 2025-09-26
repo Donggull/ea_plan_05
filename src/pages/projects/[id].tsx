@@ -100,7 +100,7 @@ export function ProjectDetailPage() {
   // 분석 상태에 따른 현재 단계 계산
   const getCurrentAnalysisStep = () => {
     if (analysisStatus.status === 'not_started') return 0
-    if (analysisStatus.status === 'in_progress') {
+    if (analysisStatus.status === 'processing') {
       if (analysisStatus.currentStep?.includes('문서 분석')) return 1
       if (analysisStatus.currentStep?.includes('질문')) return 2
       if (analysisStatus.currentStep?.includes('보고서')) return 3
@@ -113,7 +113,7 @@ export function ProjectDetailPage() {
   const getStepStatus = (stepIndex: number) => {
     const currentStep = getCurrentAnalysisStep()
     if (stepIndex < currentStep) return 'completed'
-    if (stepIndex === currentStep && analysisStatus.status === 'in_progress') return 'in_progress'
+    if (stepIndex === currentStep && analysisStatus.status === 'processing') return 'processing'
     return 'pending'
   }
 
@@ -360,7 +360,7 @@ export function ProjectDetailPage() {
                               w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all duration-200
                               ${status === 'completed'
                                 ? 'bg-success border-success'
-                                : status === 'in_progress'
+                                : status === 'processing'
                                 ? 'bg-primary-500 border-primary-500'
                                 : 'bg-bg-secondary border-border-primary'
                               }
@@ -368,7 +368,7 @@ export function ProjectDetailPage() {
                           >
                             {status === 'completed' ? (
                               <CheckCircle className="w-4 h-4 text-white" />
-                            ) : status === 'in_progress' ? (
+                            ) : status === 'processing' ? (
                               <Clock className="w-4 h-4 text-white" />
                             ) : (
                               <Icon className={`w-4 h-4 ${status === 'pending' ? 'text-text-muted' : 'text-white'}`} />
@@ -378,7 +378,7 @@ export function ProjectDetailPage() {
                             mt-1 text-xs font-medium text-center
                             ${status === 'completed'
                               ? 'text-success'
-                              : status === 'in_progress'
+                              : status === 'processing'
                               ? 'text-primary-500'
                               : 'text-text-muted'
                             }
@@ -436,9 +436,9 @@ export function ProjectDetailPage() {
                     <button
                       onClick={() => navigate(`/projects/${id}/pre-analysis`)}
                       className="w-full px-3 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors text-sm font-medium"
-                      disabled={analysisStatus.status === 'in_progress'}
+                      disabled={analysisStatus.status === 'processing'}
                     >
-                      {analysisStatus.status === 'in_progress' ? '분석 진행 중...' : '사전 분석 시작'}
+                      {analysisStatus.status === 'processing' ? '분석 진행 중...' : '사전 분석 시작'}
                     </button>
                   )}
                 </div>
