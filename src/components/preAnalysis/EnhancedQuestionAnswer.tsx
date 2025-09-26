@@ -209,6 +209,7 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
 
       console.log('📥 기존 답변 로드 시작:', { sessionId })
 
+      // 모든 답변 조회 (실제 답변 + 스킵된 답변)
       const response = await supabase
         .from('user_answers')
         .select('*')
@@ -496,21 +497,13 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
         timeSpent: Math.round(timeSpent / 1000)
       })
 
-      // 스킵된 답변을 정식 답변으로 저장 (is_draft=false)
-      await saveIndividualAnswer(questionId, false)
+      // 스킵된 답변은 초안으로 저장 (is_draft=true) - 실제 답변과 구분하기 위해
+      await saveIndividualAnswer(questionId, true)
 
-      console.log('✅ 질문 스킵 처리 완료:', questionId)
-
-      // 자동 저장 트리거 - onSave 호출하여 상위 컴포넌트에 알림
-      if (onSave && autoSaveEnabled) {
-        const responses: QuestionResponse[] = Array.from(answers.values()).map(answer => ({
-          questionId: answer.questionId,
-          answer: answer.answer,
-          confidence: answer.confidence,
-          notes: answer.notes
-        }))
-        onSave(responses)
-      }
+      console.log('✅ 질문 스킵 처리 완료:', questionId, {
+        isDraft: true, // 스킵된 답변은 초안으로 저장됨
+        notes: '스킵됨'
+      })
 
       // 다음 질문으로 이동
       if (currentQuestionIndex < questions.length - 1) {
@@ -1153,21 +1146,21 @@ const QuestionForm: React.FC<QuestionFormProps> = ({
 
       {/* 건너뛰기 버튼 - 완료되지 않은 질문에만 표시 */}
       {!isCompleted && (
-        <div className="pt-4 border-t border-border-primary">
+        <div className="pt-6 border-t border-border-primary">
           <div className="flex justify-center">
             <button
               onClick={onSkipQuestion}
-              className={`flex items-center space-x-2 px-4 py-2 border rounded-lg transition-colors text-sm ${
+              className={`flex items-center space-x-2 px-6 py-3 border-2 rounded-xl transition-all duration-200 font-medium ${
                 question.required
-                  ? 'text-status-warning hover:text-status-error hover:bg-status-error/10 border-status-error/20 bg-status-warning/5'
-                  : 'text-text-tertiary hover:text-status-warning hover:bg-status-warning/10 border-status-warning/20'
+                  ? 'text-status-warning hover:text-status-error hover:bg-status-error/10 border-status-warning/40 bg-status-warning/5 hover:border-status-error/60 hover:shadow-sm'
+                  : 'text-text-tertiary hover:text-status-warning hover:bg-status-warning/10 border-text-tertiary/30 hover:border-status-warning/60 hover:shadow-sm'
               }`}
               title={question.required
                 ? "필수 질문이지만 답변하지 못할 경우 건너뛸 수 있습니다"
                 : "이 질문을 건너뛰기"
               }
             >
-              <SkipForward className="w-4 h-4" />
+              <SkipForward className="w-5 h-5" />
               <span>{question.required ? '필수 질문 건너뛰기' : '이 질문 건너뛰기'}</span>
             </button>
           </div>
