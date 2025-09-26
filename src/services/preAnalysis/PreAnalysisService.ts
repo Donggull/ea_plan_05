@@ -1532,14 +1532,13 @@ ${answersContext}
         console.log('✅ 진행 상황 저장 완료:', progressData);
       }
 
-      // 문서별 상태가 있다면 document_analyses 테이블도 업데이트
+      // 문서별 상태가 있다면 문서 분석 결과만 업데이트 (progress 컬럼 제거)
       if (update.documentId && update.status) {
         const analysisData = {
           session_id: update.sessionId,
           document_id: update.documentId,
           status: update.status,
-          progress: update.progress,
-          updated_at: update.timestamp.toISOString(),
+          // progress 컬럼은 document_analyses 테이블에 없으므로 제거
         };
 
         const { error: docError } = await supabase
@@ -1567,68 +1566,131 @@ ${answersContext}
     maxTokens: number = 4000,
     temperature: number = 0.3
   ): Promise<any> {
-    try {
-      console.log('🔗 [통합 API] AI 완성 요청:', { provider, model, promptLength: prompt.length });
+    const maxRetries = 2;
+    const baseTimeout = 45000; // 45초 기본 타임아웃
 
-      // 인증 토큰 추출
-      let authToken: string | undefined
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        const session = await supabase?.auth.getSession()
-        authToken = session?.data.session?.access_token
-        console.log('🔐 [통합 API] 인증 토큰:', authToken ? '있음' : '없음')
-      } catch (authError) {
-        console.warn('🔐 [통합 API] 인증 토큰 추출 실패:', authError)
-      }
-
-      // 개발환경에서는 Vercel 프로덕션 API 직접 호출, 프로덕션에서는 상대 경로 사용
-      const apiUrl = import.meta.env.DEV
-        ? 'https://ea-plan-05.vercel.app/api/ai/completion'
-        : '/api/ai/completion';
-
-      console.log('🌐 [통합 API] 호출 URL:', apiUrl);
-
-      // 인증 헤더 구성
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      }
-
-      if (authToken) {
-        headers['Authorization'] = `Bearer ${authToken}`
-      }
-
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
+        console.log(`🔗 [통합 API] AI 완성 요청 (시도 ${attempt + 1}/${maxRetries + 1}):`, {
           provider,
           model,
-          prompt,
-          maxTokens,
-          temperature
-        }),
-      });
+          promptLength: prompt.length,
+          timeout: baseTimeout
+        });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData.error ||
-          errorData.details ||
-          `API 요청 실패: ${response.status} ${response.statusText}`
-        );
+        // 인증 토큰 추출
+        let authToken: string | undefined
+        try {
+          const session = await supabase?.auth.getSession()
+          authToken = session?.data.session?.access_token
+          console.log('🔐 [통합 API] 인증 토큰:', authToken ? '있음' : '없음')
+        } catch (authError) {
+          console.warn('🔐 [통합 API] 인증 토큰 추출 실패:', authError)
+        }
+
+        // 개발환경에서는 Vercel 프로덕션 API 직접 호출, 프로덕션에서는 상대 경로 사용
+        const apiUrl = import.meta.env.DEV
+          ? 'https://ea-plan-05.vercel.app/api/ai/completion'
+          : '/api/ai/completion';
+
+        console.log('🌐 [통합 API] 호출 URL:', apiUrl);
+
+        // 인증 헤더 구성
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        }
+
+        if (authToken) {
+          headers['Authorization'] = `Bearer ${authToken}`
+        }
+
+        // AbortController를 사용한 타임아웃 처리
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => {
+          controller.abort();
+          console.warn(`⏰ [통합 API] 요청 타임아웃 (${baseTimeout}ms)`);
+        }, baseTimeout);
+
+        try {
+          const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              provider,
+              model,
+              prompt,
+              maxTokens,
+              temperature
+            }),
+            signal: controller.signal
+          });
+
+          clearTimeout(timeoutId);
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+
+            // 504 Gateway Timeout인 경우 재시도
+            if (response.status === 504 && attempt < maxRetries) {
+              console.warn(`🔄 [통합 API] 504 Gateway Timeout, ${attempt + 2}차 시도 중...`);
+              await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1))); // 점진적 대기
+              continue;
+            }
+
+            throw new Error(
+              errorData.error ||
+              errorData.details ||
+              `API 요청 실패: ${response.status} ${response.statusText}`
+            );
+          }
+
+          const data = await response.json();
+          console.log(`✅ [통합 API] 성공 (${attempt + 1}차 시도)`, {
+            inputTokens: data.usage?.inputTokens,
+            outputTokens: data.usage?.outputTokens,
+            cost: data.cost?.totalCost
+          });
+          return data;
+
+        } catch (fetchError) {
+          clearTimeout(timeoutId);
+
+          // AbortError (타임아웃)인 경우 재시도
+          if (fetchError instanceof Error && fetchError.name === 'AbortError' && attempt < maxRetries) {
+            console.warn(`🔄 [통합 API] 요청 타임아웃, ${attempt + 2}차 시도 중...`);
+            await new Promise(resolve => setTimeout(resolve, 2000 * (attempt + 1))); // 점진적 대기
+            continue;
+          }
+
+          throw fetchError;
+        }
+
+      } catch (error) {
+        // 마지막 시도에서도 실패한 경우에만 에러 처리
+        if (attempt === maxRetries) {
+          console.error('❌ [통합 API] 모든 재시도 실패:', error);
+
+          // 타임아웃 관련 에러 메시지 개선
+          if (error instanceof Error) {
+            if (error.name === 'AbortError') {
+              throw new Error(`API 요청이 ${baseTimeout / 1000}초 후 타임아웃되었습니다. 문서가 너무 크거나 AI 서비스가 지연되고 있습니다. 더 짧은 문서로 다시 시도해주세요.`);
+            } else if (error.message.includes('504')) {
+              throw new Error('AI 서비스에서 처리 시간이 초과되었습니다. 잠시 후 다시 시도하거나 더 짧은 문서로 분석해주세요.');
+            } else if (error instanceof TypeError && error.message.includes('fetch')) {
+              throw new Error('네트워크 연결을 확인해주세요. API 서버에 접근할 수 없습니다.');
+            }
+          }
+
+          throw error;
+        }
+
+        // 재시도 가능한 에러인 경우 계속 진행
+        console.warn(`⚠️ [통합 API] ${attempt + 1}차 시도 실패, 재시도 중...`, error);
+        await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
       }
-
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error('AI 완성 API 호출 실패:', error);
-
-      // 네트워크 오류인 경우 fallback 메시지
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        throw new Error('네트워크 연결을 확인해주세요. API 서버에 접근할 수 없습니다.');
-      }
-
-      throw error;
     }
+
+    throw new Error('예상치 못한 오류가 발생했습니다.');
   }
 
   // 제거됨: callAIDirectly 함수 - 모든 환경에서 API 라우트 사용으로 통합
@@ -1666,11 +1728,20 @@ ${documentContext.map((doc, index) =>
 3. 각 질문은 구체적이고 실행 가능한 답변을 유도해야 합니다.
 4. 업로드된 문서가 있다면 해당 내용을 반영한 질문을 포함하세요.
 
+**중요: category 필드는 반드시 다음 값 중 하나만 사용하세요:**
+- technical: 기술적 요구사항, 기술 스택, 아키텍처 관련
+- business: 비즈니스 목표, 프로젝트 개요, 사업 요구사항
+- timeline: 일정, 스케줄, 마일스톤 관련
+- budget: 예산, 비용, 자원 계획 관련
+- risks: 위험 요소, 리스크 관리 관련
+- stakeholders: 이해관계자, 팀 구성, 역할 관련
+- design: 디자인, UI/UX, 사용자 경험 관련
+
 출력 형식 (JSON):
 {
   "questions": [
     {
-      "category": "기술 요구사항|비즈니스 목표|일정 관리|예산 계획|위험 관리|이해관계자|기타",
+      "category": "technical|business|timeline|budget|risks|stakeholders|design",
       "question": "구체적인 질문 내용",
       "context": "질문의 배경이나 도움말",
       "required": true|false,
@@ -1683,6 +1754,86 @@ ${documentContext.map((doc, index) =>
 정확한 JSON 형식만 반환하고 다른 설명은 포함하지 마세요.`;
 
     return prompt;
+  }
+
+  /**
+   * AI 카테고리를 데이터베이스 허용 카테고리로 매핑
+   */
+  private mapCategoryToAllowed(category: string): string {
+    const categoryMap: Record<string, string> = {
+      // 기술 관련
+      '기술 요구사항': 'technical',
+      '기술적 요구사항': 'technical',
+      '기술': 'technical',
+      '기술스택': 'technical',
+      '기술 스택': 'technical',
+      'technical': 'technical',
+      'tech': 'technical',
+
+      // 비즈니스 관련
+      '비즈니스 목표': 'business',
+      '비즈니스': 'business',
+      '사업': 'business',
+      '프로젝트 개요': 'business',
+      'business': 'business',
+
+      // 일정 관련
+      '일정 관리': 'timeline',
+      '일정': 'timeline',
+      '스케줄': 'timeline',
+      '타임라인': 'timeline',
+      'timeline': 'timeline',
+      'schedule': 'timeline',
+
+      // 예산 관련
+      '예산 계획': 'budget',
+      '예산': 'budget',
+      '비용': 'budget',
+      'budget': 'budget',
+      'cost': 'budget',
+
+      // 위험 관리
+      '위험 관리': 'risks',
+      '위험': 'risks',
+      '리스크': 'risks',
+      'risks': 'risks',
+      'risk': 'risks',
+
+      // 이해관계자
+      '이해관계자': 'stakeholders',
+      '관계자': 'stakeholders',
+      '팀': 'stakeholders',
+      'stakeholders': 'stakeholders',
+      'team': 'stakeholders',
+
+      // 디자인
+      '디자인': 'design',
+      '설계': 'design',
+      'design': 'design',
+      'ui': 'design',
+      'ux': 'design'
+    };
+
+    const normalized = category.toLowerCase().trim();
+
+    // 직접 매칭
+    if (categoryMap[category]) {
+      return categoryMap[category];
+    }
+
+    if (categoryMap[normalized]) {
+      return categoryMap[normalized];
+    }
+
+    // 키워드 포함 검사
+    for (const [key, value] of Object.entries(categoryMap)) {
+      if (category.includes(key) || normalized.includes(key.toLowerCase())) {
+        return value;
+      }
+    }
+
+    // 기본값
+    return 'business';
   }
 
   /**
@@ -1705,10 +1856,10 @@ ${documentContext.map((doc, index) =>
         throw new Error('questions 배열을 찾을 수 없습니다.');
       }
 
-      // 질문 형식 검증 및 정규화
+      // 질문 형식 검증 및 정규화 (카테고리 매핑 적용)
       const validQuestions = parsed.questions
         .map((q: any) => ({
-          category: q.category || '기타',
+          category: this.mapCategoryToAllowed(q.category || '기타'),
           question: q.question || '',
           context: q.context || q.helpText || '',
           required: q.required || false,
@@ -1730,10 +1881,10 @@ ${documentContext.map((doc, index) =>
       console.error('❌ 질문 파싱 실패:', error);
       console.error('❌ 응답 내용 (처음 500자):', response.substring(0, 500));
 
-      // 파싱 실패 시 기본 질문 반환
+      // 파싱 실패 시 기본 질문 반환 (허용된 카테고리 사용)
       return [
         {
-          category: '프로젝트 개요',
+          category: 'business',
           question: '이 프로젝트의 주요 목표와 기대 효과는 무엇입니까?',
           context: '프로젝트의 핵심 목적과 성공 시 달성하고자 하는 구체적인 결과를 설명해주세요.',
           required: true,
@@ -1742,7 +1893,7 @@ ${documentContext.map((doc, index) =>
           confidenceScore: 0.9
         },
         {
-          category: '기술 요구사항',
+          category: 'technical',
           question: '프로젝트에 필요한 주요 기술 스택과 기술적 제약사항은 무엇입니까?',
           context: '사용할 프로그래밍 언어, 프레임워크, 데이터베이스, 인프라 등과 기술적 한계를 포함해주세요.',
           required: true,
@@ -1751,7 +1902,7 @@ ${documentContext.map((doc, index) =>
           confidenceScore: 0.9
         },
         {
-          category: '일정 관리',
+          category: 'timeline',
           question: '프로젝트의 목표 완료 시점과 주요 마일스톤은 언제입니까?',
           context: '전체 일정과 중요한 중간 단계들의 예상 완료 날짜를 설정해주세요.',
           required: true,
@@ -1760,7 +1911,7 @@ ${documentContext.map((doc, index) =>
           confidenceScore: 0.9
         },
         {
-          category: '예산 계획',
+          category: 'budget',
           question: '프로젝트의 예상 예산 규모와 주요 비용 요소는 무엇입니까?',
           context: '인력비, 인프라비, 라이선스 비용 등 주요 예산 항목들을 포함해주세요.',
           required: false,
@@ -1769,7 +1920,7 @@ ${documentContext.map((doc, index) =>
           confidenceScore: 0.8
         },
         {
-          category: '위험 관리',
+          category: 'risks',
           question: '프로젝트 진행 시 예상되는 주요 위험 요소와 대응 방안은 무엇입니까?',
           context: '기술적, 일정상, 예산상 위험 요소들과 이에 대한 대비책을 설명해주세요.',
           required: false,
@@ -1778,7 +1929,7 @@ ${documentContext.map((doc, index) =>
           confidenceScore: 0.8
         },
         {
-          category: '이해관계자',
+          category: 'stakeholders',
           question: '프로젝트의 주요 이해관계자와 각자의 역할은 무엇입니까?',
           context: '클라이언트, 개발팀, 운영팀 등 관련된 사람들과 그들의 책임을 명확히 해주세요.',
           required: false,

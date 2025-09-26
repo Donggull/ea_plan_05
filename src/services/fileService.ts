@@ -188,25 +188,65 @@ class FileService {
           fileType: file.type
         })
 
-        // 타임아웃을 90초로 연장하고 더 나은 에러 처리
-        const uploadWithTimeout = Promise.race([
-          supabase.storage
-            .from('documents')
-            .upload(filePath, file, {
-              cacheControl: '3600',
-              upsert: false,
-              contentType: file.type
-            }),
-          new Promise((_, reject) => {
-            setTimeout(() => {
-              console.error('❌ Storage 업로드 타임아웃 발생 (90초)')
-              reject(new Error('업로드 타임아웃 (90초) - 네트워크 연결을 확인해주세요'))
-            }, 90000) // 90초로 연장
-          })
-        ])
+        // 파일 크기별 동적 타임아웃 설정
+        const baseTimeout = 30000 // 30초 기본
+        const sizeMultiplier = Math.ceil(file.size / (1024 * 1024)) // MB당 추가 시간
+        const dynamicTimeout = baseTimeout + (sizeMultiplier * 15000) // MB당 15초 추가, 최대 2분 30초
+        const maxTimeout = Math.min(dynamicTimeout, 150000) // 최대 2분 30초
 
-        console.log('⏳ Storage 업로드 대기 중...')
-        const uploadResponse = await uploadWithTimeout as any
+        console.log(`⏰ 동적 타임아웃 설정: ${maxTimeout / 1000}초 (파일 크기: ${(file.size / (1024 * 1024)).toFixed(2)}MB)`)
+
+        // 재시도 로직을 포함한 업로드 함수
+        const uploadWithRetry = async (retryCount = 0): Promise<any> => {
+          const maxRetries = 2
+
+          try {
+            if (!supabase) {
+              throw new Error('Supabase 클라이언트가 초기화되지 않았습니다.')
+            }
+
+            const uploadWithTimeout = Promise.race([
+              supabase.storage
+                .from('documents')
+                .upload(filePath, file, {
+                  cacheControl: '3600',
+                  upsert: false,
+                  contentType: file.type
+                }),
+              new Promise((_, reject) => {
+                setTimeout(() => {
+                  console.error(`❌ Storage 업로드 타임아웃 발생 (${maxTimeout / 1000}초)`)
+                  reject(new Error(`업로드 타임아웃 (${maxTimeout / 1000}초) - 파일이 크거나 네트워크가 느립니다`))
+                }, maxTimeout)
+              })
+            ])
+
+            console.log('⏳ Storage 업로드 대기 중...')
+            return await uploadWithTimeout
+
+          } catch (error) {
+            // 재시도 가능한 오류인지 확인
+            const isRetryableError = error instanceof Error && (
+              error.message.includes('timeout') ||
+              error.message.includes('network') ||
+              error.message.includes('fetch') ||
+              error.message.includes('abort')
+            )
+
+            if (isRetryableError && retryCount < maxRetries) {
+              console.warn(`🔄 Storage 업로드 재시도 ${retryCount + 1}/${maxRetries} (오류: ${error.message})`)
+
+              // 점진적 대기 시간 (1초, 2초, 3초...)
+              await new Promise(resolve => setTimeout(resolve, (retryCount + 1) * 1000))
+
+              return uploadWithRetry(retryCount + 1)
+            }
+
+            throw error
+          }
+        }
+
+        const uploadResponse = await uploadWithRetry()
 
         // 진행률 시뮬레이션 정리
         clearInterval(progressInterval)
