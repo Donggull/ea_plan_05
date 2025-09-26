@@ -14,6 +14,7 @@ import {
   Lightbulb,
 } from 'lucide-react';
 import { AnalysisReport as AnalysisReportType } from '../../types/preAnalysis';
+import { supabase } from '../../lib/supabase';
 
 interface AnalysisReportProps {
   sessionId: string;
@@ -35,179 +36,73 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
 
   const loadReport = async () => {
     setIsLoading(true);
+    setError(null);
+
     try {
-      // 실제 구현에서는 API 호출
-      // const response = await preAnalysisService.getReport(sessionId);
+      if (!supabase) {
+        throw new Error('데이터베이스 연결이 초기화되지 않았습니다.');
+      }
 
-      // 임시 데이터
-      const mockReport: AnalysisReportType = {
-        id: 'report-1',
-        sessionId,
-        projectId: 'project-1',
-        summary: '이 프로젝트는 웹 기반 대시보드 개발 프로젝트로, React와 TypeScript를 사용한 모던 프론트엔드 애플리케이션 구축을 목표로 합니다. 전반적으로 기술적 복잡도는 중간 수준이며, 적절한 계획과 리소스가 있다면 성공 가능성이 높은 프로젝트로 평가됩니다.',
-        executiveSummary: '본 프로젝트는 총 6개월 기간, 약 3억원 예산 규모의 중간 복잡도 웹 개발 프로젝트입니다. 주요 리스크는 요구사항 변경과 제3자 시스템 통합 부분이며, 적절한 프로젝트 관리와 기술적 검토를 통해 성공적 완료가 가능할 것으로 판단됩니다.',
-        keyInsights: [
-          '현대적인 기술 스택 선택으로 향후 유지보수성 확보',
-          '사용자 중심 설계를 통한 높은 사용성 기대',
-          '모듈화된 아키텍처로 확장성 고려',
-          '클라우드 네이티브 접근으로 운영 효율성 증대',
-          'AI/ML 통합 가능성으로 차별화 요소 확보',
-        ],
-        riskAssessment: {
-          high: [
-            {
-              id: 'risk-1',
-              category: 'business',
-              title: '요구사항 변경',
-              description: '프로젝트 진행 중 비즈니스 요구사항이 자주 변경될 가능성',
-              probability: 70,
-              impact: 80,
-              severity: 'high',
-              mitigation: '애자일 방법론 적용 및 정기적 이해관계자 미팅',
-            },
-          ],
-          medium: [
-            {
-              id: 'risk-2',
-              category: 'technical',
-              title: '제3자 시스템 통합',
-              description: '외부 API 및 레거시 시스템과의 통합 시 기술적 어려움',
-              probability: 60,
-              impact: 60,
-              severity: 'medium',
-              mitigation: '사전 API 테스트 및 백업 계획 수립',
-            },
-            {
-              id: 'risk-3',
-              category: 'resource',
-              title: '개발자 리소스 부족',
-              description: '특정 기술 스택에 경험이 있는 개발자 확보 어려움',
-              probability: 50,
-              impact: 70,
-              severity: 'medium',
-              mitigation: '교육 계획 수립 및 외부 컨설팅 활용',
-            },
-          ],
-          low: [
-            {
-              id: 'risk-4',
-              category: 'timeline',
-              title: '일정 지연',
-              description: '예상보다 개발 시간이 오래 걸릴 가능성',
-              probability: 40,
-              impact: 50,
-              severity: 'low',
-              mitigation: '버퍼 시간 확보 및 우선순위 기반 개발',
-            },
-          ],
-          overallScore: 65,
-        },
-        recommendations: [
-          '애자일 개발 방법론을 적용하여 변화하는 요구사항에 유연하게 대응',
-          'MVP(Minimum Viable Product) 접근법으로 핵심 기능 우선 개발',
-          '지속적 통합/배포(CI/CD) 파이프라인 구축으로 품질 관리',
-          '정기적인 코드 리뷰와 페어 프로그래밍으로 코드 품질 향상',
-          '사용자 피드백을 적극 수집하여 사용성 개선',
-          '보안 요구사항을 초기부터 고려한 설계',
-          '성능 모니터링 도구 도입으로 사전 문제 감지',
-          '문서화를 통한 지식 공유 및 유지보수성 확보',
-        ],
-        baselineData: {
-          requirements: [
-            '사용자 대시보드 개발',
-            '실시간 데이터 시각화',
-            '사용자 권한 관리',
-            '모바일 반응형 지원',
-            'API 통합',
-          ],
-          stakeholders: [
-            '프로젝트 매니저',
-            '제품 오너',
-            '개발팀 리더',
-            '디자이너',
-            '최종 사용자',
-          ],
-          constraints: [
-            '6개월 개발 기간',
-            '3억원 예산 한도',
-            '기존 시스템과 호환성',
-            '보안 규정 준수',
-            '성능 요구사항 충족',
-          ],
-          timeline: [
-            {
-              phase: '기획 및 설계',
-              startDate: '2024-01-01',
-              endDate: '2024-01-31',
-              duration: 30,
-              milestones: ['요구사항 정의', 'UI/UX 설계', '기술 아키텍처'],
-            },
-            {
-              phase: '개발',
-              startDate: '2024-02-01',
-              endDate: '2024-05-31',
-              duration: 120,
-              milestones: ['MVP 개발', '기능 구현', '통합 테스트'],
-            },
-            {
-              phase: '테스트 및 배포',
-              startDate: '2024-06-01',
-              endDate: '2024-06-30',
-              duration: 30,
-              milestones: ['QA 테스트', '성능 최적화', '배포'],
-            },
-          ],
-          budgetEstimates: {
-            development: 200000000,
-            design: 50000000,
-            testing: 30000000,
-            infrastructure: 20000000,
-          },
-          technicalStack: [
-            'React',
-            'TypeScript',
-            'Vite',
-            'Tailwind CSS',
-            'Supabase',
-            'Vercel',
-          ],
-          integrationPoints: [
-            '사용자 인증 시스템',
-            '결제 게이트웨이',
-            '이메일 서비스',
-            '외부 데이터 API',
-            '분석 도구',
-          ],
-        },
-        visualizationData: {
-          riskDistribution: {
-            high: 1,
-            medium: 2,
-            low: 1,
-          },
-          budgetBreakdown: {
-            development: 67,
-            design: 17,
-            testing: 10,
-            infrastructure: 6,
-          },
-          timelinePhases: [
-            { name: '기획', duration: 30, progress: 0 },
-            { name: '개발', duration: 120, progress: 0 },
-            { name: '배포', duration: 30, progress: 0 },
-          ],
-        },
-        aiModel: 'gpt-4o',
-        aiProvider: 'openai',
-        totalProcessingTime: 180,
-        totalCost: 0.25,
-        inputTokens: 8000,
-        outputTokens: 3000,
-        generatedBy: 'user-1',
-        createdAt: new Date(),
-      };
+      console.log('📊 실제 데이터 기반 보고서 생성 시작:', sessionId);
 
-      setReport(mockReport);
+      // 1. 세션 및 프로젝트 기본 정보 조회
+      const { data: session } = await supabase
+        .from('pre_analysis_sessions')
+        .select(`
+          *,
+          projects!inner (
+            id,
+            name,
+            description,
+            metadata
+          )
+        `)
+        .eq('id', sessionId)
+        .single();
+
+      if (!session) {
+        throw new Error('세션 정보를 찾을 수 없습니다.');
+      }
+
+      const project = session.projects;
+
+      // 2. 문서 분석 결과 조회
+      const { data: documentAnalyses } = await supabase
+        .from('document_analyses')
+        .select('*')
+        .eq('session_id', sessionId)
+        .order('created_at', { ascending: true });
+
+      // 3. AI 생성 질문들 조회
+      const { data: questions } = await supabase
+        .from('ai_questions')
+        .select('*')
+        .eq('session_id', sessionId)
+        .order('order_index', { ascending: true });
+
+      // 4. 사용자 답변들 조회
+      const { data: answers } = await supabase
+        .from('user_answers')
+        .select('*')
+        .eq('session_id', sessionId);
+
+      console.log('🔍 수집된 데이터:', {
+        project: project?.name,
+        documentCount: documentAnalyses?.length || 0,
+        questionCount: questions?.length || 0,
+        answerCount: answers?.length || 0
+      });
+
+      // 5. 실제 데이터를 기반으로 보고서 생성
+      const actualReport = await generateReportFromData({
+        session,
+        project,
+        documentAnalyses: documentAnalyses || [],
+        questions: questions || [],
+        answers: answers || []
+      });
+
+      setReport(actualReport);
     } catch (error) {
       setError('보고서를 불러오는 중 오류가 발생했습니다.');
       console.error('보고서 로드 오류:', error);
@@ -245,6 +140,240 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
       navigator.clipboard.writeText(window.location.href);
       alert('링크가 클립보드에 복사되었습니다.');
     }
+  };
+
+  // 실제 데이터를 기반으로 보고서 생성
+  const generateReportFromData = async (data: {
+    session: any;
+    project: any;
+    documentAnalyses: any[];
+    questions: any[];
+    answers: any[];
+  }): Promise<AnalysisReportType> => {
+    const { session, project, documentAnalyses, questions, answers } = data;
+
+    // 답변 완료율 계산
+    const completedAnswers = answers.filter(a => !a.is_draft && a.answer?.trim());
+    const completionRate = questions.length > 0 ? (completedAnswers.length / questions.length) * 100 : 0;
+
+    // 위험도 평가 (답변 완료율 기반)
+    const overallScore = Math.round(completionRate);
+    const risks = generateRiskAssessment(completionRate, answers, questions);
+
+    // 문서 분석 결과에서 인사이트 추출
+    const insights = extractInsights(documentAnalyses, answers);
+
+    // 권장사항 생성
+    const recommendations = generateRecommendations(completionRate);
+
+    // 기초 데이터 구성
+    const baselineData = buildBaselineData(project, questions, answers, documentAnalyses);
+
+    return {
+      id: `report-${sessionId}`,
+      sessionId,
+      projectId: project.id,
+      summary: `${project.name} 프로젝트의 사전 분석이 완료되었습니다. 총 ${questions.length}개의 질문 중 ${completedAnswers.length}개(${completionRate.toFixed(1)}%)에 대한 답변이 수집되었습니다. ${documentAnalyses.length}개의 문서가 분석되었으며, 웹에이전시 관점에서 프로젝트의 실행 가능성과 위험 요소를 종합적으로 평가했습니다.`,
+      executiveSummary: `본 프로젝트는 ${project.description || '상세 설명 미제공'} 프로젝트입니다. 사전 분석 결과 답변 완료율 ${completionRate.toFixed(1)}%를 기록했으며, ${overallScore >= 80 ? '높은' : overallScore >= 60 ? '보통' : '낮은'} 수준의 준비도를 보여줍니다. 주요 위험 요소와 권장사항을 바탕으로 성공적인 프로젝트 실행을 위한 로드맵을 제시합니다.`,
+      keyInsights: insights,
+      riskAssessment: {
+        high: risks.filter(r => r.severity === 'high'),
+        medium: risks.filter(r => r.severity === 'medium'),
+        low: risks.filter(r => r.severity === 'low'),
+        overallScore
+      },
+      recommendations,
+      baselineData,
+      visualizationData: {
+        riskDistribution: {
+          high: risks.filter(r => r.severity === 'high').length,
+          medium: risks.filter(r => r.severity === 'medium').length,
+          low: risks.filter(r => r.severity === 'low').length
+        },
+        budgetBreakdown: {
+          development: 60,
+          design: 20,
+          testing: 15,
+          infrastructure: 5
+        },
+        timelinePhases: [
+          { name: '요구사항 분석', duration: 20, progress: completionRate },
+          { name: '설계 및 개발', duration: 60, progress: 0 },
+          { name: '테스트 및 배포', duration: 20, progress: 0 }
+        ]
+      },
+      aiModel: 'claude-3-5-sonnet',
+      aiProvider: 'anthropic',
+      totalProcessingTime: Math.floor((new Date().getTime() - new Date(session.created_at).getTime()) / 1000),
+      totalCost: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      generatedBy: session.created_by,
+      createdAt: new Date()
+    };
+  };
+
+  // 위험도 평가 생성
+  const generateRiskAssessment = (completionRate: number, answers: any[], questions: any[]): Array<{
+    id: string;
+    category: 'technical' | 'business' | 'timeline' | 'budget' | 'resource';
+    title: string;
+    description: string;
+    probability: number;
+    impact: number;
+    severity: 'low' | 'medium' | 'high' | 'critical';
+    mitigation?: string;
+  }> => {
+    const risks: Array<{
+      id: string;
+      category: 'technical' | 'business' | 'timeline' | 'budget' | 'resource';
+      title: string;
+      description: string;
+      probability: number;
+      impact: number;
+      severity: 'low' | 'medium' | 'high' | 'critical';
+      mitigation?: string;
+    }> = [];
+
+    // 답변 완료율 기반 위험 평가
+    if (completionRate < 50) {
+      risks.push({
+        id: 'incomplete-analysis',
+        category: 'business',
+        title: '불완전한 요구사항 분석',
+        description: `답변 완료율이 ${completionRate.toFixed(1)}%로 낮아 프로젝트 요구사항 파악이 불완전합니다.`,
+        probability: 90,
+        impact: 80,
+        severity: 'high' as const,
+        mitigation: '미답변 질문에 대한 추가 분석 및 이해관계자 인터뷰 진행'
+      });
+    }
+
+    // 필수 질문 미답변 위험
+    const requiredQuestions = questions.filter(q => q.required);
+    const answeredRequired = requiredQuestions.filter(q =>
+      answers.some(a => a.question_id === q.id && !a.is_draft && a.answer?.trim())
+    );
+
+    if (answeredRequired.length < requiredQuestions.length) {
+      risks.push({
+        id: 'missing-requirements',
+        category: 'business',
+        title: '핵심 요구사항 누락',
+        description: `필수 질문 ${requiredQuestions.length}개 중 ${answeredRequired.length}개만 답변되어 핵심 요구사항이 누락될 위험이 있습니다.`,
+        probability: 70,
+        impact: 90,
+        severity: 'high' as const,
+        mitigation: '필수 질문에 대한 우선적 답변 수집 및 검토'
+      });
+    }
+
+    // 기술적 복잡도 평가 (카테고리 기반)
+    const technicalQuestions = questions.filter(q => q.category === 'technical');
+    if (technicalQuestions.length > 0) {
+      risks.push({
+        id: 'technical-complexity',
+        category: 'technical',
+        title: '기술적 복잡도',
+        description: '다양한 기술적 요구사항으로 인한 구현 복잡도 증가 가능성',
+        probability: 60,
+        impact: 70,
+        severity: 'medium' as const,
+        mitigation: '기술 스택 검토 및 프로토타입 개발을 통한 기술적 검증'
+      });
+    }
+
+    // 일반적인 프로젝트 리스크 (낮은 수준)
+    risks.push({
+      id: 'general-project-risk',
+      category: 'timeline' as const,
+      title: '일반적인 프로젝트 리스크',
+      description: '예상되는 일반적인 개발 과정에서의 소규모 지연 및 변경사항',
+      probability: 30,
+      impact: 40,
+      severity: 'low' as const,
+      mitigation: '충분한 버퍼 시간 확보 및 체계적인 프로젝트 관리'
+    });
+
+    return risks;
+  };
+
+  // 인사이트 추출
+  const extractInsights = (documentAnalyses: any[], answers: any[]) => {
+    const insights = [];
+
+    if (documentAnalyses.length > 0) {
+      insights.push(`${documentAnalyses.length}개의 프로젝트 문서가 분석되어 체계적인 접근이 가능합니다.`);
+    }
+
+    if (answers.length > 0) {
+      const avgConfidence = answers
+        .filter(a => !a.is_draft && a.confidence)
+        .reduce((sum, a) => sum + a.confidence, 0) / answers.length;
+
+      if (avgConfidence > 70) {
+        insights.push('높은 답변 확신도로 명확한 프로젝트 방향성을 확인했습니다.');
+      }
+    }
+
+    insights.push('웹에이전시 관점에서 프로젝트 실행 가능성을 종합적으로 평가했습니다.');
+    insights.push('체계적인 사전 분석을 통해 프로젝트 리스크를 사전에 식별했습니다.');
+
+    return insights;
+  };
+
+  // 권장사항 생성
+  const generateRecommendations = (completionRate: number) => {
+    const recommendations = [];
+
+    if (completionRate < 80) {
+      recommendations.push('미답변 질문에 대한 추가 분석을 통해 요구사항을 명확히 하세요.');
+    }
+
+    recommendations.push('정기적인 이해관계자 미팅을 통해 프로젝트 진행상황을 공유하세요.');
+    recommendations.push('애자일 개발 방법론을 적용하여 변화하는 요구사항에 유연하게 대응하세요.');
+    recommendations.push('MVP 접근법으로 핵심 기능을 우선 개발하세요.');
+    recommendations.push('지속적인 사용자 피드백을 수집하여 제품의 품질을 향상시키세요.');
+
+    return recommendations;
+  };
+
+  // 기초 데이터 구성
+  const buildBaselineData = (project: any, questions: any[], answers: any[], documentAnalyses: any[]) => {
+    const answeredQuestions = questions.filter(q =>
+      answers.some(a => a.question_id === q.id && !a.is_draft && a.answer?.trim())
+    );
+
+    return {
+      requirements: answeredQuestions
+        .filter(q => q.category === 'business' || q.category === 'functional')
+        .map(q => q.question)
+        .slice(0, 10),
+      stakeholders: ['프로젝트 관리자', '개발팀', '디자이너', '클라이언트', '최종 사용자'],
+      constraints: [
+        '예산 제약',
+        '일정 제약',
+        '기술적 제약',
+        '리소스 제약'
+      ],
+      timeline: [
+        {
+          phase: '요구사항 분석 및 설계',
+          startDate: new Date().toISOString().split('T')[0],
+          endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          duration: 30,
+          milestones: ['요구사항 정의', 'UI/UX 설계', '기술 아키텍처']
+        }
+      ],
+      budgetEstimates: {
+        development: 60,
+        design: 20,
+        testing: 15,
+        infrastructure: 5
+      },
+      technicalStack: project.metadata?.tech_stack || ['React', 'TypeScript', 'Node.js'],
+      integrationPoints: documentAnalyses.map(da => da.file_name || '외부 시스템').slice(0, 5)
+    };
   };
 
   const getRiskColor = (severity: string) => {

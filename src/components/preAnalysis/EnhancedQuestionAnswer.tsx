@@ -15,7 +15,10 @@ import {
   ChevronDown,
   ChevronUp,
   RotateCcw,
-  Lightbulb
+  Lightbulb,
+  SkipForward,
+  Clock,
+  Edit3
 } from 'lucide-react'
 import { Question, QuestionResponse, AIQuestionGenerator } from '../../services/proposal/aiQuestionGenerator'
 // aiServiceManager 클라이언트사이드 제거 - 서버사이드 API 사용
@@ -286,8 +289,8 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
     return String(answer)
   }
 
-  // 답변 변경 핸들러
-  const handleAnswerChange = (questionId: string, value: any) => {
+  // 답변 변경 핸들러 (자동 저장 포함)
+  const handleAnswerChange = async (questionId: string, value: any) => {
     const isComplete = checkAnswerCompleteness(questionId, value)
     const timeSpent = Date.now() - questionStartTime.getTime()
 
@@ -296,6 +299,16 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
       isComplete,
       timeSpent: Math.round(timeSpent / 1000)
     })
+
+    // 답변이 완성된 경우 자동 저장
+    if (isComplete && autoSaveEnabled) {
+      try {
+        await saveIndividualAnswer(questionId, false)
+        console.log('✅ 자동 저장 완료:', questionId)
+      } catch (error) {
+        console.error('자동 저장 실패:', error)
+      }
+    }
   }
 
   // 신뢰도 변경 핸들러
@@ -321,14 +334,70 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
     }
   }
 
-  // 수동 저장
-  const handleSave = async () => {
-    setIsSaving(true)
+  // 개별 답변 저장
+  const saveIndividualAnswer = async (questionId: string, isDraft: boolean = false) => {
     try {
-      if (!supabase) {
-        throw new Error('데이터베이스 연결이 초기화되지 않았습니다.')
+      if (!supabase || !user?.id) {
+        throw new Error('데이터베이스 연결 또는 사용자 인증이 필요합니다.')
       }
 
+      const answerState = answers.get(questionId)
+      if (!answerState) {
+        console.warn('저장할 답변이 없습니다:', questionId)
+        return
+      }
+
+      console.log('💾 답변 저장 시도:', {
+        sessionId,
+        questionId,
+        userId: user.id,
+        answer: answerState.answer,
+        isDraft
+      })
+
+      const answerData = {
+        session_id: sessionId,
+        question_id: questionId,
+        answer: typeof answerState.answer === 'string' ? answerState.answer : JSON.stringify(answerState.answer),
+        answer_data: typeof answerState.answer !== 'string' ? answerState.answer : null,
+        confidence: Math.round((answerState.confidence || 0.5) * 100),
+        notes: answerState.notes || '',
+        is_draft: isDraft,
+        answered_by: user.id,
+        answered_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        metadata: {
+          timeSpent: answerState.timeSpent || 0,
+          lastUpdated: answerState.lastUpdated?.toISOString() || new Date().toISOString()
+        }
+      }
+
+      const { data, error } = await supabase
+        .from('user_answers')
+        .upsert(answerData, {
+          onConflict: 'session_id,question_id'
+        })
+        .select()
+
+      if (error) {
+        console.error('❌ 답변 저장 실패:', error)
+        throw error
+      }
+
+      console.log('✅ 답변 저장 성공:', data)
+      return data
+    } catch (error) {
+      console.error('개별 답변 저장 실패:', error)
+      throw error
+    }
+  }
+
+  // 수동 저장 (전체)
+  const handleSave = async () => {
+    setIsSaving(true)
+    setError(null)
+
+    try {
       const responses: QuestionResponse[] = Array.from(answers.values()).map(answer => ({
         questionId: answer.questionId,
         answer: answer.answer,
@@ -341,49 +410,30 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
         return
       }
 
-      // Supabase에 저장 (배치 처리)
-      const savePromises = responses.map(response => {
-        const answerState = answers.get(response.questionId);
-        const answerData = {
-          session_id: sessionId,
-          question_id: response.questionId,
-          answer: typeof response.answer === 'string' ? response.answer : JSON.stringify(response.answer),
-          answer_data: typeof response.answer !== 'string' ? response.answer : null,
-          confidence: Math.round((response.confidence || 0.5) * 100), // 0-100 범위의 정수로 변환
-          notes: response.notes || '',
-          is_draft: false, // 저장 시에는 초안이 아님
-          answered_by: user?.id || null,
-          answered_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          metadata: {
-            timeSpent: answerState?.timeSpent || 0,
-            lastUpdated: answerState?.lastUpdated?.toISOString() || new Date().toISOString()
-          }
+      let savedCount = 0
+      let errorCount = 0
+
+      for (const response of responses) {
+        try {
+          await saveIndividualAnswer(response.questionId, false)
+          savedCount++
+        } catch (error) {
+          errorCount++
+          console.error(`답변 저장 실패 (${response.questionId}):`, error)
         }
+      }
 
-        return supabase!
-          .from('user_answers')
-          .upsert(answerData, {
-            onConflict: 'session_id,question_id'
-          })
-      })
-
-      const results = await Promise.allSettled(savePromises)
-
-      // 실패한 저장 확인
-      const failures = results.filter(result => result.status === 'rejected')
-      if (failures.length > 0) {
-        console.error('일부 답변 저장 실패:', failures)
-        setError(`${responses.length - failures.length}/${responses.length}개 답변이 저장되었습니다.`)
+      if (errorCount > 0) {
+        setError(`${savedCount}/${responses.length}개 답변이 저장되었습니다. ${errorCount}개 실패.`)
       } else {
-        console.log(`${responses.length}개 답변이 모두 저장되었습니다.`)
+        console.log(`✅ ${savedCount}개 답변이 모두 저장되었습니다.`)
       }
 
       if (onSave) {
-        onSave(responses)
+        onSave(responses.slice(0, savedCount))
       }
     } catch (error) {
-      console.error('저장 실패:', error)
+      console.error('전체 저장 실패:', error)
       const errorMessage = error instanceof Error ? error.message : '답변 저장 중 오류가 발생했습니다.'
       setError(errorMessage)
     } finally {
@@ -413,6 +463,32 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
     if (index >= 0 && index < questions.length) {
       setCurrentQuestionIndex(index)
       setQuestionStartTime(new Date())
+    }
+  }
+
+  // 질문 스킵
+  const skipQuestion = async (questionId: string) => {
+    try {
+      // 스킵된 질문으로 마킹하여 저장
+      updateAnswer(questionId, {
+        answer: '',
+        confidence: 0,
+        notes: '스킵됨',
+        isComplete: false,
+        timeSpent: 0
+      })
+
+      await saveIndividualAnswer(questionId, true) // 초안으로 저장
+
+      console.log('✅ 질문 스킵 처리 완료:', questionId)
+
+      // 다음 질문으로 이동
+      if (currentQuestionIndex < questions.length - 1) {
+        goToQuestion(currentQuestionIndex + 1)
+      }
+    } catch (error) {
+      console.error('질문 스킵 처리 실패:', error)
+      setError('질문 스킵 처리 중 오류가 발생했습니다.')
     }
   }
 
@@ -586,31 +662,57 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
         {questions.map((question, index) => {
           const answer = answers.get(question.id)
           const isCompleted = answer?.isComplete || false
+          const isSkipped = answer?.notes === '스킵됨' && !isCompleted
+          const hasAnswer = answer && (answer.answer !== '' || answer.notes !== '')
           const isCurrent = index === currentQuestionIndex
 
           return (
             <div key={question.id} className="flex-shrink-0">
               <button
                 onClick={() => goToQuestion(index)}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 relative ${
                   isCurrent
                     ? 'bg-primary text-white shadow-sm'
                     : isCompleted
                     ? 'bg-status-success/10 text-status-success border border-status-success/20'
+                    : isSkipped
+                    ? 'bg-text-tertiary/10 text-text-tertiary border border-text-tertiary/20'
+                    : hasAnswer && !isCompleted
+                    ? 'bg-status-info/10 text-status-info border border-status-info/20'
                     : question.required
                     ? 'bg-status-warning/10 text-status-warning border border-status-warning/20'
                     : 'bg-bg-tertiary text-text-secondary border border-border-secondary hover:bg-bg-secondary'
                 }`}
               >
                 {index + 1}
-                {question.required && !isCompleted && <span className="text-status-warning ml-1">*</span>}
+                {question.required && !isCompleted && !isSkipped && <span className="text-status-warning ml-1">*</span>}
                 {isCompleted && <CheckCircle className="w-3 h-3 ml-1 inline" />}
+                {isSkipped && <SkipForward className="w-3 h-3 ml-1 inline" />}
+                {hasAnswer && !isCompleted && !isSkipped && <Edit3 className="w-3 h-3 ml-1 inline opacity-60" />}
               </button>
-              {/* 완료된 질문의 답변 미리보기 */}
-              {isCompleted && !isCurrent && (
+
+              {/* 상태별 미리보기 */}
+              {!isCurrent && (hasAnswer || isSkipped) && (
                 <div className="mt-1 px-2 py-1 bg-bg-secondary rounded text-xs text-text-secondary max-w-[200px]">
                   <div className="font-medium text-text-primary mb-1 truncate">{question.text}</div>
-                  <div className="truncate">{getAnswerSummary(answer?.answer || '')}</div>
+                  <div className="truncate">
+                    {isSkipped ? (
+                      <span className="text-text-tertiary flex items-center space-x-1">
+                        <SkipForward className="w-3 h-3" />
+                        <span>스킵됨</span>
+                      </span>
+                    ) : isCompleted ? (
+                      <span className="text-status-success flex items-center space-x-1">
+                        <CheckCircle className="w-3 h-3" />
+                        <span>{getAnswerSummary(answer?.answer || '')}</span>
+                      </span>
+                    ) : (
+                      <span className="text-status-info flex items-center space-x-1">
+                        <Clock className="w-3 h-3" />
+                        <span>진행 중: {getAnswerSummary(answer?.answer || '')}</span>
+                      </span>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -738,9 +840,22 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
               <span>이전</span>
             </button>
 
-            <span className="text-sm text-text-secondary font-medium">
-              {currentQuestionIndex + 1} / {questions.length}
-            </span>
+            <div className="flex items-center space-x-4">
+              <span className="text-sm text-text-secondary font-medium">
+                {currentQuestionIndex + 1} / {questions.length}
+              </span>
+
+              {!currentQuestion.required && !answers.get(currentQuestion.id)?.isComplete && (
+                <button
+                  onClick={() => skipQuestion(currentQuestion.id)}
+                  className="flex items-center space-x-2 px-3 py-1.5 text-text-tertiary hover:text-status-warning hover:bg-status-warning/10 border border-status-warning/20 rounded-lg transition-colors text-sm"
+                  title="이 질문을 건너뛰기"
+                >
+                  <SkipForward className="w-3 h-3" />
+                  <span>건너뛰기</span>
+                </button>
+              )}
+            </div>
 
             <button
               onClick={() => goToQuestion(currentQuestionIndex + 1)}
