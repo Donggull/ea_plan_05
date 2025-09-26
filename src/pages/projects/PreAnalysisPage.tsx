@@ -62,31 +62,47 @@ export const PreAnalysisPage: React.FC = () => {
       setCurrentSession(latestSession);
 
       // 세션에 따라 완료된 단계들 검색
-      const [analysisResult, questionsResult, reportResult] = await Promise.all([
+      const [analysisResult, questionsResult, answersResult, reportResult] = await Promise.all([
+        // 문서 분석 완료 확인 (status='completed'인 분석이 있는지)
         supabase.from('document_analyses')
-          .select('*', { count: 'exact', head: true })
-          .eq('session_id', latestSession.id),
+          .select('*')
+          .eq('session_id', latestSession.id)
+          .eq('status', 'completed'),
+        // AI 질문 생성 확인
         supabase.from('ai_questions')
-          .select('*', { count: 'exact', head: true })
+          .select('id', { count: 'exact', head: true })
           .eq('session_id', latestSession.id),
+        // 사용자 답변 완료 확인 (is_draft=false인 답변들)
+        supabase.from('user_answers')
+          .select('*')
+          .eq('session_id', latestSession.id)
+          .eq('is_draft', false),
+        // 보고서 생성 확인
         supabase.from('analysis_reports')
           .select('*', { count: 'exact', head: true })
           .eq('session_id', latestSession.id)
       ]);
 
-      const analysisCount = analysisResult.count || 0;
-      const questionCount = questionsResult.count || 0;
+      const completedAnalysisCount = analysisResult.data?.length || 0;
+      const totalQuestionCount = questionsResult.count || 0;
+      const completedAnswerCount = answersResult.data?.length || 0;
       const reportCount = reportResult.count || 0;
 
       // 완료된 단계들 업데이트
       const newCompletedSteps = new Set<string>(['setup']);
 
-      if (analysisCount > 0) {
+      // 문서 분석: status='completed'인 분석이 있으면 완료
+      if (completedAnalysisCount > 0) {
         newCompletedSteps.add('analysis');
       }
-      if (questionCount > 0) {
+
+      // 질문 답변: 생성된 질문에 대해 최소 하나의 완료된 답변이 있으면 완료
+      // (또는 필수 질문들에 대한 답변이 모두 완료된 경우)
+      if (totalQuestionCount > 0 && completedAnswerCount > 0) {
         newCompletedSteps.add('questions');
       }
+
+      // 보고서: 보고서가 생성되었으면 완료
       if (reportCount > 0) {
         newCompletedSteps.add('report');
       }
@@ -97,12 +113,18 @@ export const PreAnalysisPage: React.FC = () => {
       if (latestSession.status === 'processing') {
         if (reportCount > 0) {
           setCurrentStep('report');
-        } else if (questionCount > 0) {
+        } else if (totalQuestionCount > 0 && completedAnswerCount === 0) {
+          // 질문이 생성되었지만 답변이 완료되지 않은 경우
           setCurrentStep('questions');
-        } else if (analysisCount > 0) {
+        } else if (completedAnalysisCount > 0 && totalQuestionCount === 0) {
+          // 문서 분석은 완료되었지만 질문이 아직 생성되지 않은 경우
+          setCurrentStep('analysis');
+        } else if (completedAnalysisCount === 0) {
+          // 문서 분석이 시작되지 않은 경우
           setCurrentStep('analysis');
         } else {
-          setCurrentStep('analysis');
+          // 모든 단계가 완료된 경우 보고서 단계로
+          setCurrentStep('report');
         }
       }
 

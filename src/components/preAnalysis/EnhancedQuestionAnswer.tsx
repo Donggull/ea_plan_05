@@ -20,6 +20,7 @@ import {
 import { Question, QuestionResponse, AIQuestionGenerator } from '../../services/proposal/aiQuestionGenerator'
 // aiServiceManager 클라이언트사이드 제거 - 서버사이드 API 사용
 import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../contexts/AuthContext'
 
 interface EnhancedQuestionAnswerProps {
   projectId: string
@@ -46,6 +47,7 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
   onComplete,
   onSave
 }) => {
+  const { user } = useAuth()
   const [questions, setQuestions] = useState<Question[]>([])
   const [answers, setAnswers] = useState<Map<string, AnswerState>>(new Map())
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
@@ -212,11 +214,11 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
           if (answer && answer.question_id) {
             answersMap.set(answer.question_id, {
               questionId: answer.question_id,
-              answer: answer.answer_text || answer.answer_data || '',
-              confidence: Math.max(0, Math.min(1, answer.confidence_score || 0.5)),
+              answer: answer.answer || answer.answer_data || '',
+              confidence: Math.max(0, Math.min(1, (answer.confidence || 50) / 100)), // 정수를 0-1 범위로 변환
               notes: answer.notes || '',
-              isComplete: true,
-              timeSpent: Math.max(0, answer.response_time || 0),
+              isComplete: !answer.is_draft, // is_draft가 false면 완료된 답변
+              timeSpent: Math.max(0, answer.metadata?.timeSpent || 0),
               lastUpdated: answer.updated_at ? new Date(answer.updated_at) : new Date()
             })
           }
@@ -341,14 +343,22 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
 
       // Supabase에 저장 (배치 처리)
       const savePromises = responses.map(response => {
+        const answerState = answers.get(response.questionId);
         const answerData = {
           session_id: sessionId,
           question_id: response.questionId,
-          answer_text: typeof response.answer === 'string' ? response.answer : null,
+          answer: typeof response.answer === 'string' ? response.answer : JSON.stringify(response.answer),
           answer_data: typeof response.answer !== 'string' ? response.answer : null,
-          confidence_score: Math.max(0, Math.min(1, response.confidence || 0.5)),
+          confidence: Math.round((response.confidence || 0.5) * 100), // 0-100 범위의 정수로 변환
           notes: response.notes || '',
-          response_time: answers.get(response.questionId)?.timeSpent || 0
+          is_draft: false, // 저장 시에는 초안이 아님
+          answered_by: user?.id || null,
+          answered_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          metadata: {
+            timeSpent: answerState?.timeSpent || 0,
+            lastUpdated: answerState?.lastUpdated?.toISOString() || new Date().toISOString()
+          }
         }
 
         return supabase!
