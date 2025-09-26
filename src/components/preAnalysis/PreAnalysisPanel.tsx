@@ -202,6 +202,20 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
         reports: reportCount
       });
 
+      // 실제 답변(스킵되지 않은 답변)만 카운팅
+      const actualAnswerCount = answersResult.data?.filter(answer =>
+        answer.notes !== '스킵됨' && answer.answer &&
+        typeof answer.answer === 'string' && answer.answer.trim() !== ''
+      ).length || 0;
+
+      console.log('📊 단계 결정을 위한 상세 데이터:', {
+        completedAnalysis: completedAnalysisCount,
+        totalQuestions: totalQuestionCount,
+        processedAnswers: processedAnswerCount,
+        actualAnswers: actualAnswerCount,
+        reports: reportCount
+      });
+
       // 개선된 단계 결정 로직
       if (reportCount > 0) {
         // 보고서가 이미 생성된 경우
@@ -211,11 +225,17 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
         if (processedAnswerCount === 0) {
           // 아직 답변/스킵이 하나도 없는 경우 → 질문 단계
           onStepChange?.('questions');
+        } else if (actualAnswerCount === 0) {
+          // 모든 답변이 스킵된 경우 → 질문 단계 유지 (실제 답변 유도)
+          onStepChange?.('questions');
         } else if (processedAnswerCount < totalQuestionCount) {
           // 일부만 답변/스킵한 경우 → 질문 단계 (계속 진행)
           onStepChange?.('questions');
+        } else if (actualAnswerCount < totalQuestionCount && processedAnswerCount === totalQuestionCount) {
+          // 모든 질문이 처리되었지만 일부는 스킵된 경우 → 질문 단계 유지
+          onStepChange?.('questions');
         } else {
-          // 모든 질문이 처리된 경우 (답변 또는 스킵) → 보고서 단계로 진행
+          // 실제 답변이 충분한 경우 → 보고서 단계로 진행
           onStepChange?.('report');
         }
       } else if (completedAnalysisCount > 0) {

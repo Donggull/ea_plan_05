@@ -207,16 +207,20 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
         return
       }
 
+      console.log('📥 기존 답변 로드 시작:', { sessionId })
+
       const response = await supabase
         .from('user_answers')
         .select('*')
         .eq('session_id', sessionId)
 
+      console.log('📥 데이터베이스 응답:', response)
+
       if (response?.data && Array.isArray(response.data)) {
         const answersMap = new Map<string, AnswerState>()
         response.data.forEach((answer: any) => {
           if (answer && answer.question_id) {
-            answersMap.set(answer.question_id, {
+            const answerState = {
               questionId: answer.question_id,
               answer: answer.answer || answer.answer_data || '',
               confidence: Math.max(0, Math.min(1, (answer.confidence || 50) / 100)), // 정수를 0-1 범위로 변환
@@ -224,10 +228,21 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
               isComplete: !answer.is_draft, // is_draft가 false면 완료된 답변
               timeSpent: Math.max(0, answer.metadata?.timeSpent || 0),
               lastUpdated: answer.updated_at ? new Date(answer.updated_at) : new Date()
+            }
+
+            console.log('📥 답변 복원:', {
+              questionId: answer.question_id,
+              answer: answerState.answer,
+              notes: answerState.notes,
+              isComplete: answerState.isComplete,
+              isSkipped: answerState.notes === '스킵됨'
             })
+
+            answersMap.set(answer.question_id, answerState)
           }
         })
         setAnswers(answersMap)
+        console.log('✅ 총 복원된 답변 수:', answersMap.size)
       }
     } catch (error) {
       console.warn('기존 답변 로드 실패:', error)
@@ -696,9 +711,24 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
           {questions.map((question, index) => {
             const answer = answers.get(question.id)
             const isCompleted = answer?.isComplete || false
-            const isSkipped = answer?.notes === '스킵됨' && isCompleted // 스킵된 질문도 완료된 것으로 처리
+            const isSkipped = answer?.notes === '스킵됨'
+            const hasRealAnswer = answer && answer.answer &&
+              typeof answer.answer === 'string' && answer.answer.trim() !== '' && !isSkipped
             const hasAnswer = answer && (answer.answer !== '' || answer.notes !== '')
             const isCurrent = index === currentQuestionIndex
+
+            // 디버깅을 위한 로그
+            if (answer && index === currentQuestionIndex) {
+              console.log('🎯 현재 질문 상태:', {
+                questionId: question.id,
+                answer: answer.answer,
+                notes: answer.notes,
+                isCompleted,
+                isSkipped,
+                hasRealAnswer,
+                hasAnswer
+              })
+            }
 
             return (
               <div key={question.id} className="relative group">
@@ -709,9 +739,9 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
                       ? 'bg-gradient-to-br from-primary to-primary/80 text-white shadow-lg scale-105 ring-2 ring-primary/30'
                       : isSkipped
                       ? 'bg-gradient-to-br from-text-tertiary/20 to-text-tertiary/10 text-text-tertiary border border-text-tertiary/30 hover:from-text-tertiary/30 hover:to-text-tertiary/20'
-                      : isCompleted
+                      : hasRealAnswer && isCompleted
                       ? 'bg-gradient-to-br from-status-success/20 to-status-success/10 text-status-success border border-status-success/30 hover:from-status-success/30 hover:to-status-success/20'
-                      : hasAnswer && !isCompleted
+                      : hasAnswer && !isCompleted && !isSkipped
                       ? 'bg-gradient-to-br from-status-info/20 to-status-info/10 text-status-info border border-status-info/30 hover:from-status-info/30 hover:to-status-info/20'
                       : 'bg-gradient-to-br from-bg-tertiary to-bg-secondary text-text-secondary border border-border-secondary hover:from-bg-secondary hover:to-bg-primary hover:text-text-primary'
                   }`}
@@ -722,11 +752,11 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
                       {index + 1}
                     </span>
                     <div className="flex items-center space-x-1">
-                      {question.required && !isCompleted && (
+                      {question.required && !isCompleted && !isSkipped && (
                         <div className="w-1 h-1 rounded-full bg-status-warning animate-pulse"></div>
                       )}
                       {isSkipped && <SkipForward className="w-3 h-3" />}
-                      {isCompleted && !isSkipped && <CheckCircle className="w-3 h-3" />}
+                      {hasRealAnswer && isCompleted && !isSkipped && <CheckCircle className="w-3 h-3" />}
                       {hasAnswer && !isCompleted && !isSkipped && <Edit3 className="w-3 h-3 opacity-60" />}
                     </div>
                   </div>
@@ -734,8 +764,12 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
                   {/* 진행률 표시 */}
                   {(hasAnswer || isSkipped) && (
                     <div className={`absolute bottom-0 left-0 h-1 transition-all duration-300 ${
-                      isSkipped ? 'bg-text-tertiary' : isCompleted ? 'bg-status-success' : 'bg-status-info'
-                    }`} style={{ width: isCompleted ? '100%' : '60%' }}></div>
+                      isSkipped
+                        ? 'bg-text-tertiary'
+                        : hasRealAnswer && isCompleted
+                        ? 'bg-status-success'
+                        : 'bg-status-info'
+                    }`} style={{ width: (isSkipped || isCompleted) ? '100%' : '60%' }}></div>
                   )}
                 </button>
 
