@@ -12,7 +12,6 @@ import {
   ReportGenerationOptions,
   DocumentCategory,
 } from '../../types/preAnalysis';
-import { AIQuestionGenerator } from '../proposal/aiQuestionGenerator';
 
 export class PreAnalysisService {
   private static instance: PreAnalysisService;
@@ -649,45 +648,51 @@ export class PreAnalysisService {
         documentsCount: documentContext.length
       });
 
-      // AI를 통한 질문 생성 시도 (개선된 오류 처리)
+      // AI를 통한 질문 생성 (통합된 completion API 사용)
       let generatedQuestions: any[] = [];
       try {
-        console.log('🤖 AIQuestionGenerator 호출 준비:', {
+        console.log('🤖 AI 질문 생성 시작 (통합 completion API):', {
           projectId: session.project_id,
           projectName: project?.name,
           hasDocuments: documentContext.length > 0
         });
 
-        const aiQuestions = await AIQuestionGenerator.generateAIQuestions(
-          'pre_analysis',
-          session.project_id,
-          {
-            projectName: project?.name || '',
-            projectDescription: project?.description ?? '',
-            industry: (project as any)?.project_types?.join?.(', ') || '',
-            // 개선된 문서 정보 제공
-            documents: documentContext
-          },
-          session.created_by ?? undefined
+        // 질문 생성을 위한 프롬프트 구성
+        const questionPrompt = this.buildQuestionGenerationPrompt(
+          project?.name || '',
+          project?.description || '',
+          (project as any)?.project_types || [],
+          documentContext
         );
 
-        console.log('✅ AIQuestionGenerator 응답 수신:', {
-          questionsCount: aiQuestions.length,
-          questionCategories: [...new Set(aiQuestions.map(q => q.category))]
+        console.log('📝 질문 생성 프롬프트 준비 완료:', {
+          promptLength: questionPrompt.length,
+          projectName: project?.name,
+          documentCount: documentContext.length
         });
 
-        // AIQuestionGenerator의 Question 형식을 PreAnalysis 형식으로 변환
-        generatedQuestions = aiQuestions.map(q => ({
-          category: q.category,
-          question: q.text,
-          context: q.helpText || '',
-          required: q.required,
-          expectedFormat: q.type === 'textarea' ? 'text' : q.type,
-          relatedDocuments: [], // 향후 문서 연관성 추가 가능
-          confidenceScore: q.confidence
-        }));
+        // completion API를 사용하여 질문 생성
+        const questionResponse = await this.callAICompletionAPI(
+          session.ai_provider || 'anthropic',
+          session.ai_model || 'claude-3-5-sonnet-20241022',
+          questionPrompt,
+          3000,
+          0.7
+        );
 
-        console.log('🔄 질문 형식 변환 완료:', generatedQuestions.length);
+        console.log('✅ AI 질문 생성 응답 수신:', {
+          contentLength: questionResponse.content.length,
+          inputTokens: questionResponse.usage.inputTokens,
+          outputTokens: questionResponse.usage.outputTokens
+        });
+
+        // AI 응답을 파싱하여 질문 배열 생성
+        generatedQuestions = this.parseQuestionResponse(questionResponse.content);
+
+        console.log('🔄 질문 파싱 완료:', {
+          questionsCount: generatedQuestions.length,
+          categories: [...new Set(generatedQuestions.map(q => q.category))]
+        });
 
       } catch (aiError) {
         console.error('❌ AI 질문 생성 실패 상세:', {
@@ -1627,6 +1632,163 @@ ${answersContext}
   }
 
   // 제거됨: callAIDirectly 함수 - 모든 환경에서 API 라우트 사용으로 통합
+
+  /**
+   * AI 질문 생성을 위한 프롬프트 구성
+   */
+  private buildQuestionGenerationPrompt(
+    projectName: string,
+    projectDescription: string,
+    projectTypes: string[],
+    documentContext: Array<{ name: string; summary?: string; content?: string }>
+  ): string {
+    let prompt = `당신은 전문 프로젝트 컨설턴트입니다. 사전 분석 단계에서 프로젝트 이해를 위한 핵심 질문들을 생성해주세요.
+
+프로젝트 정보:
+- 프로젝트명: ${projectName || '미정'}
+- 프로젝트 설명: ${projectDescription || '미정'}
+- 프로젝트 유형: ${projectTypes.length > 0 ? projectTypes.join(', ') : '미정'}
+
+`;
+
+    if (documentContext.length > 0) {
+      prompt += `업로드된 문서 분석 결과:
+${documentContext.map((doc, index) =>
+  `${index + 1}. ${doc.name}${doc.summary ? ` - ${doc.summary}` : ''}`
+).join('\n')}
+
+`;
+    }
+
+    prompt += `요구사항:
+1. 프로젝트의 핵심을 파악할 수 있는 6-10개의 실질적인 질문을 생성하세요.
+2. 다양한 관점을 포함하세요: 기술적 요구사항, 비즈니스 목표, 일정, 예산, 위험 요소, 이해관계자 등
+3. 각 질문은 구체적이고 실행 가능한 답변을 유도해야 합니다.
+4. 업로드된 문서가 있다면 해당 내용을 반영한 질문을 포함하세요.
+
+출력 형식 (JSON):
+{
+  "questions": [
+    {
+      "category": "기술 요구사항|비즈니스 목표|일정 관리|예산 계획|위험 관리|이해관계자|기타",
+      "question": "구체적인 질문 내용",
+      "context": "질문의 배경이나 도움말",
+      "required": true|false,
+      "expectedFormat": "text|textarea|select|number",
+      "confidenceScore": 0.0-1.0
+    }
+  ]
+}
+
+정확한 JSON 형식만 반환하고 다른 설명은 포함하지 마세요.`;
+
+    return prompt;
+  }
+
+  /**
+   * AI 응답에서 질문 배열 파싱
+   */
+  private parseQuestionResponse(response: string): any[] {
+    try {
+      console.log('🔍 AI 질문 응답 파싱 시작:', { responseLength: response.length });
+
+      // JSON 부분만 추출
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('JSON 형식을 찾을 수 없습니다.');
+      }
+
+      const parsed = JSON.parse(jsonMatch[0]);
+      console.log('✅ JSON 파싱 성공:', { hasQuestions: !!parsed.questions, questionsCount: parsed.questions?.length || 0 });
+
+      if (!parsed.questions || !Array.isArray(parsed.questions)) {
+        throw new Error('questions 배열을 찾을 수 없습니다.');
+      }
+
+      // 질문 형식 검증 및 정규화
+      const validQuestions = parsed.questions
+        .map((q: any) => ({
+          category: q.category || '기타',
+          question: q.question || '',
+          context: q.context || q.helpText || '',
+          required: q.required || false,
+          expectedFormat: q.expectedFormat || q.type || 'textarea',
+          relatedDocuments: [],
+          confidenceScore: q.confidenceScore || q.confidence || 0.8
+        }))
+        .filter((q: any) => q.question.trim() !== '');
+
+      console.log('📊 질문 검증 완료:', {
+        originalCount: parsed.questions.length,
+        validCount: validQuestions.length,
+        categories: [...new Set(validQuestions.map((q: any) => q.category))]
+      });
+
+      return validQuestions;
+
+    } catch (error) {
+      console.error('❌ 질문 파싱 실패:', error);
+      console.error('❌ 응답 내용 (처음 500자):', response.substring(0, 500));
+
+      // 파싱 실패 시 기본 질문 반환
+      return [
+        {
+          category: '프로젝트 개요',
+          question: '이 프로젝트의 주요 목표와 기대 효과는 무엇입니까?',
+          context: '프로젝트의 핵심 목적과 성공 시 달성하고자 하는 구체적인 결과를 설명해주세요.',
+          required: true,
+          expectedFormat: 'textarea',
+          relatedDocuments: [],
+          confidenceScore: 0.9
+        },
+        {
+          category: '기술 요구사항',
+          question: '프로젝트에 필요한 주요 기술 스택과 기술적 제약사항은 무엇입니까?',
+          context: '사용할 프로그래밍 언어, 프레임워크, 데이터베이스, 인프라 등과 기술적 한계를 포함해주세요.',
+          required: true,
+          expectedFormat: 'textarea',
+          relatedDocuments: [],
+          confidenceScore: 0.9
+        },
+        {
+          category: '일정 관리',
+          question: '프로젝트의 목표 완료 시점과 주요 마일스톤은 언제입니까?',
+          context: '전체 일정과 중요한 중간 단계들의 예상 완료 날짜를 설정해주세요.',
+          required: true,
+          expectedFormat: 'textarea',
+          relatedDocuments: [],
+          confidenceScore: 0.9
+        },
+        {
+          category: '예산 계획',
+          question: '프로젝트의 예상 예산 규모와 주요 비용 요소는 무엇입니까?',
+          context: '인력비, 인프라비, 라이선스 비용 등 주요 예산 항목들을 포함해주세요.',
+          required: false,
+          expectedFormat: 'textarea',
+          relatedDocuments: [],
+          confidenceScore: 0.8
+        },
+        {
+          category: '위험 관리',
+          question: '프로젝트 진행 시 예상되는 주요 위험 요소와 대응 방안은 무엇입니까?',
+          context: '기술적, 일정상, 예산상 위험 요소들과 이에 대한 대비책을 설명해주세요.',
+          required: false,
+          expectedFormat: 'textarea',
+          relatedDocuments: [],
+          confidenceScore: 0.8
+        },
+        {
+          category: '이해관계자',
+          question: '프로젝트의 주요 이해관계자와 각자의 역할은 무엇입니까?',
+          context: '클라이언트, 개발팀, 운영팀 등 관련된 사람들과 그들의 책임을 명확히 해주세요.',
+          required: false,
+          expectedFormat: 'textarea',
+          relatedDocuments: [],
+          confidenceScore: 0.8
+        }
+      ];
+    }
+  }
 
   // 데이터 변환 메서드들
   private transformSessionData(data: any): PreAnalysisSession {
