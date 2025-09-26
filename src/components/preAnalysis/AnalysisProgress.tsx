@@ -137,6 +137,14 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
         addToActivityLog(`✓ 세션 정보 로드 완료: ${session.projectId}`);
         console.log('📊 세션 데이터:', session);
 
+        // 완료된 세션인지 확인하고 초기 상태 설정
+        if (session.status === 'completed') {
+          console.log('✅ 완료된 세션 감지 - 초기 완료 상태 설정');
+          setAnalysisCompleted(true);
+          await loadCompletedSessionData(session);
+          return; // 완료된 세션은 추가 초기화하지 않음
+        }
+
         // 프로젝트 문서 목록 조회
         const documentsResponse = await preAnalysisService.getProjectDocuments(session.projectId);
         if (documentsResponse.success && documentsResponse.data) {
@@ -164,6 +172,77 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
       } catch (error) {
         console.error('❌ 분석 초기화 오류:', error);
         addToActivityLog('❌ 분석 초기화 중 오류가 발생했습니다.');
+      }
+    };
+
+    // 완료된 세션의 데이터를 로드하는 함수
+    const loadCompletedSessionData = async (session: any) => {
+      try {
+        const { supabase } = await import('../../lib/supabase');
+
+        if (!supabase) {
+          console.error('Supabase 클라이언트가 초기화되지 않았습니다.');
+          return;
+        }
+
+        // 실제 데이터베이스에서 완료된 상태 조회
+        const [analysisResult, questionsResult] = await Promise.all([
+          supabase.from('document_analyses')
+            .select('*')
+            .eq('session_id', session.id)
+            .eq('status', 'completed'),
+          supabase.from('ai_questions')
+            .select('*', { count: 'exact', head: true })
+            .eq('session_id', session.id)
+        ]);
+
+        const completedAnalysisCount = analysisResult.data?.length || 0;
+        const totalQuestionCount = questionsResult.count || 0;
+
+        console.log('📊 완료된 세션 데이터:', {
+          completedAnalysis: completedAnalysisCount,
+          totalQuestions: totalQuestionCount
+        });
+
+        // 단계별 완료 상태 설정
+        setStages(prev => {
+          const updated = [...prev];
+
+          // 문서 분석 단계
+          const docStage = updated.find(s => s.id === 'document_analysis');
+          if (docStage && completedAnalysisCount > 0) {
+            docStage.status = 'completed';
+            docStage.progress = 100;
+            docStage.message = `문서 분석 완료: 성공 ${completedAnalysisCount}개`;
+            docStage.endTime = new Date();
+          }
+
+          // AI 질문 생성 단계
+          const questionStage = updated.find(s => s.id === 'question_generation');
+          if (questionStage && totalQuestionCount > 0) {
+            questionStage.status = 'completed';
+            questionStage.progress = 100;
+            questionStage.message = `${totalQuestionCount}개 맞춤형 질문 생성 완료!`;
+            questionStage.endTime = new Date();
+          }
+
+          return updated;
+        });
+
+        setOverallProgress(100);
+        addToActivityLog(`✅ 문서 분석 완료: ${completedAnalysisCount}개 성공`);
+        addToActivityLog(`🎯 ${totalQuestionCount}개 맞춤형 질문이 생성되었습니다!`);
+        addToActivityLog('🎉 모든 사전 분석이 완료되었습니다!');
+
+        // 완료 콜백 호출 (질문 답변 단계로 이동)
+        setTimeout(() => {
+          console.log('🏁 완료된 세션 - onComplete 호출');
+          onComplete();
+        }, 1000);
+
+      } catch (error) {
+        console.error('❌ 완료된 세션 데이터 로드 오류:', error);
+        addToActivityLog('❌ 완료된 세션 데이터 로드 중 오류가 발생했습니다.');
       }
     };
 

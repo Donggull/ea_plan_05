@@ -149,14 +149,14 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
         const latestSession = response.data[0];
         setCurrentSession(latestSession);
 
-        // 완료된 세션이라면 자동으로 분석 단계로 이동하지 않음
-        // 사용자가 직접 선택할 수 있도록 함
+        // 세션 상태에 따른 단계 결정
         if (latestSession.status === 'processing') {
-          // 진행 중인 세션만 자동으로 단계 결정
-          determineCurrentStep(latestSession);
+          // 진행 중인 세션은 자동으로 단계 결정
+          await determineCurrentStep(latestSession);
         } else if (latestSession.status === 'completed') {
-          // 완료된 세션은 보고서 단계로 설정하지만 자동 이동하지 않음
+          // 완료된 세션도 정확한 단계를 결정해야 함
           console.log('완료된 세션 발견:', latestSession.id);
+          await determineCurrentStep(latestSession);
         }
       }
     } catch (error) {
@@ -168,32 +168,55 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
     try {
       if (!supabase) return;
 
-      // 진행 중인 세션의 실제 단계를 데이터베이스에서 확인
-      const [analysisResult, questionsResult, reportResult] = await Promise.all([
+      // 진행 중인 세션의 실제 단계를 데이터베이스에서 확인 (PreAnalysisPage와 동일한 로직)
+      const [analysisResult, questionsResult, answersResult, reportResult] = await Promise.all([
+        // 문서 분석 완료 확인 (status='completed'인 분석이 있는지)
         supabase.from('document_analyses')
-          .select('*', { count: 'exact', head: true })
-          .eq('session_id', session.id),
+          .select('*')
+          .eq('session_id', session.id)
+          .eq('status', 'completed'),
+        // AI 질문 생성 확인
         supabase.from('ai_questions')
-          .select('*', { count: 'exact', head: true })
+          .select('id', { count: 'exact', head: true })
           .eq('session_id', session.id),
+        // 사용자 답변 완료 확인 (is_draft=false인 답변들)
+        supabase.from('user_answers')
+          .select('*')
+          .eq('session_id', session.id)
+          .eq('is_draft', false),
+        // 보고서 생성 확인
         supabase.from('analysis_reports')
           .select('*', { count: 'exact', head: true })
           .eq('session_id', session.id)
       ]);
 
-      const analysisCount = analysisResult.count || 0;
-      const questionCount = questionsResult.count || 0;
+      const completedAnalysisCount = analysisResult.data?.length || 0;
+      const totalQuestionCount = questionsResult.count || 0;
+      const completedAnswerCount = answersResult.data?.length || 0;
       const reportCount = reportResult.count || 0;
 
-      // 실제 데이터를 기반으로 현재 단계 결정
+      console.log('📊 단계 결정을 위한 데이터:', {
+        completedAnalysis: completedAnalysisCount,
+        totalQuestions: totalQuestionCount,
+        completedAnswers: completedAnswerCount,
+        reports: reportCount
+      });
+
+      // PreAnalysisPage와 동일한 로직으로 현재 단계 결정
       if (reportCount > 0) {
         onStepChange?.('report');
-      } else if (questionCount > 0) {
+      } else if (totalQuestionCount > 0 && completedAnswerCount === 0) {
+        // 질문이 생성되었지만 답변이 완료되지 않은 경우
         onStepChange?.('questions');
-      } else if (analysisCount > 0) {
+      } else if (completedAnalysisCount > 0 && totalQuestionCount === 0) {
+        // 문서 분석은 완료되었지만 질문이 아직 생성되지 않은 경우
+        onStepChange?.('analysis');
+      } else if (completedAnalysisCount === 0) {
+        // 문서 분석이 시작되지 않은 경우
         onStepChange?.('analysis');
       } else {
-        onStepChange?.('analysis'); // 분석이 시작되었지만 아직 완료되지 않은 상태
+        // 모든 단계가 완료된 경우 보고서 단계로
+        onStepChange?.('report');
       }
     } catch (error) {
       console.error('단계 결정 오류:', error);
