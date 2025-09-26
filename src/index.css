@@ -26,6 +26,15 @@
     --error: #eb5757;
     --info: #4ea7fc;
 
+    /* Status colors */
+    --status-success: #4cb782;
+    --status-warning: #fc7840;
+    --status-error: #eb5757;
+    --status-info: #4ea7fc;
+
+    /* Primary color */
+    --primary: #4ea7fc;
+
     /* Legacy compatibility */
     --background: 0 0% 100%;
     --foreground: 210 40% 10%;
@@ -72,6 +81,15 @@
     --error: #eb5757;
     --info: #4ea7fc;
 
+    /* Status colors */
+    --status-success: #4cb782;
+    --status-warning: #fc7840;
+    --status-error: #eb5757;
+    --status-info: #4ea7fc;
+
+    /* Primary color */
+    --primary: #4ea7fc;
+
     /* Legacy compatibility */
     --background: 210 40% 4%;
     --foreground: 0 0% 97%;
@@ -115,6 +133,29 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
+}
+
+/* Range slider track styling */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-track {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--bg-tertiary);
+}
+
+input[type="range"]::-moz-range-track {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--bg-tertiary);
+  border: none;
 }
 
 /* Linear Theme Utilities */
@@ -325,4 +366,46 @@
   .text-primary-700 { color: #0369a1; }
   .text-primary-800 { color: #075985; }
   .text-primary-900 { color: #0c4a6e; }
+
+  /* Custom Range Slider Styles */
+  .slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  .slider-thumb::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 20px;
+    width: 20px;
+    border-radius: 50%;
+    background: var(--primary);
+    border: 2px solid var(--bg-primary);
+    box-shadow: 0 0 0 1px var(--border-primary), 0 2px 4px rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .slider-thumb::-webkit-slider-thumb:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 0 1px var(--primary), 0 4px 8px rgba(78, 167, 252, 0.2);
+  }
+
+  .slider-thumb::-moz-range-thumb {
+    height: 20px;
+    width: 20px;
+    border-radius: 50%;
+    background: var(--primary);
+    border: 2px solid var(--bg-primary);
+    box-shadow: 0 0 0 1px var(--border-primary), 0 2px 4px rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .slider-thumb::-moz-range-thumb:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 0 1px var(--primary), 0 4px 8px rgba(78, 167, 252, 0.2);
+  }
 }

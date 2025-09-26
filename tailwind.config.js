@@ -47,6 +47,14 @@ export default {
         error: linearTheme.colors.semantic.error,
         info: linearTheme.colors.semantic.info,
 
+        // Status colors (for UI components)
+        status: {
+          success: "var(--status-success)",
+          warning: "var(--status-warning)",
+          error: "var(--status-error)",
+          info: "var(--status-info)",
+        },
+
         // Legacy compatibility (mapped to Linear Theme)
         background: "var(--bg-primary)",
         foreground: "var(--text-primary)",

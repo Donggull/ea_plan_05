@@ -473,9 +473,9 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex items-center justify-center h-64 bg-bg-primary">
         <div className="flex items-center space-x-3">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-border-secondary border-t-primary"></div>
           <span className="text-text-secondary">
             {isGeneratingQuestions ? 'AI가 맞춤형 질문을 생성하고 있습니다...' : '질문을 불러오고 있습니다...'}
           </span>
@@ -486,15 +486,15 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-        <div className="flex items-center space-x-2 text-red-800">
+      <div className="bg-status-error/10 border border-status-error/20 rounded-lg p-6">
+        <div className="flex items-center space-x-2 text-status-error">
           <AlertCircle className="w-5 h-5" />
-          <span className="font-medium">오류가 발생했습니다</span>
+          <span className="font-semibold">오류가 발생했습니다</span>
         </div>
-        <p className="text-red-700 mt-2">{error}</p>
+        <p className="text-status-error/80 mt-2">{error}</p>
         <button
           onClick={loadQuestions}
-          className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+          className="mt-4 px-4 py-2 bg-status-error text-white rounded-lg hover:bg-status-error/90 transition-colors"
         >
           다시 시도
         </button>
@@ -505,24 +505,24 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
   const currentQuestion = questions[currentQuestionIndex]
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 bg-bg-primary min-h-screen">
       {/* 진행률 헤더 */}
-      <div className="bg-bg-secondary rounded-lg p-6 border border-border-primary">
+      <div className="bg-bg-secondary rounded-lg p-6 border border-border-primary shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-3">
             <MessageSquare className="w-6 h-6 text-primary" />
             <h2 className="text-xl font-semibold text-text-primary">질문 답변</h2>
-            <span className="px-2 py-1 bg-primary/10 text-primary rounded text-sm">
+            <span className="px-3 py-1 bg-primary/10 text-primary rounded-full text-sm font-medium">
               {Math.round(progress)}% 완료
             </span>
           </div>
           <div className="flex items-center space-x-2">
             <button
               onClick={() => setAutoSaveEnabled(!autoSaveEnabled)}
-              className={`px-3 py-1 rounded text-sm ${
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                 autoSaveEnabled
-                  ? 'bg-green-100 text-green-800'
-                  : 'bg-gray-100 text-gray-600'
+                  ? 'bg-status-success/10 text-status-success border border-status-success/20'
+                  : 'bg-bg-tertiary text-text-secondary border border-border-secondary'
               }`}
             >
               자동저장 {autoSaveEnabled ? 'ON' : 'OFF'}
@@ -530,7 +530,7 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
             <button
               onClick={handleSave}
               disabled={isSaving}
-              className="flex items-center space-x-1 px-3 py-1 bg-primary text-white rounded text-sm hover:bg-primary/90 disabled:opacity-50"
+              className="flex items-center space-x-1 px-4 py-1.5 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
             >
               <Save className="w-4 h-4" />
               <span>{isSaving ? '저장 중...' : '저장'}</span>
@@ -539,21 +539,21 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
         </div>
 
         {/* 진행률 바 */}
-        <div className="w-full bg-gray-200 rounded-full h-2">
+        <div className="w-full bg-bg-tertiary rounded-full h-2">
           <div
-            className="bg-primary h-2 rounded-full transition-all duration-300"
+            className="bg-primary h-2 rounded-full transition-all duration-500 ease-out"
             style={{ width: `${progress}%` }}
           />
         </div>
 
         <div className="flex justify-between text-sm text-text-secondary mt-2">
-          <span>{Array.from(answers.values()).filter(a => a.isComplete).length}개 완료</span>
+          <span className="font-medium">{Array.from(answers.values()).filter(a => a.isComplete).length}개 완료</span>
           <span>총 {questions.length}개 질문</span>
         </div>
       </div>
 
       {/* 질문 네비게이션 */}
-      <div className="flex space-x-2 overflow-x-auto pb-2">
+      <div className="flex space-x-2 overflow-x-auto pb-2 px-1">
         {questions.map((question, index) => {
           const answer = answers.get(question.id)
           const isCompleted = answer?.isComplete || false
@@ -563,18 +563,18 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
             <button
               key={question.id}
               onClick={() => goToQuestion(index)}
-              className={`flex-shrink-0 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`flex-shrink-0 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                 isCurrent
-                  ? 'bg-primary text-white'
+                  ? 'bg-primary text-white shadow-sm'
                   : isCompleted
-                  ? 'bg-green-100 text-green-800'
+                  ? 'bg-status-success/10 text-status-success border border-status-success/20'
                   : question.required
-                  ? 'bg-yellow-100 text-yellow-800'
-                  : 'bg-gray-100 text-gray-600'
+                  ? 'bg-status-warning/10 text-status-warning border border-status-warning/20'
+                  : 'bg-bg-tertiary text-text-secondary border border-border-secondary hover:bg-bg-secondary'
               }`}
             >
               {index + 1}
-              {question.required && !isCompleted && '*'}
+              {question.required && !isCompleted && <span className="text-status-warning ml-1">*</span>}
               {isCompleted && <CheckCircle className="w-3 h-3 ml-1 inline" />}
             </button>
           )
@@ -583,26 +583,26 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
 
       {/* 현재 질문 */}
       {currentQuestion && (
-        <div className="bg-bg-secondary rounded-lg border border-border-primary">
+        <div className="bg-bg-secondary rounded-lg border border-border-primary shadow-sm">
           <div className="p-6">
             <div className="flex items-start justify-between mb-4">
               <div className="flex-1">
                 <div className="flex items-center space-x-2 mb-2">
-                  <span className="text-sm font-medium text-text-secondary">
+                  <span className="text-sm font-medium text-text-secondary px-2 py-1 bg-bg-tertiary rounded-full">
                     {currentQuestion.category}
                   </span>
                   {currentQuestion.aiGenerated && (
-                    <span className="flex items-center space-x-1 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
+                    <span className="flex items-center space-x-1 px-2 py-1 bg-primary/10 text-primary rounded-full text-xs font-medium">
                       <Brain className="w-3 h-3" />
                       <span>AI 생성</span>
                     </span>
                   )}
                   {currentQuestion.required && (
-                    <span className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs">
+                    <span className="px-2 py-1 bg-status-error/10 text-status-error rounded-full text-xs font-medium">
                       필수
                     </span>
                   )}
-                  <span className="flex items-center space-x-1 px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">
+                  <span className="flex items-center space-x-1 px-2 py-1 bg-bg-tertiary text-text-secondary rounded-full text-xs">
                     <Star className="w-3 h-3" />
                     <span>{Math.round(currentQuestion.confidence * 100)}%</span>
                   </span>
@@ -619,21 +619,21 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
               <div className="flex items-center space-x-2">
                 <button
                   onClick={() => generateAIHint(currentQuestion.id)}
-                  className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                  className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-colors"
                   title="AI 힌트"
                 >
                   <Lightbulb className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => resetAnswer(currentQuestion.id)}
-                  className="p-2 text-gray-600 hover:bg-gray-50 rounded-lg"
+                  className="p-2 text-text-secondary hover:bg-bg-tertiary rounded-lg transition-colors"
                   title="답변 재설정"
                 >
                   <RotateCcw className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => toggleQuestionExpanded(currentQuestion.id)}
-                  className="p-2 text-gray-600 hover:bg-gray-50 rounded-lg"
+                  className="p-2 text-text-secondary hover:bg-bg-tertiary rounded-lg transition-colors"
                 >
                   {expandedQuestions.has(currentQuestion.id) ? (
                     <ChevronUp className="w-4 h-4" />
@@ -646,15 +646,15 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
 
             {/* 질문 상세 정보 (확장 시) */}
             {expandedQuestions.has(currentQuestion.id) && (
-              <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+              <div className="mb-4 p-4 bg-bg-tertiary rounded-lg border border-border-secondary">
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <span className="font-medium text-gray-700">우선순위:</span>
-                    <span className="ml-2 text-gray-600">{currentQuestion.priority}</span>
+                    <span className="font-medium text-text-primary">우선순위:</span>
+                    <span className="ml-2 text-text-secondary">{currentQuestion.priority}</span>
                   </div>
                   <div>
-                    <span className="font-medium text-gray-700">신뢰도:</span>
-                    <span className="ml-2 text-gray-600">{Math.round(currentQuestion.confidence * 100)}%</span>
+                    <span className="font-medium text-text-primary">신뢰도:</span>
+                    <span className="ml-2 text-text-secondary">{Math.round(currentQuestion.confidence * 100)}%</span>
                   </div>
                 </div>
               </div>
@@ -671,24 +671,24 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
           </div>
 
           {/* 네비게이션 버튼 */}
-          <div className="flex justify-between items-center px-6 py-4 border-t border-border-primary">
+          <div className="flex justify-between items-center px-6 py-4 border-t border-border-primary bg-bg-tertiary/50">
             <button
               onClick={() => goToQuestion(currentQuestionIndex - 1)}
               disabled={currentQuestionIndex === 0}
-              className="flex items-center space-x-2 px-4 py-2 text-gray-600 hover:text-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center space-x-2 px-4 py-2 text-text-secondary hover:text-text-primary hover:bg-bg-secondary disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
               <span>이전</span>
             </button>
 
-            <span className="text-sm text-text-secondary">
+            <span className="text-sm text-text-secondary font-medium">
               {currentQuestionIndex + 1} / {questions.length}
             </span>
 
             <button
               onClick={() => goToQuestion(currentQuestionIndex + 1)}
               disabled={currentQuestionIndex === questions.length - 1}
-              className="flex items-center space-x-2 px-4 py-2 text-gray-600 hover:text-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center space-x-2 px-4 py-2 text-text-secondary hover:text-text-primary hover:bg-bg-secondary disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
             >
               <span>다음</span>
               <ArrowRight className="w-4 h-4" />
@@ -698,11 +698,11 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
       )}
 
       {/* 완료 버튼 */}
-      <div className="flex justify-center pt-6">
+      <div className="flex justify-center pt-6 pb-8">
         <button
           onClick={handleComplete}
           disabled={!requiredQuestionsCompleted}
-          className="flex items-center space-x-2 px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex items-center space-x-2 px-8 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-sm transition-all duration-200 hover:shadow-md"
         >
           <Send className="w-5 h-5" />
           <span>답변 완료</span>
@@ -740,7 +740,7 @@ const QuestionForm: React.FC<QuestionFormProps> = ({
             type="text"
             value={answer?.answer as string || ''}
             onChange={(e) => handleInputChange(e.target.value)}
-            className="w-full px-3 py-2 border border-border-primary rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+            className="w-full px-4 py-3 bg-bg-primary border border-border-secondary rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary text-text-primary placeholder-text-tertiary transition-all"
             placeholder="답변을 입력하세요..."
           />
         )
@@ -750,7 +750,7 @@ const QuestionForm: React.FC<QuestionFormProps> = ({
           <textarea
             value={answer?.answer as string || ''}
             onChange={(e) => handleInputChange(e.target.value)}
-            className="w-full px-3 py-2 border border-border-primary rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+            className="w-full px-4 py-3 bg-bg-primary border border-border-secondary rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary text-text-primary placeholder-text-tertiary transition-all resize-none"
             rows={4}
             placeholder="답변을 입력하세요..."
           />
@@ -762,7 +762,7 @@ const QuestionForm: React.FC<QuestionFormProps> = ({
             type="number"
             value={answer?.answer as number || ''}
             onChange={(e) => handleInputChange(Number(e.target.value))}
-            className="w-full px-3 py-2 border border-border-primary rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+            className="w-full px-4 py-3 bg-bg-primary border border-border-secondary rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary text-text-primary placeholder-text-tertiary transition-all"
             placeholder="숫자를 입력하세요..."
             min={question.validation?.min}
             max={question.validation?.max}
@@ -774,11 +774,11 @@ const QuestionForm: React.FC<QuestionFormProps> = ({
           <select
             value={answer?.answer as string || ''}
             onChange={(e) => handleInputChange(e.target.value)}
-            className="w-full px-3 py-2 border border-border-primary rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+            className="w-full px-4 py-3 bg-bg-primary border border-border-secondary rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary text-text-primary transition-all"
           >
-            <option value="">선택하세요...</option>
+            <option value="" className="text-text-tertiary">선택하세요...</option>
             {question.options?.map(option => (
-              <option key={option} value={option}>
+              <option key={option} value={option} className="text-text-primary">
                 {option}
               </option>
             ))}
@@ -788,9 +788,9 @@ const QuestionForm: React.FC<QuestionFormProps> = ({
       case 'multiselect':
         const selectedValues = (answer?.answer as string[]) || []
         return (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {question.options?.map(option => (
-              <label key={option} className="flex items-center space-x-2">
+              <label key={option} className="flex items-center space-x-3 p-3 bg-bg-primary border border-border-secondary rounded-lg hover:border-border-primary transition-colors cursor-pointer">
                 <input
                   type="checkbox"
                   checked={selectedValues.includes(option)}
@@ -800,9 +800,9 @@ const QuestionForm: React.FC<QuestionFormProps> = ({
                       : selectedValues.filter(v => v !== option)
                     handleInputChange(newValues)
                   }}
-                  className="rounded border-border-primary text-primary focus:ring-primary"
+                  className="w-4 h-4 rounded border-border-secondary text-primary focus:ring-primary focus:ring-2 transition-colors"
                 />
-                <span className="text-text-primary">{option}</span>
+                <span className="text-text-primary font-medium">{option}</span>
               </label>
             ))}
           </div>
@@ -814,7 +814,7 @@ const QuestionForm: React.FC<QuestionFormProps> = ({
             type="text"
             value={answer?.answer as string || ''}
             onChange={(e) => handleInputChange(e.target.value)}
-            className="w-full px-3 py-2 border border-border-primary rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+            className="w-full px-4 py-3 bg-bg-primary border border-border-secondary rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary text-text-primary placeholder-text-tertiary transition-all"
             placeholder="답변을 입력하세요..."
           />
         )
@@ -822,10 +822,10 @@ const QuestionForm: React.FC<QuestionFormProps> = ({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* 답변 입력 */}
       <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">
+        <label className="block text-sm font-semibold text-text-primary mb-3">
           답변
         </label>
         {renderInput()}
@@ -833,8 +833,8 @@ const QuestionForm: React.FC<QuestionFormProps> = ({
 
       {/* 신뢰도 슬라이더 */}
       <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">
-          답변 확신도: {Math.round((answer?.confidence || 0.5) * 100)}%
+        <label className="block text-sm font-semibold text-text-primary mb-3">
+          답변 확신도: <span className="text-primary font-bold">{Math.round((answer?.confidence || 0.5) * 100)}%</span>
         </label>
         <input
           type="range"
@@ -843,9 +843,12 @@ const QuestionForm: React.FC<QuestionFormProps> = ({
           step="0.1"
           value={answer?.confidence || 0.5}
           onChange={(e) => onConfidenceChange(Number(e.target.value))}
-          className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+          className="w-full h-2 bg-bg-tertiary rounded-lg appearance-none cursor-pointer slider-thumb"
+          style={{
+            background: `linear-gradient(to right, var(--primary) 0%, var(--primary) ${(answer?.confidence || 0.5) * 100}%, var(--bg-tertiary) ${(answer?.confidence || 0.5) * 100}%, var(--bg-tertiary) 100%)`
+          }}
         />
-        <div className="flex justify-between text-xs text-text-secondary mt-1">
+        <div className="flex justify-between text-xs text-text-secondary mt-2">
           <span>불확실</span>
           <span>확실</span>
         </div>
@@ -853,14 +856,14 @@ const QuestionForm: React.FC<QuestionFormProps> = ({
 
       {/* 추가 메모 */}
       <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">
-          추가 메모 (선택사항)
+        <label className="block text-sm font-semibold text-text-primary mb-3">
+          추가 메모 <span className="text-text-tertiary font-normal">(선택사항)</span>
         </label>
         <textarea
           value={answer?.notes || ''}
           onChange={(e) => onNotesChange(e.target.value)}
-          className="w-full px-3 py-2 border border-border-primary rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-          rows={2}
+          className="w-full px-4 py-3 bg-bg-primary border border-border-secondary rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary text-text-primary placeholder-text-tertiary transition-all resize-none"
+          rows={3}
           placeholder="추가 설명이나 고려사항을 입력하세요..."
         />
       </div>
