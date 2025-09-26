@@ -106,8 +106,7 @@ export const createSupabaseBrowserClient = () => {
       global: {
         headers: {
           'X-Client-Info': 'eluo-web@0.0.1',
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
+          'Accept': 'application/json'
         }
       }
     }
