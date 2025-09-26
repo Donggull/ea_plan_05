@@ -34,9 +34,84 @@ export const PreAnalysisPage: React.FC = () => {
   const [documentsLoading, setDocumentsLoading] = useState(false);
   const [isStartingAnalysis, setIsStartingAnalysis] = useState(false);
   const [currentStep, setCurrentStep] = useState<'setup' | 'analysis' | 'questions' | 'report'>('setup');
+  const [completedSteps, setCompletedSteps] = useState<Set<string>>(new Set());
+  const [, setCurrentSession] = useState<any>(null);
   const panelRef = useRef<PreAnalysisPanelRef>(null);
 
-  // 프로젝트 로딩 및 선택 로직 (다른 페이지와 동일)
+  // 세션 및 완료 단계 로드
+  const loadSessionAndSteps = async () => {
+    if (!id || !supabase) return;
+
+    try {
+      // 가장 최근 세션 검색
+      const { data: sessions, error: sessionError } = await supabase
+        .from('pre_analysis_sessions')
+        .select('*')
+        .eq('project_id', id)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (sessionError) {
+        console.error('세션 조회 오류:', sessionError);
+        return;
+      }
+
+      const latestSession = sessions?.[0];
+      if (!latestSession) return;
+
+      setCurrentSession(latestSession);
+
+      // 세션에 따라 완료된 단계들 검색
+      const [analysisResult, questionsResult, reportResult] = await Promise.all([
+        supabase.from('document_analyses')
+          .select('*', { count: 'exact', head: true })
+          .eq('session_id', latestSession.id),
+        supabase.from('ai_questions')
+          .select('*', { count: 'exact', head: true })
+          .eq('session_id', latestSession.id),
+        supabase.from('analysis_reports')
+          .select('*', { count: 'exact', head: true })
+          .eq('session_id', latestSession.id)
+      ]);
+
+      const analysisCount = analysisResult.count || 0;
+      const questionCount = questionsResult.count || 0;
+      const reportCount = reportResult.count || 0;
+
+      // 완료된 단계들 업데이트
+      const newCompletedSteps = new Set<string>(['setup']);
+
+      if (analysisCount > 0) {
+        newCompletedSteps.add('analysis');
+      }
+      if (questionCount > 0) {
+        newCompletedSteps.add('questions');
+      }
+      if (reportCount > 0) {
+        newCompletedSteps.add('report');
+      }
+
+      setCompletedSteps(newCompletedSteps);
+
+      // 현재 진행 중인 단계로 이동 (진행 중인 세션인 경우만)
+      if (latestSession.status === 'processing') {
+        if (reportCount > 0) {
+          setCurrentStep('report');
+        } else if (questionCount > 0) {
+          setCurrentStep('questions');
+        } else if (analysisCount > 0) {
+          setCurrentStep('analysis');
+        } else {
+          setCurrentStep('analysis');
+        }
+      }
+
+    } catch (error) {
+      console.error('세션 및 단계 로드 오류:', error);
+    }
+  };
+
+  // 프로젝트 로딩 및 선택 로직
   useEffect(() => {
     const loadProject = async () => {
       if (!id) return;
@@ -49,6 +124,7 @@ export const PreAnalysisPage: React.FC = () => {
         if (projectState.currentProject?.id === id) {
           setProject(projectState.currentProject);
           await loadDocumentCount();
+          await loadSessionAndSteps();
           setLoading(false);
           return;
         }
@@ -57,8 +133,9 @@ export const PreAnalysisPage: React.FC = () => {
         const projectData = await ProjectService.getProject(id);
         if (projectData) {
           setProject(projectData);
-          selectProject(projectData); // 현재 프로젝트로 설정 (localStorage에 저장됨)
+          selectProject(projectData);
           await loadDocumentCount();
+          await loadSessionAndSteps();
         } else {
           setError('프로젝트를 찾을 수 없습니다.');
         }
@@ -147,17 +224,35 @@ export const PreAnalysisPage: React.FC = () => {
 
   // 단계별 상태 가져오기
   const getStepStatus = (stepId: string) => {
-    const stepIndex = steps.findIndex(s => s.id === stepId);
-    const currentIndex = steps.findIndex(s => s.id === currentStep);
+    // 완료된 단계들은 실제 데이터로 확인
+    if (completedSteps.has(stepId)) {
+      return stepId === currentStep ? 'in_progress' : 'completed';
+    }
 
-    if (stepIndex < currentIndex) return 'completed';
-    if (stepIndex === currentIndex) return 'in_progress';
+    if (stepId === currentStep) {
+      return 'in_progress';
+    }
+
     return 'pending';
   };
 
-  // 탭 이동 처리 (모든 단계로 자유 이동 가능)
+  // 탭 이동 처리 (완료된 단계만 이동 가능)
   const handleStepChange = (stepId: string) => {
-    setCurrentStep(stepId as 'setup' | 'analysis' | 'questions' | 'report');
+    const targetStep = stepId as 'setup' | 'analysis' | 'questions' | 'report';
+
+    // setup은 항상 이동 가능
+    if (targetStep === 'setup') {
+      setCurrentStep(targetStep);
+      return;
+    }
+
+    // 완뢬된 단계나 현재 진행 단계만 이동 가능
+    if (completedSteps.has(targetStep) || targetStep === currentStep) {
+      setCurrentStep(targetStep);
+    } else {
+      // 아직 완료되지 않은 단계로의 이동 시도시 안내 메시지
+      alert('이전 단계를 먼저 완료해주세요.');
+    }
   };
 
   // 이전/다음 단계로 이동 (자유 이동)
@@ -187,16 +282,20 @@ export const PreAnalysisPage: React.FC = () => {
               const Icon = step.icon;
               const isActive = currentStep === step.id;
               const status = getStepStatus(step.id);
+              const isClickable = step.id === 'setup' || completedSteps.has(step.id) || step.id === currentStep;
 
               return (
                 <button
                   key={step.id}
                   onClick={() => handleStepChange(step.id)}
+                  disabled={!isClickable}
                   className={`
                     group inline-flex items-center py-4 px-1 border-b-2 font-medium text-sm transition-all duration-200
                     ${isActive
                       ? 'border-primary-500 text-primary-500'
-                      : 'border-transparent text-text-secondary hover:text-text-primary hover:border-border-secondary'
+                      : isClickable
+                      ? 'border-transparent text-text-secondary hover:text-text-primary hover:border-border-secondary'
+                      : 'border-transparent text-text-muted cursor-not-allowed opacity-50'
                     }
                   `}
                 >
@@ -229,11 +328,11 @@ export const PreAnalysisPage: React.FC = () => {
     );
   };
 
-  // 진행 상태 표시 카드 렌더링 (간소화)
+  // 진행 상태 표시 카드 렌더링
   const renderProgressCard = () => {
     const currentStepInfo = getCurrentStepInfo();
-    const completedSteps = steps.filter(step => getStepStatus(step.id) === 'completed').length;
-    const progressPercentage = (completedSteps / steps.length) * 100;
+    const completedStepCount = completedSteps.size;
+    const progressPercentage = (completedStepCount / steps.length) * 100;
     const currentIndex = steps.findIndex(s => s.id === currentStep);
 
     return (
@@ -276,7 +375,7 @@ export const PreAnalysisPage: React.FC = () => {
 
             <div className="text-right">
               <div className="text-2xl font-bold text-primary-500">
-                {completedSteps}/{steps.length}
+                {completedStepCount}/{steps.length}
               </div>
               <div className="text-text-secondary text-sm">
                 단계 완료

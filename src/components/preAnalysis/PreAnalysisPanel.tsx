@@ -147,9 +147,16 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
       const response = await preAnalysisService.getProjectSessions(projectId);
       if (response.success && response.data && response.data.length > 0) {
         const latestSession = response.data[0];
+        setCurrentSession(latestSession);
+
+        // 완료된 세션이라면 자동으로 분석 단계로 이동하지 않음
+        // 사용자가 직접 선택할 수 있도록 함
         if (latestSession.status === 'processing') {
-          setCurrentSession(latestSession);
+          // 진행 중인 세션만 자동으로 단계 결정
           determineCurrentStep(latestSession);
+        } else if (latestSession.status === 'completed') {
+          // 완료된 세션은 보고서 단계로 설정하지만 자동 이동하지 않음
+          console.log('완료된 세션 발견:', latestSession.id);
         }
       }
     } catch (error) {
@@ -157,12 +164,39 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
     }
   };
 
-  const determineCurrentStep = (session: PreAnalysisSession) => {
-    // 세션 상태에 따라 현재 단계 결정
-    if (session.status === 'completed') {
-      onStepChange?.('report');
-    } else {
-      // 실제로는 세션의 진행 상황을 체크해서 결정
+  const determineCurrentStep = async (session: PreAnalysisSession) => {
+    try {
+      if (!supabase) return;
+
+      // 진행 중인 세션의 실제 단계를 데이터베이스에서 확인
+      const [analysisResult, questionsResult, reportResult] = await Promise.all([
+        supabase.from('document_analyses')
+          .select('*', { count: 'exact', head: true })
+          .eq('session_id', session.id),
+        supabase.from('ai_questions')
+          .select('*', { count: 'exact', head: true })
+          .eq('session_id', session.id),
+        supabase.from('analysis_reports')
+          .select('*', { count: 'exact', head: true })
+          .eq('session_id', session.id)
+      ]);
+
+      const analysisCount = analysisResult.count || 0;
+      const questionCount = questionsResult.count || 0;
+      const reportCount = reportResult.count || 0;
+
+      // 실제 데이터를 기반으로 현재 단계 결정
+      if (reportCount > 0) {
+        onStepChange?.('report');
+      } else if (questionCount > 0) {
+        onStepChange?.('questions');
+      } else if (analysisCount > 0) {
+        onStepChange?.('analysis');
+      } else {
+        onStepChange?.('analysis'); // 분석이 시작되었지만 아직 완료되지 않은 상태
+      }
+    } catch (error) {
+      console.error('단계 결정 오류:', error);
       onStepChange?.('analysis');
     }
   };
@@ -295,6 +329,11 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
     const stepOrder = ['setup', 'analysis', 'questions', 'report'];
     const currentIndex = stepOrder.indexOf(currentStep);
     const stepIndex = stepOrder.indexOf(step);
+
+    // 세션이 완료된 경우 모든 단계를 완료된 것으로 표시
+    if (currentSession.status === 'completed') {
+      return stepIndex <= 3 ? 'completed' : 'pending';
+    }
 
     if (stepIndex < currentIndex) return 'completed';
     if (stepIndex === currentIndex) return 'processing';
