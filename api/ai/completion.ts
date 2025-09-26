@@ -139,54 +139,68 @@ async function handleAnthropicRequest(
 ): Promise<CompletionResponse> {
   const startTime = Date.now()
 
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'x-api-key': apiKey,
-      'Content-Type': 'application/json',
-      'anthropic-version': '2023-06-01'
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: maxTokens,
-      temperature,
-      top_p: topP,
-      messages: [{ role: 'user', content: prompt }]
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 25000) // 25초 timeout
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'Content-Type': 'application/json',
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: maxTokens,
+        temperature,
+        top_p: topP,
+        messages: [{ role: 'user', content: prompt }]
+      }),
+      signal: controller.signal
     })
-  })
 
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`Anthropic API 오류: ${response.status} - ${errorText}`)
-  }
+    clearTimeout(timeoutId)
 
-  const data = await response.json()
-  const responseTime = Date.now() - startTime
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`Anthropic API 오류: ${response.status} - ${errorText}`)
+    }
 
-  // 토큰 사용량 추정 (Anthropic API는 사용량을 반환하지 않을 수 있음)
-  const inputTokens = estimateTokens(prompt, 'anthropic')
-  const outputTokens = estimateTokens(data.content[0].text, 'anthropic')
+    const data = await response.json()
+    const responseTime = Date.now() - startTime
 
-  // 모델별 비용 계산
-  const pricing = getAnthropicPricing(model)
-  const inputCost = (inputTokens * pricing.inputCost) / 1000000
-  const outputCost = (outputTokens * pricing.outputCost) / 1000000
+    // 토큰 사용량 추정 (Anthropic API는 사용량을 반환하지 않을 수 있음)
+    const inputTokens = estimateTokens(prompt, 'anthropic')
+    const outputTokens = estimateTokens(data.content[0].text, 'anthropic')
 
-  return {
-    content: data.content[0].text,
-    usage: {
-      inputTokens,
-      outputTokens,
-      totalTokens: inputTokens + outputTokens
-    },
-    cost: {
-      inputCost,
-      outputCost,
-      totalCost: inputCost + outputCost
-    },
-    model,
-    finishReason: data.stop_reason || 'stop',
-    responseTime
+    // 모델별 비용 계산
+    const pricing = getAnthropicPricing(model)
+    const inputCost = (inputTokens * pricing.inputCost) / 1000000
+    const outputCost = (outputTokens * pricing.outputCost) / 1000000
+
+    return {
+      content: data.content[0].text,
+      usage: {
+        inputTokens,
+        outputTokens,
+        totalTokens: inputTokens + outputTokens
+      },
+      cost: {
+        inputCost,
+        outputCost,
+        totalCost: inputCost + outputCost
+      },
+      model,
+      finishReason: data.stop_reason || 'stop',
+      responseTime
+    }
+  } catch (error: any) {
+    clearTimeout(timeoutId)
+    if (error.name === 'AbortError') {
+      throw new Error(`Anthropic API timeout after 25 seconds`)
+    }
+    throw error
   }
 }
 
@@ -200,48 +214,62 @@ async function handleOpenAIRequest(
 ): Promise<CompletionResponse> {
   const startTime = Date.now()
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model,
-      messages: [{ role: 'user', content: prompt }],
-      max_tokens: maxTokens,
-      temperature,
-      top_p: topP
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 25000) // 25초 timeout
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: maxTokens,
+        temperature,
+        top_p: topP
+      }),
+      signal: controller.signal
     })
-  })
 
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`OpenAI API 오류: ${response.status} - ${errorText}`)
-  }
+    clearTimeout(timeoutId)
 
-  const data = await response.json()
-  const responseTime = Date.now() - startTime
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`OpenAI API 오류: ${response.status} - ${errorText}`)
+    }
 
-  const pricing = getOpenAIPricing(model)
-  const inputCost = (data.usage.prompt_tokens * pricing.inputCost) / 1000000
-  const outputCost = (data.usage.completion_tokens * pricing.outputCost) / 1000000
+    const data = await response.json()
+    const responseTime = Date.now() - startTime
 
-  return {
-    content: data.choices[0].message.content,
-    usage: {
-      inputTokens: data.usage.prompt_tokens,
-      outputTokens: data.usage.completion_tokens,
-      totalTokens: data.usage.total_tokens
-    },
-    cost: {
-      inputCost,
-      outputCost,
-      totalCost: inputCost + outputCost
-    },
-    model,
-    finishReason: data.choices[0].finish_reason,
-    responseTime
+    const pricing = getOpenAIPricing(model)
+    const inputCost = (data.usage.prompt_tokens * pricing.inputCost) / 1000000
+    const outputCost = (data.usage.completion_tokens * pricing.outputCost) / 1000000
+
+    return {
+      content: data.choices[0].message.content,
+      usage: {
+        inputTokens: data.usage.prompt_tokens,
+        outputTokens: data.usage.completion_tokens,
+        totalTokens: data.usage.total_tokens
+      },
+      cost: {
+        inputCost,
+        outputCost,
+        totalCost: inputCost + outputCost
+      },
+      model,
+      finishReason: data.choices[0].finish_reason,
+      responseTime
+    }
+  } catch (error: any) {
+    clearTimeout(timeoutId)
+    if (error.name === 'AbortError') {
+      throw new Error(`OpenAI API timeout after 25 seconds`)
+    }
+    throw error
   }
 }
 
@@ -255,54 +283,68 @@ async function handleGoogleAIRequest(
 ): Promise<CompletionResponse> {
   const startTime = Date.now()
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          maxOutputTokens: maxTokens,
-          temperature,
-          topP
-        }
-      })
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 25000) // 25초 timeout
+
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            maxOutputTokens: maxTokens,
+            temperature,
+            topP
+          }
+        }),
+        signal: controller.signal
+      }
+    )
+
+    clearTimeout(timeoutId)
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`Google AI API 오류: ${response.status} - ${errorText}`)
     }
-  )
 
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`Google AI API 오류: ${response.status} - ${errorText}`)
-  }
+    const data = await response.json()
+    const responseTime = Date.now() - startTime
 
-  const data = await response.json()
-  const responseTime = Date.now() - startTime
+    const inputTokens = estimateTokens(prompt, 'google')
+    const outputTokens = estimateTokens(data.candidates[0].content.parts[0].text, 'google')
 
-  const inputTokens = estimateTokens(prompt, 'google')
-  const outputTokens = estimateTokens(data.candidates[0].content.parts[0].text, 'google')
+    const pricing = getGoogleAIPricing(model)
+    const inputCost = (inputTokens * pricing.inputCost) / 1000000
+    const outputCost = (outputTokens * pricing.outputCost) / 1000000
 
-  const pricing = getGoogleAIPricing(model)
-  const inputCost = (inputTokens * pricing.inputCost) / 1000000
-  const outputCost = (outputTokens * pricing.outputCost) / 1000000
-
-  return {
-    content: data.candidates[0].content.parts[0].text,
-    usage: {
-      inputTokens,
-      outputTokens,
-      totalTokens: inputTokens + outputTokens
-    },
-    cost: {
-      inputCost,
-      outputCost,
-      totalCost: inputCost + outputCost
-    },
-    model,
-    finishReason: data.candidates[0].finishReason?.toLowerCase() || 'stop',
-    responseTime
+    return {
+      content: data.candidates[0].content.parts[0].text,
+      usage: {
+        inputTokens,
+        outputTokens,
+        totalTokens: inputTokens + outputTokens
+      },
+      cost: {
+        inputCost,
+        outputCost,
+        totalCost: inputCost + outputCost
+      },
+      model,
+      finishReason: data.candidates[0].finishReason?.toLowerCase() || 'stop',
+      responseTime
+    }
+  } catch (error: any) {
+    clearTimeout(timeoutId)
+    if (error.name === 'AbortError') {
+      throw new Error(`Google AI API timeout after 25 seconds`)
+    }
+    throw error
   }
 }
 

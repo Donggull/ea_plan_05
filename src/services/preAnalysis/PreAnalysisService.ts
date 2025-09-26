@@ -1576,7 +1576,7 @@ ${answersContext}
                 session_id: update.sessionId,
                 document_id: update.documentId,
                 status: update.status,
-                category: 'progress_tracking', // 상태 추적용 임시 카테고리
+                category: 'business', // 허용된 카테고리 중 business 사용
                 analysis_result: {}, // 기본값
                 mcp_enrichment: {} // 기본값
               });
