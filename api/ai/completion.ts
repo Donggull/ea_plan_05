@@ -119,11 +119,17 @@ export default async function handler(
     console.error('❌ [Vercel API] AI 완성 처리 오류 상세:', {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
+      provider,
+      model,
+      promptLength: prompt?.length || 0,
+      maxTokens,
+      temperature,
       timestamp: new Date().toISOString()
     })
     return res.status(500).json({
       error: '서버 오류가 발생했습니다.',
       details: error instanceof Error ? error.message : String(error),
+      provider,
       timestamp: new Date().toISOString()
     })
   }

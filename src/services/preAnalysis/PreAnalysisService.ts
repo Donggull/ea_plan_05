@@ -598,15 +598,16 @@ export class PreAnalysisService {
         throw new Error('Supabase client not initialized');
       }
 
-      const { data: session, error: sessionError } = await supabase
+      const { data: sessions, error: sessionError } = await supabase
         .from('pre_analysis_sessions')
         .select('*')
-        .eq('id', sessionId)
-        .single();
+        .eq('id', sessionId);
 
-      if (sessionError || !session) {
+      if (sessionError || !sessions || sessions.length === 0) {
         return { success: false, error: '세션을 찾을 수 없습니다.' };
       }
+
+      const session = sessions[0];
 
       // 기존 문서 분석 결과 조회
       const { data: analyses, error: analysesError } = await supabase
@@ -1263,7 +1264,7 @@ ${content}
       }
 
       const [sessionRes, analysesRes, questionsRes, answersRes] = await Promise.all([
-        supabase.from('pre_analysis_sessions').select('*').eq('id', sessionId).single(),
+        supabase.from('pre_analysis_sessions').select('*').eq('id', sessionId),
         supabase.from('document_analyses').select('*').eq('session_id', sessionId),
         supabase.from('ai_questions').select('*').eq('session_id', sessionId),
         supabase.from('user_answers').select('*').eq('session_id', sessionId),
@@ -1273,10 +1274,14 @@ ${content}
         return { success: false, error: sessionRes.error.message };
       }
 
+      if (!sessionRes.data || sessionRes.data.length === 0) {
+        return { success: false, error: '세션을 찾을 수 없습니다.' };
+      }
+
       return {
         success: true,
         data: {
-          session: sessionRes.data,
+          session: sessionRes.data[0],
           analyses: analysesRes.data || [],
           questions: questionsRes.data || [],
           answers: answersRes.data || [],
@@ -1536,12 +1541,11 @@ ${answersContext}
       if (update.documentId && update.status) {
         try {
           // 먼저 기존 레코드가 있는지 확인
-          const { data: existingAnalysis, error: selectError } = await supabase
+          const { data: existingAnalyses, error: selectError } = await supabase
             .from('document_analyses')
             .select('id')
             .eq('session_id', update.sessionId)
-            .eq('document_id', update.documentId)
-            .single();
+            .eq('document_id', update.documentId);
 
           if (selectError && selectError.code !== 'PGRST116') {
             // PGRST116은 "no rows returned" 오류이므로 정상적인 경우
@@ -1556,6 +1560,7 @@ ${answersContext}
             // progress 컬럼은 document_analyses 테이블에 없으므로 제거
           };
 
+          const existingAnalysis = existingAnalyses?.[0];
           if (existingAnalysis?.id) {
             // 기존 레코드가 있으면 update
             const { error: updateError } = await supabase
