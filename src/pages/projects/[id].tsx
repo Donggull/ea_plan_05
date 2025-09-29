@@ -46,13 +46,32 @@ export function ProjectDetailPage() {
   const { data: projectMembers = [] } = useProjectMembers(id || '')
 
   // 사전 분석 상태 조회
+  const analysisStatusData = usePreAnalysisStatus(id || '')
   const {
     status: analysisStatus,
     loading: analysisLoading,
-    getStatusColor: getAnalysisStatusColor,
-    getStatusLabel: getAnalysisStatusLabel,
-    refreshStatus
-  } = usePreAnalysisStatus(id || '')
+    refresh: refreshStatus
+  } = analysisStatusData
+
+  // Helper functions for analysis status
+  const getAnalysisStatusColor = (status: typeof analysisStatus) => {
+    switch (status) {
+      case 'completed': return 'success'
+      case 'processing': return 'primary'
+      case 'failed': return 'error'
+      default: return 'secondary'
+    }
+  }
+
+  const getAnalysisStatusLabel = (status: typeof analysisStatus) => {
+    switch (status) {
+      case 'completed': return '완료'
+      case 'processing': return '진행중'
+      case 'failed': return '실패'
+      case 'idle': return '대기'
+      default: return '알 수 없음'
+    }
+  }
 
   // 문서 수 로드 함수
   const loadDocumentCount = async (projectId: string) => {
@@ -99,13 +118,13 @@ export function ProjectDetailPage() {
 
   // 분석 상태에 따른 현재 단계 계산
   const getCurrentAnalysisStep = () => {
-    if (analysisStatus.status === 'not_started') return 0
-    if (analysisStatus.status === 'processing') {
-      if (analysisStatus.currentStep?.includes('문서 분석')) return 1
-      if (analysisStatus.currentStep?.includes('질문')) return 2
-      if (analysisStatus.currentStep?.includes('보고서')) return 3
+    if (analysisStatusData.status === 'idle') return 0
+    if (analysisStatusData.status === 'processing') {
+      if (analysisStatusData.currentStep?.includes('문서 분석') || analysisStatusData.currentStep === 'analysis') return 1
+      if (analysisStatusData.currentStep?.includes('질문') || analysisStatusData.currentStep === 'questions') return 2
+      if (analysisStatusData.currentStep?.includes('보고서') || analysisStatusData.currentStep === 'report') return 3
     }
-    if (analysisStatus.status === 'completed') return 4
+    if (analysisStatusData.status === 'completed') return 4
     return 0
   }
 
@@ -113,7 +132,7 @@ export function ProjectDetailPage() {
   const getStepStatus = (stepIndex: number) => {
     const currentStep = getCurrentAnalysisStep()
     if (stepIndex < currentStep) return 'completed'
-    if (stepIndex === currentStep && analysisStatus.status === 'processing') return 'processing'
+    if (stepIndex === currentStep && analysisStatusData.status === 'processing') return 'processing'
     return 'pending'
   }
 
@@ -335,8 +354,8 @@ export function ProjectDetailPage() {
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-text-secondary">분석 상태</span>
-                  <span className={`px-2 py-1 text-xs rounded-full ${getAnalysisStatusColor(analysisStatus.status)}`}>
-                    {getAnalysisStatusLabel(analysisStatus.status)}
+                  <span className={`px-2 py-1 text-xs rounded-full ${getAnalysisStatusColor(analysisStatusData.status)}`}>
+                    {getAnalysisStatusLabel(analysisStatusData.status)}
                   </span>
                 </div>
 
@@ -344,7 +363,7 @@ export function ProjectDetailPage() {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-text-secondary">분석 진행률</span>
-                    <span className="text-xs text-text-secondary">{analysisStatus.progress}% 완료</span>
+                    <span className="text-xs text-text-secondary">{analysisStatusData.progress}% 완료</span>
                   </div>
 
                   {/* SNB 스타일 단계 표시 */}
@@ -394,28 +413,28 @@ export function ProjectDetailPage() {
                   <div className="w-full bg-bg-tertiary rounded-full h-2">
                     <div
                       className="bg-gradient-to-r from-primary-500 to-primary-600 h-2 rounded-full transition-all duration-500"
-                      style={{ width: `${analysisStatus.progress}%` }}
+                      style={{ width: `${analysisStatusData.progress}%` }}
                     ></div>
                   </div>
 
-                  {analysisStatus.currentStep && (
-                    <div className="text-xs text-text-secondary text-center">{analysisStatus.currentStep}</div>
+                  {analysisStatusData.currentStep && (
+                    <div className="text-xs text-text-secondary text-center">{analysisStatusData.currentStep}</div>
                   )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 text-xs">
                   <div className="bg-bg-tertiary rounded-lg p-2">
                     <div className="text-text-secondary">문서 분석</div>
-                    <div className="text-text-primary font-medium">{analysisStatus.analysisCount}개</div>
+                    <div className="text-text-primary font-medium">{analysisStatusData.analysisCount}개</div>
                   </div>
                   <div className="bg-bg-tertiary rounded-lg p-2">
                     <div className="text-text-secondary">생성 질문</div>
-                    <div className="text-text-primary font-medium">{analysisStatus.questionCount}개</div>
+                    <div className="text-text-primary font-medium">{analysisStatusData.questionCount}개</div>
                   </div>
                 </div>
 
                 <div className="pt-3 border-t border-border-primary/30">
-                  {analysisStatus.status === 'completed' ? (
+                  {analysisStatusData.status === 'completed' ? (
                     <div className="space-y-2">
                       <button
                         onClick={() => navigate(`/projects/${id}/pre-analysis`)}
@@ -423,7 +442,7 @@ export function ProjectDetailPage() {
                       >
                         분석 결과 보기
                       </button>
-                      {analysisStatus.reportExists && (
+                      {analysisStatusData.reportExists && (
                         <button
                           onClick={() => navigate(`/projects/${id}/reports`)}
                           className="w-full px-3 py-2 border border-border-primary text-text-primary rounded-lg hover:bg-bg-tertiary transition-colors text-sm"
@@ -436,16 +455,16 @@ export function ProjectDetailPage() {
                     <button
                       onClick={() => navigate(`/projects/${id}/pre-analysis`)}
                       className="w-full px-3 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors text-sm font-medium"
-                      disabled={analysisStatus.status === 'processing'}
+                      disabled={analysisStatusData.status === 'processing'}
                     >
-                      {analysisStatus.status === 'processing' ? '분석 진행 중...' : '사전 분석 시작'}
+                      {analysisStatusData.status === 'processing' ? '분석 진행 중...' : '사전 분석 시작'}
                     </button>
                   )}
                 </div>
 
-                {analysisStatus.lastUpdated && (
+                {analysisStatusData.lastUpdated && (
                   <div className="text-xs text-text-secondary text-center pt-2 border-t border-border-primary/30">
-                    마지막 업데이트: {analysisStatus.lastUpdated.toLocaleString('ko-KR')}
+                    마지막 업데이트: {analysisStatusData.lastUpdated.toLocaleString('ko-KR')}
                   </div>
                 )}
 
@@ -453,19 +472,19 @@ export function ProjectDetailPage() {
                   <div className="text-xs text-text-secondary font-medium">주요 기능</div>
                   <div className="space-y-1">
                     <div className="flex items-center space-x-2">
-                      <div className={`w-1.5 h-1.5 rounded-full ${analysisStatus.analysisCount > 0 ? 'bg-green-500' : 'bg-purple-500'}`}></div>
+                      <div className={`w-1.5 h-1.5 rounded-full ${analysisStatusData.analysisCount > 0 ? 'bg-green-500' : 'bg-purple-500'}`}></div>
                       <span className="text-xs text-text-secondary">문서 AI 분석</span>
-                      {analysisStatus.analysisCount > 0 && <span className="text-xs text-green-500">✓</span>}
+                      {analysisStatusData.analysisCount > 0 && <span className="text-xs text-green-500">✓</span>}
                     </div>
                     <div className="flex items-center space-x-2">
-                      <div className={`w-1.5 h-1.5 rounded-full ${analysisStatus.questionCount > 0 ? 'bg-green-500' : 'bg-purple-500'}`}></div>
+                      <div className={`w-1.5 h-1.5 rounded-full ${analysisStatusData.questionCount > 0 ? 'bg-green-500' : 'bg-purple-500'}`}></div>
                       <span className="text-xs text-text-secondary">질문-답변 생성</span>
-                      {analysisStatus.questionCount > 0 && <span className="text-xs text-green-500">✓</span>}
+                      {analysisStatusData.questionCount > 0 && <span className="text-xs text-green-500">✓</span>}
                     </div>
                     <div className="flex items-center space-x-2">
-                      <div className={`w-1.5 h-1.5 rounded-full ${analysisStatus.reportExists ? 'bg-green-500' : 'bg-purple-500'}`}></div>
+                      <div className={`w-1.5 h-1.5 rounded-full ${analysisStatusData.reportExists ? 'bg-green-500' : 'bg-purple-500'}`}></div>
                       <span className="text-xs text-text-secondary">분석 보고서</span>
-                      {analysisStatus.reportExists && <span className="text-xs text-green-500">✓</span>}
+                      {analysisStatusData.reportExists && <span className="text-xs text-green-500">✓</span>}
                     </div>
                   </div>
                 </div>

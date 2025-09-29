@@ -1,4 +1,24 @@
 // 사전 분석 모듈 타입 정의
+
+// AI 프로바이더
+export type AIProvider = 'openai' | 'anthropic' | 'google' | 'custom';
+
+// AI 모델
+export interface AIModel {
+  id: string;
+  name: string;
+  provider: AIProvider;
+  capabilities: string[];
+  costPerInputToken: number;
+  costPerOutputToken: number;
+  maxTokens: number;
+  cost?: 'low' | 'medium' | 'high'; // AIModelSelector에서 사용하는 간단한 비용 표시
+  description?: string;
+}
+
+// 분석 깊이
+export type AnalysisDepth = 'quick' | 'standard' | 'deep' | 'comprehensive';
+
 export interface PreAnalysisConfig {
   // AI 모델 설정
   availableModels: {
@@ -20,7 +40,7 @@ export interface PreAnalysisConfig {
   };
 
   // 분석 깊이 설정
-  analysisDepth: 'quick' | 'standard' | 'deep' | 'comprehensive';
+  analysisDepth: AnalysisDepth;
 }
 
 // 문서 카테고리
@@ -86,6 +106,17 @@ export interface TechTrend {
   maturity: 'emerging' | 'growing' | 'mature' | 'declining';
   relevance: number; // 프로젝트와의 관련성 0-100
   description: string;
+}
+
+// 문서 데이터
+export interface DocumentData {
+  id: string;
+  name: string;
+  category: DocumentCategory;
+  content?: string;
+  fileSize?: number;
+  uploadedAt?: Date;
+  processedAt?: Date;
 }
 
 // 프로젝트 정보 (기존 projects 테이블 참조)
@@ -194,6 +225,11 @@ export interface PreAnalysisSession {
   mcpConfig: PreAnalysisConfig['mcpServers'];
   analysisDepth: PreAnalysisConfig['analysisDepth'];
   status: 'processing' | 'completed' | 'failed' | 'cancelled';
+  currentStep?: AnalysisStep;
+
+  // 진행률 정보
+  analysis_progress?: number;
+  questions_progress?: number;
 
   // 시간 정보
   startedAt: Date;
@@ -249,6 +285,7 @@ export interface AnalysisReport {
   totalCost: number;
   inputTokens: number;
   outputTokens: number;
+  confidenceScore?: number; // 신뢰도 점수
 
   generatedBy: string;
   createdAt: Date;
@@ -325,4 +362,82 @@ export interface ReportGenerationOptions {
   includeCharts: boolean;
   includeAppendix: boolean;
   customTemplate?: string;
+}
+
+// UI 컴포넌트용 추가 타입들
+export type AnalysisStep = 'setup' | 'analysis' | 'questions' | 'report';
+
+export interface Recommendation {
+  title: string;
+  description: string;
+  priority: 'low' | 'medium' | 'high';
+  category: 'technical' | 'business' | 'process' | 'team';
+  expected_impact: string;
+  implementation_effort: string;
+  timeline_days?: number;
+  dependencies?: string[];
+}
+
+export interface RiskAssessment {
+  risk_type: string;
+  description: string;
+  severity: 'low' | 'medium' | 'high';
+  probability: number; // 0-100
+  impact: string;
+  mitigation_strategy: string;
+  owner?: string;
+  due_date?: string;
+}
+
+// MCP 서버 정보
+export interface MCPServer {
+  id: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  capabilities: string[];
+  status: 'connected' | 'disconnected' | 'error';
+  lastConnected?: Date;
+  version?: string;
+  icon?: React.ReactNode;
+  config?: Record<string, any>;
+  health?: {
+    status: 'healthy' | 'warning' | 'error';
+    lastCheck: Date;
+    responseTime?: number;
+  };
+}
+
+// MCP 설정
+export interface MCPConfiguration {
+  servers: Record<string, MCPServer>;
+  defaultTimeout: number;
+  maxRetries: number;
+  enabledServers: string[];
+  serverConfigs?: Record<string, any>;
+  globalSettings: {
+    enableLogging: boolean;
+    enableMetrics: boolean;
+    enableRealtime: boolean;
+  };
+}
+
+// MCP 분석 결과 (추가된 타입)
+export interface MCPAnalysisResult {
+  server_id: string;
+  analysis_type: string;
+  results: {
+    findings: Array<{
+      category: string;
+      title: string;
+      description: string;
+      confidence: number;
+      impact: 'low' | 'medium' | 'high';
+    }>;
+    metrics: Record<string, number>;
+    recommendations: string[];
+  };
+  execution_time_ms: number;
+  success: boolean;
+  error_message?: string;
 }

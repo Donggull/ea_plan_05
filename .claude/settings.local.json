@@ -53,7 +53,8 @@
       "Bash(xargs sed:*)",
       "Bash(powershell:*)",
       "Bash(findstr:*)",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "Bash(xcopy:*)"
     ],
     "deny": [],
     "ask": []

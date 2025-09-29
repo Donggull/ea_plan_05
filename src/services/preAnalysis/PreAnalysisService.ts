@@ -11,6 +11,7 @@ import {
   QuestionGenerationOptions,
   ReportGenerationOptions,
   DocumentCategory,
+  AnalysisDepth,
 } from '../../types/preAnalysis';
 
 export class PreAnalysisService {
@@ -52,6 +53,132 @@ export class PreAnalysisService {
       return {
         success: false,
         error: '문서 조회 중 오류가 발생했습니다.',
+      };
+    }
+  }
+
+  /**
+   * 새 세션 시작
+   */
+  static async startSession(projectId: string, config: any): Promise<ServiceResponse<PreAnalysisSession>> {
+    try {
+      if (!supabase) {
+        throw new Error('Supabase client not initialized');
+      }
+
+      const { data, error } = await supabase
+        .from('pre_analysis_sessions')
+        .insert({
+          project_id: projectId,
+          ai_model: config.model,
+          ai_provider: config.provider,
+          analysis_depth: config.depth,
+          status: 'processing',
+          started_at: new Date().toISOString(),
+          total_cost: 0,
+          created_by: 'current-user', // TODO: 실제 사용자 ID
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          mcp_config: config.mcpConfig || {},
+          metadata: {}
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('세션 생성 오류:', error);
+        return { success: false, error: error.message };
+      }
+
+      // 데이터 변환
+      const transformedSession: PreAnalysisSession = {
+        id: data.id,
+        projectId: data.project_id || '',
+        aiModel: data.ai_model || '',
+        aiProvider: data.ai_provider || '',
+        mcpConfig: (data.mcp_config as { filesystem: boolean; database: boolean; websearch: boolean; github: boolean; }) || { filesystem: false, database: false, websearch: false, github: false },
+        analysisDepth: (data.analysis_depth as AnalysisDepth) || 'standard',
+        status: (data.status as "completed" | "failed" | "cancelled" | "processing") || 'processing',
+        currentStep: 'setup',
+        startedAt: data.started_at ? new Date(data.started_at) : new Date(),
+        completedAt: data.completed_at ? new Date(data.completed_at) : undefined,
+        processingTime: data.processing_time || 0,
+        totalCost: data.total_cost || 0,
+        createdBy: data.created_by || '',
+        createdAt: data.created_at ? new Date(data.created_at) : new Date(),
+        updatedAt: data.updated_at ? new Date(data.updated_at) : new Date(),
+        metadata: (data.metadata as Record<string, any>) || {},
+      };
+
+      return {
+        success: true,
+        data: transformedSession,
+      };
+    } catch (error) {
+      console.error('세션 시작 중 오류:', error);
+      return {
+        success: false,
+        error: '세션 시작 중 오류가 발생했습니다.',
+      };
+    }
+  }
+
+  /**
+   * 활성 세션 조회
+   */
+  async getActiveSession(projectId: string): Promise<ServiceResponse<PreAnalysisSession | null>> {
+    try {
+      if (!supabase) {
+        throw new Error('Supabase client not initialized');
+      }
+
+      const { data, error } = await supabase
+        .from('pre_analysis_sessions')
+        .select('*')
+        .eq('project_id', projectId)
+        .eq('status', 'processing')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+        console.error('활성 세션 조회 오류:', error);
+        return { success: false, error: error.message };
+      }
+
+      if (!data) {
+        return { success: true, data: null };
+      }
+
+      // 데이터 변환
+      const transformedSession: PreAnalysisSession = {
+        id: data.id,
+        projectId: data.project_id || '',
+        aiModel: data.ai_model || '',
+        aiProvider: data.ai_provider || '',
+        mcpConfig: (data.mcp_config as { filesystem: boolean; database: boolean; websearch: boolean; github: boolean; }) || { filesystem: false, database: false, websearch: false, github: false },
+        analysisDepth: (data.analysis_depth as AnalysisDepth) || 'standard',
+        status: (data.status as "completed" | "failed" | "cancelled" | "processing") || 'processing',
+        currentStep: (data as any).current_step || 'setup',
+        startedAt: data.started_at ? new Date(data.started_at) : new Date(),
+        completedAt: data.completed_at ? new Date(data.completed_at) : undefined,
+        processingTime: data.processing_time || 0,
+        totalCost: data.total_cost || 0,
+        createdBy: data.created_by || '',
+        createdAt: data.created_at ? new Date(data.created_at) : new Date(),
+        updatedAt: data.updated_at ? new Date(data.updated_at) : new Date(),
+        metadata: (data.metadata as Record<string, any>) || {},
+      };
+
+      return {
+        success: true,
+        data: transformedSession,
+      };
+    } catch (error) {
+      console.error('활성 세션 조회 중 오류:', error);
+      return {
+        success: false,
+        error: '활성 세션 조회 중 오류가 발생했습니다.',
       };
     }
   }
@@ -1021,6 +1148,125 @@ export class PreAnalysisService {
       return {
         success: false,
         error: '프로젝트 세션 조회 중 오류가 발생했습니다.',
+      };
+    }
+  }
+
+  /**
+   * 세션 업데이트
+   */
+  async updateSession(sessionId: string, updates: Partial<PreAnalysisSession>): Promise<ServiceResponse<PreAnalysisSession>> {
+    try {
+      if (!supabase) {
+        throw new Error('Supabase client not initialized');
+      }
+
+      const updateData: any = {};
+      if (updates.aiModel) updateData.ai_model = updates.aiModel;
+      if (updates.aiProvider) updateData.ai_provider = updates.aiProvider;
+      if (updates.mcpConfig) updateData.mcp_config = updates.mcpConfig;
+      if (updates.analysisDepth) updateData.analysis_depth = updates.analysisDepth;
+      if (updates.status) updateData.status = updates.status;
+      if (updates.metadata) updateData.metadata = updates.metadata;
+
+      const { data, error } = await supabase
+        .from('pre_analysis_sessions')
+        .update(updateData)
+        .eq('id', sessionId)
+        .select()
+        .single();
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      return {
+        success: true,
+        data: this.transformSessionData(data),
+      };
+    } catch (error) {
+      console.error('세션 업데이트 오류:', error);
+      return {
+        success: false,
+        error: '세션 업데이트 중 오류가 발생했습니다.',
+      };
+    }
+  }
+
+  /**
+   * 답변 저장
+   */
+  async saveAnswer(answer: Omit<UserAnswer, 'id' | 'answeredAt' | 'updatedAt'>): Promise<ServiceResponse<UserAnswer>> {
+    try {
+      if (!supabase) {
+        throw new Error('Supabase client not initialized');
+      }
+
+      const answerData = {
+        question_id: answer.questionId,
+        session_id: answer.sessionId,
+        answer: answer.answer,
+        answer_data: answer.answerData,
+        confidence: answer.confidence,
+        attachments: answer.attachments,
+        notes: answer.notes,
+        is_draft: answer.isDraft,
+        answered_by: answer.answeredBy,
+      };
+
+      const { data, error } = await supabase
+        .from('user_answers')
+        .upsert(answerData, {
+          onConflict: 'question_id,answered_by',
+        })
+        .select()
+        .single();
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      return {
+        success: true,
+        data: this.transformAnswerData(data),
+      };
+    } catch (error) {
+      console.error('답변 저장 오류:', error);
+      return {
+        success: false,
+        error: '답변 저장 중 오류가 발생했습니다.',
+      };
+    }
+  }
+
+  /**
+   * 보고서 조회
+   */
+  async getReport(sessionId: string): Promise<ServiceResponse<AnalysisReport>> {
+    try {
+      if (!supabase) {
+        throw new Error('Supabase client not initialized');
+      }
+
+      const { data, error } = await supabase
+        .from('analysis_reports')
+        .select('*')
+        .eq('session_id', sessionId)
+        .single();
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      return {
+        success: true,
+        data: this.transformReportData(data),
+      };
+    } catch (error) {
+      console.error('보고서 조회 오료:', error);
+      return {
+        success: false,
+        error: '보고서 조회 중 오류가 발생했습니다.',
       };
     }
   }
@@ -1995,12 +2241,12 @@ ${documentContext.map((doc, index) =>
       mcpConfig: data.mcp_config,
       analysisDepth: data.analysis_depth,
       status: data.status,
-      startedAt: new Date(data.started_at),
+      startedAt: data.started_at ? new Date(data.started_at) : new Date(),
       completedAt: data.completed_at ? new Date(data.completed_at) : undefined,
       processingTime: data.processing_time,
       totalCost: data.total_cost,
       createdBy: data.created_by,
-      createdAt: new Date(data.created_at),
+      createdAt: data.created_at ? new Date(data.created_at) : new Date(),
       updatedAt: new Date(data.updated_at),
       metadata: data.metadata,
     };
@@ -2020,7 +2266,7 @@ ${documentContext.map((doc, index) =>
       aiModel: data.ai_model,
       aiProvider: data.ai_provider,
       status: data.status,
-      createdAt: new Date(data.created_at),
+      createdAt: data.created_at ? new Date(data.created_at) : new Date(),
     };
   }
 
@@ -2038,7 +2284,7 @@ ${documentContext.map((doc, index) =>
       generatedByAI: data.generated_by_ai,
       aiModel: data.ai_model,
       confidenceScore: data.confidence_score,
-      createdAt: new Date(data.created_at),
+      createdAt: data.created_at ? new Date(data.created_at) : new Date(),
     };
   }
 
@@ -2078,7 +2324,7 @@ ${documentContext.map((doc, index) =>
       inputTokens: data.input_tokens,
       outputTokens: data.output_tokens,
       generatedBy: data.generated_by,
-      createdAt: new Date(data.created_at),
+      createdAt: data.created_at ? new Date(data.created_at) : new Date(),
     };
   }
 

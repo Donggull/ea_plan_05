@@ -32,7 +32,7 @@ import { MainLayout } from '@/layouts/MainLayout'
 import { AuthLayout } from '@/layouts/AuthLayout'
 import AdminRoutes from '@/pages/admin/index'
 import { MCPSettings } from '@/pages/settings/MCPSettings'
-import { PreAnalysisPage } from '@/pages/projects/PreAnalysisPage'
+import { PreAnalysisPage } from '@/pages/preAnalysis/PreAnalysisPage'
 import { ProjectReportsPage } from '@/pages/projects/[id]/reports'
 import { ProjectLifecyclePage } from '@/pages/projects/[id]/lifecycle'
 
