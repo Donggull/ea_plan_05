@@ -497,13 +497,13 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
           }
         }
 
-        // 전체 진행률 계산
+        // 전체 진행률 계산 (4단계: 문서분석 25% + 질문생성 25% + 질문답변 25% + 보고서 25%)
         let totalProgress = 0;
         if (docStage) {
-          totalProgress += (docStage.progress / 100) * 60; // 60% 비중
+          totalProgress += (docStage.progress / 100) * 25; // 25% 비중 (1/4)
         }
         if (questionStage) {
-          totalProgress += (questionStage.progress / 100) * 40; // 40% 비중
+          totalProgress += (questionStage.progress / 100) * 25; // 25% 비중 (2/4에서 1/4까지)
         }
 
         const finalProgress = Math.min(100, Math.max(0, totalProgress));
@@ -635,9 +635,8 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
             return updated;
           });
 
-          setOverallProgress(100);
           addToActivityLog('🎯 맞춤형 질문이 생성되었습니다!');
-          addToActivityLog('🎉 모든 사전 분석이 완료되었습니다!');
+          addToActivityLog('🎉 질문 생성이 완료되었습니다! 다음 단계로 진행합니다.');
 
           // 완료 콜백 호출 - 질문 답변 단계로 자동 이동
           setTimeout(() => {
