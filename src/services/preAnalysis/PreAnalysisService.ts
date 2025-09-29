@@ -16,9 +16,6 @@ import {
 export class PreAnalysisService {
   private static instance: PreAnalysisService;
 
-  // 동시 요청 방지를 위한 진행 중인 질문 생성 세션 추적
-  private static activeQuestionGenerationSessions = new Set<string>();
-
   public static getInstance(): PreAnalysisService {
     if (!PreAnalysisService.instance) {
       PreAnalysisService.instance = new PreAnalysisService();
@@ -273,34 +270,13 @@ export class PreAnalysisService {
       console.log(`🔍 문서 분석 결과: 성공 ${successCount}개, 실패 ${errorCount}개, 총 ${totalDocuments}개`);
 
       if (successCount > 0) {
-        console.log('📝 문서 분석 완료, AI 질문 생성 상태를 확인합니다...');
+        console.log('📝 문서 분석 완료, AI 질문 생성을 자동으로 시작합니다...');
         console.log(`📍 세션 ID: ${sessionId}, 프로젝트 ID: ${projectId}`);
 
         // 비동기로 질문 생성 시작 (await 하지 않음으로써 응답을 먼저 반환)
         setTimeout(async () => {
           try {
-            console.log('⏰ 1초 대기 완료, 질문 생성 여부를 확인합니다...');
-
-            // 중복 방지: 이미 질문이 생성되어 있는지 확인
-            if (!supabase) {
-              console.error('❌ Supabase 클라이언트가 초기화되지 않았습니다.');
-              return;
-            }
-
-            const { data: existingQuestions, error: questionsError } = await supabase
-              .from('ai_questions')
-              .select('id')
-              .eq('session_id', sessionId)
-              .limit(1);
-
-            if (questionsError) {
-              console.error('❌ 기존 질문 확인 중 오류:', questionsError);
-            } else if (existingQuestions && existingQuestions.length > 0) {
-              console.log('✅ 이미 질문이 생성되어 있습니다. 중복 생성을 건너뜁니다.');
-              return;
-            }
-
-            console.log('📝 기존 질문이 없으므로 새로 생성을 시작합니다...');
+            console.log('⏰ 1초 대기 완료, 이제 generateQuestions 메서드를 호출합니다...');
 
             const questionResult = await this.generateQuestions(sessionId, {
               categories: ['technical', 'business', 'risks', 'budget', 'timeline'],
@@ -606,46 +582,7 @@ export class PreAnalysisService {
     options: QuestionGenerationOptions
   ): Promise<ServiceResponse<AIQuestion[]>> {
     console.log('❓ PreAnalysisService.generateQuestions 호출됨', { sessionId, options });
-
-    // 0. 동시 요청 방지: 이미 진행 중인 세션인지 확인
-    if (PreAnalysisService.activeQuestionGenerationSessions.has(sessionId)) {
-      console.log('⚠️ 이미 질문 생성이 진행 중입니다:', sessionId);
-      return {
-        success: false,
-        error: '질문 생성이 이미 진행 중입니다. 잠시 후 다시 시도해주세요.',
-      };
-    }
-
-    // 진행 중인 세션에 추가
-    PreAnalysisService.activeQuestionGenerationSessions.add(sessionId);
-    console.log('🔒 질문 생성 세션 시작:', sessionId);
-
     try {
-      // 1. 중복 생성 방지: 기존 질문이 이미 있는지 확인
-      if (!supabase) {
-        throw new Error('Supabase client not initialized');
-      }
-
-      const { data: existingQuestions, error: questionsError } = await supabase
-        .from('ai_questions')
-        .select('*')
-        .eq('session_id', sessionId);
-
-      if (questionsError) {
-        console.error('❌ 기존 질문 조회 오류:', questionsError);
-      } else if (existingQuestions && existingQuestions.length > 0) {
-        console.log('✅ 이미 생성된 질문이 있습니다:', existingQuestions.length + '개');
-        console.log('🔄 기존 질문을 반환합니다 (중복 생성 방지)');
-
-        return {
-          success: true,
-          data: existingQuestions.map(this.transformQuestionData),
-          message: `기존 생성된 ${existingQuestions.length}개의 질문을 반환했습니다.`,
-        };
-      }
-
-      console.log('📝 기존 질문이 없으므로 새로 생성을 시작합니다.');
-
       // 진행 상황 업데이트
       await this.emitProgressUpdate({
         sessionId,
@@ -726,8 +663,7 @@ export class PreAnalysisService {
           project?.name || '',
           project?.description || '',
           (project as any)?.project_types || [],
-          documentContext,
-          options.maxQuestions
+          documentContext
         );
 
         console.log('📝 질문 생성 프롬프트 준비 완료:', {
@@ -859,10 +795,6 @@ export class PreAnalysisService {
         success: false,
         error: '질문 생성 중 오류가 발생했습니다.',
       };
-    } finally {
-      // 진행 중인 세션에서 제거
-      PreAnalysisService.activeQuestionGenerationSessions.delete(sessionId);
-      console.log('🔓 질문 생성 세션 완료:', sessionId);
     }
   }
 
@@ -1814,8 +1746,7 @@ ${answersContext}
     projectName: string,
     projectDescription: string,
     projectTypes: string[],
-    documentContext: Array<{ name: string; summary?: string; content?: string }>,
-    maxQuestions: number = 15
+    documentContext: Array<{ name: string; summary?: string; content?: string }>
   ): string {
     let prompt = `당신은 전문 프로젝트 컨설턴트입니다. 사전 분석 단계에서 프로젝트 이해를 위한 핵심 질문들을 생성해주세요.
 
@@ -1836,7 +1767,7 @@ ${documentContext.map((doc, index) =>
     }
 
     prompt += `요구사항:
-1. 프로젝트의 핵심을 파악할 수 있는 ${Math.max(8, maxQuestions)}개의 실질적인 질문을 생성하세요.
+1. 프로젝트의 핵심을 파악할 수 있는 6-10개의 실질적인 질문을 생성하세요.
 2. 다양한 관점을 포함하세요: 기술적 요구사항, 비즈니스 목표, 일정, 예산, 위험 요소, 이해관계자 등
 3. 각 질문은 구체적이고 실행 가능한 답변을 유도해야 합니다.
 4. 업로드된 문서가 있다면 해당 내용을 반영한 질문을 포함하세요.

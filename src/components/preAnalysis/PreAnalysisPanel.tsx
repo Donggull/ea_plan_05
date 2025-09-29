@@ -149,36 +149,27 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
         const latestSession = response.data[0];
         setCurrentSession(latestSession);
 
-        console.log('📋 기존 세션 로드됨:', {
-          sessionId: latestSession.id,
-          status: latestSession.status
-        });
-
-        // ⚠️ 단계 결정은 상위 컴포넌트에서 처리하므로 여기서는 제거
-        // 중복 호출로 인한 탭 전환 문제를 방지하기 위해 주석 처리
-        /*
+        // 세션 상태에 따른 단계 결정
         if (latestSession.status === 'processing') {
+          // 진행 중인 세션은 자동으로 단계 결정
           await determineCurrentStep(latestSession);
         } else if (latestSession.status === 'completed') {
+          // 완료된 세션도 정확한 단계를 결정해야 함
           console.log('완료된 세션 발견:', latestSession.id);
           await determineCurrentStep(latestSession);
         }
-        */
       }
     } catch (error) {
       console.error('기존 세션 로드 오류:', error);
     }
   };
 
-  /*
-  // 현재 사용하지 않는 함수 - 중복 호출 방지를 위해 일시 비활성화
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const determineCurrentStep = async (session: PreAnalysisSession) => {
     try {
       if (!supabase) return;
 
       // 진행 중인 세션의 실제 단계를 데이터베이스에서 확인 (PreAnalysisPage와 동일한 로직)
-      const [analysisResult, questionsResult, realAnswersResult, skippedAnswersResult, reportResult] = await Promise.all([
+      const [analysisResult, questionsResult, answersResult, reportResult] = await Promise.all([
         // 문서 분석 완료 확인 (status='completed'인 분석이 있는지)
         supabase.from('document_analyses')
           .select('*')
@@ -188,17 +179,11 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
         supabase.from('ai_questions')
           .select('id', { count: 'exact', head: true })
           .eq('session_id', session.id),
-        // 실제 답변 확인 (is_draft=false인 답변들)
+        // 사용자 답변 완료 확인 (is_draft=false인 답변들)
         supabase.from('user_answers')
           .select('*')
           .eq('session_id', session.id)
           .eq('is_draft', false),
-        // 스킵된 답변 확인 (is_draft=true이면서 notes='스킵됨'인 답변들)
-        supabase.from('user_answers')
-          .select('*')
-          .eq('session_id', session.id)
-          .eq('is_draft', true)
-          .eq('notes', '스킵됨'),
         // 보고서 생성 확인
         supabase.from('analysis_reports')
           .select('*', { count: 'exact', head: true })
@@ -207,63 +192,37 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
 
       const completedAnalysisCount = analysisResult.data?.length || 0;
       const totalQuestionCount = questionsResult.count || 0;
-      const realAnswerCount = realAnswersResult.data?.length || 0; // 실제 답변 수 (is_draft=false)
-      const skippedAnswerCount = skippedAnswersResult.data?.length || 0; // 스킵된 답변 수
-      const totalProcessedCount = realAnswerCount + skippedAnswerCount; // 전체 처리된 답변 수
+      const completedAnswerCount = answersResult.data?.length || 0;
       const reportCount = reportResult.count || 0;
 
-      console.log('📊 단계 결정을 위한 상세 데이터:', {
+      console.log('📊 단계 결정을 위한 데이터:', {
         completedAnalysis: completedAnalysisCount,
         totalQuestions: totalQuestionCount,
-        realAnswers: realAnswerCount,
-        skippedAnswers: skippedAnswerCount,
-        totalProcessed: totalProcessedCount,
+        completedAnswers: completedAnswerCount,
         reports: reportCount
       });
 
-      // 완전히 재설계된 단계 결정 로직
+      // PreAnalysisPage와 동일한 로직으로 현재 단계 결정
       if (reportCount > 0) {
-        // 보고서가 이미 생성된 경우 → 보고서 단계
-        console.log('🎯 단계 결정: report (보고서 존재)');
         onStepChange?.('report');
-      } else if (totalQuestionCount === 0) {
-        // 질문이 생성되지 않은 경우 → 분석 단계
-        if (completedAnalysisCount > 0) {
-          console.log('🎯 단계 결정: analysis (분석 완료, 질문 미생성)');
-          onStepChange?.('analysis');
-        } else {
-          console.log('🎯 단계 결정: analysis (분석 시작 필요)');
-          onStepChange?.('analysis');
-        }
+      } else if (totalQuestionCount > 0 && completedAnswerCount === 0) {
+        // 질문이 생성되었지만 답변이 완료되지 않은 경우
+        onStepChange?.('questions');
+      } else if (completedAnalysisCount > 0 && totalQuestionCount === 0) {
+        // 문서 분석은 완료되었지만 질문이 아직 생성되지 않은 경우
+        onStepChange?.('analysis');
+      } else if (completedAnalysisCount === 0) {
+        // 문서 분석이 시작되지 않은 경우
+        onStepChange?.('analysis');
       } else {
-        // 질문이 생성된 경우
-        if (totalProcessedCount === 0) {
-          // 아무것도 처리되지 않음 → 질문 단계
-          console.log('🎯 단계 결정: questions (답변 시작 필요)');
-          onStepChange?.('questions');
-        } else if (totalProcessedCount < totalQuestionCount) {
-          // 일부만 처리됨 → 질문 단계
-          console.log('🎯 단계 결정: questions (답변 진행 중)');
-          onStepChange?.('questions');
-        } else if (totalProcessedCount === totalQuestionCount) {
-          // 모든 질문이 처리됨 → 실제 답변 여부에 따라 결정
-          if (realAnswerCount > 0) {
-            // 최소 하나 이상의 실제 답변 존재 → 보고서 가능
-            console.log('🎯 단계 결정: report (실제 답변 존재, 보고서 생성 가능)');
-            onStepChange?.('report');
-          } else {
-            // 모든 답변이 스킵됨 → 질문 단계 유지 (실제 답변 유도)
-            console.log('🎯 단계 결정: questions (모든 답변이 스킵됨, 실제 답변 필요)');
-            onStepChange?.('questions');
-          }
-        }
+        // 모든 단계가 완료된 경우 보고서 단계로
+        onStepChange?.('report');
       }
     } catch (error) {
       console.error('단계 결정 오류:', error);
       onStepChange?.('analysis');
     }
   };
-  */
 
   const handleStartAnalysis = async () => {
     try {

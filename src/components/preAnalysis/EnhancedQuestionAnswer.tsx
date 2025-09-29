@@ -67,11 +67,10 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
     ? (Array.from(answers.values()).filter(a => a.isComplete).length / questions.length) * 100
     : 0
 
-  // 완료 가능 여부 체크 - 모든 질문이 답변되거나 스킵됨
-  const canComplete = questions.length > 0 && questions.every(q => {
-    const answer = answers.get(q.id)
-    return answer && (answer.isComplete || answer.notes === '스킵됨')
-  })
+  // 필수 질문 완료 체크
+  const requiredQuestionsCompleted = questions
+    .filter(q => q.required)
+    .every(q => answers.get(q.id)?.isComplete)
 
   // 질문 로드
   useEffect(() => {
@@ -207,21 +206,16 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
         return
       }
 
-      console.log('📥 기존 답변 로드 시작:', { sessionId })
-
-      // 모든 답변 조회 (실제 답변 + 스킵된 답변)
       const response = await supabase
         .from('user_answers')
         .select('*')
         .eq('session_id', sessionId)
 
-      console.log('📥 데이터베이스 응답:', response)
-
       if (response?.data && Array.isArray(response.data)) {
         const answersMap = new Map<string, AnswerState>()
         response.data.forEach((answer: any) => {
           if (answer && answer.question_id) {
-            const answerState = {
+            answersMap.set(answer.question_id, {
               questionId: answer.question_id,
               answer: answer.answer || answer.answer_data || '',
               confidence: Math.max(0, Math.min(1, (answer.confidence || 50) / 100)), // 정수를 0-1 범위로 변환
@@ -229,21 +223,10 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
               isComplete: !answer.is_draft, // is_draft가 false면 완료된 답변
               timeSpent: Math.max(0, answer.metadata?.timeSpent || 0),
               lastUpdated: answer.updated_at ? new Date(answer.updated_at) : new Date()
-            }
-
-            console.log('📥 답변 복원:', {
-              questionId: answer.question_id,
-              answer: answerState.answer,
-              notes: answerState.notes,
-              isComplete: answerState.isComplete,
-              isSkipped: answerState.notes === '스킵됨'
             })
-
-            answersMap.set(answer.question_id, answerState)
           }
         })
         setAnswers(answersMap)
-        console.log('✅ 총 복원된 답변 수:', answersMap.size)
       }
     } catch (error) {
       console.warn('기존 답변 로드 실패:', error)
@@ -348,57 +331,6 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
         notes: answer.notes
       }))
       onSave(responses)
-    }
-  }
-
-  // 스킵된 답변 직접 저장 (로컬 상태 업데이트를 기다리지 않음)
-  const saveSkippedAnswer = async (questionId: string, answerData: any) => {
-    try {
-      if (!supabase || !user?.id) {
-        throw new Error('데이터베이스 연결 또는 사용자 인증이 필요합니다.')
-      }
-
-      console.log('💾 스킵된 답변 저장 시도:', {
-        sessionId,
-        questionId,
-        userId: user.id,
-        notes: answerData.notes
-      })
-
-      const saveData = {
-        session_id: sessionId,
-        question_id: questionId,
-        answer: '', // 스킵된 질문은 답변이 없음
-        answer_data: null,
-        confidence: 0, // 스킵된 질문은 신뢰도 0
-        notes: '스킵됨',
-        is_draft: false, // 사용자 요청: 스킵된 질문도 실제 답변과 동일하게 처리 (is_draft=false)
-        answered_by: user.id,
-        answered_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        metadata: {
-          timeSpent: answerData.timeSpent || 0,
-          lastUpdated: new Date().toISOString()
-        }
-      }
-
-      const { data, error } = await supabase
-        .from('user_answers')
-        .upsert(saveData, {
-          onConflict: 'session_id,question_id'
-        })
-        .select()
-
-      if (error) {
-        console.error('❌ 스킵된 답변 저장 실패:', error)
-        throw error
-      }
-
-      console.log('✅ 스킵된 답변 저장 성공:', data)
-      return data
-    } catch (error) {
-      console.error('스킵된 답변 저장 실패:', error)
-      throw error
     }
   }
 
@@ -511,8 +443,8 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
 
   // 완료 처리
   const handleComplete = () => {
-    if (!canComplete) {
-      setError('모든 질문에 답변하거나 스킵해주세요.')
+    if (!requiredQuestionsCompleted) {
+      setError('필수 질문에 모두 답변해주세요.')
       return
     }
 
@@ -537,29 +469,18 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
   // 질문 스킵
   const skipQuestion = async (questionId: string) => {
     try {
-      const timeSpent = Date.now() - questionStartTime.getTime()
-
-      // 스킵된 질문 데이터 직접 구성
-      const skippedAnswerData = {
-        questionId,
+      // 스킵된 질문으로 마킹하여 저장
+      updateAnswer(questionId, {
         answer: '',
         confidence: 0,
         notes: '스킵됨',
-        isComplete: true, // 스킵된 질문도 완료된 것으로 처리
-        timeSpent: Math.round(timeSpent / 1000),
-        lastUpdated: new Date()
-      }
-
-      // 먼저 로컬 상태 업데이트
-      updateAnswer(questionId, skippedAnswerData)
-
-      // 스킵된 답변을 데이터베이스에 직접 저장 (updateAnswer 결과를 기다리지 않음)
-      await saveSkippedAnswer(questionId, skippedAnswerData)
-
-      console.log('✅ 질문 스킵 처리 완료:', questionId, {
-        isDraft: true, // 스킵된 답변은 초안으로 저장됨
-        notes: '스킵됨'
+        isComplete: false,
+        timeSpent: 0
       })
+
+      await saveIndividualAnswer(questionId, true) // 초안으로 저장
+
+      console.log('✅ 질문 스킵 처리 완료:', questionId)
 
       // 다음 질문으로 이동
       if (currentQuestionIndex < questions.length - 1) {
@@ -736,140 +657,67 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
         </div>
       </div>
 
-      {/* 질문 네비게이션 - 세련된 디자인 */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <h3 className="text-lg font-semibold text-text-primary">질문 목록</h3>
-            <span className="px-3 py-1 bg-primary/10 text-primary rounded-full text-sm font-medium">
-              전체 {questions.length}개
-            </span>
-          </div>
-          <div className="flex items-center space-x-2 text-sm text-text-secondary">
-            <div className="flex items-center space-x-1">
-              <div className="w-2 h-2 rounded-full bg-status-success"></div>
-              <span>완료</span>
-            </div>
-            <div className="flex items-center space-x-1">
-              <div className="w-2 h-2 rounded-full bg-status-info"></div>
-              <span>진행중</span>
-            </div>
-            <div className="flex items-center space-x-1">
-              <div className="w-2 h-2 rounded-full bg-text-tertiary"></div>
-              <span>스킵</span>
-            </div>
-          </div>
-        </div>
+      {/* 질문 네비게이션 */}
+      <div className="flex space-x-2 overflow-x-auto pb-2 px-1">
+        {questions.map((question, index) => {
+          const answer = answers.get(question.id)
+          const isCompleted = answer?.isComplete || false
+          const isSkipped = answer?.notes === '스킵됨' && !isCompleted
+          const hasAnswer = answer && (answer.answer !== '' || answer.notes !== '')
+          const isCurrent = index === currentQuestionIndex
 
-        <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-2">
-          {questions.map((question, index) => {
-            const answer = answers.get(question.id)
-            const isCompleted = answer?.isComplete || false
-            const isSkipped = answer?.notes === '스킵됨'
-            const hasRealAnswer = answer && answer.answer &&
-              typeof answer.answer === 'string' && answer.answer.trim() !== '' && !isSkipped
-            const hasAnswer = answer && (answer.answer !== '' || answer.notes !== '')
-            const isCurrent = index === currentQuestionIndex
+          return (
+            <div key={question.id} className="flex-shrink-0">
+              <button
+                onClick={() => goToQuestion(index)}
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 relative ${
+                  isCurrent
+                    ? 'bg-primary text-white shadow-sm'
+                    : isCompleted
+                    ? 'bg-status-success/10 text-status-success border border-status-success/20'
+                    : isSkipped
+                    ? 'bg-text-tertiary/10 text-text-tertiary border border-text-tertiary/20'
+                    : hasAnswer && !isCompleted
+                    ? 'bg-status-info/10 text-status-info border border-status-info/20'
+                    : question.required
+                    ? 'bg-status-warning/10 text-status-warning border border-status-warning/20'
+                    : 'bg-bg-tertiary text-text-secondary border border-border-secondary hover:bg-bg-secondary'
+                }`}
+              >
+                {index + 1}
+                {question.required && !isCompleted && !isSkipped && <span className="text-status-warning ml-1">*</span>}
+                {isCompleted && <CheckCircle className="w-3 h-3 ml-1 inline" />}
+                {isSkipped && <SkipForward className="w-3 h-3 ml-1 inline" />}
+                {hasAnswer && !isCompleted && !isSkipped && <Edit3 className="w-3 h-3 ml-1 inline opacity-60" />}
+              </button>
 
-            // 디버깅을 위한 로그
-            if (answer && index === currentQuestionIndex) {
-              console.log('🎯 현재 질문 상태:', {
-                questionId: question.id,
-                answer: answer.answer,
-                notes: answer.notes,
-                isCompleted,
-                isSkipped,
-                hasRealAnswer,
-                hasAnswer
-              })
-            }
-
-            return (
-              <div key={question.id} className="relative group">
-                <button
-                  onClick={() => goToQuestion(index)}
-                  className={`w-full h-12 rounded-xl text-sm font-medium transition-all duration-200 relative overflow-hidden ${
-                    isCurrent
-                      ? 'bg-gradient-to-br from-primary to-primary/80 text-white shadow-lg scale-105 ring-2 ring-primary/30'
-                      : isSkipped
-                      ? 'bg-gradient-to-br from-text-tertiary/20 to-text-tertiary/10 text-text-tertiary border border-text-tertiary/30 hover:from-text-tertiary/30 hover:to-text-tertiary/20'
-                      : hasRealAnswer && isCompleted
-                      ? 'bg-gradient-to-br from-status-success/20 to-status-success/10 text-status-success border border-status-success/30 hover:from-status-success/30 hover:to-status-success/20'
-                      : hasAnswer && !isCompleted && !isSkipped
-                      ? 'bg-gradient-to-br from-status-info/20 to-status-info/10 text-status-info border border-status-info/30 hover:from-status-info/30 hover:to-status-info/20'
-                      : 'bg-gradient-to-br from-bg-tertiary to-bg-secondary text-text-secondary border border-border-secondary hover:from-bg-secondary hover:to-bg-primary hover:text-text-primary'
-                  }`}
-                  title={question.text}
-                >
-                  <div className="flex flex-col items-center justify-center h-full space-y-1">
-                    <span className={`font-bold ${isCurrent ? 'text-lg' : 'text-sm'}`}>
-                      {index + 1}
-                    </span>
-                    <div className="flex items-center space-x-1">
-                      {question.required && !isCompleted && !isSkipped && (
-                        <div className="w-1 h-1 rounded-full bg-status-warning animate-pulse"></div>
-                      )}
-                      {isSkipped && <SkipForward className="w-3 h-3" />}
-                      {hasRealAnswer && isCompleted && !isSkipped && <CheckCircle className="w-3 h-3" />}
-                      {hasAnswer && !isCompleted && !isSkipped && <Edit3 className="w-3 h-3 opacity-60" />}
-                    </div>
-                  </div>
-
-                  {/* 진행률 표시 */}
-                  {(hasAnswer || isSkipped) && (
-                    <div className={`absolute bottom-0 left-0 h-1 transition-all duration-300 ${
-                      isSkipped
-                        ? 'bg-text-tertiary'
-                        : hasRealAnswer && isCompleted
-                        ? 'bg-status-success'
-                        : 'bg-status-info'
-                    }`} style={{ width: (isSkipped || isCompleted) ? '100%' : '60%' }}></div>
-                  )}
-                </button>
-
-                {/* 호버 시 질문 미리보기 */}
-                <div className="absolute z-10 bottom-14 left-1/2 transform -translate-x-1/2 bg-bg-primary border border-border-primary rounded-lg p-3 shadow-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none min-w-[200px] max-w-[300px]">
-                  <div className="text-xs font-medium text-text-primary mb-1 line-clamp-2">{question.text}</div>
-                  <div className="text-xs text-text-secondary">
+              {/* 상태별 미리보기 */}
+              {!isCurrent && (hasAnswer || isSkipped) && (
+                <div className="mt-1 px-2 py-1 bg-bg-secondary rounded text-xs text-text-secondary max-w-[200px]">
+                  <div className="font-medium text-text-primary mb-1 truncate">{question.text}</div>
+                  <div className="truncate">
                     {isSkipped ? (
-                      <span className="flex items-center space-x-1 text-text-tertiary">
+                      <span className="text-text-tertiary flex items-center space-x-1">
                         <SkipForward className="w-3 h-3" />
-                        <span>스킵된 질문</span>
+                        <span>스킵됨</span>
                       </span>
                     ) : isCompleted ? (
-                      <span className="flex items-center space-x-1 text-status-success">
+                      <span className="text-status-success flex items-center space-x-1">
                         <CheckCircle className="w-3 h-3" />
-                        <span className="line-clamp-2">{getAnswerSummary(answer?.answer || '')}</span>
-                      </span>
-                    ) : hasAnswer ? (
-                      <span className="flex items-center space-x-1 text-status-info">
-                        <Clock className="w-3 h-3" />
-                        <span className="line-clamp-2">진행 중: {getAnswerSummary(answer?.answer || '')}</span>
+                        <span>{getAnswerSummary(answer?.answer || '')}</span>
                       </span>
                     ) : (
-                      <span className="text-text-tertiary">답변을 입력해주세요</span>
-                    )}
-                  </div>
-
-                  {/* 카테고리 및 필수 여부 */}
-                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-border-secondary">
-                    <span className="text-xs px-1.5 py-0.5 bg-bg-tertiary rounded text-text-secondary">
-                      {question.category}
-                    </span>
-                    {question.required && (
-                      <span className="text-xs px-1.5 py-0.5 bg-status-error/10 text-status-error rounded">
-                        필수
+                      <span className="text-status-info flex items-center space-x-1">
+                        <Clock className="w-3 h-3" />
+                        <span>진행 중: {getAnswerSummary(answer?.answer || '')}</span>
                       </span>
                     )}
                   </div>
-
-                  {/* 툴팁 화살표 */}
-                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-border-primary"></div>
                 </div>
-              </div>
-            )
-          })}
-        </div>
+              )}
+            </div>
+          )
+        })}
       </div>
 
       {/* 현재 질문 */}
@@ -977,7 +825,6 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
               onAnswerChange={(value) => handleAnswerChange(currentQuestion.id, value)}
               onConfidenceChange={(confidence) => handleConfidenceChange(currentQuestion.id, confidence)}
               onNotesChange={(notes) => handleNotesChange(currentQuestion.id, notes)}
-              onSkipQuestion={() => skipQuestion(currentQuestion.id)}
               isCompleted={answers.get(currentQuestion.id)?.isComplete || false}
             />
           </div>
@@ -997,6 +844,17 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
               <span className="text-sm text-text-secondary font-medium">
                 {currentQuestionIndex + 1} / {questions.length}
               </span>
+
+              {!currentQuestion.required && !answers.get(currentQuestion.id)?.isComplete && (
+                <button
+                  onClick={() => skipQuestion(currentQuestion.id)}
+                  className="flex items-center space-x-2 px-3 py-1.5 text-text-tertiary hover:text-status-warning hover:bg-status-warning/10 border border-status-warning/20 rounded-lg transition-colors text-sm"
+                  title="이 질문을 건너뛰기"
+                >
+                  <SkipForward className="w-3 h-3" />
+                  <span>건너뛰기</span>
+                </button>
+              )}
             </div>
 
             <button
@@ -1015,7 +873,7 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
       <div className="flex justify-center pt-6 pb-8">
         <button
           onClick={handleComplete}
-          disabled={!canComplete}
+          disabled={!requiredQuestionsCompleted}
           className="flex items-center space-x-2 px-8 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-sm transition-all duration-200 hover:shadow-md"
         >
           <Send className="w-5 h-5" />
@@ -1033,7 +891,6 @@ interface QuestionFormProps {
   onAnswerChange: (value: any) => void
   onConfidenceChange: (confidence: number) => void
   onNotesChange: (notes: string) => void
-  onSkipQuestion: () => void
   isCompleted?: boolean
 }
 
@@ -1043,7 +900,6 @@ const QuestionForm: React.FC<QuestionFormProps> = ({
   onAnswerChange,
   onConfidenceChange,
   onNotesChange,
-  onSkipQuestion,
   isCompleted = false
 }) => {
   const handleInputChange = (value: any) => {
@@ -1201,29 +1057,6 @@ const QuestionForm: React.FC<QuestionFormProps> = ({
           <div className="flex items-center space-x-2 text-sm text-text-secondary">
             <CheckCircle className="w-4 h-4 text-status-success" />
             <span>이 질문에 대한 답변이 완료되었습니다. 수정은 언제든지 가능합니다.</span>
-          </div>
-        </div>
-      )}
-
-      {/* 건너뛰기 버튼 - 완료되지 않은 질문에만 표시 */}
-      {!isCompleted && (
-        <div className="pt-6 border-t border-border-primary">
-          <div className="flex justify-center">
-            <button
-              onClick={onSkipQuestion}
-              className={`flex items-center space-x-2 px-6 py-3 border-2 rounded-xl transition-all duration-200 font-medium ${
-                question.required
-                  ? 'text-status-warning hover:text-status-error hover:bg-status-error/10 border-status-warning/40 bg-status-warning/5 hover:border-status-error/60 hover:shadow-sm'
-                  : 'text-text-tertiary hover:text-status-warning hover:bg-status-warning/10 border-text-tertiary/30 hover:border-status-warning/60 hover:shadow-sm'
-              }`}
-              title={question.required
-                ? "필수 질문이지만 답변하지 못할 경우 건너뛸 수 있습니다"
-                : "이 질문을 건너뛰기"
-              }
-            >
-              <SkipForward className="w-5 h-5" />
-              <span>{question.required ? '필수 질문 건너뛰기' : '이 질문 건너뛰기'}</span>
-            </button>
           </div>
         </div>
       )}

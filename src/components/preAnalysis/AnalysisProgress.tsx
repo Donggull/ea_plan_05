@@ -616,24 +616,6 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
           addToActivityLog(`🎯 ${actualQuestionCount}개 맞춤형 질문이 생성되었습니다!`);
           addToActivityLog('🎉 모든 사전 분석이 완료되었습니다!');
 
-          // 세션 상태를 completed로 업데이트
-          if (supabase) {
-            try {
-              console.log('📝 세션 상태를 completed로 업데이트 중...');
-              await supabase
-                .from('pre_analysis_sessions')
-                .update({
-                  status: 'completed',
-                  completed_at: new Date().toISOString(),
-                  updated_at: new Date().toISOString()
-                })
-                .eq('id', sessionId);
-              console.log('✅ 세션 상태 업데이트 완료');
-            } catch (error) {
-              console.error('❌ 세션 상태 업데이트 실패:', error);
-            }
-          }
-
           // 완료 콜백 호출 - 질문 답변 단계로 자동 이동
           setTimeout(() => {
             console.log('🏁 분석 완료 - onComplete 호출하여 질문 답변 단계로 이동');
