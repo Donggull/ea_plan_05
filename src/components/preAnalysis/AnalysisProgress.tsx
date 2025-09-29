@@ -555,6 +555,48 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
       try {
         console.log('🔥 질문 생성 함수 실행 시작');
 
+        // 🚨 먼저 이미 질문이 있는지 체크 (재생성 방지)
+        const { supabase } = await import('../../lib/supabase');
+        if (supabase) {
+          try {
+            const { data: existingQuestions } = await supabase
+              .from('ai_questions')
+              .select('id')
+              .eq('session_id', sessionId)
+              .limit(1);
+
+            if (existingQuestions && existingQuestions.length > 0) {
+              console.log('✅ 이미 질문이 생성되어 있음 - 재생성하지 않고 완료 처리');
+
+              // 즉시 완료 처리
+              setStages(prev => {
+                const updated = [...prev];
+                const questionStage = updated.find(s => s.id === 'question_generation');
+                if (questionStage) {
+                  questionStage.status = 'completed';
+                  questionStage.progress = 100;
+                  questionStage.endTime = new Date();
+                  questionStage.message = '맞춤형 질문 생성 완료!';
+                }
+                return updated;
+              });
+
+              setOverallProgress(100);
+              addToActivityLog('🎯 맞춤형 질문이 준비되었습니다!');
+              addToActivityLog('🎉 모든 사전 분석이 완료되었습니다!');
+
+              // 즉시 다음 단계로 이동
+              setTimeout(() => {
+                console.log('🏁 기존 질문 확인 완료 - onComplete 호출하여 질문 답변 단계로 이동');
+                onComplete();
+              }, 1000);
+              return;
+            }
+          } catch (checkError) {
+            console.warn('기존 질문 확인 중 오류 (계속 진행):', checkError);
+          }
+        }
+
         // 질문 생성 진행률 업데이트
         setStages(prev => {
           const updated = [...prev];
@@ -576,28 +618,9 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
         console.log('📊 질문 생성 응답:', response);
 
         if (response.success) {
-          // 실제 데이터베이스에서 생성된 질문 수를 조회
-          const { supabase } = await import('../../lib/supabase');
-          let actualQuestionCount = 0;
+          console.log('✅ 질문 생성 API 호출 성공 - 완료 처리 진행');
 
-          if (supabase) {
-            try {
-              const { count } = await supabase
-                .from('ai_questions')
-                .select('*', { count: 'exact', head: true })
-                .eq('session_id', sessionId);
-
-              actualQuestionCount = count || 0;
-              console.log('📊 실제 생성된 질문 수:', actualQuestionCount);
-            } catch (error) {
-              console.error('질문 수 조회 오류:', error);
-              actualQuestionCount = response.data?.length || 0;
-            }
-          } else {
-            actualQuestionCount = response.data?.length || 0;
-          }
-
-          // 질문 생성 완료
+          // 질문 생성 완료 (실제 개수 조회하지 않고 단순 완료 표시)
           setStages(prev => {
             const updated = [...prev];
             const questionStage = updated.find(s => s.id === 'question_generation');
@@ -606,14 +629,14 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
               questionStage.status = 'completed';
               questionStage.progress = 100;
               questionStage.endTime = new Date();
-              questionStage.message = `${actualQuestionCount}개 맞춤형 질문 생성 완료!`;
+              questionStage.message = '맞춤형 질문 생성 완료!';
             }
 
             return updated;
           });
 
           setOverallProgress(100);
-          addToActivityLog(`🎯 ${actualQuestionCount}개 맞춤형 질문이 생성되었습니다!`);
+          addToActivityLog('🎯 맞춤형 질문이 생성되었습니다!');
           addToActivityLog('🎉 모든 사전 분석이 완료되었습니다!');
 
           // 완료 콜백 호출 - 질문 답변 단계로 자동 이동
