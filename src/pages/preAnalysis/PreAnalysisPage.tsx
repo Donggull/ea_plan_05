@@ -30,6 +30,8 @@ import {
 import { preAnalysisService } from '@/services/preAnalysis/PreAnalysisService';
 import { mcpIntegrationService } from '@/services/preAnalysis/MCPIntegrationService';
 import { aiAnalysisService } from '@/services/preAnalysis/AIAnalysisService';
+import { ReportGenerator } from '@/services/preAnalysis/ReportGenerator';
+import { ReportExporter } from '@/services/preAnalysis/ReportExporter';
 import type {
   PreAnalysisSession,
   AnalysisStep,
@@ -327,33 +329,49 @@ export const PreAnalysisPage: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      // 기본 분석 결과 생성 (실제로는 이전 단계 결과 사용)
-      const baseAnalysis = {
-        summary: 'AI 및 MCP 통합 분석 결과',
-        keyFindings: ['핵심 발견사항 1', '핵심 발견사항 2'],
-        risks: [],
-        recommendations: ['권장사항 1', '권장사항 2'],
-        timeline: [],
-        estimatedCost: 0,
-        confidence: 85
+      // Phase 5 - ReportGenerator를 사용한 종합 보고서 생성
+      const reportGenerator = new ReportGenerator();
+
+      // 프로젝트 컨텍스트 준비
+      const projectContext = {
+        name: `프로젝트 ${projectId}`,
+        description: '사전 분석 대상 프로젝트',
+        industry: '미정',
+        techStack: []
       };
 
-      const reportResult = await aiAnalysisService.generateReport(
-        baseAnalysis,
+      // 이전 단계 결과들을 수집
+      const analysisResults = {
+        documents,
         questions,
         answers,
-        {
-          model: selectedModel,
-          depth: 'standard',
-          temperature: 0.6,
-          projectId,
-          sessionId: session.id
-        }
-      );
+        mcpResults,
+        sessionData: session
+      };
+
+      const reportResult = await reportGenerator.generateReport({
+        model: selectedModel as any, // AIModel 타입 호환성
+        depth: 'comprehensive',
+        temperature: 0.6,
+        projectId,
+        sessionId: session.id,
+        projectContext,
+        analysisResult: analysisResults as any, // 타입 캐스팅으로 호환성 해결
+        questions,
+        answers
+      });
 
       if (reportResult.success) {
         setReport(reportResult.data!);
         setCurrentStep('report');
+
+        // 세션 상태 업데이트
+        await preAnalysisService.updateSession(session.id, {
+          currentStep: 'report',
+          status: 'completed'
+        });
+
+        console.log('Phase 5 종합 보고서 생성 완료:', reportResult.data);
       } else {
         setError(reportResult.error || '보고서 생성 중 오류가 발생했습니다');
       }
@@ -797,9 +815,29 @@ export const PreAnalysisPage: React.FC = () => {
             {report ? (
               <AnalysisReport
                 report={report}
-                onExport={(format) => {
-                  console.log('Export report in format:', format);
-                  // Handle report export
+                onExport={async (format: 'pdf' | 'word' | 'json' | 'docx') => {
+                  if (!report) return;
+
+                  try {
+                    setLoading(true);
+                    // docx -> word 형식 변환
+                    const exportFormat = format === 'docx' ? 'word' : format;
+                    await ReportExporter.exportReport(
+                      report,
+                      {
+                        format: exportFormat as 'pdf' | 'word',
+                        includeCharts: true,
+                        includeRawData: true,
+                        filename: `analysis_report_${projectId}_${new Date().toISOString().split('T')[0]}`
+                      }
+                    );
+                    console.log('보고서 내보내기 완료:', format);
+                  } catch (error) {
+                    console.error('보고서 내보내기 실패:', error);
+                    setError('보고서 내보내기 중 오류가 발생했습니다.');
+                  } finally {
+                    setLoading(false);
+                  }
                 }}
                 onShare={() => {
                   console.log('Share report');
