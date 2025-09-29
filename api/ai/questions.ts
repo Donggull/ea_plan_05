@@ -254,30 +254,62 @@ ${documents.map((doc, index) => `${index + 1}. ${doc.name}${doc.summary ? ` - ${
   }
 
   prompt += `
-요구사항:
-1. 프로젝트 특성에 맞는 20-30개의 포괄적이고 상세한 질문을 생성하세요.
-2. 각 질문은 프로젝트 이해를 돕는 실질적인 정보를 얻기 위한 것이어야 합니다.
-3. 다양한 카테고리(기술, 비즈니스, 일정, 예산, 위험, 이해관계자, 디자인)를 균형있게 포함하세요.
-4. 각 카테고리당 3-5개의 세부 질문을 포함하여 프로젝트를 다각도로 분석할 수 있도록 하세요.
-5. 각 질문의 중요도와 신뢰도를 설정해주세요.
+⚠️ 중요: 정확히 최소 20개 이상의 질문을 생성해야 합니다. 8개 이하는 절대 불가합니다.
 
-출력 형식 (JSON):
+필수 요구사항:
+1. **최소 20개, 최대 30개의 포괄적이고 상세한 질문을 반드시 생성하세요.**
+2. **8개 이하의 질문은 절대 허용되지 않습니다. 반드시 20개 이상 생성하세요.**
+3. 각 질문은 프로젝트 이해를 돕는 실질적인 정보를 얻기 위한 것이어야 합니다.
+4. 다음 카테고리별로 각각 3-4개씩 균형있게 포함하세요:
+   - business (비즈니스): 4개
+   - technical (기술): 4개
+   - design (디자인): 3개
+   - timeline (일정): 3개
+   - budget (예산): 3개
+   - risks (위험): 3개
+   - stakeholders (이해관계자): 3개
+   - 기타 카테고리: 2-7개 추가
+5. 각 질문의 중요도와 신뢰도를 설정해주세요.
+6. **다시 한번 강조: 최소 20개 질문은 필수입니다. 8개나 그 이하는 절대 안됩니다.**
+
+출력 형식 (JSON) - 반드시 20-30개 질문이 포함된 JSON:
 {
   "questions": [
     {
-      "category": "카테고리명",
-      "text": "질문 내용",
-      "type": "text|select|multiselect|number|textarea",
-      "options": ["옵션1", "옵션2"] (select/multiselect인 경우),
-      "required": true|false,
+      "category": "business",
+      "text": "질문 내용 1",
+      "type": "textarea",
+      "required": true,
       "helpText": "질문에 대한 도움말",
-      "priority": "high|medium|low",
-      "confidence": 0.0-1.0
+      "priority": "high",
+      "confidence": 0.9
+    },
+    {
+      "category": "technical",
+      "text": "질문 내용 2",
+      "type": "textarea",
+      "required": true,
+      "helpText": "질문에 대한 도움말",
+      "priority": "high",
+      "confidence": 0.9
+    },
+    // ... 최소 20개, 최대 30개의 질문이 여기에 포함되어야 함
+    {
+      "category": "기타카테고리",
+      "text": "질문 내용 20-30",
+      "type": "textarea",
+      "required": false,
+      "helpText": "질문에 대한 도움말",
+      "priority": "medium",
+      "confidence": 0.8
     }
   ]
 }
 
-정확한 JSON 형식만 반환하고 다른 텍스트는 포함하지 마세요.`
+❗ 중요한 마지막 확인사항:
+- questions 배열에 최소 20개의 질문 객체가 있는지 확인하세요
+- 8개 이하의 질문을 절대 반환하지 마세요
+- JSON 형식만 반환하고 다른 텍스트는 포함하지 마세요`
 
   return prompt
 }

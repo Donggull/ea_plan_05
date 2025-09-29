@@ -726,7 +726,8 @@ export class PreAnalysisService {
           project?.name || '',
           project?.description || '',
           (project as any)?.project_types || [],
-          documentContext
+          documentContext,
+          options.maxQuestions
         );
 
         console.log('📝 질문 생성 프롬프트 준비 완료:', {
@@ -1813,7 +1814,8 @@ ${answersContext}
     projectName: string,
     projectDescription: string,
     projectTypes: string[],
-    documentContext: Array<{ name: string; summary?: string; content?: string }>
+    documentContext: Array<{ name: string; summary?: string; content?: string }>,
+    maxQuestions: number = 15
   ): string {
     let prompt = `당신은 전문 프로젝트 컨설턴트입니다. 사전 분석 단계에서 프로젝트 이해를 위한 핵심 질문들을 생성해주세요.
 
@@ -1834,7 +1836,7 @@ ${documentContext.map((doc, index) =>
     }
 
     prompt += `요구사항:
-1. 프로젝트의 핵심을 파악할 수 있는 6-10개의 실질적인 질문을 생성하세요.
+1. 프로젝트의 핵심을 파악할 수 있는 ${Math.max(8, maxQuestions)}개의 실질적인 질문을 생성하세요.
 2. 다양한 관점을 포함하세요: 기술적 요구사항, 비즈니스 목표, 일정, 예산, 위험 요소, 이해관계자 등
 3. 각 질문은 구체적이고 실행 가능한 답변을 유도해야 합니다.
 4. 업로드된 문서가 있다면 해당 내용을 반영한 질문을 포함하세요.
