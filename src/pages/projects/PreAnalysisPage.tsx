@@ -94,13 +94,16 @@ export const PreAnalysisPage: React.FC = () => {
       // 문서 분석: status='completed'인 분석이 있으면 완료
       if (completedAnalysisCount > 0) {
         newCompletedSteps.add('analysis');
+
+        // 문서 분석이 완료되고 질문이 생성되었으면 질문 단계도 이용 가능하게 함
+        if (totalQuestionCount > 0) {
+          newCompletedSteps.add('questions');
+        }
       }
 
-      // 질문 답변: 생성된 질문에 대해 최소 하나의 완료된 답변이 있으면 완료
-      // (또는 필수 질문들에 대한 답변이 모두 완료된 경우)
-      if (totalQuestionCount > 0 && completedAnswerCount > 0) {
-        newCompletedSteps.add('questions');
-      }
+      // 질문 답변 완료: 생성된 질문에 대해 답변이 완료된 경우 (별도 처리)
+      // 이는 questions 단계에서 report 단계로 이동할 때 사용
+      const questionsAnswered = totalQuestionCount > 0 && completedAnswerCount > 0;
 
       // 보고서: 보고서가 생성되었으면 완료
       if (reportCount > 0) {
@@ -109,23 +112,45 @@ export const PreAnalysisPage: React.FC = () => {
 
       setCompletedSteps(newCompletedSteps);
 
+      // 단계 완료 상태 로깅 (디버깅용)
+      console.log('📊 단계 완료 상태 업데이트:', {
+        sessionId: latestSession.id,
+        sessionStatus: latestSession.status,
+        completedAnalysis: completedAnalysisCount,
+        totalQuestions: totalQuestionCount,
+        completedAnswers: completedAnswerCount,
+        reports: reportCount,
+        completedSteps: Array.from(newCompletedSteps),
+        questionsAnswered
+      });
+
       // 현재 진행 중인 단계로 이동 (진행 중인 세션인 경우만)
       if (latestSession.status === 'processing') {
+        let targetStep: 'setup' | 'analysis' | 'questions' | 'report' = 'setup';
+
         if (reportCount > 0) {
-          setCurrentStep('report');
-        } else if (totalQuestionCount > 0 && completedAnswerCount === 0) {
-          // 질문이 생성되었지만 답변이 완료되지 않은 경우
-          setCurrentStep('questions');
-        } else if (completedAnalysisCount > 0 && totalQuestionCount === 0) {
+          targetStep = 'report';
+          console.log('🎯 단계 결정: 보고서 존재 -> report 단계');
+        } else if (totalQuestionCount > 0) {
+          // 질문이 생성되었으면 questions 단계로 (답변 완료 여부와 관계없이)
+          targetStep = 'questions';
+          console.log('🎯 단계 결정: 질문 생성됨 -> questions 단계', {
+            totalQuestions: totalQuestionCount,
+            answersCompleted: completedAnswerCount
+          });
+        } else if (completedAnalysisCount > 0) {
           // 문서 분석은 완료되었지만 질문이 아직 생성되지 않은 경우
-          setCurrentStep('analysis');
-        } else if (completedAnalysisCount === 0) {
-          // 문서 분석이 시작되지 않은 경우
-          setCurrentStep('analysis');
+          targetStep = 'analysis';
+          console.log('🎯 단계 결정: 분석 완료, 질문 대기 -> analysis 단계');
         } else {
-          // 모든 단계가 완료된 경우 보고서 단계로
-          setCurrentStep('report');
+          // 문서 분석이 시작되지 않은 경우
+          targetStep = 'analysis';
+          console.log('🎯 단계 결정: 분석 시작 필요 -> analysis 단계');
         }
+
+        setCurrentStep(targetStep);
+      } else {
+        console.log('🎯 세션 상태가 processing이 아님:', latestSession.status);
       }
 
     } catch (error) {
@@ -275,6 +300,15 @@ export const PreAnalysisPage: React.FC = () => {
       // 아직 완료되지 않은 단계로의 이동 시도시 안내 메시지
       alert('이전 단계를 먼저 완료해주세요.');
     }
+  };
+
+  // 단계 변경 및 상태 새로고침 함수
+  const handleStepChangeAndRefresh = async (newStep: 'setup' | 'analysis' | 'questions' | 'report') => {
+    console.log(`🔄 단계 변경 및 상태 새로고침: ${currentStep} → ${newStep}`);
+    setCurrentStep(newStep);
+
+    // 단계 변경 후 세션 상태를 다시 로드하여 completedSteps 동기화
+    await loadSessionAndSteps();
   };
 
   // 이전/다음 단계로 이동 (자유 이동)
@@ -520,7 +554,7 @@ export const PreAnalysisPage: React.FC = () => {
           projectId={id!}
           currentStep={currentStep}
           onDocumentCountChange={setDocumentCount}
-          onStepChange={setCurrentStep}
+          onStepChange={handleStepChangeAndRefresh}
         />
       </PageContent>
     </PageContainer>
