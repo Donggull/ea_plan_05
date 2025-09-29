@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAIModel } from '@/contexts/AIModelContext';
+import { useWorkflowIntegration } from '@/hooks/useWorkflowIntegration';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -25,7 +26,9 @@ import {
   ArrowLeft,
   Play,
   Loader2,
-  RefreshCw
+  RefreshCw,
+  ArrowRight,
+  CheckCircle
 } from 'lucide-react';
 import { preAnalysisService } from '@/services/preAnalysis/PreAnalysisService';
 import { mcpIntegrationService } from '@/services/preAnalysis/MCPIntegrationService';
@@ -52,6 +55,13 @@ export const PreAnalysisPage: React.FC = () => {
     state: aiModelState
   } = useAIModel();
 
+  // 워크플로우 통합 훅
+  const {
+    transitionStatus,
+    transitionToProposal,
+    getStepCompletionStatus
+  } = useWorkflowIntegration();
+
   // Core state
   const [session, setSession] = useState<PreAnalysisSession | null>(null);
   const [currentStep, setCurrentStep] = useState<AnalysisStep>('setup');
@@ -71,6 +81,12 @@ export const PreAnalysisPage: React.FC = () => {
   // UI state
   const [activeTab, setActiveTab] = useState('overview');
   const [overallProgress, setOverallProgress] = useState(0);
+
+  // 워크플로우 전환 상태
+  const [completionStatus, setCompletionStatus] = useState({
+    preAnalysis: false,
+    canTransitionToProposal: false
+  });
 
   const stepTabs = [
     { id: 'overview', label: '개요', icon: <BarChart3 className="w-4 h-4" /> },
@@ -92,6 +108,26 @@ export const PreAnalysisPage: React.FC = () => {
   useEffect(() => {
     calculateOverallProgress();
   }, [session, questions, answers]);
+
+  useEffect(() => {
+    // 워크플로우 완료 상태 확인
+    if (projectId && session) {
+      checkCompletionStatus();
+    }
+  }, [projectId, session, overallProgress]);
+
+  // 자동 전환 체크 (보고서 단계에서 완료 시)
+  useEffect(() => {
+    if (
+      completionStatus.canTransitionToProposal &&
+      currentStep === 'report' &&
+      overallProgress === 100 &&
+      !transitionStatus.isTransitioning
+    ) {
+      // 사용자에게 자동 전환 옵션 제공
+      handleAutoTransitionPrompt();
+    }
+  }, [completionStatus.canTransitionToProposal, currentStep, overallProgress, transitionStatus.isTransitioning]);
 
   const loadSession = async () => {
     try {
@@ -887,9 +923,108 @@ export const PreAnalysisPage: React.FC = () => {
                 </CardContent>
               </Card>
             ) : null}
+
+            {/* 워크플로우 전환 카드 */}
+            <WorkflowTransitionCard />
           </TabsContent>
         </Tabs>
       </div>
     </div>
   );
+
+  /**
+   * 워크플로우 완료 상태 확인
+   */
+  async function checkCompletionStatus() {
+    if (!projectId) return;
+
+    try {
+      const status = await getStepCompletionStatus(projectId);
+      setCompletionStatus(status);
+    } catch (error) {
+      console.error('Error checking completion status:', error);
+    }
+  }
+
+  /**
+   * 자동 전환 프롬프트 처리
+   */
+  function handleAutoTransitionPrompt() {
+    // 사용자가 수동으로 전환하지 않은 경우 자동 전환 제안
+    setTimeout(() => {
+      if (window.confirm('사전 분석이 완료되었습니다. 제안진행 단계로 이동하시겠습니까?')) {
+        handleTransitionToProposal();
+      }
+    }, 1000);
+  }
+
+  /**
+   * 제안진행으로 전환 처리
+   */
+  async function handleTransitionToProposal() {
+    if (!projectId) return;
+
+    try {
+      const success = await transitionToProposal(projectId);
+      if (success) {
+        // 제안진행 페이지로 이동
+        navigate(`/projects/${projectId}/proposal`);
+      }
+    } catch (error) {
+      console.error('Error transitioning to proposal:', error);
+    }
+  }
+
+  /**
+   * 워크플로우 전환 상태 표시 컴포넌트
+   */
+  function WorkflowTransitionCard() {
+    if (!completionStatus.canTransitionToProposal && overallProgress < 100) {
+      return null;
+    }
+
+    return (
+      <Card className="border-accent-green/20 bg-accent-green/5">
+        <CardContent className="py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <CheckCircle className="w-5 h-5 text-accent-green" />
+              <div>
+                <div className="font-medium text-text-primary">
+                  사전 분석 완료
+                </div>
+                <div className="text-sm text-text-secondary">
+                  제안진행 단계로 진행할 수 있습니다
+                </div>
+              </div>
+            </div>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleTransitionToProposal}
+              disabled={transitionStatus.isTransitioning}
+              className="flex items-center gap-2"
+            >
+              {transitionStatus.isTransitioning ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <ArrowRight className="w-4 h-4" />
+              )}
+              제안진행으로 이동
+            </Button>
+          </div>
+
+          {transitionStatus.isTransitioning && (
+            <div className="mt-3">
+              <div className="flex items-center justify-between text-xs text-text-secondary mb-1">
+                <span>전환 진행중...</span>
+                <span>{transitionStatus.completionPercentage}%</span>
+              </div>
+              <Progress value={transitionStatus.completionPercentage} className="h-1" />
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  }
 };
