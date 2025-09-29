@@ -497,13 +497,13 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
           }
         }
 
-        // 전체 진행률 계산 (4단계: 문서분석 25% + 질문생성 25% + 질문답변 25% + 보고서 25%)
+        // AnalysisProgress는 analysis 단계 전체이므로 문서분석 60% + 질문생성 40% = 100%
         let totalProgress = 0;
         if (docStage) {
-          totalProgress += (docStage.progress / 100) * 25; // 25% 비중 (1/4)
+          totalProgress += (docStage.progress / 100) * 60; // 60% 비중
         }
         if (questionStage) {
-          totalProgress += (questionStage.progress / 100) * 25; // 25% 비중 (2/4에서 1/4까지)
+          totalProgress += (questionStage.progress / 100) * 40; // 40% 비중
         }
 
         const finalProgress = Math.min(100, Math.max(0, totalProgress));
@@ -640,17 +640,9 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
 
           // 완료 콜백 호출 - 질문 답변 단계로 자동 이동
           setTimeout(() => {
-            console.log('🏁 분석 완료 - onComplete 호출하여 질문 답변 단계로 이동');
-            console.log('🔍 onComplete 함수 타입:', typeof onComplete);
-            console.log('🔍 onComplete 함수 존재 여부:', !!onComplete);
-            if (onComplete) {
-              console.log('✅ onComplete 함수 호출 시작');
-              onComplete();
-              console.log('✅ onComplete 함수 호출 완료');
-            } else {
-              console.error('❌ onComplete 함수가 없습니다!');
-            }
-          }, 1000); // 2초에서 1초로 단축
+            console.log('🏁 질문 생성 완료 - 다음 단계로 자동 이동');
+            onComplete();
+          }, 1000);
         } else {
           // 질문 생성 실패
           setStages(prev => {

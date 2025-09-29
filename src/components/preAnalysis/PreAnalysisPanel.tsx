@@ -311,20 +311,16 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
   };
 
   const handleStepComplete = (step: string) => {
-    console.log('🎯 handleStepComplete 호출됨:', step);
     let nextStep: 'setup' | 'analysis' | 'questions' | 'report' | null = null;
 
     switch (step) {
       case 'analysis':
         nextStep = 'questions';
-        console.log('✅ analysis 완료 -> questions로 이동 예정');
         break;
       case 'questions':
         nextStep = 'report';
-        console.log('✅ questions 완료 -> report로 이동 예정');
         break;
       case 'report':
-        console.log('✅ report 완료 -> 전체 세션 완료');
         if (onSessionComplete && currentSession) {
           onSessionComplete(currentSession.id);
         }
@@ -333,12 +329,7 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
 
     // 상위 컴포넌트에 단계 변경 알림
     if (nextStep && onStepChange) {
-      console.log('🔄 onStepChange 호출:', nextStep);
-      console.log('🔍 onStepChange 함수 타입:', typeof onStepChange);
       onStepChange(nextStep);
-      console.log('✅ onStepChange 호출 완료');
-    } else {
-      console.log('⚠️ onStepChange 호출되지 않음:', { nextStep, hasOnStepChange: !!onStepChange });
     }
   };
 
