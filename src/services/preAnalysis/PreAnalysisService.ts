@@ -273,9 +273,32 @@ export class PreAnalysisService {
         console.log('📝 문서 분석 완료, AI 질문 생성을 자동으로 시작합니다...');
         console.log(`📍 세션 ID: ${sessionId}, 프로젝트 ID: ${projectId}`);
 
-        // 질문 생성은 AnalysisProgress에서 문서 분석 완료 후 자동으로 처리됨
-        // 중복 호출 방지를 위해 여기서는 제거
-        console.log('📋 세션이 시작되었습니다. 질문 생성은 문서 분석 완료 후 자동으로 시작됩니다.');
+        // 비동기로 질문 생성 시작 (await 하지 않음으로써 응답을 먼저 반환)
+        setTimeout(async () => {
+          try {
+            console.log('⏰ 1초 대기 완료, 이제 generateQuestions 메서드를 호출합니다...');
+
+            const questionResult = await this.generateQuestions(sessionId, {
+              categories: ['technical', 'business', 'risks', 'budget', 'timeline'],
+              maxQuestions: 20,
+              includeRequired: true,
+              customContext: '문서 분석이 완료된 프로젝트에 대한 추가 질문을 생성합니다.',
+              documentTypes: [DocumentCategory.TECHNICAL, DocumentCategory.BUSINESS, DocumentCategory.REQUIREMENTS]
+            });
+
+            console.log('🔄 generateQuestions 메서드 결과:', questionResult);
+
+            if (questionResult.success) {
+              console.log('✅ AI 질문 생성이 자동으로 완료되었습니다.');
+              console.log('📊 생성된 질문 데이터:', questionResult.data);
+            } else {
+              console.error('❌ AI 질문 생성 자동 실행 실패:', questionResult.error);
+            }
+          } catch (error) {
+            console.error('❌ AI 질문 생성 자동 실행 중 오류:', error);
+            console.error('❌ 오류 스택:', error instanceof Error ? error.stack : 'Stack trace not available');
+          }
+        }, 1000); // 1초 후 실행
       } else {
         console.warn('⚠️ 성공한 문서가 없어서 AI 질문 생성을 건너뛰었습니다.');
       }
@@ -1744,13 +1767,10 @@ ${documentContext.map((doc, index) =>
     }
 
     prompt += `요구사항:
-1. 프로젝트의 핵심을 파악할 수 있는 15-20개의 실질적이고 서로 다른 질문을 생성하세요.
+1. 프로젝트의 핵심을 파악할 수 있는 6-10개의 실질적인 질문을 생성하세요.
 2. 다양한 관점을 포함하세요: 기술적 요구사항, 비즈니스 목표, 일정, 예산, 위험 요소, 이해관계자 등
 3. 각 질문은 구체적이고 실행 가능한 답변을 유도해야 합니다.
 4. 업로드된 문서가 있다면 해당 내용을 반영한 질문을 포함하세요.
-5. **중복 방지**: 유사한 내용이나 의미를 가진 질문은 절대 생성하지 마세요.
-6. **카테고리 분산**: 각 카테고리별로 최소 2-3개의 질문을 균등하게 분배하세요.
-7. **질문 구체성**: 추상적이거나 모호한 질문보다는 명확하고 구체적인 질문을 우선하세요.
 
 **중요: category 필드는 반드시 다음 값 중 하나만 사용하세요:**
 - technical: 기술적 요구사항, 기술 스택, 아키텍처 관련

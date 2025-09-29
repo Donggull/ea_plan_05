@@ -497,7 +497,7 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
           }
         }
 
-        // AnalysisProgress는 analysis 단계 전체이므로 문서분석 60% + 질문생성 40% = 100%
+        // 전체 진행률 계산
         let totalProgress = 0;
         if (docStage) {
           totalProgress += (docStage.progress / 100) * 60; // 60% 비중
@@ -555,48 +555,6 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
       try {
         console.log('🔥 질문 생성 함수 실행 시작');
 
-        // 🚨 먼저 이미 질문이 있는지 체크 (재생성 방지)
-        const { supabase } = await import('../../lib/supabase');
-        if (supabase) {
-          try {
-            const { data: existingQuestions } = await supabase
-              .from('ai_questions')
-              .select('id')
-              .eq('session_id', sessionId)
-              .limit(1);
-
-            if (existingQuestions && existingQuestions.length > 0) {
-              console.log('✅ 이미 질문이 생성되어 있음 - 재생성하지 않고 완료 처리');
-
-              // 즉시 완료 처리
-              setStages(prev => {
-                const updated = [...prev];
-                const questionStage = updated.find(s => s.id === 'question_generation');
-                if (questionStage) {
-                  questionStage.status = 'completed';
-                  questionStage.progress = 100;
-                  questionStage.endTime = new Date();
-                  questionStage.message = '맞춤형 질문 생성 완료!';
-                }
-                return updated;
-              });
-
-              setOverallProgress(100);
-              addToActivityLog('🎯 맞춤형 질문이 준비되었습니다!');
-              addToActivityLog('🎉 모든 사전 분석이 완료되었습니다!');
-
-              // 즉시 다음 단계로 이동
-              setTimeout(() => {
-                console.log('🏁 기존 질문 확인 완료 - onComplete 호출하여 질문 답변 단계로 이동');
-                onComplete();
-              }, 1000);
-              return;
-            }
-          } catch (checkError) {
-            console.warn('기존 질문 확인 중 오류 (계속 진행):', checkError);
-          }
-        }
-
         // 질문 생성 진행률 업데이트
         setStages(prev => {
           const updated = [...prev];
@@ -609,40 +567,83 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
         });
 
         const response = await preAnalysisService.generateQuestions(sessionId, {
-          categories: ['business', 'technical', 'timeline', 'stakeholders', 'risks', 'budget', 'design'],
-          maxQuestions: 25, // 한 번에 충분한 질문 생성
+          categories: ['business', 'technical', 'timeline', 'stakeholders', 'risks'],
+          maxQuestions: 15,
           includeRequired: true,
-          customContext: '프로젝트 전체를 포괄하는 상세한 질문을 한 번에 생성합니다. 비즈니스, 기술, 일정, 예산, 위험 요소를 모두 포함하여 완전한 질문 세트를 만듭니다.',
+          customContext: 'detailed analysis context',
         });
 
         console.log('📊 질문 생성 응답:', response);
 
         if (response.success) {
-          console.log('✅ 질문 생성 API 호출 성공 - 완료 처리 진행');
+          console.log('✅ 질문 생성 API 호출 성공 - 실제 DB 저장 확인 중...');
 
-          // 질문 생성 완료 (실제 개수 조회하지 않고 단순 완료 표시)
-          setStages(prev => {
-            const updated = [...prev];
-            const questionStage = updated.find(s => s.id === 'question_generation');
+          // 질문 생성 API 성공 후 실제 DB에 저장되었는지 확인
+          const actualQuestionCount = await verifyQuestionsInDB(sessionId);
 
-            if (questionStage) {
-              questionStage.status = 'completed';
-              questionStage.progress = 100;
-              questionStage.endTime = new Date();
-              questionStage.message = '맞춤형 질문 생성 완료!';
-            }
+          if (actualQuestionCount > 0) {
+            console.log(`📊 DB에서 ${actualQuestionCount}개 질문 확인 완료`);
 
-            return updated;
-          });
+            // 질문 생성 완료
+            setStages(prev => {
+              const updated = [...prev];
+              const questionStage = updated.find(s => s.id === 'question_generation');
+              if (questionStage) {
+                questionStage.status = 'completed';
+                questionStage.progress = 100;
+                questionStage.endTime = new Date();
+                questionStage.message = `${actualQuestionCount}개 맞춤형 질문 생성 완료!`;
+              }
 
-          addToActivityLog('🎯 맞춤형 질문이 생성되었습니다!');
-          addToActivityLog('🎉 질문 생성이 완료되었습니다! 다음 단계로 진행합니다.');
+              return updated;
+            });
 
-          // 완료 콜백 호출 - 질문 답변 단계로 자동 이동
-          setTimeout(() => {
-            console.log('🏁 질문 생성 완료 - 다음 단계로 자동 이동');
-            onComplete();
-          }, 1000);
+            setOverallProgress(100);
+            addToActivityLog(`🎯 ${actualQuestionCount}개 맞춤형 질문이 생성되었습니다!`);
+            addToActivityLog('🎉 모든 사전 분석이 완료되었습니다!');
+
+            // 완료 콜백 호출 - 질문 답변 단계로 자동 이동
+            setTimeout(() => {
+              console.log('🏁 분석 완료 - onComplete 호출하여 질문 답변 단계로 이동');
+              onComplete();
+            }, 1000);
+          } else {
+            console.log('⏳ DB에 질문이 아직 저장되지 않음 - 재확인 중...');
+
+            // DB 저장 완료까지 대기 (최대 15초)
+            await waitForQuestionsInDB(sessionId, (count) => {
+              console.log(`📊 DB 확인 중 - 현재 질문 수: ${count}개`);
+
+              if (count > 0) {
+                // 질문 생성 완료
+                setStages(prev => {
+                  const updated = [...prev];
+                  const questionStage = updated.find(s => s.id === 'question_generation');
+                  if (questionStage) {
+                    questionStage.status = 'completed';
+                    questionStage.progress = 100;
+                    questionStage.endTime = new Date();
+                    questionStage.message = `${count}개 맞춤형 질문 생성 완료!`;
+                  }
+
+                  return updated;
+                });
+
+                setOverallProgress(100);
+                addToActivityLog(`🎯 ${count}개 맞춤형 질문이 생성되었습니다!`);
+                addToActivityLog('🎉 모든 사전 분석이 완료되었습니다!');
+
+                // 완료 콜백 호출
+                setTimeout(() => {
+                  console.log('🏁 분석 완료 - onComplete 호출하여 질문 답변 단계로 이동');
+                  onComplete();
+                }, 1000);
+
+                return true; // 완료 신호
+              }
+              return false; // 계속 대기
+            });
+          }
         } else {
           // 질문 생성 실패
           setStages(prev => {
@@ -1297,6 +1298,63 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
         </Card>
       </div>
     );
+
+    // 질문 생성 DB 저장 확인 함수
+    const verifyQuestionsInDB = async (sessionId: string): Promise<number> => {
+      try {
+        const { supabase } = await import('../../lib/supabase');
+        if (!supabase) {
+          console.error('❌ Supabase 클라이언트가 초기화되지 않음');
+          return 0;
+        }
+
+        const { count, error } = await supabase
+          .from('ai_questions')
+          .select('id', { count: 'exact', head: true })
+          .eq('session_id', sessionId);
+
+        if (error) {
+          console.error('❌ 질문 수 확인 오류:', error);
+          return 0;
+        }
+
+        return count || 0;
+      } catch (error) {
+        console.error('❌ verifyQuestionsInDB 오류:', error);
+        return 0;
+      }
+    };
+
+    // 질문 DB 저장 대기 함수
+    const waitForQuestionsInDB = async (
+      sessionId: string,
+      onUpdate: (count: number) => boolean,
+      maxWaitTime: number = 15000
+    ): Promise<void> => {
+      const startTime = Date.now();
+      const checkInterval = 2000; // 2초 간격 확인
+
+      return new Promise((resolve) => {
+        const intervalId = setInterval(async () => {
+          const elapsed = Date.now() - startTime;
+
+          if (elapsed >= maxWaitTime) {
+            console.warn('⚠️ 질문 생성 DB 저장 확인 시간 초과');
+            clearInterval(intervalId);
+            resolve();
+            return;
+          }
+
+          const questionCount = await verifyQuestionsInDB(sessionId);
+          const completed = onUpdate(questionCount);
+
+          if (completed) {
+            clearInterval(intervalId);
+            resolve();
+          }
+        }, checkInterval);
+      });
+    };
   }
 );
 

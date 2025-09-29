@@ -310,12 +310,47 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
     }
   };
 
-  const handleStepComplete = (step: string) => {
+  const handleStepComplete = async (step: string) => {
+    console.log(`🎯 handleStepComplete 호출됨: ${step} 단계 완료`);
+
     let nextStep: 'setup' | 'analysis' | 'questions' | 'report' | null = null;
 
     switch (step) {
       case 'analysis':
-        nextStep = 'questions';
+        // 분석 단계 완료 시 실제 DB에서 질문 생성 확인
+        console.log('📊 분석 단계 완료 - 질문 생성 상태를 DB에서 확인 중...');
+
+        if (currentSession && await verifyQuestionsGenerated(currentSession.id)) {
+          console.log('✅ 질문 생성이 DB에서 확인됨 - questions 단계로 이동');
+          nextStep = 'questions';
+        } else {
+          console.log('⏳ 질문 생성이 아직 완료되지 않음 - 잠시 대기 후 다시 확인');
+
+          // 최대 10초간 3초 간격으로 재확인
+          let attempts = 0;
+          const maxAttempts = 3;
+
+          const checkInterval = setInterval(async () => {
+            attempts++;
+            console.log(`🔄 질문 생성 재확인 (${attempts}/${maxAttempts})`);
+
+            if (currentSession && await verifyQuestionsGenerated(currentSession.id)) {
+              console.log('✅ 질문 생성 재확인 성공 - questions 단계로 이동');
+              clearInterval(checkInterval);
+              if (onStepChange) {
+                onStepChange('questions');
+              }
+            } else if (attempts >= maxAttempts) {
+              console.warn('⚠️ 질문 생성 확인 시간 초과 - 강제로 questions 단계로 이동');
+              clearInterval(checkInterval);
+              if (onStepChange) {
+                onStepChange('questions');
+              }
+            }
+          }, 3000); // 3초 간격으로 재확인
+
+          return; // 비동기 처리이므로 여기서 반환
+        }
         break;
       case 'questions':
         nextStep = 'report';
@@ -329,7 +364,37 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
 
     // 상위 컴포넌트에 단계 변경 알림
     if (nextStep && onStepChange) {
+      console.log(`🚀 단계 변경: ${step} → ${nextStep}`);
       onStepChange(nextStep);
+    }
+  };
+
+  // 질문 생성 여부를 DB에서 직접 확인하는 함수
+  const verifyQuestionsGenerated = async (sessionId: string): Promise<boolean> => {
+    try {
+      if (!supabase) {
+        console.error('❌ Supabase 클라이언트가 초기화되지 않음');
+        return false;
+      }
+
+      const { count, error } = await supabase
+        .from('ai_questions')
+        .select('id', { count: 'exact', head: true })
+        .eq('session_id', sessionId);
+
+      if (error) {
+        console.error('❌ 질문 수 확인 오류:', error);
+        return false;
+      }
+
+      const questionCount = count || 0;
+      console.log(`📊 DB에서 확인된 질문 수: ${questionCount}개`);
+
+      // 최소 1개 이상의 질문이 있으면 생성 완료로 판단
+      return questionCount > 0;
+    } catch (error) {
+      console.error('❌ verifyQuestionsGenerated 오류:', error);
+      return false;
     }
   };
 

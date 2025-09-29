@@ -653,7 +653,7 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
 
         <div className="flex justify-between text-sm text-text-secondary mt-2">
           <span className="font-medium">{Array.from(answers.values()).filter(a => a.isComplete).length}개 완료</span>
-          <span>질문 답변 진행중</span>
+          <span>총 {questions.length}개 질문</span>
         </div>
       </div>
 
