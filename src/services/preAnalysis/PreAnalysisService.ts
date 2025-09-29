@@ -273,32 +273,9 @@ export class PreAnalysisService {
         console.log('📝 문서 분석 완료, AI 질문 생성을 자동으로 시작합니다...');
         console.log(`📍 세션 ID: ${sessionId}, 프로젝트 ID: ${projectId}`);
 
-        // 비동기로 질문 생성 시작 (await 하지 않음으로써 응답을 먼저 반환)
-        setTimeout(async () => {
-          try {
-            console.log('⏰ 1초 대기 완료, 이제 generateQuestions 메서드를 호출합니다...');
-
-            const questionResult = await this.generateQuestions(sessionId, {
-              categories: ['technical', 'business', 'risks', 'budget', 'timeline'],
-              maxQuestions: 20,
-              includeRequired: true,
-              customContext: '문서 분석이 완료된 프로젝트에 대한 추가 질문을 생성합니다.',
-              documentTypes: [DocumentCategory.TECHNICAL, DocumentCategory.BUSINESS, DocumentCategory.REQUIREMENTS]
-            });
-
-            console.log('🔄 generateQuestions 메서드 결과:', questionResult);
-
-            if (questionResult.success) {
-              console.log('✅ AI 질문 생성이 자동으로 완료되었습니다.');
-              console.log('📊 생성된 질문 데이터:', questionResult.data);
-            } else {
-              console.error('❌ AI 질문 생성 자동 실행 실패:', questionResult.error);
-            }
-          } catch (error) {
-            console.error('❌ AI 질문 생성 자동 실행 중 오류:', error);
-            console.error('❌ 오류 스택:', error instanceof Error ? error.stack : 'Stack trace not available');
-          }
-        }, 1000); // 1초 후 실행
+        // 질문 생성은 AnalysisProgress에서 문서 분석 완료 후 자동으로 처리됨
+        // 중복 호출 방지를 위해 여기서는 제거
+        console.log('📋 세션이 시작되었습니다. 질문 생성은 문서 분석 완료 후 자동으로 시작됩니다.');
       } else {
         console.warn('⚠️ 성공한 문서가 없어서 AI 질문 생성을 건너뛰었습니다.');
       }

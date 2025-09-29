@@ -609,10 +609,10 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
         });
 
         const response = await preAnalysisService.generateQuestions(sessionId, {
-          categories: ['business', 'technical', 'timeline', 'stakeholders', 'risks'],
-          maxQuestions: 15,
+          categories: ['business', 'technical', 'timeline', 'stakeholders', 'risks', 'budget', 'design'],
+          maxQuestions: 25, // 한 번에 충분한 질문 생성
           includeRequired: true,
-          customContext: 'detailed analysis context',
+          customContext: '프로젝트 전체를 포괄하는 상세한 질문을 한 번에 생성합니다. 비즈니스, 기술, 일정, 예산, 위험 요소를 모두 포함하여 완전한 질문 세트를 만듭니다.',
         });
 
         console.log('📊 질문 생성 응답:', response);
@@ -641,8 +641,16 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
           // 완료 콜백 호출 - 질문 답변 단계로 자동 이동
           setTimeout(() => {
             console.log('🏁 분석 완료 - onComplete 호출하여 질문 답변 단계로 이동');
-            onComplete();
-          }, 2000);
+            console.log('🔍 onComplete 함수 타입:', typeof onComplete);
+            console.log('🔍 onComplete 함수 존재 여부:', !!onComplete);
+            if (onComplete) {
+              console.log('✅ onComplete 함수 호출 시작');
+              onComplete();
+              console.log('✅ onComplete 함수 호출 완료');
+            } else {
+              console.error('❌ onComplete 함수가 없습니다!');
+            }
+          }, 1000); // 2초에서 1초로 단축
         } else {
           // 질문 생성 실패
           setStages(prev => {
