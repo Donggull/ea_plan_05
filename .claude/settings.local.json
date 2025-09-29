@@ -55,7 +55,9 @@
       "Bash(findstr:*)",
       "Bash(git reset:*)",
       "Bash(xcopy:*)",
-      "Bash(git fetch:*)"
+      "Bash(git fetch:*)",
+      "Bash(git commit:*)",
+      "Bash(git pull:*)"
     ],
     "deny": [],
     "ask": []
