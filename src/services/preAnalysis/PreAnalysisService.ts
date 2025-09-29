@@ -261,7 +261,7 @@ export class PreAnalysisService {
         sessionId,
         stage: 'document_analysis',
         status: 'completed',
-        progress: 60,
+        progress: 100,
         message: `문서 분석 완료: 성공 ${successCount}개, 실패 ${errorCount}개`,
         timestamp: new Date(),
       });
