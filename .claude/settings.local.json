@@ -54,7 +54,8 @@
       "Bash(powershell:*)",
       "Bash(findstr:*)",
       "Bash(git reset:*)",
-      "Bash(xcopy:*)"
+      "Bash(xcopy:*)",
+      "Bash(git fetch:*)"
     ],
     "deny": [],
     "ask": []
