@@ -779,7 +779,7 @@ export class PreAnalysisService {
         sessionId,
         stage: 'question_generation',
         status: 'completed',
-        progress: 70,
+        progress: 100,
         message: `${savedQuestions.length}개의 질문이 생성되었습니다.`,
         timestamp: new Date(),
       });
