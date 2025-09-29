@@ -11,6 +11,7 @@ import {
   FileCheck,
   Loader,
   AlertCircle,
+  ChevronRight,
 } from 'lucide-react';
 import { preAnalysisService } from '../../services/preAnalysis/PreAnalysisService';
 import { Card } from '../LinearComponents';
@@ -1109,6 +1110,38 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
             </div>
           </div>
         </Card>
+
+        {/* 완료 시 수동 이동 버튼 */}
+        {overallProgress === 100 && analysisCompleted && (
+          <Card className="p-4 bg-gradient-to-r from-success/10 to-success/5 border-2 border-success/30 shadow-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-success/20 rounded-full">
+                  <CheckCircle className="w-6 h-6 text-success" />
+                </div>
+                <div>
+                  <h4 className="text-lg font-semibold text-text-primary">
+                    🎉 모든 사전 분석이 완료되었습니다!
+                  </h4>
+                  <p className="text-text-secondary text-sm">
+                    이제 질문 답변 단계로 이동하여 AI가 생성한 맞춤형 질문에 답변해주세요.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  console.log('🎯 수동 이동 버튼 클릭 - onComplete 호출');
+                  onComplete();
+                }}
+                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-success to-success/80 text-white font-semibold rounded-lg shadow-lg hover:from-success/90 hover:to-success/70 transform hover:scale-105 transition-all duration-200"
+              >
+                <MessageSquare className="w-5 h-5" />
+                <span>질문 답변으로 이동</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </Card>
+        )}
 
         {/* 문서별 분석 상태 */}
         {renderDocumentProgress()}
