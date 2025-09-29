@@ -739,7 +739,12 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
       {/* 질문 네비게이션 - 세련된 디자인 */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-text-primary">질문 목록</h3>
+          <div className="flex items-center space-x-3">
+            <h3 className="text-lg font-semibold text-text-primary">질문 목록</h3>
+            <span className="px-3 py-1 bg-primary/10 text-primary rounded-full text-sm font-medium">
+              전체 {questions.length}개
+            </span>
+          </div>
           <div className="flex items-center space-x-2 text-sm text-text-secondary">
             <div className="flex items-center space-x-1">
               <div className="w-2 h-2 rounded-full bg-status-success"></div>
@@ -756,7 +761,7 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-8 gap-2">
+        <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-2">
           {questions.map((question, index) => {
             const answer = answers.get(question.id)
             const isCompleted = answer?.isComplete || false

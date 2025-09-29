@@ -220,35 +220,57 @@ export class ReportAnalysisService {
       throw new Error('세션 정보를 찾을 수 없습니다.');
     }
 
-    // 문서 분석 결과 조회
+    // 문서 분석 결과 조회 (JOIN 수정)
     const { data: documentAnalyses } = await supabase
       .from('document_analyses')
       .select(`
         category,
         analysis_result,
         confidence_score,
-        documents!inner (file_name)
+        document_id,
+        documents:document_id (file_name)
       `)
       .eq('session_id', sessionId)
       .eq('status', 'completed');
 
-    // 질문과 답변 조회
-    const { data: questionsAndAnswers } = await supabase
+    // 질문 조회
+    const { data: questions } = await supabase
       .from('ai_questions')
       .select(`
+        id,
         category,
         question,
         context,
-        required,
-        user_answers!left (
-          answer,
-          notes,
-          confidence,
-          is_draft
-        )
+        required
       `)
       .eq('session_id', sessionId)
       .order('order_index');
+
+    // 답변 조회 (별도로)
+    const { data: userAnswers } = await supabase
+      .from('user_answers')
+      .select(`
+        question_id,
+        answer,
+        notes,
+        confidence,
+        is_draft
+      `)
+      .eq('session_id', sessionId);
+
+    // 질문과 답변 매핑
+    const questionsAndAnswers = questions?.map(q => {
+      const answer = userAnswers?.find(ua => ua.question_id === q.id);
+      return {
+        category: q.category || 'general',
+        question: q.question,
+        context: q.context || '',
+        required: q.required || false,
+        answer: answer?.answer || '',
+        notes: answer?.notes || '',
+        confidence: answer?.confidence || 0
+      };
+    }) || [];
 
     // 컨텍스트 구성
     const context: WebAgencyAnalysisContext = {
@@ -262,17 +284,9 @@ export class ReportAnalysisService {
         category: da.category || 'general',
         analysis_result: da.analysis_result,
         confidence_score: da.confidence_score || 0,
-        file_name: da.documents.file_name
+        file_name: da.documents?.file_name || 'Unknown Document'
       })) || [],
-      questionsAndAnswers: questionsAndAnswers?.map(qa => ({
-        category: qa.category || 'general',
-        question: qa.question,
-        context: qa.context || '',
-        required: qa.required || false,
-        answer: qa.user_answers?.[0]?.answer || '',
-        notes: qa.user_answers?.[0]?.notes || '',
-        confidence: qa.user_answers?.[0]?.confidence || 0
-      })) || [],
+      questionsAndAnswers,
       sessionInfo: {
         id: session.id,
         ai_model: session.ai_model || 'gpt-4',
@@ -283,23 +297,23 @@ export class ReportAnalysisService {
 
       // 새로운 분석 시스템을 위한 추가 데이터 구성
       documents: documentAnalyses?.map(da => ({
-        id: `doc-${da.documents.file_name}`,
-        file_name: da.documents.file_name,
+        id: `doc-${da.documents?.file_name || 'unknown'}`,
+        file_name: da.documents?.file_name || 'Unknown Document',
         analysis_result: da.analysis_result
       })) || [],
 
-      questions: questionsAndAnswers?.map((qa, index) => ({
-        id: `question-${index}`,
-        category: qa.category || 'general',
-        question: qa.question,
-        answer: qa.user_answers?.[0]?.answer || ''
+      questions: questions?.map(q => ({
+        id: q.id,
+        category: q.category || 'general',
+        question: q.question,
+        answer: userAnswers?.find(ua => ua.question_id === q.id)?.answer || ''
       })) || [],
 
-      answers: questionsAndAnswers?.filter(qa => qa.user_answers?.[0]?.answer)
-        .map((qa) => ({
-          question_id: `question-${questionsAndAnswers.findIndex(q => q === qa)}`,
-          answer: qa.user_answers[0].answer || '',
-          confidence: qa.user_answers[0].confidence || 0
+      answers: userAnswers?.filter(ua => ua.answer && ua.answer.trim() && ua.question_id)
+        .map(ua => ({
+          question_id: ua.question_id!,
+          answer: ua.answer || '',
+          confidence: ua.confidence || 0
         })) || [],
 
       // 문서 분석에서 요구사항 추출
