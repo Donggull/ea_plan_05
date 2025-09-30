@@ -452,17 +452,28 @@ export class DocumentAnalysisService {
 
   /**
    * 파일 타입 기반 문서 카테고리 분류
+   * DB 허용 카테고리: requirements, technical, business, design, contract, reference, presentation
    */
   private static categorizeDocument(fileType: string): string {
     const type = fileType.toLowerCase();
 
-    if (type.includes('pdf') || type.includes('document')) return 'requirement';
-    if (type.includes('xls') || type.includes('sheet') || type.includes('csv')) return 'data';
-    if (type.includes('ppt') || type.includes('presentation')) return 'presentation';
-    if (type.includes('image') || type.includes('png') || type.includes('jpg')) return 'diagram';
-    if (type.includes('txt') || type.includes('text')) return 'note';
+    // PDF/문서 -> 요구사항
+    if (type.includes('pdf') || type.includes('document')) return 'requirements';
 
-    return 'general';
+    // 엑셀/CSV -> 비즈니스/참고
+    if (type.includes('xls') || type.includes('sheet') || type.includes('csv')) return 'business';
+
+    // PPT -> 프레젠테이션
+    if (type.includes('ppt') || type.includes('presentation')) return 'presentation';
+
+    // 이미지 -> 디자인
+    if (type.includes('image') || type.includes('png') || type.includes('jpg')) return 'design';
+
+    // 텍스트 -> 참고
+    if (type.includes('txt') || type.includes('text')) return 'reference';
+
+    // 기본값 -> 참고
+    return 'reference';
   }
 
   /**
