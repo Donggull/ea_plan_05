@@ -9,7 +9,6 @@ import { Badge } from '@/components/ui/Badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/Tabs';
 import { Progress } from '@/components/ui/Progress';
 import {
-  PreAnalysisPanel,
   AIModelStatus,
   MCPConfiguration,
   AnalysisProgress,
@@ -21,7 +20,6 @@ import {
   Settings,
   Brain,
   Server,
-  BarChart3,
   MessageSquare,
   FileText,
   ArrowLeft,
@@ -29,7 +27,8 @@ import {
   Loader2,
   RefreshCw,
   ArrowRight,
-  CheckCircle
+  CheckCircle,
+  AlertCircle
 } from 'lucide-react';
 import { preAnalysisService } from '@/services/preAnalysis/PreAnalysisService';
 import { mcpIntegrationService } from '@/services/preAnalysis/MCPIntegrationService';
@@ -84,7 +83,7 @@ export const PreAnalysisPage: React.FC = () => {
   const [mcpLoading, setMcpLoading] = useState(false);
 
   // UI state
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState('setup');
   const [overallProgress, setOverallProgress] = useState(0);
 
   // 워크플로우 전환 상태
@@ -94,7 +93,6 @@ export const PreAnalysisPage: React.FC = () => {
   });
 
   const stepTabs = [
-    { id: 'overview', label: '개요', icon: <BarChart3 className="w-4 h-4" /> },
     { id: 'setup', label: '설정', icon: <Settings className="w-4 h-4" /> },
     { id: 'analysis', label: '분석', icon: <Brain className="w-4 h-4" /> },
     { id: 'questions', label: '질문답변', icon: <MessageSquare className="w-4 h-4" /> },
@@ -553,26 +551,24 @@ export const PreAnalysisPage: React.FC = () => {
     <div className="min-h-screen bg-bg-primary">
       {/* Header */}
       <div className="border-b border-border-primary bg-bg-secondary/50 backdrop-blur-sm sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
+        <div className="mx-auto px-6 py-4" style={{ maxWidth: '1024px' }}>
+          <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-4">
               <Button variant="ghost" size="sm" onClick={goBack}>
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 프로젝트로 돌아가기
               </Button>
+              <div className="h-6 w-px bg-border-primary" />
               <div>
-                <h1 className="text-xl font-semibold text-text-primary">
+                <h1 className="text-lg font-semibold text-text-primary">
                   사전 분석
                 </h1>
-                <p className="text-sm text-text-secondary">
-                  AI 기반 프로젝트 사전 분석 및 질문 생성
-                </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               {session && (
-                <div className="flex items-center gap-3">
+                <>
                   <Badge variant="primary" size="sm">
                     {Math.round(overallProgress)}% 완료
                   </Badge>
@@ -581,21 +577,19 @@ export const PreAnalysisPage: React.FC = () => {
                      currentStep === 'analysis' ? '분석중' :
                      currentStep === 'questions' ? '질문답변' : '보고서'}
                   </Badge>
-                </div>
+                </>
               )}
             </div>
           </div>
 
           {session && (
-            <div className="mt-4">
-              <Progress value={overallProgress} className="h-2" />
-            </div>
+            <Progress value={overallProgress} className="h-1.5" />
           )}
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className="mx-auto px-6 py-8" style={{ maxWidth: '1024px' }}>
         {error && (
           <Card className="mb-6 border-semantic-error/20 bg-semantic-error/5">
             <CardContent className="pt-6">
@@ -604,50 +598,68 @@ export const PreAnalysisPage: React.FC = () => {
           </Card>
         )}
 
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-5 mb-8">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <TabsList className="grid w-full grid-cols-4 gap-2 bg-bg-secondary/50 p-1 rounded-xl">
             {stepTabs.map((tab) => (
               <TabsTrigger
                 key={tab.id}
                 value={tab.id}
-                className="flex items-center gap-2"
+                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg data-[state=active]:bg-bg-tertiary data-[state=active]:text-text-primary text-text-tertiary transition-all"
               >
                 {tab.icon}
-                {tab.label}
+                <span className="font-medium">{tab.label}</span>
               </TabsTrigger>
             ))}
           </TabsList>
 
-          <TabsContent value="overview">
-            <PreAnalysisPanel
-              projectId={projectId!}
-              onComplete={(sessionId) => {
-                console.log('Analysis completed:', sessionId);
-              }}
-            />
-          </TabsContent>
+          <TabsContent value="setup" className="space-y-6">
+            {/* 세션 시작 안내 */}
+            {!session && (
+              <Card className="border-border-primary bg-gradient-to-br from-bg-secondary to-bg-tertiary/50">
+                <CardContent className="py-8">
+                  <div className="text-center space-y-4">
+                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary-500/10 mb-2">
+                      <Settings className="w-8 h-8 text-primary-500" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-semibold text-text-primary mb-2">
+                        사전 분석 시작하기
+                      </h3>
+                      <p className="text-text-secondary max-w-md mx-auto">
+                        AI 모델과 MCP 서버를 설정하여 프로젝트 사전 분석을 시작하세요
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
-          <TabsContent value="setup">
-            <div className="space-y-8">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <AIModelStatus
-                  variant="full"
-                  onNavigateToSidebar={() => {
-                    // 사이드바로 포커스 이동 (UI 피드백)
-                    const sidebarElement = document.querySelector('[data-testid="sidebar"]');
-                    if (sidebarElement) {
-                      sidebarElement.scrollIntoView({ behavior: 'smooth' });
-                    }
-                  }}
-                />
-                <MCPConfiguration
-                  onConfigurationChange={handleMCPConfiguration}
-                  disabled={loading}
-                />
-              </div>
+            {/* AI 모델 및 MCP 설정 */}
+            <div className="grid grid-cols-1 gap-6">
+              <AIModelStatus
+                variant="full"
+                onNavigateToSidebar={() => {
+                  const sidebarElement = document.querySelector('[data-testid="sidebar"]');
+                  if (sidebarElement) {
+                    sidebarElement.scrollIntoView({ behavior: 'smooth' });
+                  }
+                }}
+              />
+              <MCPConfiguration
+                onConfigurationChange={handleMCPConfiguration}
+                disabled={loading}
+              />
+            </div>
 
-              {/* MCP 상태 표시 */}
-              <div className="border-t border-border-primary pt-8">
+            {/* MCP 상태 표시 */}
+            <Card className="border-border-primary">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-text-primary">
+                  <Server className="w-5 h-5" />
+                  MCP 서버 상태
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
                 <MCPStatusIndicator
                   variant="compact"
                   showMetrics={true}
@@ -677,28 +689,32 @@ export const PreAnalysisPage: React.FC = () => {
                     }
                   }}
                 />
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
-          <TabsContent value="analysis">
-            <div className="space-y-8">
-              {/* AI 분석 시작 섹션 */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-text-primary">
-                    <Brain className="w-5 h-5" />
-                    AI 프로젝트 분석
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  {/* 현재 선택된 AI 모델 표시 */}
+          <TabsContent value="analysis" className="space-y-6">
+            {/* AI 분석 시작 카드 */}
+            <Card className="border-border-primary">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-text-primary">
+                  <Brain className="w-5 h-5" />
+                  AI 프로젝트 분석
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* 현재 선택된 AI 모델 */}
+                <div className="p-4 rounded-xl bg-bg-tertiary/50 border border-border-secondary">
                   <AIModelStatus variant="compact" />
+                </div>
 
-                  {/* 분석 깊이 선택 */}
-                  <div className="space-y-3">
-                    <h3 className="text-sm font-medium text-text-primary">분석 깊이 선택</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {/* 분석 깊이 선택 */}
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-text-primary mb-1">분석 깊이 선택</h3>
+                    <p className="text-xs text-text-tertiary">프로젝트에 적합한 분석 깊이를 선택하세요</p>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                       {[
                         { id: 'quick', name: 'Quick', desc: '2-3분', time: '빠른 개요' },
                         { id: 'standard', name: 'Standard', desc: '5-10분', time: '표준 분석' },
@@ -711,79 +727,87 @@ export const PreAnalysisPage: React.FC = () => {
                           size="sm"
                           onClick={() => executeAIAnalysis(depth.id as any)}
                           disabled={loading || !aiModelState.selectedModelId || documentCount === 0}
-                          className="h-auto p-3 flex flex-col items-start text-left"
+                          className="h-auto p-4 flex flex-col items-start text-left hover:border-primary-500/50 transition-all"
                           title={documentCount === 0 ? '프로젝트에 문서를 먼저 업로드해주세요.' : ''}
                         >
-                          <div className="font-medium">{depth.name}</div>
-                          <div className="text-xs text-text-secondary">{depth.desc}</div>
-                          <div className="text-xs text-text-tertiary">{depth.time}</div>
+                          <div className="font-semibold text-base">{depth.name}</div>
+                          <div className="text-xs text-text-secondary mt-1">{depth.desc}</div>
+                          <div className="text-xs text-text-tertiary mt-0.5">{depth.time}</div>
                         </Button>
                       ))}
                     </div>
                   </div>
 
-                  {documentCount === 0 && (
-                    <div className="p-4 bg-semantic-warning/10 border border-semantic-warning/20 rounded-lg">
+                {documentCount === 0 && (
+                  <div className="p-4 bg-semantic-warning/10 border border-semantic-warning/20 rounded-xl flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 text-semantic-warning flex-shrink-0 mt-0.5" />
+                    <div>
                       <p className="text-sm text-semantic-warning font-medium">
                         프로젝트 문서가 필요합니다
                       </p>
-                      <p className="text-xs text-text-secondary mt-1">
+                      <p className="text-xs text-text-tertiary mt-1">
                         AI 분석을 시작하려면 먼저 프로젝트에 최소 1개 이상의 문서를 업로드해주세요.
                       </p>
                     </div>
-                  )}
+                  </div>
+                )}
 
-                  {!aiModelState.selectedModelId && documentCount > 0 && (
-                    <div className="p-4 bg-semantic-warning/10 border border-semantic-warning/20 rounded-lg">
-                      <p className="text-sm text-semantic-warning">
-                        AI 분석을 시작하려면 먼저 사이드바에서 AI 모델을 선택해주세요.
-                      </p>
-                    </div>
-                  )}
+                {!aiModelState.selectedModelId && documentCount > 0 && (
+                  <div className="p-4 bg-semantic-warning/10 border border-semantic-warning/20 rounded-xl flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 text-semantic-warning flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-semantic-warning">
+                      AI 분석을 시작하려면 먼저 사이드바에서 AI 모델을 선택해주세요.
+                    </p>
+                  </div>
+                )}
 
-                  {documentCount > 0 && aiModelState.selectedModelId && (
-                    <div className="p-4 bg-accent-green/10 border border-accent-green/20 rounded-lg flex items-center gap-3">
-                      <CheckCircle className="w-5 h-5 text-accent-green" />
-                      <p className="text-sm text-text-primary">
-                        {documentCount}개의 문서가 분석 준비되었습니다. 분석 깊이를 선택해주세요.
-                      </p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                {documentCount > 0 && aiModelState.selectedModelId && (
+                  <div className="p-4 bg-accent-green/10 border border-accent-green/20 rounded-xl flex items-center gap-3">
+                    <CheckCircle className="w-5 h-5 text-accent-green flex-shrink-0" />
+                    <p className="text-sm text-text-primary">
+                      {documentCount}개의 문서가 분석 준비되었습니다. 분석 깊이를 선택해주세요.
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
-              {session && (
-                <AnalysisProgress
-                  session={session}
-                  onStepChange={handleStepChange}
-                  onAction={async (action) => {
-                    console.log('Analysis action:', action);
+            {session && (
+              <AnalysisProgress
+                session={session}
+                onStepChange={handleStepChange}
+                onAction={async (action) => {
+                  console.log('Analysis action:', action);
 
-                    switch (action) {
-                      case 'start':
-                        await executeMCPAnalysis();
-                        break;
-                      case 'next':
-                        await handleStepChange('questions');
-                        break;
-                      default:
-                        console.log(`Unhandled action: ${action}`);
-                    }
-                  }}
-                />
-              )}
+                  switch (action) {
+                    case 'start':
+                      await executeMCPAnalysis();
+                      break;
+                    case 'next':
+                      await handleStepChange('questions');
+                      break;
+                    default:
+                      console.log(`Unhandled action: ${action}`);
+                  }
+                }}
+              />
+            )}
 
-              {/* MCP 분석 결과 표시 */}
-              {mcpResults.length > 0 && (
-                <Card>
-                  <CardHeader>
+            {/* MCP 분석 결과 */}
+            {mcpResults.length > 0 && (
+              <Card className="border-border-primary">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
                     <CardTitle className="flex items-center gap-2 text-text-primary">
                       <Server className="w-5 h-5" />
                       MCP 분석 결과
-                      {mcpLoading && <Loader2 className="w-4 h-4 animate-spin" />}
                     </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
+                    {mcpLoading && (
+                      <Loader2 className="w-5 h-5 animate-spin text-primary-500" />
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
                     {mcpResults.map((result, index) => (
                       <div
                         key={`${result.server_id}-${index}`}
@@ -845,47 +869,48 @@ export const PreAnalysisPage: React.FC = () => {
                       </div>
                     ))}
 
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={executeMCPAnalysis}
-                      disabled={mcpLoading}
-                      className="w-full"
-                    >
-                      {mcpLoading ? (
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      ) : (
-                        <RefreshCw className="w-4 h-4 mr-2" />
-                      )}
-                      MCP 분석 재실행
-                    </Button>
-                  </CardContent>
-                </Card>
-              )}
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={executeMCPAnalysis}
+                    disabled={mcpLoading}
+                    className="w-full mt-2"
+                  >
+                    {mcpLoading ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                    )}
+                    MCP 분석 재실행
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
 
-              {/* 분석이 아직 실행되지 않은 경우 */}
-              {mcpResults.length === 0 && !mcpLoading && (
-                <Card>
-                  <CardContent className="py-12 text-center">
-                    <Server className="w-12 h-12 text-text-tertiary mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-text-primary mb-2">
-                      MCP 분석 준비
-                    </h3>
-                    <p className="text-text-secondary mb-4">
-                      설정된 MCP 서버들을 통해 종합적인 프로젝트 분석을 수행합니다.
-                    </p>
-                    <Button variant="primary" onClick={executeMCPAnalysis}>
-                      <Play className="w-4 h-4 mr-2" />
-                      MCP 분석 시작
-                    </Button>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
+            {/* 분석 시작 전 안내 */}
+            {mcpResults.length === 0 && !mcpLoading && (
+              <Card className="border-border-primary">
+                <CardContent className="py-16 text-center">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary-500/10 mb-4">
+                    <Server className="w-8 h-8 text-primary-500" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-text-primary mb-2">
+                    MCP 분석 준비 완료
+                  </h3>
+                  <p className="text-text-secondary mb-6 max-w-md mx-auto">
+                    설정된 MCP 서버들을 통해 종합적인 프로젝트 분석을 수행합니다
+                  </p>
+                  <Button variant="primary" onClick={executeMCPAnalysis} size="lg">
+                    <Play className="w-4 h-4 mr-2" />
+                    MCP 분석 시작
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
-          <TabsContent value="questions">
-            {session && questions.length > 0 && (
+          <TabsContent value="questions" className="space-y-6">
+            {session && questions.length > 0 ? (
               <QuestionAnswer
                 sessionId={session.id}
                 questions={questions}
@@ -894,23 +919,24 @@ export const PreAnalysisPage: React.FC = () => {
                 onComplete={handleQuestionAnswerComplete}
                 disabled={loading}
               />
-            )}
-            {session && questions.length === 0 && (
-              <Card>
-                <CardContent className="py-12 text-center">
-                  <MessageSquare className="w-12 h-12 text-text-tertiary mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-text-primary mb-2">
-                    질문이 아직 생성되지 않았습니다
+            ) : (
+              <Card className="border-border-primary">
+                <CardContent className="py-16 text-center">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary-500/10 mb-4">
+                    <MessageSquare className="w-8 h-8 text-primary-500" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-text-primary mb-2">
+                    질문 생성 대기 중
                   </h3>
-                  <p className="text-text-secondary">
-                    분석 단계를 완료하면 맞춤형 질문이 자동으로 생성됩니다.
+                  <p className="text-text-secondary max-w-md mx-auto">
+                    분석 단계를 완료하면 AI가 프로젝트에 최적화된 질문을 자동으로 생성합니다
                   </p>
                 </CardContent>
               </Card>
             )}
           </TabsContent>
 
-          <TabsContent value="report">
+          <TabsContent value="report" className="space-y-6">
             {report ? (
               <AnalysisReport
                 report={report}
@@ -919,7 +945,6 @@ export const PreAnalysisPage: React.FC = () => {
 
                   try {
                     setLoading(true);
-                    // docx -> word 형식 변환
                     const exportFormat = format === 'docx' ? 'word' : format;
                     await ReportExporter.exportReport(
                       report,
@@ -940,22 +965,24 @@ export const PreAnalysisPage: React.FC = () => {
                 }}
                 onShare={() => {
                   console.log('Share report');
-                  // Handle report sharing
                 }}
               />
-            ) : session ? (
-              <Card>
-                <CardContent className="py-12 text-center">
-                  <FileText className="w-12 h-12 text-text-tertiary mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-text-primary mb-2">
-                    보고서가 아직 생성되지 않았습니다
+            ) : (
+              <Card className="border-border-primary">
+                <CardContent className="py-16 text-center">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary-500/10 mb-4">
+                    <FileText className="w-8 h-8 text-primary-500" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-text-primary mb-2">
+                    보고서 생성 대기 중
                   </h3>
-                  <p className="text-text-secondary mb-4">
-                    질문 답변을 완료하면 종합 분석 보고서가 생성됩니다.
+                  <p className="text-text-secondary mb-6 max-w-md mx-auto">
+                    질문 답변을 완료하면 AI가 종합 분석 보고서를 생성합니다
                   </p>
                   {currentStep === 'report' && (
                     <Button
                       variant="primary"
+                      size="lg"
                       disabled={loading || !aiModelState.selectedModelId}
                       onClick={generateFinalReport}
                     >
@@ -968,10 +995,10 @@ export const PreAnalysisPage: React.FC = () => {
                     </Button>
                   )}
 
-                  {/* 질문 답변이 완료되지 않은 경우 보고서 생성 버튼 */}
                   {questions.length > 0 && answers.length === questions.length && currentStep !== 'report' && (
                     <Button
                       variant="secondary"
+                      size="lg"
                       disabled={loading || !aiModelState.selectedModelId}
                       onClick={generateFinalReport}
                     >
@@ -985,10 +1012,12 @@ export const PreAnalysisPage: React.FC = () => {
                   )}
                 </CardContent>
               </Card>
-            ) : null}
+            )}
 
             {/* 워크플로우 전환 카드 */}
-            <WorkflowTransitionCard />
+            {completionStatus.canTransitionToProposal && overallProgress >= 100 && (
+              <WorkflowTransitionCard />
+            )}
           </TabsContent>
         </Tabs>
       </div>
