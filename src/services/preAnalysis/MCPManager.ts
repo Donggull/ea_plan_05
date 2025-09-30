@@ -806,7 +806,7 @@ export class MCPManager {
       }
 
       callback(status);
-    }, 10000); // 10초마다 체크
+    }, 30000); // 30초마다 체크 (리소스 절약)
 
     // Cleanup 함수 반환
     return () => clearInterval(checkInterval);

@@ -246,6 +246,14 @@ export default async function handler(
   try {
     const request: AICompletionRequest = req.body;
 
+    // API 키 상태 로깅 (디버깅용)
+    console.log('🔐 API 키 상태 확인:', {
+      openaiKey: process.env['OPENAI_API_KEY'] ? '설정됨' : '미설정',
+      anthropicKey: process.env['ANTHROPIC_API_KEY'] ? '설정됨' : '미설정',
+      googleKey: process.env['GOOGLE_AI_API_KEY'] ? '설정됨' : '미설정',
+      requestProvider: request.provider
+    });
+
     // 요청 검증
     if (!request.provider || !request.model || !request.messages) {
       return res.status(400).json({

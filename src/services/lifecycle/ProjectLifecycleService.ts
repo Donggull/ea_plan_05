@@ -258,14 +258,21 @@ export class ProjectLifecycleService {
         .from('project_lifecycle')
         .select('*')
         .eq('project_id', projectId)
-        .single()
+        .limit(1)
 
       if (error) {
         console.error('Failed to fetch lifecycle data:', error)
         return null
       }
 
-      return this.transformDatabaseToLifecycle(data)
+      // 데이터가 없으면 null 반환
+      if (!data || data.length === 0) {
+        return null
+      }
+
+      const lifecycleData = data[0]
+
+      return this.transformDatabaseToLifecycle(lifecycleData)
     } catch (error) {
       console.error('Failed to get lifecycle data:', error)
       return null
