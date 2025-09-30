@@ -93,7 +93,7 @@ export const PreAnalysisPage: React.FC = () => {
     error?: string;
     summary?: string;
   }>>([]);
-  const [selectedDepth, setSelectedDepth] = useState<'quick' | 'standard' | 'deep' | 'comprehensive'>('standard');
+  const [selectedDepth, setSelectedDepth] = useState<'quick' | 'standard' | 'deep' | 'comprehensive' | null>(null);
 
   // UI state
   const [activeTab, setActiveTab] = useState('setup');
@@ -943,42 +943,49 @@ export const PreAnalysisPage: React.FC = () => {
                           icon: '🎯'
                         }
                       ].map((depth) => (
-                        <Button
+                        <button
                           key={depth.id}
-                          variant="secondary"
-                          size="sm"
+                          type="button"
                           onClick={() => {
-                            console.log('🎯 분석 깊이 선택:', depth.id);
-                            console.log('세션 상태:', session ? '존재' : '없음');
-                            console.log('모델 선택:', aiModelState.selectedModelId);
+                            if (loading || !session || !aiModelState.selectedModelId || documentCount === 0) {
+                              return;
+                            }
+                            console.log('🎯 분석 깊이 선택 및 분석 시작:', depth.id);
+                            console.log('세션:', session?.id);
                             console.log('문서 수:', documentCount);
-                            executeAIAnalysis(depth.id as any);
+                            console.log('AI 모델:', aiModelState.selectedModelId);
+
+                            // 깊이를 선택하고 바로 분석 시작
+                            setSelectedDepth(depth.id as 'quick' | 'standard' | 'deep' | 'comprehensive');
+                            executeAIAnalysis(depth.id as 'quick' | 'standard' | 'deep' | 'comprehensive');
                           }}
                           disabled={loading || !aiModelState.selectedModelId || documentCount === 0 || !session}
                           className={`
-                            h-auto p-4 flex flex-col items-start text-left
-                            hover:border-primary-500/50 hover:bg-bg-tertiary transition-all
-                            ${selectedDepth === depth.id ? 'ring-2 ring-primary-500 bg-primary-500/10' : ''}
+                            h-auto p-4 flex flex-col items-start text-left rounded-lg border transition-all
+                            ${selectedDepth === depth.id
+                              ? 'ring-2 ring-primary-500 bg-primary-500/10 border-primary-500'
+                              : 'border-border-primary hover:border-primary-500/50 hover:bg-bg-tertiary'
+                            }
                             ${loading ? 'opacity-50 cursor-not-allowed' : ''}
-                            ${!session ? 'opacity-50 cursor-not-allowed' : ''}
+                            ${!session ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
                           `}
                           title={
                             !session ? '세션을 생성하는 중입니다...' :
                             documentCount === 0 ? '프로젝트에 문서를 먼저 업로드해주세요.' :
                             !aiModelState.selectedModelId ? 'AI 모델을 먼저 선택해주세요.' :
-                            depth.details
+                            '클릭하면 분석이 시작됩니다'
                           }
                         >
                           <div className="flex items-center gap-2 mb-2">
                             <span className="text-xl">{depth.icon}</span>
-                            <div className="font-semibold text-base">{depth.name}</div>
+                            <div className="font-semibold text-base text-text-primary">{depth.name}</div>
                           </div>
                           <div className="text-xs text-text-secondary font-medium">{depth.time}</div>
                           <div className="text-xs text-text-tertiary mt-1">{depth.desc}</div>
                           <div className="text-xs text-text-tertiary mt-2 line-clamp-2">
                             {depth.details}
                           </div>
-                        </Button>
+                        </button>
                       ))}
                     </div>
                   </div>
@@ -1006,11 +1013,11 @@ export const PreAnalysisPage: React.FC = () => {
                   </div>
                 )}
 
-                {documentCount > 0 && aiModelState.selectedModelId && (
+                {documentCount > 0 && aiModelState.selectedModelId && !loading && (
                   <div className="p-4 bg-accent-green/10 border border-accent-green/20 rounded-xl flex items-center gap-3">
                     <CheckCircle className="w-5 h-5 text-accent-green flex-shrink-0" />
                     <p className="text-sm text-text-primary">
-                      {documentCount}개의 문서가 분석 준비되었습니다. 분석 깊이를 선택해주세요.
+                      {documentCount}개의 문서가 분석 준비되었습니다. 분석 깊이를 선택하면 즉시 분석이 시작됩니다.
                     </p>
                   </div>
                 )}
