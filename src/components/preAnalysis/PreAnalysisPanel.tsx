@@ -88,18 +88,36 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
 
   const calculateProgress = (sessionData: PreAnalysisSession) => {
     const stepIndex = steps.findIndex(step => step.id === sessionData.currentStep);
-    const baseProgress = (stepIndex / steps.length) * 100;
 
-    // 현재 단계 내 세부 진행률 계산
+    // 각 단계별 가중치
+    const stepWeights = {
+      setup: 10,
+      analysis: 40,
+      questions: 30,
+      report: 20
+    };
+
+    let totalProgress = 0;
+
+    // 완료된 단계들의 진행률 더하기
+    for (let i = 0; i < stepIndex; i++) {
+      totalProgress += stepWeights[steps[i].id as keyof typeof stepWeights];
+    }
+
+    // 현재 단계의 세부 진행률 계산
+    const currentStepWeight = stepWeights[sessionData.currentStep as keyof typeof stepWeights] || 0;
     let stepProgress = 0;
+
     if (sessionData.currentStep === 'analysis') {
       stepProgress = sessionData.analysis_progress || 0;
     } else if (sessionData.currentStep === 'questions') {
       stepProgress = sessionData.questions_progress || 0;
+    } else if (sessionData.currentStep === 'report' && sessionData.status === 'completed') {
+      stepProgress = 100;
     }
 
-    const finalProgress = baseProgress + (stepProgress / steps.length);
-    setProgress(Math.min(finalProgress, 100));
+    totalProgress += (stepProgress / 100) * currentStepWeight;
+    setProgress(Math.min(totalProgress, 100));
   };
 
   const startAnalysis = async () => {

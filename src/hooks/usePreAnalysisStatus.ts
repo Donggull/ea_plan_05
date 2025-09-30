@@ -145,9 +145,29 @@ export function usePreAnalysisStatus(projectId: string) {
             currentStep = 'setup';
         }
 
-        // 분석 및 질문 수량 조회 (실제 구현에서는 데이터베이스에서 조회)
-        const analysisCount = 5; // 임시값
-        const questionCount = 8; // 임시값
+        // 실제 분석 및 질문 수량 조회
+        let analysisCount = 0;
+        let questionCount = 0;
+
+        // 문서 분석 수량 조회
+        const { count: docAnalysisCount } = await supabase
+          .from('ai_analysis')
+          .select('*', { count: 'exact', head: true })
+          .eq('project_id', projectId);
+
+        analysisCount = docAnalysisCount || 0;
+
+        // 질문 수량은 세션 메타데이터에서 확인
+        // metadata에 questions 배열이 있으면 그 길이를 사용
+        if (session.metadata && typeof session.metadata === 'object') {
+          const metadata = session.metadata as Record<string, any>;
+          if (Array.isArray(metadata['questions'])) {
+            questionCount = metadata['questions'].length;
+          } else if (typeof metadata['questionCount'] === 'number') {
+            questionCount = metadata['questionCount'];
+          }
+        }
+
         const reportExists = session.status === 'completed';
 
         setData({

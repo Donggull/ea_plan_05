@@ -299,23 +299,42 @@ export const PreAnalysisPage: React.FC = () => {
     const steps: AnalysisStep[] = ['setup', 'analysis', 'questions', 'report'];
     const currentStepIndex = steps.indexOf(currentStep);
 
-    // Add completed steps
+    // 완료된 단계들의 가중치 더하기
     for (let i = 0; i < currentStepIndex; i++) {
       progress += stepWeights[steps[i]];
     }
 
-    // Add current step progress
-    if (currentStep === 'analysis' && session?.status === 'processing') {
-      progress += 0.5 * stepWeights.analysis; // 50% progress for ongoing analysis
-    } else if (currentStep === 'questions' && questions.length > 0) {
-      const completedAnswers = answers.filter(a => a.answer?.trim().length > 0);
-      const questionProgress = (completedAnswers.length / questions.length) * 100;
-      progress += (questionProgress / 100) * stepWeights.questions;
-    } else if (currentStep === 'report' && report) {
-      progress += stepWeights.report;
+    // 현재 단계의 세부 진행률 계산
+    let stepProgress = 0;
+
+    if (currentStep === 'setup') {
+      // 설정 단계: 문서가 있고 AI 모델이 선택되면 완료
+      if (documentCount > 0 && aiModelState.selectedModelId) {
+        stepProgress = 100;
+      } else {
+        stepProgress = documentCount > 0 ? 50 : 0;
+      }
+    } else if (currentStep === 'analysis') {
+      // 분석 단계: 문서별 분석 진행률 기반
+      if (documentAnalysisItems.length > 0) {
+        const totalDocProgress = documentAnalysisItems.reduce((sum, doc) => sum + doc.progress, 0);
+        stepProgress = totalDocProgress / documentAnalysisItems.length;
+      } else if (session?.status === 'processing') {
+        stepProgress = 25; // 시작만 한 경우
+      }
+    } else if (currentStep === 'questions') {
+      // 질문/답변 단계: 답변 완료 비율
+      if (questions.length > 0) {
+        const completedAnswers = answers.filter(a => a.answer?.trim().length > 0);
+        stepProgress = (completedAnswers.length / questions.length) * 100;
+      }
+    } else if (currentStep === 'report') {
+      // 보고서 단계: 보고서 생성 완료 여부
+      stepProgress = report ? 100 : 0;
     }
 
-    setOverallProgress(Math.min(progress, 100));
+    progress += (stepProgress / 100) * stepWeights[currentStep];
+    setOverallProgress(Math.min(Math.round(progress), 100));
   };
 
 
