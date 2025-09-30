@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/Button';
 import { Progress } from '@/components/ui/Progress';
 import { Badge } from '@/components/ui/Badge';
 import { Loader2, Play, Settings, CheckCircle2, AlertCircle } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 import { preAnalysisService } from '@/services/preAnalysis/PreAnalysisService';
 import type { PreAnalysisSession, AnalysisStep } from '@/types/preAnalysis';
 
@@ -15,6 +16,9 @@ interface PreAnalysisPanelProps {
 export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
   projectId
 }) => {
+  // 인증 컨텍스트
+  const { user } = useAuth();
+
   const [session, setSession] = useState<PreAnalysisSession | null>(null);
   const [currentStep, setCurrentStep] = useState<AnalysisStep>('setup');
   const [loading, setLoading] = useState(false);
@@ -35,7 +39,7 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
   const loadSession = async () => {
     try {
       setLoading(true);
-      const sessionResponse = await preAnalysisService.getActiveSession(projectId);
+      const sessionResponse = await preAnalysisService.getActiveSession(projectId, user?.id);
       if (sessionResponse.success && sessionResponse.data) {
         setSession(sessionResponse.data);
         setCurrentStep(sessionResponse.data.currentStep || 'setup');

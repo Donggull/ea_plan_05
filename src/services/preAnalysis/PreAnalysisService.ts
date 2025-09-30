@@ -126,10 +126,28 @@ export class PreAnalysisService {
   /**
    * 활성 세션 조회
    */
-  async getActiveSession(projectId: string): Promise<ServiceResponse<PreAnalysisSession | null>> {
+  async getActiveSession(projectId: string, userId?: string): Promise<ServiceResponse<PreAnalysisSession | null>> {
     try {
       if (!supabase) {
         throw new Error('Supabase client not initialized');
+      }
+
+      // 사용자 ID가 제공된 경우 먼저 프로젝트 소유자 확인
+      if (userId) {
+        const { data: projectData, error: projectError } = await supabase
+          .from('projects')
+          .select('owner_id')
+          .eq('id', projectId)
+          .single();
+
+        if (projectError) {
+          console.error('프로젝트 조회 오류:', projectError);
+          throw new Error(`프로젝트를 찾을 수 없습니다: ${projectError.message}`);
+        }
+
+        if (projectData.owner_id !== userId) {
+          throw new Error('프로젝트에 대한 접근 권한이 없습니다');
+        }
       }
 
       const { data, error } = await supabase

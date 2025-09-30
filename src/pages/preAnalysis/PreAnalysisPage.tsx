@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 import { useAIModel } from '@/contexts/AIModelContext';
 import { useWorkflowIntegration } from '@/hooks/useWorkflowIntegration';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -49,6 +50,9 @@ import type {
 export const PreAnalysisPage: React.FC = () => {
   const { id: projectId } = useParams<{ id: string }>();
   const navigate = useNavigate();
+
+  // 인증 컨텍스트
+  const { user } = useAuth();
 
   // AI 모델 컨텍스트
   const {
@@ -132,7 +136,7 @@ export const PreAnalysisPage: React.FC = () => {
   const loadSession = async () => {
     try {
       setLoading(true);
-      const sessionResponse = await preAnalysisService.getActiveSession(projectId!);
+      const sessionResponse = await preAnalysisService.getActiveSession(projectId!, user?.id);
       const existingSession = sessionResponse.success ? sessionResponse.data : null;
 
       if (existingSession) {
