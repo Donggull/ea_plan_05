@@ -156,36 +156,38 @@ export class PreAnalysisService {
         .eq('project_id', projectId)
         .eq('status', 'processing')
         .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
+        .limit(1);
 
-      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+      if (error) {
         console.error('활성 세션 조회 오류:', error);
         return { success: false, error: error.message };
       }
 
-      if (!data) {
+      // 배열에서 첫 번째 요소를 가져옵니다 (없으면 null)
+      const sessionData = data && data.length > 0 ? data[0] : null;
+
+      if (!sessionData) {
         return { success: true, data: null };
       }
 
       // 데이터 변환
       const transformedSession: PreAnalysisSession = {
-        id: data.id,
-        projectId: data.project_id || '',
-        aiModel: data.ai_model || '',
-        aiProvider: data.ai_provider || '',
-        mcpConfig: (data.mcp_config as { filesystem: boolean; database: boolean; websearch: boolean; github: boolean; }) || { filesystem: false, database: false, websearch: false, github: false },
-        analysisDepth: (data.analysis_depth as AnalysisDepth) || 'standard',
-        status: (data.status as "completed" | "failed" | "cancelled" | "processing") || 'processing',
-        currentStep: (data as any).current_step || 'setup',
-        startedAt: data.started_at ? new Date(data.started_at) : new Date(),
-        completedAt: data.completed_at ? new Date(data.completed_at) : undefined,
-        processingTime: data.processing_time || 0,
-        totalCost: data.total_cost || 0,
-        createdBy: data.created_by || '',
-        createdAt: data.created_at ? new Date(data.created_at) : new Date(),
-        updatedAt: data.updated_at ? new Date(data.updated_at) : new Date(),
-        metadata: (data.metadata as Record<string, any>) || {},
+        id: sessionData.id,
+        projectId: sessionData.project_id || '',
+        aiModel: sessionData.ai_model || '',
+        aiProvider: sessionData.ai_provider || '',
+        mcpConfig: (sessionData.mcp_config as { filesystem: boolean; database: boolean; websearch: boolean; github: boolean; }) || { filesystem: false, database: false, websearch: false, github: false },
+        analysisDepth: (sessionData.analysis_depth as AnalysisDepth) || 'standard',
+        status: (sessionData.status as "completed" | "failed" | "cancelled" | "processing") || 'processing',
+        currentStep: (sessionData as any).current_step || 'setup',
+        startedAt: sessionData.started_at ? new Date(sessionData.started_at) : new Date(),
+        completedAt: sessionData.completed_at ? new Date(sessionData.completed_at) : undefined,
+        processingTime: sessionData.processing_time || 0,
+        totalCost: sessionData.total_cost || 0,
+        createdBy: sessionData.created_by || '',
+        createdAt: sessionData.created_at ? new Date(sessionData.created_at) : new Date(),
+        updatedAt: sessionData.updated_at ? new Date(sessionData.updated_at) : new Date(),
+        metadata: (sessionData.metadata as Record<string, any>) || {},
       };
 
       return {
