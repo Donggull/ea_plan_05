@@ -3,12 +3,15 @@ import { PreAnalysisService } from './PreAnalysisService';
 import { contextCache } from './ContextCache';
 import { contextManager } from './ContextManager';
 import { aiAnalysisService } from './AIAnalysisService';
+import { ParallelDocumentProcessor } from './ParallelDocumentProcessor';
+import { AIResponseCache } from './AIResponseCache';
 import type {
   MCPAnalysisResult,
   AnalysisStep,
   PreAnalysisSession
 } from '../../types/preAnalysis';
 import type { EnrichedContext } from './MCPAIBridge';
+import type { DocumentTask, ProcessingOptions } from './ParallelDocumentProcessor';
 
 /**
  * MCP 통합 서비스 (Enhanced with Context Caching)
@@ -19,10 +22,21 @@ export class MCPIntegrationService {
   private static instance: MCPIntegrationService;
   private mcpManager: MCPManager;
   private preAnalysisService: PreAnalysisService;
+  private parallelProcessor: ParallelDocumentProcessor;
+  private aiCache: AIResponseCache;
 
   private constructor() {
     this.mcpManager = MCPManager.getInstance();
     this.preAnalysisService = PreAnalysisService.getInstance();
+    this.parallelProcessor = ParallelDocumentProcessor.getInstance();
+    this.aiCache = AIResponseCache.getInstance({
+      maxSize: 500,
+      defaultTtl: 2 * 60 * 60 * 1000, // 2시간
+      maxMemoryMB: 50,
+      compressionEnabled: true,
+      persistToDisk: false,
+      autoCleanupInterval: 30 * 60 * 1000 // 30분
+    });
   }
 
   public static getInstance(): MCPIntegrationService {
@@ -585,6 +599,170 @@ export class MCPIntegrationService {
    */
   getCacheStatistics() {
     return contextCache.getStatistics();
+  }
+
+  /**
+   * 병렬 문서 분석 처리 (성능 최적화)
+   */
+  async processDocumentsInParallel(
+    documents: Array<{
+      fileName: string;
+      content: string;
+      metadata?: any;
+    }>,
+    sessionId: string,
+    modelConfig: { model: string; provider: string; temperature?: number },
+    options?: Partial<ProcessingOptions>
+  ) {
+    console.log(`🚀 병렬 문서 처리 시작: ${documents.length}개 문서`);
+
+    // 문서를 DocumentTask 형태로 변환
+    const documentTasks: DocumentTask[] = documents.map((doc, index) => ({
+      id: `${sessionId}_doc_${index}`,
+      fileName: doc.fileName,
+      content: doc.content,
+      priority: this.parallelProcessor.calculatePriority(doc),
+      estimatedTokens: this.parallelProcessor.estimateTokens(doc.content)
+    }));
+
+    // 대용량 문서 분할 처리
+    const processedTasks: DocumentTask[] = [];
+    for (const task of documentTasks) {
+      const splitTasks = this.parallelProcessor.splitLargeDocument(task, 8000);
+      processedTasks.push(...splitTasks);
+    }
+
+    // 병렬 처리 실행
+    const result = await this.parallelProcessor.processDocuments(
+      processedTasks,
+      sessionId,
+      modelConfig,
+      {
+        maxConcurrency: 3,
+        batchSize: 5,
+        timeoutMs: 30000,
+        retryAttempts: 2,
+        priorityBased: true,
+        ...options
+      }
+    );
+
+    console.log(`📊 병렬 처리 결과: ${result.completedTasks.length}개 성공, ${result.failedTasks.length}개 실패`);
+    console.log(`⚡ 성능 지표: ${result.performance.throughput.toFixed(2)} docs/sec`);
+
+    return result;
+  }
+
+  /**
+   * AI 응답 캐싱을 활용한 분석 (비용 최적화)
+   */
+  async analyzeWithCaching(
+    content: string,
+    modelConfig: { model: string; provider: string; temperature?: number },
+    analysisType: string = 'document_analysis'
+  ) {
+    const cacheKey = this.aiCache.generateCacheKey(
+      content,
+      modelConfig.model,
+      modelConfig.provider,
+      modelConfig.temperature || 0.7
+    );
+
+    console.log(`🔍 캐시 확인: ${cacheKey}`);
+
+    // 캐시에서 확인
+    let cachedResult = await this.aiCache.get(cacheKey);
+
+    if (!cachedResult) {
+      // 유사한 내용의 캐시 검색
+      const similarCache = await this.aiCache.findSimilarCache(
+        content,
+        modelConfig.model,
+        modelConfig.provider,
+        0.8
+      );
+
+      if (similarCache) {
+        console.log(`🔄 유사 캐시 발견: ${(similarCache.similarity * 100).toFixed(1)}% 유사도`);
+        cachedResult = similarCache.data;
+      }
+    }
+
+    if (cachedResult) {
+      console.log(`✨ 캐시 히트: 비용 절약 효과`);
+      return cachedResult;
+    }
+
+    // 캐시 미스 - 새로운 분석 실행
+    console.log(`🔄 새로운 분석 실행: ${analysisType}`);
+
+    // 임시 분석 결과 (실제 구현에서는 실제 AI 서비스 호출)
+    const analysisResult = {
+      summary: `${analysisType} 분석 결과`,
+      keyFindings: ['핵심 발견사항 1', '핵심 발견사항 2'],
+      recommendations: ['권장사항 1', '권장사항 2'],
+      confidence: 0.85,
+      processingTime: Math.random() * 2000 + 1000
+    };
+
+    const inputTokens = this.parallelProcessor.estimateTokens(content);
+    const outputTokens = Math.floor(inputTokens * 0.3);
+    const cost = (inputTokens * 0.00003) + (outputTokens * 0.00006); // GPT-4 기준 예시
+
+    // 스마트 TTL 계산하여 캐시 저장
+    const smartTtl = this.aiCache.calculateSmartTTL(
+      inputTokens,
+      outputTokens,
+      cost,
+      modelConfig.model
+    );
+
+    await this.aiCache.set(
+      cacheKey,
+      analysisResult,
+      {
+        model: modelConfig.model,
+        provider: modelConfig.provider,
+        inputTokens,
+        outputTokens,
+        cost,
+        content
+      },
+      smartTtl
+    );
+
+    return analysisResult;
+  }
+
+  /**
+   * 캐시 통계 및 병렬 처리 성능 지표 조회
+   */
+  getOptimizationMetrics() {
+    const cacheStats = this.aiCache.getStats();
+    const processingStatus = this.parallelProcessor.getProcessingStatus();
+
+    return {
+      cache: {
+        totalEntries: cacheStats.totalEntries,
+        hitRate: (cacheStats.hitRate * 100).toFixed(1),
+        costSavings: cacheStats.costSavings.toFixed(4),
+        averageAccessCount: cacheStats.averageAccessCount.toFixed(1)
+      },
+      parallelProcessing: {
+        activeJobs: processingStatus.activeJobs,
+        queueLength: processingStatus.queueLength,
+        concurrencyLimit: processingStatus.concurrencyLimit
+      }
+    };
+  }
+
+  /**
+   * 성능 최적화 시스템 정리
+   */
+  cleanup() {
+    this.parallelProcessor.cleanup();
+    this.aiCache.destroy();
+    console.log('🧹 MCPIntegrationService 성능 최적화 시스템 정리 완료');
   }
 }
 

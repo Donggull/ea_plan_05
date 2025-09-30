@@ -57,7 +57,8 @@
       "Bash(xcopy:*)",
       "Bash(git fetch:*)",
       "Bash(git commit:*)",
-      "Bash(git pull:*)"
+      "Bash(git pull:*)",
+      "Bash(npm test)"
     ],
     "deny": [],
     "ask": []
