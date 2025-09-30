@@ -38,51 +38,76 @@ export const AnalysisProgress: React.FC<AnalysisProgressProps> = ({
   session,
   onAction
 }) => {
-  const [steps] = useState<StepProgress[]>([
-    {
-      id: 'setup',
-      name: '초기 설정',
-      description: 'AI 모델 및 MCP 서버 설정',
-      status: 'completed',
-      progress: 100,
-      details: ['AI 모델 선택 완료', 'MCP 서버 연결 완료'],
-      estimatedTime: 30,
-      actualTime: 25
-    },
-    {
-      id: 'analysis',
-      name: '문서 분석',
-      description: '업로드된 문서 및 프로젝트 구조 분석',
-      status: 'running',
-      progress: 65,
-      details: [
-        '프로젝트 문서 스캔 (완료)',
-        '기술 스택 분석 (진행중)',
-        '요구사항 추출 (대기중)',
-        '리스크 분석 (대기중)'
-      ],
-      estimatedTime: 300,
-      actualTime: 195
-    },
-    {
-      id: 'questions',
-      name: '질문 생성',
-      description: 'AI 기반 맞춤형 질문 생성',
-      status: 'pending',
-      progress: 0,
-      details: ['질문 생성 대기중'],
-      estimatedTime: 120
-    },
-    {
-      id: 'report',
-      name: '보고서 생성',
-      description: '최종 분석 보고서 생성',
-      status: 'pending',
-      progress: 0,
-      details: ['보고서 생성 대기중'],
-      estimatedTime: 60
-    }
-  ]);
+  // 실제 세션 데이터 기반으로 단계 상태 계산
+  const [steps, setSteps] = useState<StepProgress[]>([]);
+
+  useEffect(() => {
+    // 세션 데이터 기반으로 단계별 상태 계산
+    const currentStep = session.currentStep || 'setup';
+    const sessionStatus = session.status || 'processing';
+
+    const stepsList: AnalysisStep[] = ['setup', 'analysis', 'questions', 'report'];
+    const currentStepIndex = stepsList.indexOf(currentStep);
+
+    // 각 단계별 실제 진행 상황 기반 details 생성 함수
+    const getAnalysisDetails = (): string[] => {
+      const progress = session.analysis_progress || 0;
+      if (progress === 0) return ['문서 분석 대기중'];
+      if (progress < 30) return ['문서 수집 중'];
+      if (progress < 70) return ['AI 분석 진행중'];
+      if (progress < 100) return ['분석 결과 정리중'];
+      return ['문서 분석 완료'];
+    };
+
+    const getQuestionsDetails = (): string[] => {
+      const progress = session.questions_progress || 0;
+      if (progress === 0) return ['질문 생성 대기중'];
+      if (progress < 50) return ['AI 질문 생성 중'];
+      if (progress < 100) return ['질문 검증 중'];
+      return ['질문 생성 완료'];
+    };
+
+    const newSteps: StepProgress[] = [
+      {
+        id: 'setup',
+        name: '초기 설정',
+        description: 'AI 모델 및 MCP 서버 설정',
+        status: currentStepIndex > 0 ? 'completed' : currentStepIndex === 0 ? 'running' : 'pending',
+        progress: currentStepIndex > 0 ? 100 : currentStepIndex === 0 ? 50 : 0,
+        details: currentStepIndex > 0 ? ['세션 생성 완료', 'AI 모델 설정 완료'] : currentStepIndex === 0 ? ['세션 생성 완료', 'AI 모델 설정 진행중'] : ['설정 대기중'],
+        estimatedTime: 30
+      },
+      {
+        id: 'analysis',
+        name: '문서 분석',
+        description: '업로드된 문서 및 프로젝트 구조 분석',
+        status: currentStepIndex > 1 ? 'completed' : currentStepIndex === 1 ? 'running' : 'pending',
+        progress: currentStepIndex > 1 ? 100 : currentStepIndex === 1 ? (session.analysis_progress || 0) : 0,
+        details: currentStepIndex >= 1 ? getAnalysisDetails() : ['문서 분석 대기중'],
+        estimatedTime: 300
+      },
+      {
+        id: 'questions',
+        name: '질문 생성',
+        description: 'AI 기반 맞춤형 질문 생성',
+        status: currentStepIndex > 2 ? 'completed' : currentStepIndex === 2 ? 'running' : 'pending',
+        progress: currentStepIndex > 2 ? 100 : currentStepIndex === 2 ? (session.questions_progress || 0) : 0,
+        details: currentStepIndex >= 2 ? getQuestionsDetails() : ['질문 생성 대기중'],
+        estimatedTime: 120
+      },
+      {
+        id: 'report',
+        name: '보고서 생성',
+        description: '최종 분석 보고서 생성',
+        status: currentStepIndex > 3 || sessionStatus === 'completed' ? 'completed' : currentStepIndex === 3 ? 'running' : 'pending',
+        progress: currentStepIndex > 3 || sessionStatus === 'completed' ? 100 : currentStepIndex === 3 ? 50 : 0,
+        details: sessionStatus === 'completed' ? ['보고서 생성 완료'] : currentStepIndex === 3 ? ['보고서 생성 중'] : ['보고서 생성 대기중'],
+        estimatedTime: 60
+      }
+    ];
+
+    setSteps(newSteps);
+  }, [session]);
 
   const [totalProgress, setTotalProgress] = useState(0);
   const [estimatedTimeRemaining, setEstimatedTimeRemaining] = useState(0);
