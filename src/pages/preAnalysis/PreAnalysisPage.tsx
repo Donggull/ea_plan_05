@@ -47,7 +47,7 @@ import type {
 } from '@/types/preAnalysis';
 
 export const PreAnalysisPage: React.FC = () => {
-  const { projectId } = useParams<{ projectId: string }>();
+  const { id: projectId } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
   // AI 모델 컨텍스트
