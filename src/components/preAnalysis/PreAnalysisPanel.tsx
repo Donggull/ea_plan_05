@@ -5,6 +5,7 @@ import { Progress } from '@/components/ui/Progress';
 import { Badge } from '@/components/ui/Badge';
 import { Loader2, Play, Settings, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAIModel } from '@/contexts/AIModelContext';
 import { preAnalysisService } from '@/services/preAnalysis/PreAnalysisService';
 import type { PreAnalysisSession, AnalysisStep } from '@/types/preAnalysis';
 
@@ -18,6 +19,9 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
 }) => {
   // 인증 컨텍스트
   const { user } = useAuth();
+
+  // AI 모델 컨텍스트
+  const { state: aiModelState } = useAIModel();
 
   const [session, setSession] = useState<PreAnalysisSession | null>(null);
   const [currentStep, setCurrentStep] = useState<AnalysisStep>('setup');
@@ -127,11 +131,27 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
       return;
     }
 
+    // AI 모델 선택 확인
+    const { selectedModelId, availableModels } = aiModelState;
+    const selectedModel = selectedModelId
+      ? availableModels.find(m => m.id === selectedModelId)
+      : availableModels[0];
+
+    if (!selectedModel) {
+      setError('AI 모델이 선택되지 않았습니다. 사이드바에서 AI 모델을 선택해주세요.');
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
 
       console.log('🚀 사전 분석 시작');
+      console.log('📌 선택된 AI 모델:', {
+        id: selectedModel.id,
+        provider: selectedModel.provider,
+        name: selectedModel.name
+      });
 
       // 1. 세션 생성
       setCurrentStep('setup');
@@ -141,9 +161,10 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
         projectId,
         {
           analysisDepth: 'standard',
-          mcpServers: { filesystem: true, database: true, websearch: false, github: false },
-          aiModel: 'gpt-4',
-          aiProvider: 'openai'
+          // MCP 연동은 추후 적용 예정 (일단 모두 비활성화)
+          mcpServers: { filesystem: false, database: false, websearch: false, github: false },
+          aiModel: selectedModel.id,
+          aiProvider: selectedModel.provider
         },
         user?.id || ''
       );
@@ -169,8 +190,8 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
         {
           projectId,
           sessionId: createdSession.id,
-          aiModel: 'gpt-4',
-          aiProvider: 'openai',
+          aiModel: selectedModel.id,
+          aiProvider: selectedModel.provider as 'openai' | 'anthropic' | 'google',
           analysisDepth: 'standard',
           userId: user?.id || '',
         },
@@ -210,8 +231,8 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
         projectId,
         sessionId: createdSession.id,
         analysisIds: analysisResult.analysisIds,
-        aiModel: 'gpt-4',
-        aiProvider: 'openai',
+        aiModel: selectedModel.id,
+        aiProvider: selectedModel.provider as 'openai' | 'anthropic' | 'google',
         questionCount: 10,
         userId: user?.id || '',
       });
