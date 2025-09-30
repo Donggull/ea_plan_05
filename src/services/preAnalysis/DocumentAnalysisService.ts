@@ -45,10 +45,10 @@ export class DocumentAnalysisService {
 
       console.log('📚 문서 분석 시작:', request.projectId);
 
-      // 1. 프로젝트 문서 조회
+      // 1. 프로젝트 문서 조회 (storage_path 포함)
       const { data: documents, error: docError } = await supabase
         .from('documents')
-        .select('id, file_name, file_type, file_size, created_at')
+        .select('id, file_name, file_type, file_size, storage_path, created_at')
         .eq('project_id', request.projectId)
         .order('created_at', { ascending: true });
 
@@ -91,26 +91,42 @@ export class DocumentAnalysisService {
         console.log(`\n🔍 문서 분석 중 (${i + 1}/${documents.length}): ${document.file_name}`);
 
         try {
-          // 문서 내용 조회
+          let documentContent: string | null = null;
+
+          // 1차: document_content 테이블에서 조회 시도
+          console.log(`📖 document_content 조회 시도: ${document.id}`);
           const { data: contentData, error: contentError } = await supabase
             .from('document_content')
             .select('raw_text, processed_text')
             .eq('document_id', document.id)
             .single();
 
-          if (contentError || !contentData) {
-            console.warn(`문서 내용 조회 실패: ${document.file_name}`, contentError);
-            failCount++;
-            continue;
+          if (contentError) {
+            console.error(`❌ document_content 조회 실패 (${document.file_name}):`, contentError);
+            console.error('   - 에러 코드:', contentError.code);
+            console.error('   - 에러 메시지:', contentError.message);
+            console.error('   - 문서 ID:', document.id);
           }
 
-          const documentContent = contentData.processed_text || contentData.raw_text;
+          if (contentData) {
+            console.log(`✅ document_content 조회 성공: ${document.file_name}`);
+            console.log(`   - raw_text 길이: ${contentData.raw_text?.length || 0}`);
+            console.log(`   - processed_text 길이: ${contentData.processed_text?.length || 0}`);
+            documentContent = contentData.processed_text || contentData.raw_text;
+          } else {
+            console.warn(`⚠️ document_content 데이터 없음: ${document.file_name}`);
+          }
 
           if (!documentContent || documentContent.trim().length === 0) {
-            console.warn(`문서 내용이 비어있음: ${document.file_name}`);
+            console.warn(`❌ 문서 내용을 가져올 수 없음: ${document.file_name}`);
+            console.warn(`   - contentData 존재: ${!!contentData}`);
+            console.warn(`   - contentError 존재: ${!!contentError}`);
+            console.warn(`   - documentContent 길이: ${documentContent?.length || 0}`);
             failCount++;
             continue;
           }
+
+          console.log(`📝 분석 준비 완료: ${document.file_name} (${documentContent.length}자)`);
 
           // AI 분석 수행
           const analysisResult = await this.analyzeDocument({

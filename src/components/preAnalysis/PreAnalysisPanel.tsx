@@ -200,6 +200,11 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
           const analysisProgress = 20 + (progressData.progress * 0.4);
           setProgress(Math.round(analysisProgress));
 
+          console.log(`📊 분석 진행: ${progressData.currentDocument}/${progressData.totalDocuments} (${progressData.progress}%)`);
+          if (progressData.currentDocumentName) {
+            console.log(`   - 현재 문서: ${progressData.currentDocumentName}`);
+          }
+
           // 세션 업데이트 (비동기로 실행하여 분석 프로세스 차단 방지)
           if (createdSession.id) {
             import('@/services/preAnalysis/SessionUpdateService').then(({ SessionUpdateService }) => {
@@ -213,8 +218,20 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
         }
       );
 
+      console.log('📊 문서 분석 결과:', {
+        success: analysisResult.success,
+        totalDocuments: analysisResult.totalDocuments,
+        successCount: analysisResult.successCount,
+        failCount: analysisResult.failCount,
+        analysisIdsLength: analysisResult.analysisIds.length,
+        error: analysisResult.error
+      });
+
       if (!analysisResult.success || analysisResult.analysisIds.length === 0) {
-        throw new Error(analysisResult.error || '문서 분석 실패');
+        const errorMsg = analysisResult.error ||
+          `문서 분석 실패: ${analysisResult.failCount}개 문서 분석 실패, ${analysisResult.successCount}개 성공`;
+        console.error('❌ 분석 실패:', errorMsg);
+        throw new Error(errorMsg);
       }
 
       console.log(`✅ 문서 분석 완료: ${analysisResult.successCount}/${analysisResult.totalDocuments}개`);
