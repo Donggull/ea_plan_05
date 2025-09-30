@@ -31,7 +31,7 @@ import {
   CheckCircle,
   AlertCircle
 } from 'lucide-react';
-import { preAnalysisService } from '@/services/preAnalysis/PreAnalysisService';
+import { preAnalysisService, PreAnalysisService } from '@/services/preAnalysis/PreAnalysisService';
 import { mcpIntegrationService } from '@/services/preAnalysis/MCPIntegrationService';
 import { aiAnalysisService } from '@/services/preAnalysis/AIAnalysisService';
 import { ReportGenerator } from '@/services/preAnalysis/ReportGenerator';
@@ -177,6 +177,55 @@ export const PreAnalysisPage: React.FC = () => {
     }
   }, [completionStatus.canTransitionToProposal, currentStep, overallProgress, transitionStatus.isTransitioning]);
 
+  const createNewSession = async () => {
+    if (!projectId || !user?.id) {
+      setError('프로젝트 ID 또는 사용자 정보를 찾을 수 없습니다.');
+      return;
+    }
+
+    try {
+      // 기본 AI 모델 선택 (사이드바에서 선택된 모델 또는 첫 번째 모델)
+      const { selectedModelId, availableModels } = aiModelState;
+      const model = selectedModelId
+        ? availableModels.find(m => m.id === selectedModelId)
+        : availableModels[0];
+
+      if (!model) {
+        setError('사용 가능한 AI 모델이 없습니다.');
+        return;
+      }
+
+      const sessionConfig = {
+        model: model.id,
+        provider: model.provider,
+        depth: 'standard' as const,
+        mcpConfig: {
+          filesystem: false,
+          database: false,
+          websearch: false,
+          github: false
+        }
+      };
+
+      const sessionResponse = await PreAnalysisService.startSession(
+        projectId,
+        sessionConfig,
+        user.id
+      );
+
+      if (sessionResponse.success && sessionResponse.data) {
+        setSession(sessionResponse.data);
+        setCurrentStep('setup');
+        console.log('✅ 새 세션 생성 완료:', sessionResponse.data.id);
+      } else {
+        setError(sessionResponse.error || '세션 생성 중 오류가 발생했습니다.');
+      }
+    } catch (err) {
+      console.error('❌ 세션 생성 오류:', err);
+      setError('세션 생성 중 예상치 못한 오류가 발생했습니다.');
+    }
+  };
+
   const loadSession = async () => {
     try {
       setLoading(true);
@@ -196,6 +245,9 @@ export const PreAnalysisPage: React.FC = () => {
         if (existingSession.currentStep === 'report') {
           await loadReport(existingSession.id);
         }
+      } else {
+        // 세션이 없으면 새로 생성
+        await createNewSession();
       }
     } catch (err) {
       setError('세션 로드 중 오류가 발생했습니다');
@@ -763,20 +815,41 @@ export const PreAnalysisPage: React.FC = () => {
           </TabsList>
 
           <TabsContent value="setup" className="space-y-6">
-            {/* 세션 시작 안내 */}
-            {!session && (
+            {/* 세션 생성 중 안내 */}
+            {!session && loading && (
               <Card className="border-border-primary bg-gradient-to-br from-bg-secondary to-bg-tertiary/50">
                 <CardContent className="py-8">
                   <div className="text-center space-y-4">
-                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary-500/10 mb-2">
-                      <Settings className="w-8 h-8 text-primary-500" />
-                    </div>
+                    <Loader2 className="w-12 h-12 mx-auto text-primary-500 animate-spin" />
                     <div>
                       <h3 className="text-xl font-semibold text-text-primary mb-2">
-                        사전 분석 시작하기
+                        세션을 생성하고 있습니다...
                       </h3>
                       <p className="text-text-secondary max-w-md mx-auto">
-                        AI 모델과 MCP 서버를 설정하여 프로젝트 사전 분석을 시작하세요
+                        잠시만 기다려주세요
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* 세션 준비 완료 안내 */}
+            {session && (
+              <Card className="border-border-primary bg-gradient-to-br from-accent-green/10 to-bg-tertiary/50 border-accent-green/20">
+                <CardContent className="py-6">
+                  <div className="flex items-center gap-4">
+                    <div className="flex-shrink-0">
+                      <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-accent-green/10">
+                        <CheckCircle className="w-6 h-6 text-accent-green" />
+                      </div>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-text-primary mb-1">
+                        사전 분석 준비 완료
+                      </h3>
+                      <p className="text-sm text-text-secondary">
+                        AI 모델과 MCP 서버 설정을 확인하고 분석 탭으로 이동하세요
                       </p>
                     </div>
                   </div>
@@ -868,14 +941,27 @@ export const PreAnalysisPage: React.FC = () => {
                           key={depth.id}
                           variant="secondary"
                           size="sm"
-                          onClick={() => executeAIAnalysis(depth.id as any)}
-                          disabled={loading || !aiModelState.selectedModelId || documentCount === 0}
+                          onClick={() => {
+                            console.log('🎯 분석 깊이 선택:', depth.id);
+                            console.log('세션 상태:', session ? '존재' : '없음');
+                            console.log('모델 선택:', aiModelState.selectedModelId);
+                            console.log('문서 수:', documentCount);
+                            executeAIAnalysis(depth.id as any);
+                          }}
+                          disabled={loading || !aiModelState.selectedModelId || documentCount === 0 || !session}
                           className={`
                             h-auto p-4 flex flex-col items-start text-left
                             hover:border-primary-500/50 hover:bg-bg-tertiary transition-all
+                            ${selectedDepth === depth.id ? 'ring-2 ring-primary-500 bg-primary-500/10' : ''}
                             ${loading ? 'opacity-50 cursor-not-allowed' : ''}
+                            ${!session ? 'opacity-50 cursor-not-allowed' : ''}
                           `}
-                          title={documentCount === 0 ? '프로젝트에 문서를 먼저 업로드해주세요.' : depth.details}
+                          title={
+                            !session ? '세션을 생성하는 중입니다...' :
+                            documentCount === 0 ? '프로젝트에 문서를 먼저 업로드해주세요.' :
+                            !aiModelState.selectedModelId ? 'AI 모델을 먼저 선택해주세요.' :
+                            depth.details
+                          }
                         >
                           <div className="flex items-center gap-2 mb-2">
                             <span className="text-xl">{depth.icon}</span>
@@ -1068,8 +1154,21 @@ export const PreAnalysisPage: React.FC = () => {
                   <p className="text-text-secondary mb-6 max-w-md mx-auto">
                     설정된 MCP 서버들을 통해 종합적인 프로젝트 분석을 수행합니다
                   </p>
-                  <Button variant="primary" onClick={executeMCPAnalysis} size="lg">
-                    <Play className="w-4 h-4 mr-2" />
+                  <Button
+                    variant="primary"
+                    onClick={() => {
+                      console.log('▶️ MCP 분석 시작 버튼 클릭');
+                      console.log('세션 상태:', session ? '존재' : '없음');
+                      executeMCPAnalysis();
+                    }}
+                    disabled={!session || mcpLoading}
+                    size="lg"
+                  >
+                    {mcpLoading ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Play className="w-4 h-4 mr-2" />
+                    )}
                     MCP 분석 시작
                   </Button>
                 </CardContent>
