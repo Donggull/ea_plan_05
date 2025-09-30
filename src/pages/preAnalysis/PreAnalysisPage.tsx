@@ -11,12 +11,11 @@ import { Progress } from '@/components/ui/Progress';
 import { PageContainer, PageHeader, PageContent } from '@/components/LinearComponents';
 import {
   AIModelStatus,
-  MCPConfiguration,
+  MCPControl,
   AnalysisProgress,
   QuestionAnswer,
   AnalysisReport
 } from '@/components/preAnalysis';
-import { MCPStatusIndicator } from '@/components/preAnalysis/MCPStatusIndicator';
 import {
   Settings,
   Brain,
@@ -638,52 +637,15 @@ export const PreAnalysisPage: React.FC = () => {
                   }
                 }}
               />
-              <MCPConfiguration
-                onConfigurationChange={handleMCPConfiguration}
+
+              {/* MCP 설정 및 상태 통합 */}
+              <MCPControl
+                variant="compact"
+                showMetrics={true}
                 disabled={loading}
+                onConfigurationChange={handleMCPConfiguration}
               />
             </div>
-
-            {/* MCP 상태 표시 */}
-            <Card className="border-border-primary">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-text-primary">
-                  <Server className="w-5 h-5" />
-                  MCP 서버 상태
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <MCPStatusIndicator
-                  variant="compact"
-                  showMetrics={true}
-                  onServerToggle={(serverId, enabled) => {
-                    console.log(`Server ${serverId} ${enabled ? 'enabled' : 'disabled'}`);
-                    // MCP 설정 업데이트 트리거
-                    if (session?.mcpConfig) {
-                      const sessionMcpConfig = session.mcpConfig as Record<string, boolean>;
-                      const currentServers = Object.keys(sessionMcpConfig).filter(key => sessionMcpConfig[key]);
-                      const enabledServers = enabled
-                        ? [...currentServers, serverId]
-                        : currentServers.filter(s => s !== serverId);
-
-                      const updatedMcpConfig: MCPConfig = {
-                        servers: {},
-                        defaultTimeout: 30000,
-                        maxRetries: 3,
-                        enabledServers,
-                        serverConfigs: {},
-                        globalSettings: {
-                          enableLogging: true,
-                          enableMetrics: true,
-                          enableRealtime: true
-                        }
-                      };
-                      handleMCPConfiguration(updatedMcpConfig);
-                    }
-                  }}
-                />
-              </CardContent>
-            </Card>
           </TabsContent>
 
           <TabsContent value="analysis" className="space-y-6">
