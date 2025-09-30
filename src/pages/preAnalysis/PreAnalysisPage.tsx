@@ -76,6 +76,7 @@ export const PreAnalysisPage: React.FC = () => {
   const [questions, setQuestions] = useState<AIQuestion[]>([]);
   const [documents] = useState<DocumentData[]>([]);
   const [answers, setAnswers] = useState<UserAnswer[]>([]);
+  const [documentCount, setDocumentCount] = useState(0);
   const [report, setReport] = useState<AnalysisReportType | null>(null);
 
   // MCP integration state
@@ -107,7 +108,38 @@ export const PreAnalysisPage: React.FC = () => {
     }
 
     loadSession();
+    checkDocuments();
   }, [projectId, navigate]);
+
+  const checkDocuments = async () => {
+    if (!projectId) return;
+
+    try {
+      const supabaseModule = await import('@/lib/supabase');
+      const supabaseClient = supabaseModule.supabase;
+
+      if (!supabaseClient) {
+        console.error('Supabase client not available');
+        setDocumentCount(0);
+        return;
+      }
+
+      const { data, error: docError } = await supabaseClient
+        .from('documents')
+        .select('id', { count: 'exact' })
+        .eq('project_id', projectId);
+
+      if (docError) {
+        console.error('문서 확인 오류:', docError);
+        setDocumentCount(0);
+      } else {
+        setDocumentCount(data?.length || 0);
+      }
+    } catch (err) {
+      console.error('문서 확인 중 오류:', err);
+      setDocumentCount(0);
+    }
+  };
 
   useEffect(() => {
     calculateOverallProgress();
@@ -293,6 +325,12 @@ export const PreAnalysisPage: React.FC = () => {
    */
   const executeAIAnalysis = async (depth: 'quick' | 'standard' | 'deep' | 'comprehensive' = 'standard') => {
     if (!session || !projectId) return;
+
+    // 문서 검증
+    if (documentCount === 0) {
+      setError('프로젝트에 분석할 문서가 없습니다. 먼저 문서를 업로드해주세요.');
+      return;
+    }
 
     const { selectedModelId, availableModels } = aiModelState;
     const selectedModel = selectedModelId ? availableModels.find(m => m.id === selectedModelId) : null;
@@ -672,8 +710,9 @@ export const PreAnalysisPage: React.FC = () => {
                           variant="secondary"
                           size="sm"
                           onClick={() => executeAIAnalysis(depth.id as any)}
-                          disabled={loading || !aiModelState.selectedModelId}
+                          disabled={loading || !aiModelState.selectedModelId || documentCount === 0}
                           className="h-auto p-3 flex flex-col items-start text-left"
+                          title={documentCount === 0 ? '프로젝트에 문서를 먼저 업로드해주세요.' : ''}
                         >
                           <div className="font-medium">{depth.name}</div>
                           <div className="text-xs text-text-secondary">{depth.desc}</div>
@@ -683,10 +722,30 @@ export const PreAnalysisPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {!aiModelState.selectedModelId && (
+                  {documentCount === 0 && (
+                    <div className="p-4 bg-semantic-warning/10 border border-semantic-warning/20 rounded-lg">
+                      <p className="text-sm text-semantic-warning font-medium">
+                        프로젝트 문서가 필요합니다
+                      </p>
+                      <p className="text-xs text-text-secondary mt-1">
+                        AI 분석을 시작하려면 먼저 프로젝트에 최소 1개 이상의 문서를 업로드해주세요.
+                      </p>
+                    </div>
+                  )}
+
+                  {!aiModelState.selectedModelId && documentCount > 0 && (
                     <div className="p-4 bg-semantic-warning/10 border border-semantic-warning/20 rounded-lg">
                       <p className="text-sm text-semantic-warning">
                         AI 분석을 시작하려면 먼저 사이드바에서 AI 모델을 선택해주세요.
+                      </p>
+                    </div>
+                  )}
+
+                  {documentCount > 0 && aiModelState.selectedModelId && (
+                    <div className="p-4 bg-accent-green/10 border border-accent-green/20 rounded-lg flex items-center gap-3">
+                      <CheckCircle className="w-5 h-5 text-accent-green" />
+                      <p className="text-sm text-text-primary">
+                        {documentCount}개의 문서가 분석 준비되었습니다. 분석 깊이를 선택해주세요.
                       </p>
                     </div>
                   )}

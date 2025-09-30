@@ -24,6 +24,8 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [documentCount, setDocumentCount] = useState(0);
+  const [isCheckingDocuments, setIsCheckingDocuments] = useState(true);
 
   const steps: { id: AnalysisStep; label: string; description: string }[] = [
     { id: 'setup', label: '설정', description: 'AI 모델 및 MCP 서버 설정' },
@@ -34,7 +36,39 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
 
   useEffect(() => {
     loadSession();
+    checkDocuments();
   }, [projectId]);
+
+  const checkDocuments = async () => {
+    try {
+      setIsCheckingDocuments(true);
+      const supabaseModule = await import('@/lib/supabase');
+      const supabaseClient = supabaseModule.supabase;
+
+      if (!supabaseClient) {
+        console.error('Supabase client not available');
+        setDocumentCount(0);
+        return;
+      }
+
+      const { data, error: docError } = await supabaseClient
+        .from('documents')
+        .select('id', { count: 'exact' })
+        .eq('project_id', projectId);
+
+      if (docError) {
+        console.error('문서 확인 오류:', docError);
+        setDocumentCount(0);
+      } else {
+        setDocumentCount(data?.length || 0);
+      }
+    } catch (err) {
+      console.error('문서 확인 중 오류:', err);
+      setDocumentCount(0);
+    } finally {
+      setIsCheckingDocuments(false);
+    }
+  };
 
   const loadSession = async () => {
     try {
@@ -69,6 +103,12 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
   };
 
   const startAnalysis = async () => {
+    // 문서 검증
+    if (documentCount === 0) {
+      setError('프로젝트에 분석할 문서가 없습니다. 먼저 문서를 업로드해주세요.');
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
@@ -142,8 +182,9 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
           {!session && (
             <Button
               onClick={startAnalysis}
-              disabled={loading}
-              className="bg-primary-500 hover:bg-primary-600 text-white"
+              disabled={loading || isCheckingDocuments || documentCount === 0}
+              className="bg-primary-500 hover:bg-primary-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              title={documentCount === 0 ? '프로젝트에 문서를 먼저 업로드해주세요.' : ''}
             >
               {loading ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -173,6 +214,27 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
           <div className="mb-6 p-4 bg-semantic-error/10 border border-semantic-error/20 rounded-lg flex items-center gap-3">
             <AlertCircle className="w-5 h-5 text-semantic-error flex-shrink-0" />
             <p className="text-semantic-error text-sm">{error}</p>
+          </div>
+        )}
+
+        {!session && !isCheckingDocuments && documentCount === 0 && !error && (
+          <div className="mb-6 p-4 bg-semantic-warning/10 border border-semantic-warning/20 rounded-lg flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-semantic-warning flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-semantic-warning text-sm font-medium">프로젝트 문서가 필요합니다</p>
+              <p className="text-text-secondary text-xs mt-1">
+                사전 분석을 시작하려면 먼저 프로젝트에 최소 1개 이상의 문서를 업로드해주세요.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {!session && !isCheckingDocuments && documentCount > 0 && !error && (
+          <div className="mb-6 p-4 bg-accent-green/10 border border-accent-green/20 rounded-lg flex items-center gap-3">
+            <CheckCircle2 className="w-5 h-5 text-accent-green flex-shrink-0" />
+            <p className="text-text-primary text-sm">
+              {documentCount}개의 문서가 분석 준비되었습니다. 분석 시작 버튼을 클릭하세요.
+            </p>
           </div>
         )}
 
