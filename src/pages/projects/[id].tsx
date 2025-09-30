@@ -452,13 +452,21 @@ export function ProjectDetailPage() {
                       )}
                     </div>
                   ) : (
-                    <button
-                      onClick={() => navigate(`/projects/${id}/pre-analysis`)}
-                      className="w-full px-3 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors text-sm font-medium"
-                      disabled={analysisStatusData.status === 'processing'}
-                    >
-                      {analysisStatusData.status === 'processing' ? '분석 진행 중...' : '사전 분석 시작'}
-                    </button>
+                    <div className="space-y-2">
+                      <button
+                        onClick={() => navigate(`/projects/${id}/pre-analysis`)}
+                        className="w-full px-3 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={analysisStatusData.status === 'processing' || documentCount === 0}
+                        title={documentCount === 0 ? '프로젝트에 문서를 먼저 업로드해주세요.' : ''}
+                      >
+                        {analysisStatusData.status === 'processing' ? '분석 진행 중...' : '사전 분석 시작'}
+                      </button>
+                      {documentCount === 0 && (
+                        <div className="text-xs text-semantic-warning text-center">
+                          분석할 문서를 먼저 업로드해주세요
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
 
@@ -532,13 +540,21 @@ export function ProjectDetailPage() {
               </div>
               <div className="space-y-2">
                 <button
-                  onClick={() => navigate(`/projects/${id}/pre-analysis`)}
-                  className="w-full flex items-center space-x-3 px-3 py-2.5 text-left text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors"
+                  onClick={() => documentCount > 0 && navigate(`/projects/${id}/pre-analysis`)}
+                  className={`w-full flex items-center space-x-3 px-3 py-2.5 text-left rounded-lg transition-colors ${
+                    documentCount === 0
+                      ? 'text-text-muted cursor-not-allowed opacity-50'
+                      : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary'
+                  }`}
+                  disabled={documentCount === 0}
+                  title={documentCount === 0 ? '프로젝트에 문서를 먼저 업로드해주세요.' : ''}
                 >
                   <BarChart3 className="w-4 h-4 text-purple-500" />
                   <div className="flex-1 text-left">
                     <div className="text-sm text-text-primary font-medium">사전 분석</div>
-                    <div className="text-xs text-text-secondary">AI 문서 분석 및 Q&A</div>
+                    <div className="text-xs text-text-secondary">
+                      {documentCount === 0 ? '문서 업로드 필요' : 'AI 문서 분석 및 Q&A'}
+                    </div>
                   </div>
                 </button>
                 <button
