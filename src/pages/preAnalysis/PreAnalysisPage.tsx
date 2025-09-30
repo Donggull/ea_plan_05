@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/Tabs';
 import { Progress } from '@/components/ui/Progress';
+import { PageContainer, PageHeader, PageContent } from '@/components/LinearComponents';
 import {
   AIModelStatus,
   MCPConfiguration,
@@ -548,48 +549,40 @@ export const PreAnalysisPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-bg-primary">
-      {/* Header */}
-      <div className="border-b border-border-primary bg-bg-secondary/50 backdrop-blur-sm sticky top-0 z-40">
-        <div className="mx-auto px-6 py-4" style={{ maxWidth: '1024px' }}>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="sm" onClick={goBack}>
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                프로젝트로 돌아가기
-              </Button>
-              <div className="h-6 w-px bg-border-primary" />
-              <div>
-                <h1 className="text-lg font-semibold text-text-primary">
-                  사전 분석
-                </h1>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              {session && (
-                <>
-                  <Badge variant="primary" size="sm">
-                    {Math.round(overallProgress)}% 완료
-                  </Badge>
-                  <Badge variant="primary" size="sm">
-                    {currentStep === 'setup' ? '설정' :
-                     currentStep === 'analysis' ? '분석중' :
-                     currentStep === 'questions' ? '질문답변' : '보고서'}
-                  </Badge>
-                </>
-              )}
-            </div>
+    <PageContainer>
+      <PageHeader
+        title="사전 분석"
+        subtitle="AI 기반 프로젝트 사전 분석"
+        description={session ? `${currentStep === 'setup' ? '설정' : currentStep === 'analysis' ? '분석중' : currentStep === 'questions' ? '질문답변' : '보고서'} 단계 진행중` : 'AI 모델과 MCP 서버를 설정하여 프로젝트 분석을 시작하세요'}
+        actions={
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="sm" onClick={goBack}>
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              프로젝트로 돌아가기
+            </Button>
+            {session && (
+              <>
+                <Badge variant="primary" size="sm">
+                  {Math.round(overallProgress)}% 완료
+                </Badge>
+                <Badge variant="primary" size="sm">
+                  {currentStep === 'setup' ? '설정' :
+                   currentStep === 'analysis' ? '분석중' :
+                   currentStep === 'questions' ? '질문답변' : '보고서'}
+                </Badge>
+              </>
+            )}
           </div>
+        }
+      />
 
-          {session && (
-            <Progress value={overallProgress} className="h-1.5" />
-          )}
+      {session && (
+        <div className="px-6 pb-4">
+          <Progress value={overallProgress} className="h-1.5" />
         </div>
-      </div>
+      )}
 
-      {/* Main Content */}
-      <div className="mx-auto px-6 py-8" style={{ maxWidth: '1024px' }}>
+      <PageContent>
         {error && (
           <Card className="mb-6 border-semantic-error/20 bg-semantic-error/5">
             <CardContent className="pt-6">
@@ -635,7 +628,7 @@ export const PreAnalysisPage: React.FC = () => {
             )}
 
             {/* AI 모델 및 MCP 설정 */}
-            <div className="grid grid-cols-1 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <AIModelStatus
                 variant="full"
                 onNavigateToSidebar={() => {
@@ -714,7 +707,7 @@ export const PreAnalysisPage: React.FC = () => {
                     <h3 className="text-sm font-semibold text-text-primary mb-1">분석 깊이 선택</h3>
                     <p className="text-xs text-text-tertiary">프로젝트에 적합한 분석 깊이를 선택하세요</p>
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                       {[
                         { id: 'quick', name: 'Quick', desc: '2-3분', time: '빠른 개요' },
                         { id: 'standard', name: 'Standard', desc: '5-10분', time: '표준 분석' },
@@ -1020,8 +1013,8 @@ export const PreAnalysisPage: React.FC = () => {
             )}
           </TabsContent>
         </Tabs>
-      </div>
-    </div>
+      </PageContent>
+    </PageContainer>
   );
 
   /**
