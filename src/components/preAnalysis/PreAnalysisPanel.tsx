@@ -131,6 +131,12 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
       setLoading(true);
       setError(null);
 
+      console.log('🚀 사전 분석 시작');
+
+      // 1. 세션 생성
+      setCurrentStep('setup');
+      setProgress(10);
+
       const sessionResponse = await preAnalysisService.startSession(
         projectId,
         {
@@ -141,13 +147,101 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
         },
         user?.id || ''
       );
-      if (sessionResponse.success && sessionResponse.data) {
-        setSession(sessionResponse.data);
+
+      if (!sessionResponse.success || !sessionResponse.data) {
+        throw new Error(sessionResponse.error || '세션 생성 실패');
       }
-      setCurrentStep('setup');
+
+      const createdSession = sessionResponse.data;
+      setSession(createdSession);
+
+      console.log('✅ 세션 생성 완료:', createdSession.id);
+
+      // 2. 문서 분석 단계
+      setCurrentStep('analysis');
+      setProgress(20);
+
+      console.log('📚 문서 분석 시작');
+
+      const { DocumentAnalysisService } = await import('@/services/preAnalysis/DocumentAnalysisService');
+
+      const analysisResult = await DocumentAnalysisService.analyzeProjectDocuments(
+        {
+          projectId,
+          sessionId: createdSession.id,
+          aiModel: 'gpt-4',
+          aiProvider: 'openai',
+          analysisDepth: 'standard',
+          userId: user?.id || '',
+        },
+        (progressData) => {
+          // 진행 상황 업데이트 (20% ~ 60% 범위)
+          const analysisProgress = 20 + (progressData.progress * 0.4);
+          setProgress(Math.round(analysisProgress));
+
+          // 세션 업데이트 (비동기로 실행하여 분석 프로세스 차단 방지)
+          if (createdSession.id) {
+            import('@/services/preAnalysis/SessionUpdateService').then(({ SessionUpdateService }) => {
+              SessionUpdateService.updateSessionProgress(
+                createdSession.id,
+                'analysis',
+                progressData.progress
+              );
+            });
+          }
+        }
+      );
+
+      if (!analysisResult.success || analysisResult.analysisIds.length === 0) {
+        throw new Error(analysisResult.error || '문서 분석 실패');
+      }
+
+      console.log(`✅ 문서 분석 완료: ${analysisResult.successCount}/${analysisResult.totalDocuments}개`);
+
+      // 3. 질문 생성 단계
+      setCurrentStep('questions');
+      setProgress(70);
+
+      console.log('❓ 질문 생성 시작');
+
+      const { QuestionGenerationService } = await import('@/services/preAnalysis/QuestionGenerationService');
+
+      const questionResult = await QuestionGenerationService.generateQuestions({
+        projectId,
+        sessionId: createdSession.id,
+        analysisIds: analysisResult.analysisIds,
+        aiModel: 'gpt-4',
+        aiProvider: 'openai',
+        questionCount: 10,
+        userId: user?.id || '',
+      });
+
+      if (!questionResult.success) {
+        console.warn('질문 생성 실패:', questionResult.error);
+        // 질문 생성 실패는 치명적이지 않으므로 계속 진행
+      } else {
+        console.log(`✅ 질문 생성 완료: ${questionResult.totalGenerated}개`);
+      }
+
+      setProgress(90);
+
+      // 4. 세션 완료 처리
+      const { SessionUpdateService } = await import('@/services/preAnalysis/SessionUpdateService');
+      await SessionUpdateService.updateSessionStatus(createdSession.id, 'completed');
+
+      setCurrentStep('report');
+      setProgress(100);
+
+      console.log('🎉 사전 분석 완료');
+
+      // 세션 재로드
+      await loadSession();
 
     } catch (err) {
-      setError('분석 시작 중 오류가 발생했습니다');
+      console.error('사전 분석 오류:', err);
+      setError(err instanceof Error ? err.message : '분석 시작 중 오류가 발생했습니다');
+      setProgress(0);
+      setCurrentStep('setup');
     } finally {
       setLoading(false);
     }
