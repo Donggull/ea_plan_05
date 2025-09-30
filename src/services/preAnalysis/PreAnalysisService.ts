@@ -12,6 +12,7 @@ import {
   ReportGenerationOptions,
   DocumentCategory,
   AnalysisDepth,
+  AnalysisStep,
 } from '../../types/preAnalysis';
 
 export class PreAnalysisService {
