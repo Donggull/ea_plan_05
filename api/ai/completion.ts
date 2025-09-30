@@ -2,7 +2,30 @@
 // 프론트엔드에서 직접 API 키에 접근할 수 없으므로 서버사이드에서 처리
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { allLatestModels } from '../src/services/ai/latestModelsData'
+
+// Model ID mapping: user-facing ID -> actual API model ID
+const MODEL_ID_MAP: Record<string, string> = {
+  // OpenAI
+  'openai-gpt-4.1': 'gpt-4.1',
+  'openai-gpt-4o': 'gpt-4o',
+  'openai-gpt-4o-mini': 'gpt-4o-mini',
+  'openai-gpt-4-turbo': 'gpt-4-turbo',
+  'openai-gpt-3.5-turbo': 'gpt-3.5-turbo',
+
+  // Anthropic
+  'anthropic-claude-opus-4': 'claude-opus-4-20250514',
+  'anthropic-claude-sonnet-4': 'claude-sonnet-4-20250514',
+  'anthropic-claude-sonnet-3-5': 'claude-3-5-sonnet-20241022',
+  'anthropic-claude-haiku-3-5': 'claude-3-5-haiku-20241022',
+  'anthropic-claude-opus-3': 'claude-3-opus-20240229',
+  'anthropic-claude-haiku-3': 'claude-3-haiku-20240307',
+
+  // Google
+  'google-gemini-2.0-flash-thinking': 'gemini-2.0-flash-thinking-exp-1219',
+  'google-gemini-2.0-flash': 'gemini-2.0-flash-exp',
+  'google-gemini-1.5-pro': 'gemini-1.5-pro',
+  'google-gemini-1.5-flash': 'gemini-1.5-flash',
+}
 
 interface CompletionRequest {
   provider: 'openai' | 'anthropic' | 'google'
@@ -52,11 +75,11 @@ interface CompletionResponse {
  * 예: 'anthropic-claude-sonnet-4' -> 'claude-sonnet-4-20250514'
  */
 function getActualModelId(userFacingId: string): string {
-  const modelInfo = allLatestModels.find(m => m.id === userFacingId)
+  const actualModelId = MODEL_ID_MAP[userFacingId]
 
-  if (modelInfo) {
-    console.log(`🔄 [Model Mapping] ${userFacingId} -> ${modelInfo.model_id}`)
-    return modelInfo.model_id
+  if (actualModelId) {
+    console.log(`🔄 [Model Mapping] ${userFacingId} -> ${actualModelId}`)
+    return actualModelId
   }
 
   // 매핑 실패 시 원본 ID 반환 (fallback)
