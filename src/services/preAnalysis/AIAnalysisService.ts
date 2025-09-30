@@ -1,5 +1,6 @@
-// AI 분석 서비스
+// AI 분석 서비스 (Enhanced with MCP Context)
 // 선택된 AI 모델을 사용하여 서버사이드 API를 통해 사전 분석 워크플로를 실행합니다.
+// MCP 컨텍스트를 활용하여 더 풍부하고 정확한 분석을 제공합니다.
 
 import type { AIModel } from '@/contexts/AIModelContext';
 import type {
@@ -10,6 +11,9 @@ import type {
   DocumentData
 } from '@/types/preAnalysis';
 import { questionGenerator } from './QuestionGenerator';
+import { contextManager } from './ContextManager';
+import { promptEngine, type EnhancedPrompt } from './PromptEngine';
+import type { EnrichedContext } from './MCPAIBridge';
 
 // AI API 응답 타입
 interface AICompletionResponse {
@@ -40,6 +44,10 @@ export interface AIAnalysisOptions {
     industry?: string;
     techStack?: string[];
   };
+  // MCP 컨텍스트 관련 옵션
+  enrichedContext?: EnrichedContext;
+  useContextEnhancement?: boolean;
+  analysisType?: 'project' | 'market' | 'technical' | 'comprehensive';
 }
 
 export interface AnalysisResult {
@@ -61,6 +69,15 @@ export interface AnalysisResult {
   }>;
   estimatedCost: number;
   confidence: number;
+  // API 응답에서 사용하는 추가 필드들
+  analysis?: string;
+  model?: string;
+  usage?: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
+  finishReason?: string;
 }
 
 export class AIAnalysisService {
@@ -74,7 +91,121 @@ export class AIAnalysisService {
   }
 
   /**
-   * 프로젝트 문서 분석 (서버사이드 API 사용)
+   * 컨텍스트 인식 프로젝트 분석 (MCP 컨텍스트 활용)
+   */
+  async analyzeProjectWithContext(options: AIAnalysisOptions): Promise<ServiceResponse<AnalysisResult>> {
+    try {
+      console.log('🧠 컨텍스트 인식 AI 분석 시작:', {
+        sessionId: options.sessionId,
+        useContext: options.useContextEnhancement,
+        analysisType: options.analysisType
+      });
+
+      // 1. 컨텍스트 수집 및 강화
+      let enrichedContext = options.enrichedContext;
+
+      if (options.useContextEnhancement && !enrichedContext) {
+        console.log('📡 MCP 컨텍스트 수집 중...');
+        enrichedContext = await contextManager.buildEnrichedContext(options.sessionId, {
+          includeProjectStructure: true,
+          includeMarketAnalysis: options.analysisType !== 'technical',
+          includeTechTrends: options.analysisType !== 'market',
+          analysisDepth: options.depth
+        });
+      }
+
+      // 2. 기본 프롬프트 생성
+      const basePrompt = this.buildAnalysisPrompt({
+        projectContext: options.projectContext,
+        documents: options.documents,
+        depth: options.depth
+      });
+
+      let finalPrompt: EnhancedPrompt;
+
+      // 3. 컨텍스트 기반 프롬프트 강화
+      if (enrichedContext && options.useContextEnhancement) {
+        console.log('⚡ 프롬프트 컨텍스트 강화:', {
+          dataSourceCount: enrichedContext.metadata.dataSourceCount,
+          confidence: (enrichedContext.metadata.totalConfidence * 100).toFixed(1) + '%'
+        });
+
+        finalPrompt = promptEngine.buildContextAwarePrompt(
+          basePrompt,
+          enrichedContext,
+          options.analysisType || 'comprehensive'
+        );
+      } else {
+        console.log('📝 기본 프롬프트 사용');
+        finalPrompt = {
+          systemPrompt: '당신은 프로젝트 사전 분석 전문가입니다. 주어진 문서와 정보를 바탕으로 체계적이고 상세한 분석을 수행해주세요.',
+          userPrompt: basePrompt,
+          contextSummary: '기본 분석 모드',
+          estimatedTokens: Math.ceil(basePrompt.length / 4),
+          metadata: {
+            hasProjectContext: false,
+            hasMarketContext: false,
+            hasTechContext: false,
+            contextConfidence: 0
+          }
+        };
+      }
+
+      // 4. AI 분석 실행
+      console.log('🤖 AI 분석 실행:', {
+        estimatedTokens: finalPrompt.estimatedTokens,
+        hasContext: finalPrompt.metadata.contextConfidence > 0
+      });
+
+      const response = await this.callServerAI({
+        provider: this.getProviderFromModel(options.model),
+        model: options.model.model_id,
+        messages: [
+          {
+            role: 'system',
+            content: finalPrompt.systemPrompt
+          },
+          {
+            role: 'user',
+            content: finalPrompt.userPrompt
+          }
+        ],
+        temperature: options.temperature,
+        maxTokens: this.getMaxTokensForDepth(options.depth)
+      });
+
+      if (!response.success) {
+        throw new Error(response.error || 'AI 분석 중 오류가 발생했습니다.');
+      }
+
+      // 5. 응답 파싱 및 컨텍스트 정보 추가
+      const analysisResult = this.parseEnhancedAnalysisResponse(
+        response.data!.content,
+        enrichedContext
+      );
+
+      console.log('✅ 컨텍스트 인식 분석 완료:', {
+        contextUsed: !!enrichedContext
+      });
+
+      return {
+        success: true,
+        data: {
+          ...analysisResult,
+          estimatedCost: response.data!.usage.totalTokens * 0.001,
+          confidence: this.calculateEnhancedConfidence(response.data!, options.depth, enrichedContext)
+        }
+      };
+
+    } catch (error) {
+      console.error('컨텍스트 인식 AI 분석 실패:', error);
+      // 실패 시 기본 분석으로 폴백
+      return this.analyzeProject(options);
+    }
+  }
+
+  /**
+   * 기본 프로젝트 문서 분석 (서버사이드 API 사용)
    */
   async analyzeProject(options: AIAnalysisOptions): Promise<ServiceResponse<AnalysisResult>> {
     try {
@@ -505,6 +636,159 @@ A: ${answers[i]?.answer || '답변 없음'}
 
     return Math.round(confidence * 100);
   }
+
+  /**
+   * 컨텍스트 강화된 분석 응답 파싱
+   */
+  private parseEnhancedAnalysisResponse(
+    content: string,
+    enrichedContext?: EnrichedContext
+  ): Omit<AnalysisResult, 'estimatedCost' | 'confidence'> {
+    try {
+      const baseResult = this.parseAnalysisResponse(content);
+
+      // 컨텍스트 정보가 있다면 추가 정보 병합
+      if (enrichedContext) {
+        return {
+          ...baseResult,
+          keyFindings: [
+            ...baseResult.keyFindings,
+            ...(this.extractContextInsights(enrichedContext))
+          ],
+          recommendations: [
+            ...baseResult.recommendations,
+            ...(this.generateContextRecommendations(enrichedContext))
+          ]
+        };
+      }
+
+      return baseResult;
+    } catch (error) {
+      console.error('Enhanced 분석 응답 파싱 실패:', error);
+      return this.parseAnalysisResponse(content);
+    }
+  }
+
+  /**
+   * 컨텍스트에서 추가 인사이트 추출
+   */
+  private extractContextInsights(context: EnrichedContext): string[] {
+    const insights: string[] = [];
+
+    if (context.projectStructure) {
+      if (context.projectStructure.complexity > 0.7) {
+        insights.push(`프로젝트 복잡도가 높음 (${(context.projectStructure.complexity * 100).toFixed(0)}%)`);
+      }
+
+      if (context.projectStructure.architecture.modularity > 0.8) {
+        insights.push('높은 모듈화 수준으로 유지보수성 우수');
+      }
+    }
+
+    if (context.marketInsights) {
+      if (context.marketInsights.trendScore > 0.7) {
+        insights.push('시장 트렌드 점수가 높아 사업 기회 존재');
+      }
+
+      if (context.marketInsights.competitors.length > 5) {
+        insights.push('경쟁이 치열한 시장 환경');
+      }
+    }
+
+    if (context.techAnalysis) {
+      if (context.techAnalysis.adoptionRate > 0.8) {
+        insights.push('기술 스택의 시장 채택률이 높음');
+      }
+
+      if (context.techAnalysis.riskFactors.length > 3) {
+        insights.push('기술적 위험 요소가 다수 식별됨');
+      }
+    }
+
+    return insights;
+  }
+
+  /**
+   * 컨텍스트 기반 권장사항 생성
+   */
+  private generateContextRecommendations(context: EnrichedContext): string[] {
+    const recommendations: string[] = [];
+
+    if (context.projectStructure) {
+      if (context.projectStructure.codeQuality.score < 0.6) {
+        recommendations.push('코드 품질 개선을 위한 리팩토링 검토 필요');
+      }
+
+      if (context.projectStructure.scalability.score < 0.5) {
+        recommendations.push('확장성 향상을 위한 아키텍처 재설계 고려');
+      }
+    }
+
+    if (context.marketInsights) {
+      if (context.marketInsights.opportunities.length > 0) {
+        recommendations.push(`시장 기회 활용 방안 검토: ${context.marketInsights.opportunities[0]}`);
+      }
+    }
+
+    if (context.techAnalysis) {
+      if (context.techAnalysis.recommendations.length > 0) {
+        recommendations.push(`기술 개선 권장: ${context.techAnalysis.recommendations[0]}`);
+      }
+    }
+
+    return recommendations;
+  }
+
+  /**
+   * 강화된 신뢰도 계산 (컨텍스트 고려)
+   */
+  private calculateEnhancedConfidence(
+    responseData: AICompletionResponse['data'],
+    depth: AnalysisDepth,
+    enrichedContext?: EnrichedContext
+  ): number {
+    if (!responseData) return 50;
+
+    // 기본 신뢰도 계산
+    let baseConfidence = this.calculateConfidence(responseData, depth);
+
+    // 컨텍스트 보너스 적용
+    if (enrichedContext) {
+      const contextBonus = enrichedContext.metadata.totalConfidence * 20; // 최대 20점 보너스
+      const dataSourceBonus = Math.min(enrichedContext.metadata.dataSourceCount * 5, 15); // 최대 15점
+
+      baseConfidence = Math.min(baseConfidence + contextBonus + dataSourceBonus, 100);
+    }
+
+    return Math.round(baseConfidence);
+  }
+
+  /**
+   * 컨텍스트 인식 질문 생성
+   */
+  async generateContextAwareQuestions(
+    options: AIAnalysisOptions
+  ): Promise<ServiceResponse<AIQuestion[]>> {
+    try {
+      // 컨텍스트 기반 질문 생성 옵션 구성
+      // QuestionGenerator에 컨텍스트 정보 전달하여 질문 생성
+      return await questionGenerator.generateQuestions(options.sessionId, {
+        analysisDepth: options.depth,
+        maxQuestions: this.getMaxQuestionsForDepth(options.depth),
+        includeOptionalQuestions: options.depth !== 'quick',
+        documentContext: options.documents,
+        analysisResults: undefined
+      });
+
+    } catch (error) {
+      console.error('컨텍스트 인식 질문 생성 실패:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : '질문 생성 중 오류가 발생했습니다.'
+      };
+    }
+  }
+
 }
 
 // 싱글톤 인스턴스 export

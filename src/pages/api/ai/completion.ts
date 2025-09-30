@@ -2,11 +2,14 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { contextCache } from '../../../services/preAnalysis/ContextCache';
+import { promptEngine } from '../../../services/preAnalysis/PromptEngine';
+import type { EnrichedContext } from '../../../services/preAnalysis/MCPAIBridge';
 
 // AI 프로바이더 타입
 type AIProvider = 'openai' | 'anthropic' | 'google';
 
-// 요청 타입
+// 요청 타입 (컨텍스트 지원 추가)
 interface AICompletionRequest {
   provider: AIProvider;
   model: string;
@@ -17,9 +20,19 @@ interface AICompletionRequest {
   temperature?: number;
   maxTokens?: number;
   stream?: boolean;
+  // MCP 컨텍스트 통합 필드
+  sessionId?: string;
+  useContext?: boolean;
+  analysisType?: 'project_analysis' | 'market_research' | 'tech_evaluation' | 'comprehensive';
+  contextOptions?: {
+    includeProjectStructure?: boolean;
+    includeMarketAnalysis?: boolean;
+    includeTechTrends?: boolean;
+    forceRefresh?: boolean;
+  };
 }
 
-// 응답 타입
+// 응답 타입 (컨텍스트 메타데이터 추가)
 interface AICompletionResponse {
   success: boolean;
   data?: {
@@ -31,6 +44,15 @@ interface AICompletionResponse {
     };
     model: string;
     finishReason?: string;
+    // 컨텍스트 관련 메타데이터
+    contextUsed?: boolean;
+    contextMetadata?: {
+      sessionId: string;
+      dataSourceCount: number;
+      totalConfidence: number;
+      lastUpdated: string;
+      cacheHit?: boolean;
+    };
   };
   error?: string;
 }
@@ -239,10 +261,68 @@ export default async function handler(
       });
     }
 
+    // MCP 컨텍스트 통합 처리
+    let enrichedContext: EnrichedContext | null = null;
+    let contextMessages = request.messages;
+
+    if (request.useContext && request.sessionId) {
+      try {
+        console.log(`🧠 컨텍스트 기반 AI 분석 시작: ${request.sessionId}`);
+
+        // 컨텍스트 수집 또는 캐시에서 조회
+        enrichedContext = await contextCache.getOrUpdate(
+          request.sessionId,
+          request.contextOptions || {},
+          request.contextOptions?.forceRefresh || false
+        );
+
+        // 컨텍스트 기반 프롬프트 생성
+        if (enrichedContext && request.analysisType) {
+          const mappedAnalysisType = (() => {
+            switch (request.analysisType) {
+              case 'project_analysis': return 'project' as const;
+              case 'market_research': return 'market' as const;
+              case 'tech_evaluation': return 'technical' as const;
+              default: return 'comprehensive' as const;
+            }
+          })();
+
+          const contextAwarePrompt = promptEngine.buildContextAwarePrompt(
+            request.messages[request.messages.length - 1]?.content || '',
+            enrichedContext,
+            mappedAnalysisType
+          );
+
+          // 기존 메시지를 컨텍스트 기반 프롬프트로 교체
+          contextMessages = [
+            {
+              role: 'system' as const,
+              content: contextAwarePrompt.systemPrompt
+            },
+            {
+              role: 'user' as const,
+              content: contextAwarePrompt.userPrompt
+            }
+          ];
+
+          console.log(`✅ 컨텍스트 기반 프롬프트 생성 완료 (신뢰도: ${(enrichedContext.metadata.totalConfidence * 100).toFixed(1)}%)`);
+        }
+      } catch (error) {
+        console.warn('⚠️ 컨텍스트 처리 실패, 기본 모드로 진행:', error);
+        // 컨텍스트 실패 시에도 기본 AI 호출은 계속 진행
+      }
+    }
+
     // AI 클라이언트 초기화
     const { openai, anthropic, google } = initializeClients();
 
     let result: AICompletionResponse;
+
+    // 컨텍스트 메시지를 사용하여 요청 객체 수정
+    const enhancedRequest = {
+      ...request,
+      messages: contextMessages
+    };
 
     switch (request.provider) {
       case 'openai':
@@ -252,7 +332,7 @@ export default async function handler(
             error: 'OpenAI API key not configured',
           });
         }
-        result = await callOpenAI(openai, request);
+        result = await callOpenAI(openai, enhancedRequest);
         break;
 
       case 'anthropic':
@@ -262,7 +342,7 @@ export default async function handler(
             error: 'Anthropic API key not configured',
           });
         }
-        result = await callAnthropic(anthropic, request);
+        result = await callAnthropic(anthropic, enhancedRequest);
         break;
 
       case 'google':
@@ -272,7 +352,7 @@ export default async function handler(
             error: 'Google AI API key not configured',
           });
         }
-        result = await callGoogle(google, request);
+        result = await callGoogle(google, enhancedRequest);
         break;
 
       default:
@@ -280,6 +360,22 @@ export default async function handler(
           success: false,
           error: `Unsupported provider: ${request.provider}`,
         });
+    }
+
+    // 컨텍스트 메타데이터 추가
+    if (result.success && result.data && enrichedContext) {
+      result.data.contextUsed = true;
+      result.data.contextMetadata = {
+        sessionId: enrichedContext.sessionId,
+        dataSourceCount: enrichedContext.metadata.dataSourceCount,
+        totalConfidence: enrichedContext.metadata.totalConfidence,
+        lastUpdated: enrichedContext.metadata.lastUpdated,
+        cacheHit: request.contextOptions?.forceRefresh ? false : true
+      };
+
+      console.log(`🎯 컨텍스트 기반 AI 분석 완료: ${enrichedContext.sessionId} (${enrichedContext.metadata.dataSourceCount}개 소스)`);
+    } else if (result.success && result.data) {
+      result.data.contextUsed = false;
     }
 
     // 성공/실패에 따른 상태 코드 설정
