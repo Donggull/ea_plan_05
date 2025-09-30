@@ -60,7 +60,7 @@ export class PreAnalysisService {
   /**
    * 새 세션 시작
    */
-  static async startSession(projectId: string, config: any): Promise<ServiceResponse<PreAnalysisSession>> {
+  static async startSession(projectId: string, config: any, userId: string): Promise<ServiceResponse<PreAnalysisSession>> {
     try {
       if (!supabase) {
         throw new Error('Supabase client not initialized');
@@ -76,7 +76,7 @@ export class PreAnalysisService {
           status: 'processing',
           started_at: new Date().toISOString(),
           total_cost: 0,
-          created_by: 'current-user', // TODO: 실제 사용자 ID
+          created_by: userId,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
           mcp_config: config.mcpConfig || {},

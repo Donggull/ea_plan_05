@@ -81,7 +81,7 @@ export const PreAnalysisPanel: React.FC<PreAnalysisPanelProps> = ({
           aiModel: 'gpt-4',
           aiProvider: 'openai'
         },
-        'current-user'
+        user?.id || ''
       );
       if (sessionResponse.success && sessionResponse.data) {
         setSession(sessionResponse.data);
