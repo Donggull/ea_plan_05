@@ -64,6 +64,13 @@ export default async function handler(
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
+  // 변수를 try 블록 밖에서 선언 (catch 블록에서도 접근 가능하도록)
+  let provider: 'openai' | 'anthropic' | 'google' | undefined
+  let model: string | undefined
+  let finalPrompt: string | undefined
+  let maxTokens: number | undefined
+  let temperature: number | undefined
+
   try {
     console.log('🚀 [Vercel API] AI 완성 요청 수신:', {
       timestamp: new Date().toISOString(),
@@ -73,7 +80,14 @@ export default async function handler(
       bodySize: req.body ? JSON.stringify(req.body).length : 0
     })
 
-    const { provider, model, prompt, messages, maxTokens, temperature, topP }: CompletionRequest = req.body
+    const requestBody: CompletionRequest = req.body
+    provider = requestBody.provider
+    model = requestBody.model
+    const prompt = requestBody.prompt
+    const messages = requestBody.messages
+    maxTokens = requestBody.maxTokens
+    temperature = requestBody.temperature
+    const topP = requestBody.topP
 
     console.log('📝 [Vercel API] 요청 파라미터:', {
       provider,
@@ -94,7 +108,7 @@ export default async function handler(
     }
 
     // messages를 prompt로 변환 (messages가 있고 prompt가 없는 경우)
-    let finalPrompt = prompt
+    finalPrompt = prompt
     if (!finalPrompt && messages) {
       // system + user messages를 하나의 prompt로 합침
       finalPrompt = messages.map(msg => {
