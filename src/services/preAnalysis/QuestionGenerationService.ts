@@ -126,8 +126,8 @@ export class QuestionGenerationService {
             questions: questions as any,
             questions_generated_at: new Date().toISOString(),
             total_questions: questions.length,
+            questions_progress: 100,
           },
-          questions_progress: 100,
           updated_at: new Date().toISOString(),
         })
         .eq('id', request.sessionId);

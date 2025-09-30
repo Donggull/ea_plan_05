@@ -19,21 +19,38 @@ export class SessionUpdateService {
         throw new Error('Supabase client not initialized');
       }
 
-      const updateData: Record<string, any> = {
+      // 기존 metadata 조회
+      const { data: session, error: fetchError } = await supabase
+        .from('pre_analysis_sessions')
+        .select('metadata')
+        .eq('id', sessionId)
+        .single();
+
+      if (fetchError) {
+        console.error('세션 조회 실패:', fetchError);
+        throw new Error(`세션 조회 실패: ${fetchError.message}`);
+      }
+
+      // 기존 metadata와 병합
+      const existingMetadata = (session?.metadata || {}) as Record<string, any>;
+      const newMetadata: Record<string, any> = {
+        ...existingMetadata,
         current_step: currentStep,
-        updated_at: new Date().toISOString(),
       };
 
       // 단계별 진행률 저장
       if (currentStep === 'analysis') {
-        updateData['analysis_progress'] = progress;
+        newMetadata['analysis_progress'] = progress;
       } else if (currentStep === 'questions') {
-        updateData['questions_progress'] = progress;
+        newMetadata['questions_progress'] = progress;
       }
 
       const { error } = await supabase
         .from('pre_analysis_sessions')
-        .update(updateData)
+        .update({
+          metadata: newMetadata,
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', sessionId);
 
       if (error) {
