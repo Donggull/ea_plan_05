@@ -33,7 +33,6 @@ import {
 } from 'lucide-react';
 import { preAnalysisService, PreAnalysisService } from '@/services/preAnalysis/PreAnalysisService';
 import { mcpIntegrationService } from '@/services/preAnalysis/MCPIntegrationService';
-import { aiAnalysisService } from '@/services/preAnalysis/AIAnalysisService';
 import { ReportGenerator } from '@/services/preAnalysis/ReportGenerator';
 import { ReportExporter } from '@/services/preAnalysis/ReportExporter';
 import type {
@@ -404,11 +403,11 @@ export const PreAnalysisPage: React.FC = () => {
   };
 
   /**
-   * AI 모델을 사용한 프로젝트 분석 실행 (MCP 통합 + 문서별 분석)
-   * 프로세스: 1차 문서 분석(MCP+AI) → 질문 생성 → 답변 수집 → 2차 통합 분석 → 최종 보고서
+   * AI 모델을 사용한 프로젝트 분석 실행
+   * 프로세스: 문서 분석(document_content에서 텍스트 추출) → 질문 생성 → 답변 수집 → 최종 보고서
    */
   const executeAIAnalysis = async (depth: 'quick' | 'standard' | 'deep' | 'comprehensive' = 'standard') => {
-    if (!session || !projectId) return;
+    if (!session || !projectId || !user) return;
 
     // 문서 검증
     if (documentCount === 0) {
@@ -427,152 +426,140 @@ export const PreAnalysisPage: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      setSelectedDepth(depth); // 분석 깊이 저장
+      setSelectedDepth(depth);
+      setCurrentStep('analysis');
 
-      console.log(`🚀 [Phase 1] 1차 문서 분석 시작 (깊이: ${depth})`);
-
-      // Step 0: 문서 분석 상태 초기화
-      setDocumentAnalysisItems(documents.map(doc => ({
-        documentId: doc.id,
-        documentName: doc.name,
-        status: 'pending' as const,
-        progress: 0
-      })));
-
-      // Step 1: MCP 컨텍스트 수집 (설정 단계에서 활성화된 MCP 서버 사용)
-      console.log('📡 MCP 컨텍스트 수집 중...');
-      await executeMCPAnalysis();
-
-      // Step 2: 문서별 개별 분석 (병렬 처리)
-      console.log(`📄 ${documents.length}개 문서 개별 분석 시작...`);
-      const documentAnalysisPromises = documents.map(async (doc) => {
-        // 분석 시작
-        setDocumentAnalysisItems(prev => prev.map(item =>
-          item.documentId === doc.id
-            ? { ...item, status: 'analyzing' as const, startTime: new Date(), progress: 0 }
-            : item
-        ));
-
-        try {
-          // 진행률 시뮬레이션 (실제로는 API에서 progress 이벤트를 받아야 함)
-          const progressInterval = setInterval(() => {
-            setDocumentAnalysisItems(prev => prev.map(item =>
-              item.documentId === doc.id && item.status === 'analyzing'
-                ? { ...item, progress: Math.min(item.progress + 10, 90) }
-                : item
-            ));
-          }, 500);
-
-          const result = await aiAnalysisService.analyzeProject({
-            model: selectedModel,
-            depth,
-            temperature: 0.7,
-            projectId,
-            sessionId: session.id,
-            documents: [doc], // 개별 문서 분석
-            projectContext: {
-              name: `프로젝트 ${projectId}`,
-              description: '사전 분석 대상 프로젝트',
-              industry: '웹 에이전시',
-              techStack: []
-            },
-            useContextEnhancement: true // MCP 컨텍스트 활용 플래그만 전달
-          });
-
-          clearInterval(progressInterval);
-
-          // 분석 완료
-          setDocumentAnalysisItems(prev => prev.map(item =>
-            item.documentId === doc.id
-              ? {
-                  ...item,
-                  status: 'completed' as const,
-                  progress: 100,
-                  endTime: new Date(),
-                  summary: result.data?.summary || '분석 완료'
-                }
-              : item
-          ));
-
-          return result;
-        } catch (error) {
-          // 분석 실패
-          setDocumentAnalysisItems(prev => prev.map(item =>
-            item.documentId === doc.id
-              ? {
-                  ...item,
-                  status: 'error' as const,
-                  endTime: new Date(),
-                  error: (error as Error).message || '분석 중 오류 발생'
-                }
-              : item
-          ));
-          throw error;
-        }
+      console.log(`🚀 문서 분석 시작 (깊이: ${depth})`);
+      console.log('📌 선택된 AI 모델:', {
+        id: selectedModel.id,
+        provider: selectedModel.provider,
+        name: selectedModel.name
       });
 
-      const documentAnalysisResults = await Promise.all(documentAnalysisPromises);
+      // DocumentAnalysisService를 사용하여 document_content에서 텍스트를 가져와 분석
+      const { DocumentAnalysisService } = await import('@/services/preAnalysis/DocumentAnalysisService');
 
-      // 실패한 분석 체크
-      const failedAnalyses = documentAnalysisResults.filter(r => !r.success);
-      if (failedAnalyses.length > 0) {
-        console.warn(`⚠️ ${failedAnalyses.length}개 문서 분석 실패`);
+      const analysisResult = await DocumentAnalysisService.analyzeProjectDocuments(
+        {
+          projectId,
+          sessionId: session.id,
+          aiModel: selectedModel.id,
+          aiProvider: selectedModel.provider as 'openai' | 'anthropic' | 'google',
+          analysisDepth: depth === 'comprehensive' ? 'deep' : depth,
+          userId: user.id,
+        },
+        (progressData) => {
+          // 진행 상황 업데이트
+          console.log(`📊 분석 진행: ${progressData.currentDocument}/${progressData.totalDocuments} (${progressData.progress}%)`);
+          if (progressData.currentDocumentName) {
+            console.log(`   - 현재 문서: ${progressData.currentDocumentName}`);
+          }
+
+          // 문서별 진행 상황 업데이트 (UI에 표시용)
+          setDocumentAnalysisItems(prev => {
+            const items = [...prev];
+            if (progressData.currentDocumentName) {
+              const existingIndex = items.findIndex(i => i.documentName === progressData.currentDocumentName);
+              if (existingIndex >= 0) {
+                items[existingIndex] = {
+                  ...items[existingIndex],
+                  status: 'analyzing',
+                  progress: progressData.progress
+                };
+              } else {
+                items.push({
+                  documentId: `doc-${items.length}`,
+                  documentName: progressData.currentDocumentName,
+                  status: 'analyzing',
+                  progress: progressData.progress
+                });
+              }
+            }
+            return items;
+          });
+        }
+      );
+
+      console.log('📊 문서 분석 결과:', {
+        success: analysisResult.success,
+        totalDocuments: analysisResult.totalDocuments,
+        successCount: analysisResult.successCount,
+        failCount: analysisResult.failCount,
+        analysisIdsLength: analysisResult.analysisIds.length,
+        error: analysisResult.error
+      });
+
+      if (!analysisResult.success || analysisResult.analysisIds.length === 0) {
+        const errorMsg = analysisResult.error ||
+          `문서 분석 실패: ${analysisResult.failCount}개 문서 분석 실패, ${analysisResult.successCount}개 성공`;
+        console.error('❌ 분석 실패:', errorMsg);
+        throw new Error(errorMsg);
       }
 
-      const successfulAnalyses = documentAnalysisResults.filter(r => r.success);
-      console.log(`✅ ${successfulAnalyses.length}개 문서 분석 완료`);
+      console.log(`✅ 문서 분석 완료: ${analysisResult.successCount}/${analysisResult.totalDocuments}개`);
 
-      // Step 3: 통합 분석 결과 저장
-      const combinedAnalysis = {
-        documentAnalyses: successfulAnalyses.map((result, idx) => ({
-          documentId: documents[idx].id,
-          documentName: documents[idx].name,
-          analysis: result.data
-        })),
-        mcpContext: mcpResults,
-        depth: selectedDepth, // 선택된 분석 깊이 사용
-        timestamp: new Date().toISOString()
-      };
+      // 질문 생성
+      console.log('❓ 질문 생성 시작');
+      const { QuestionGenerationService } = await import('@/services/preAnalysis/QuestionGenerationService');
 
-      // 세션에 1차 분석 결과 저장
-      setSession(prev => prev ? {
-        ...prev,
-        analysis_result: combinedAnalysis as any
-      } : null);
-
-      console.log('🎯 [Phase 2] 질문 생성 시작...');
-
-      // Step 4: 1차 분석 결과 기반 질문 생성
-      const questionsResult = await aiAnalysisService.generateQuestions({
-        model: selectedModel,
-        depth,
-        temperature: 0.8,
+      const questionResult = await QuestionGenerationService.generateQuestions({
         projectId,
         sessionId: session.id,
-        documents,
-        // 1차 분석 결과 포함
-        projectContext: {
-          name: `프로젝트 ${projectId}`,
-          description: `사전 분석 대상 프로젝트. 1차 분석 결과: ${JSON.stringify(combinedAnalysis).substring(0, 500)}...`,
-          industry: '웹 에이전시',
-          techStack: []
-        }
+        analysisIds: analysisResult.analysisIds,
+        aiModel: selectedModel.id,
+        aiProvider: selectedModel.provider as 'openai' | 'anthropic' | 'google',
+        questionCount: depth === 'quick' ? 5 : depth === 'standard' ? 10 : depth === 'deep' ? 15 : 25,
+        userId: user.id,
       });
 
-      if (questionsResult.success) {
-        setQuestions(questionsResult.data || []);
-        console.log(`✅ ${questionsResult.data?.length || 0}개 질문 생성 완료`);
+      if (!questionResult.success) {
+        console.warn('질문 생성 실패:', questionResult.error);
+        // 질문 생성 실패는 치명적이지 않으므로 계속 진행
       } else {
-        console.error('❌ 질문 생성 실패:', questionsResult.error);
+        console.log(`✅ 질문 생성 완료: ${questionResult.totalGenerated}개`);
+
+        // 카테고리 매핑 함수
+        const mapCategory = (cat: string): AIQuestion['category'] => {
+          const validCategories: AIQuestion['category'][] = ['technical', 'business', 'design', 'timeline', 'budget', 'stakeholders', 'risks'];
+          const lowerCat = cat.toLowerCase();
+
+          // 한글-영어 매핑
+          if (lowerCat.includes('기술') || lowerCat.includes('tech')) return 'technical';
+          if (lowerCat.includes('비즈니스') || lowerCat.includes('business') || lowerCat.includes('요구사항')) return 'business';
+          if (lowerCat.includes('디자인') || lowerCat.includes('design')) return 'design';
+          if (lowerCat.includes('일정') || lowerCat.includes('timeline') || lowerCat.includes('schedule')) return 'timeline';
+          if (lowerCat.includes('예산') || lowerCat.includes('budget') || lowerCat.includes('리소스')) return 'budget';
+          if (lowerCat.includes('이해관계') || lowerCat.includes('stakeholder')) return 'stakeholders';
+          if (lowerCat.includes('리스크') || lowerCat.includes('risk') || lowerCat.includes('위험')) return 'risks';
+
+          return validCategories.includes(cat as AIQuestion['category']) ? cat as AIQuestion['category'] : 'technical';
+        };
+
+        setQuestions(questionResult.questions.map((q, index) => ({
+          id: `q-${index}`,
+          sessionId: session.id,
+          question: q.question,
+          category: mapCategory(q.category),
+          importance: q.importance,
+          context: q.context,
+          createdAt: new Date(),
+          required: q.importance === 'high',
+          orderIndex: index,
+          generatedByAI: true
+        })));
       }
 
-      // Step 5: 다음 단계로 이동 (질문/답변 단계)
+      // 세션 완료 처리
+      const { SessionUpdateService } = await import('@/services/preAnalysis/SessionUpdateService');
+      await SessionUpdateService.updateSessionStatus(session.id, 'completed');
+
+      // 다음 단계로 이동
       setCurrentStep('questions');
-      console.log('✅ 1차 분석 완료 → 질문/답변 단계로 이동');
+      console.log('✅ 분석 완료 → 질문/답변 단계로 이동');
 
     } catch (err) {
       console.error('❌ AI 분석 실행 오류:', err);
-      setError('AI 분석 실행 중 예상치 못한 오류가 발생했습니다');
+      setError(err instanceof Error ? err.message : 'AI 분석 실행 중 예상치 못한 오류가 발생했습니다');
     } finally {
       setLoading(false);
     }
