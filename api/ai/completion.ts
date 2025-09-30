@@ -6,27 +6,44 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 interface CompletionRequest {
   provider: 'openai' | 'anthropic' | 'google'
   model: string
-  prompt: string
+  prompt?: string
+  messages?: Array<{
+    role: 'system' | 'user' | 'assistant'
+    content: string
+  }>
   maxTokens?: number
   temperature?: number
   topP?: number
 }
 
 interface CompletionResponse {
-  content: string
-  usage: {
+  success?: boolean
+  data?: {
+    content: string
+    usage: {
+      promptTokens: number
+      completionTokens: number
+      totalTokens: number
+    }
+    model: string
+    finishReason?: string
+  }
+  // 기존 형식 (하위 호환성)
+  content?: string
+  usage?: {
     inputTokens: number
     outputTokens: number
     totalTokens: number
   }
-  cost: {
+  cost?: {
     inputCost: number
     outputCost: number
     totalCost: number
   }
-  model: string
-  finishReason: string
-  responseTime: number
+  model?: string
+  finishReason?: string
+  responseTime?: number
+  error?: string
 }
 
 export default async function handler(
@@ -56,19 +73,36 @@ export default async function handler(
       bodySize: req.body ? JSON.stringify(req.body).length : 0
     })
 
-    const { provider, model, prompt, maxTokens, temperature, topP }: CompletionRequest = req.body
+    const { provider, model, prompt, messages, maxTokens, temperature, topP }: CompletionRequest = req.body
 
     console.log('📝 [Vercel API] 요청 파라미터:', {
       provider,
       model,
       promptLength: prompt?.length || 0,
+      messagesCount: messages?.length || 0,
       maxTokens,
       temperature
     })
 
-    if (!provider || !model || !prompt) {
-      console.error('❌ [Vercel API] 필수 파라미터 누락:', { provider, model, hasPrompt: !!prompt })
-      return res.status(400).json({ error: 'Missing required parameters' })
+    // prompt 또는 messages 중 하나는 필수
+    if (!provider || !model || (!prompt && (!messages || messages.length === 0))) {
+      console.error('❌ [Vercel API] 필수 파라미터 누락:', { provider, model, hasPrompt: !!prompt, hasMessages: !!messages })
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required parameters. Provider, model, and (prompt or messages) are required.'
+      })
+    }
+
+    // messages를 prompt로 변환 (messages가 있고 prompt가 없는 경우)
+    let finalPrompt = prompt
+    if (!finalPrompt && messages) {
+      // system + user messages를 하나의 prompt로 합침
+      finalPrompt = messages.map(msg => {
+        if (msg.role === 'system') return `[System]: ${msg.content}`
+        if (msg.role === 'user') return `[User]: ${msg.content}`
+        return msg.content
+      }).join('\n\n')
+      console.log('📝 [Vercel API] messages를 prompt로 변환 완료 (길이: ' + finalPrompt.length + ')')
     }
 
     // 환경 변수에서 API 키 가져오기
@@ -117,24 +151,49 @@ export default async function handler(
 
     console.log(`🤖 [Vercel API] AI 완성 요청 처리 시작: ${provider} ${model}`)
 
-    let response: CompletionResponse
+    let internalResponse: any
 
     switch (provider) {
       case 'anthropic':
-        response = await handleAnthropicRequest(apiKey, model, prompt, maxTokens, temperature, topP)
+        internalResponse = await handleAnthropicRequest(apiKey, model, finalPrompt, maxTokens, temperature, topP)
         break
       case 'openai':
-        response = await handleOpenAIRequest(apiKey, model, prompt, maxTokens, temperature, topP)
+        internalResponse = await handleOpenAIRequest(apiKey, model, finalPrompt, maxTokens, temperature, topP)
         break
       case 'google':
-        response = await handleGoogleAIRequest(apiKey, model, prompt, maxTokens, temperature, topP)
+        internalResponse = await handleGoogleAIRequest(apiKey, model, finalPrompt, maxTokens, temperature, topP)
         break
       default:
-        return res.status(400).json({ error: `지원하지 않는 프로바이더: ${provider}` })
+        return res.status(400).json({
+          success: false,
+          error: `지원하지 않는 프로바이더: ${provider}`
+        })
     }
 
-    console.log(`✅ [Vercel API] AI 응답 완료: ${response.usage.totalTokens} 토큰, $${response.cost.totalCost.toFixed(4)}`)
-    return res.status(200).json(response)
+    // 응답 형식 변환: DocumentAnalysisService가 기대하는 형식으로
+    const standardizedResponse: CompletionResponse = {
+      success: true,
+      data: {
+        content: internalResponse.content || '',
+        usage: {
+          promptTokens: internalResponse.usage?.inputTokens || 0,
+          completionTokens: internalResponse.usage?.outputTokens || 0,
+          totalTokens: internalResponse.usage?.totalTokens || 0
+        },
+        model: internalResponse.model || model,
+        finishReason: internalResponse.finishReason
+      },
+      // 하위 호환성을 위한 기존 형식도 포함
+      content: internalResponse.content,
+      usage: internalResponse.usage,
+      cost: internalResponse.cost,
+      model: internalResponse.model,
+      finishReason: internalResponse.finishReason,
+      responseTime: internalResponse.responseTime
+    }
+
+    console.log(`✅ [Vercel API] AI 응답 완료: ${standardizedResponse.data?.usage.totalTokens} 토큰, $${internalResponse.cost?.totalCost.toFixed(4) || 0}`)
+    return res.status(200).json(standardizedResponse)
 
   } catch (error) {
     console.error('❌ [Vercel API] AI 완성 처리 오류 상세:', {
@@ -142,13 +201,14 @@ export default async function handler(
       stack: error instanceof Error ? error.stack : undefined,
       provider,
       model,
-      promptLength: prompt?.length || 0,
+      promptLength: finalPrompt?.length || 0,
       maxTokens,
       temperature,
       timestamp: new Date().toISOString()
     })
     return res.status(500).json({
-      error: '서버 오류가 발생했습니다.',
+      success: false,
+      error: error instanceof Error ? error.message : '서버 오류가 발생했습니다.',
       details: error instanceof Error ? error.message : String(error),
       provider,
       timestamp: new Date().toISOString()
