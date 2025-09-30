@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 import { PreAnalysisSession, AnalysisDepth } from '@/types/preAnalysis';
 
 interface PreAnalysisStatusData {
@@ -15,6 +16,9 @@ interface PreAnalysisStatusData {
 }
 
 export function usePreAnalysisStatus(projectId: string) {
+  // 인증 컨텍스트
+  const { user } = useAuth();
+
   const [data, setData] = useState<PreAnalysisStatusData>({
     status: 'idle',
     progress: 0,
@@ -38,6 +42,34 @@ export function usePreAnalysisStatus(projectId: string) {
         // 최근 사전 분석 세션 조회
         if (!supabase) {
           throw new Error('Supabase client not initialized');
+        }
+
+        // 사용자 ID가 있는 경우 먼저 프로젝트 소유자 확인
+        if (user?.id) {
+          const { data: projectData, error: projectError } = await supabase
+            .from('projects')
+            .select('owner_id')
+            .eq('id', projectId)
+            .single();
+
+          if (projectError) {
+            console.error('프로젝트 조회 오류:', projectError);
+            setData(prev => ({
+              ...prev,
+              status: 'failed',
+              error: `프로젝트를 찾을 수 없습니다: ${projectError.message}`,
+            }));
+            return;
+          }
+
+          if (projectData.owner_id !== user.id) {
+            setData(prev => ({
+              ...prev,
+              status: 'failed',
+              error: '프로젝트에 대한 접근 권한이 없습니다',
+            }));
+            return;
+          }
         }
 
         const { data: sessions, error } = await supabase
@@ -163,7 +195,7 @@ export function usePreAnalysisStatus(projectId: string) {
     return () => {
       subscription?.unsubscribe();
     };
-  }, [projectId]);
+  }, [projectId, user]);
 
   return {
     ...data,
