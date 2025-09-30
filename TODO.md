@@ -418,3 +418,45 @@
 **🤖 AI 통합**: MCP-AI 브리지 시스템으로 맥락 인식 AI 분석 지원
 **🗄️ 데이터베이스**: 완전 최적화된 Supabase 스키마 및 실시간 동기화
 **🧪 테스트**: 완전한 단위 테스트 커버리지 및 성능 최적화
+
+---
+
+## 🔧 Phase 9: 운영 이슈 해결 ✅ (2025-09-30)
+
+### 📊 사전 분석 시작 버튼 406 오류 해결 완료
+- [x] **문제 진단**: `pre_analysis_sessions` 테이블 RLS 정책 불일치
+  - 기존 정책: `created_by = auth.uid()` (사용자 기준)
+  - 쿼리 방식: `project_id` 기반 세션 조회
+  - 결과: 406 (Not Acceptable) 오류 발생
+
+- [x] **RLS 정책 수정 완료**
+  ```sql
+  -- 기존 정책 삭제
+  DROP POLICY IF EXISTS "pre_analysis_sessions_own_only" ON pre_analysis_sessions;
+
+  -- 새로운 프로젝트 기반 접근 정책 생성
+  CREATE POLICY "pre_analysis_sessions_project_access" ON pre_analysis_sessions
+  FOR ALL
+  USING (
+      project_id IN (
+          SELECT id FROM projects WHERE owner_id = auth.uid()
+      )
+  )
+  WITH CHECK (
+      project_id IN (
+          SELECT id FROM projects WHERE owner_id = auth.uid()
+      )
+  );
+  ```
+
+- [x] **검증 완료**
+  - 406 오류 완전 해결 확인
+  - 콘솔 로그에서 더 이상 406 오류 미발생
+  - 자신의 프로젝트 내 세션만 접근 가능하도록 보안 유지
+  - 프로젝트 소유자 권한 기반 적절한 접근 제어
+
+### 🎯 해결 결과
+- ✅ **사전 분석 시작 기능 정상화**: 버튼 클릭 시 정상 작동
+- ✅ **보안 정책 강화**: 프로젝트 기반 접근 제어로 더 안전한 구조
+- ✅ **사용자 경험 개선**: 더 이상 406 오류로 인한 중단 없음
+- ✅ **시스템 안정성 향상**: RLS 정책 정렬로 일관된 접근 제어
