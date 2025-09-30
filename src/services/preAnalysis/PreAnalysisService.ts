@@ -1928,7 +1928,12 @@ ${answersContext}
             body: JSON.stringify({
               provider,
               model,
-              prompt,
+              messages: [
+                {
+                  role: 'user',
+                  content: prompt
+                }
+              ],
               maxTokens,
               temperature
             }),
@@ -1955,12 +1960,29 @@ ${answersContext}
           }
 
           const data = await response.json();
+
+          // API가 성공적으로 응답했는지 확인
+          if (!data.success) {
+            throw new Error(data.error || 'AI API 호출 실패');
+          }
+
           console.log(`✅ [통합 API] 성공 (${attempt + 1}차 시도)`, {
-            inputTokens: data.usage?.inputTokens,
-            outputTokens: data.usage?.outputTokens,
-            cost: data.cost?.totalCost
+            inputTokens: data.data?.usage?.promptTokens,
+            outputTokens: data.data?.usage?.completionTokens,
+            totalTokens: data.data?.usage?.totalTokens
           });
-          return data;
+
+          // 기존 형식에 맞춰 반환
+          return {
+            content: data.data?.content,
+            usage: {
+              inputTokens: data.data?.usage?.promptTokens || 0,
+              outputTokens: data.data?.usage?.completionTokens || 0,
+              totalTokens: data.data?.usage?.totalTokens || 0
+            },
+            model: data.data?.model,
+            finishReason: data.data?.finishReason
+          };
 
         } catch (fetchError) {
           clearTimeout(timeoutId);
