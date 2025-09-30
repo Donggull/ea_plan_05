@@ -1,4 +1,4 @@
-import { createHash } from 'crypto';
+import CryptoJS from 'crypto-js';
 
 export interface CacheEntry {
   key: string;
@@ -87,9 +87,7 @@ export class AIResponseCache {
       ...additionalParams
     };
 
-    const hash = createHash('sha256')
-      .update(JSON.stringify(inputData))
-      .digest('hex');
+    const hash = CryptoJS.SHA256(JSON.stringify(inputData)).toString();
 
     return `${provider}_${model}_${hash.substring(0, 16)}`;
   }
@@ -148,7 +146,7 @@ export class AIResponseCache {
     await this.ensureMemoryLimit();
 
     // 컨텐츠 해시 생성
-    const contentHash = createHash('md5').update(metadata.content).digest('hex');
+    const contentHash = CryptoJS.MD5(metadata.content).toString();
 
     const entry: CacheEntry = {
       key: cacheKey,
@@ -209,7 +207,7 @@ export class AIResponseCache {
     provider: string,
     similarityThreshold: number = 0.8
   ): Promise<{ key: string; data: any; similarity: number } | null> {
-    const contentHash = createHash('md5').update(content).digest('hex');
+    const contentHash = CryptoJS.MD5(content).toString();
 
     let bestMatch: { key: string; data: any; similarity: number } | null = null;
     let bestSimilarity = 0;
