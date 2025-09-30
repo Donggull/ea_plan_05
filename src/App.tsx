@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { AIModelProvider } from '@/contexts/AIModelContext'
 import { ProjectProvider } from '@/contexts/ProjectContext'
+import { MCPProvider } from '@/contexts/MCPContext'
 import { HomePage } from '@/pages/HomePage'
 import { LoginPage } from '@/pages/LoginPage'
 import { SignupPage } from '@/pages/SignupPage'
@@ -44,7 +45,8 @@ function App() {
       <AuthProvider>
         <ProjectProvider>
           <AIModelProvider>
-            <Routes>
+            <MCPProvider autoRefreshInterval={10000} enableRealtimeSync={true}>
+              <Routes>
           {/* Public Routes */}
           <Route path="/" element={<HomePage />} />
 
@@ -91,9 +93,10 @@ function App() {
               <Route path="/admin/*" element={<AdminRoutes />} />
             </Route>
           </Route>
-            </Routes>
+              </Routes>
 
-            <Toaster position="bottom-right" />
+              <Toaster position="bottom-right" />
+            </MCPProvider>
           </AIModelProvider>
         </ProjectProvider>
       </AuthProvider>

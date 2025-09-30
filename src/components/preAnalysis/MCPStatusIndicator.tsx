@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -16,15 +16,7 @@ import {
   FolderOpen,
   Clock,
 } from 'lucide-react';
-import { MCPManager } from '@/services/preAnalysis/MCPManager';
-import { mcpIntegrationService } from '@/services/preAnalysis/MCPIntegrationService';
-
-interface MCPServerStatus {
-  connected: boolean;
-  responseTime: number;
-  lastCheck: Date;
-  error?: string;
-}
+import { useMCP, useMCPStatus } from '@/contexts/MCPContext';
 
 interface MCPStatusIndicatorProps {
   variant?: 'full' | 'compact' | 'sidebar';
@@ -37,11 +29,23 @@ export const MCPStatusIndicator: React.FC<MCPStatusIndicatorProps> = ({
   showMetrics = true,
   onServerToggle
 }) => {
-  const [serverStatus, setServerStatus] = useState<Record<string, MCPServerStatus>>({});
-  const [loading, setLoading] = useState(true);
-  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  // MCP Context 사용
+  const {
+    toggleServer,
+    refreshStatus,
+    isServerEnabled
+  } = useMCP();
 
-  const mcpManager = MCPManager.getInstance();
+  const {
+    servers,
+    serverStatus,
+    connectedCount,
+    totalCount,
+    healthScore,
+    isLoading,
+    isRefreshing,
+    lastUpdate
+  } = useMCPStatus();
 
   const serverConfig = {
     filesystem: {
@@ -68,76 +72,28 @@ export const MCPStatusIndicator: React.FC<MCPStatusIndicatorProps> = ({
       description: '오픈소스 분석',
       color: 'text-text-secondary'
     }
-  };
+  } as const;
 
-  useEffect(() => {
-    let cleanup: (() => void) | undefined;
-
-    const initializeMonitoring = async () => {
-      try {
-        setLoading(true);
-
-        // 초기 상태 체크
-        await checkServerStatus();
-
-        // 실시간 모니터링 시작
-        cleanup = await mcpIntegrationService.startStatusMonitoring((status) => {
-          setServerStatus(status);
-          setLastUpdate(new Date());
-        });
-
-      } catch (error) {
-        console.error('Failed to initialize MCP monitoring:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    initializeMonitoring();
-
-    return () => {
-      if (cleanup) {
-        cleanup();
-      }
-    };
-  }, []);
-
-  const checkServerStatus = async () => {
-    try {
-      const healthStatus = await mcpManager.checkServerHealth();
-      const status: Record<string, MCPServerStatus> = {};
-
-      for (const [server, healthy] of Object.entries(healthStatus)) {
-        const connectionTest = await mcpManager.testServerConnection(server);
-        status[server] = {
-          connected: healthy && connectionTest.success,
-          responseTime: connectionTest.responseTime,
-          lastCheck: new Date(),
-          error: connectionTest.error
-        };
-      }
-
-      setServerStatus(status);
-      setLastUpdate(new Date());
-    } catch (error) {
-      console.error('Failed to check server status:', error);
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'connected':
+        return <CheckCircle2 className="w-4 h-4 text-accent-green" />;
+      case 'error':
+        return <XCircle className="w-4 h-4 text-semantic-error" />;
+      case 'warning':
+        return <AlertTriangle className="w-4 h-4 text-semantic-warning" />;
+      default:
+        return <XCircle className="w-4 h-4 text-text-tertiary" />;
     }
   };
 
-  const getStatusIcon = (status: MCPServerStatus) => {
-    if (status.connected) {
-      return <CheckCircle2 className="w-4 h-4 text-accent-green" />;
-    } else if (status.error) {
-      return <XCircle className="w-4 h-4 text-semantic-error" />;
-    } else {
-      return <AlertTriangle className="w-4 h-4 text-semantic-warning" />;
+  const getStatusBadgeVariant = (status: string) => {
+    switch (status) {
+      case 'connected': return 'success';
+      case 'error': return 'error';
+      case 'warning': return 'warning';
+      default: return 'default';
     }
-  };
-
-  const getStatusBadgeVariant = (status: MCPServerStatus) => {
-    if (status.connected) return 'success';
-    if (status.error) return 'error';
-    return 'warning';
   };
 
   const getResponseTimeColor = (responseTime: number) => {
@@ -146,20 +102,15 @@ export const MCPStatusIndicator: React.FC<MCPStatusIndicatorProps> = ({
     return 'text-semantic-error';
   };
 
-  const handleServerToggle = (serverId: string) => {
-    const isEnabled = mcpManager.isServerEnabled(serverId);
-    mcpManager.setServerStatus(serverId, !isEnabled);
-    onServerToggle?.(serverId, !isEnabled);
-
-    // 상태 업데이트
-    checkServerStatus();
+  const handleServerToggle = async (serverId: string) => {
+    const currentEnabled = isServerEnabled(serverId);
+    await toggleServer(serverId, !currentEnabled);
+    onServerToggle?.(serverId, !currentEnabled);
   };
 
-  const totalServers = Object.keys(serverConfig).length;
-  const connectedServers = Object.values(serverStatus).filter(s => s.connected).length;
-  const overallHealth = connectedServers / totalServers;
+  const overallHealth = connectedCount / Math.max(totalCount, 1);
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center p-4">
         <Loader2 className="w-5 h-5 animate-spin text-primary-500" />
@@ -179,35 +130,36 @@ export const MCPStatusIndicator: React.FC<MCPStatusIndicatorProps> = ({
           <div className="flex items-center gap-1">
             <Activity className={`w-3 h-3 ${overallHealth > 0.7 ? 'text-accent-green' : 'text-semantic-warning'}`} />
             <span className="text-xs text-text-secondary">
-              {connectedServers}/{totalServers}
+              {connectedCount}/{totalCount}
             </span>
           </div>
         </div>
 
         <div className="space-y-1">
-          {Object.entries(serverConfig).slice(0, 3).map(([serverId, config]) => {
-            const status = serverStatus[serverId];
+          {servers.slice(0, 3).map((server) => {
+            const config = serverConfig[server.id as keyof typeof serverConfig];
+            if (!config) return null;
+
             const Icon = config.icon;
-            const isEnabled = mcpManager.isServerEnabled(serverId);
 
             return (
               <div
-                key={serverId}
+                key={server.id}
                 className="flex items-center justify-between p-1.5 bg-bg-tertiary/30 rounded text-mini hover:bg-bg-tertiary/50 transition-colors"
               >
                 <div className="flex items-center space-x-2">
                   <Icon className="w-3 h-3 text-text-secondary" />
-                  {status && getStatusIcon(status)}
+                  {getStatusIcon(server.status)}
                   <span className="text-text-primary font-medium">{config.name}</span>
                 </div>
                 <button
-                  onClick={() => handleServerToggle(serverId)}
+                  onClick={() => handleServerToggle(server.id)}
                   className={`w-3 h-3 rounded-full transition-colors ${
-                    isEnabled
+                    server.enabled
                       ? 'bg-accent-green'
                       : 'bg-text-muted hover:bg-text-secondary'
                   }`}
-                  title={`${isEnabled ? 'Disable' : 'Enable'} ${config.name}`}
+                  title={`${server.enabled ? 'Disable' : 'Enable'} ${config.name}`}
                 />
               </div>
             );
@@ -229,54 +181,55 @@ export const MCPStatusIndicator: React.FC<MCPStatusIndicatorProps> = ({
             </div>
             <div className="flex items-center gap-2">
               <Badge variant={overallHealth > 0.7 ? 'success' : 'warning'} size="sm">
-                {connectedServers}/{totalServers} Connected
+                {connectedCount}/{totalCount} Connected
               </Badge>
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={checkServerStatus}
-                disabled={loading}
+                onClick={refreshStatus}
+                disabled={isRefreshing}
               >
-                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
               </Button>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-2">
-            {Object.entries(serverConfig).map(([serverId, config]) => {
-              const status = serverStatus[serverId];
+            {servers.map((server) => {
+              const config = serverConfig[server.id as keyof typeof serverConfig];
+              if (!config) return null;
+
               const Icon = config.icon;
-              const isEnabled = mcpManager.isServerEnabled(serverId);
 
               return (
                 <div
-                  key={serverId}
+                  key={server.id}
                   className={`p-2 rounded-lg border transition-colors ${
-                    status?.connected
+                    server.status === 'connected'
                       ? 'bg-accent-green/5 border-accent-green/20'
                       : 'bg-bg-secondary border-border-primary'
                   }`}
                 >
                   <div className="flex items-center gap-2 mb-1">
                     <Icon className={`w-4 h-4 ${config.color}`} />
-                    {status && getStatusIcon(status)}
+                    {getStatusIcon(server.status)}
                     <span className="text-sm font-medium text-text-primary">
                       {config.name}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-text-secondary">
-                      {status ? `${status.responseTime}ms` : 'N/A'}
+                      {server.responseTime ? `${server.responseTime}ms` : 'N/A'}
                     </span>
                     <button
-                      onClick={() => handleServerToggle(serverId)}
+                      onClick={() => handleServerToggle(server.id)}
                       className={`text-xs px-2 py-1 rounded transition-colors ${
-                        isEnabled
+                        server.enabled
                           ? 'bg-accent-green/20 text-accent-green'
                           : 'bg-text-tertiary/20 text-text-tertiary hover:bg-text-tertiary/30'
                       }`}
                     >
-                      {isEnabled ? 'ON' : 'OFF'}
+                      {server.enabled ? 'ON' : 'OFF'}
                     </button>
                   </div>
                 </div>
@@ -302,15 +255,15 @@ export const MCPStatusIndicator: React.FC<MCPStatusIndicatorProps> = ({
               variant={overallHealth > 0.7 ? 'success' : overallHealth > 0.3 ? 'warning' : 'error'}
               size="sm"
             >
-              Health: {Math.round(overallHealth * 100)}%
+              Health: {Math.round(healthScore)}%
             </Badge>
             <Button
               variant="ghost"
               size="sm"
-              onClick={checkServerStatus}
-              disabled={loading}
+              onClick={refreshStatus}
+              disabled={isRefreshing}
             >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             </Button>
           </div>
         </div>
@@ -319,18 +272,20 @@ export const MCPStatusIndicator: React.FC<MCPStatusIndicatorProps> = ({
       <CardContent className="space-y-4">
         {/* 서버 목록 */}
         <div className="space-y-3">
-          {Object.entries(serverConfig).map(([serverId, config]) => {
-            const status = serverStatus[serverId];
+          {servers.map((server) => {
+            const config = serverConfig[server.id as keyof typeof serverConfig];
+            if (!config) return null;
+
             const Icon = config.icon;
-            const isEnabled = mcpManager.isServerEnabled(serverId);
+            const status = serverStatus[server.id];
 
             return (
               <div
-                key={serverId}
+                key={server.id}
                 className={`p-4 rounded-lg border transition-all duration-200 ${
-                  status?.connected
+                  server.status === 'connected'
                     ? 'bg-accent-green/5 border-accent-green/20'
-                    : status?.error
+                    : server.status === 'error'
                     ? 'bg-semantic-error/5 border-semantic-error/20'
                     : 'bg-bg-secondary border-border-primary'
                 }`}
@@ -341,9 +296,9 @@ export const MCPStatusIndicator: React.FC<MCPStatusIndicatorProps> = ({
                     <div>
                       <div className="flex items-center gap-2">
                         <h4 className="font-medium text-text-primary">{config.name}</h4>
-                        {status && getStatusIcon(status)}
-                        <Badge variant={getStatusBadgeVariant(status || { connected: false, responseTime: 0, lastCheck: new Date() })} size="sm">
-                          {status?.connected ? 'Connected' : status?.error ? 'Error' : 'Disconnected'}
+                        {getStatusIcon(server.status)}
+                        <Badge variant={getStatusBadgeVariant(server.status)} size="sm">
+                          {server.status === 'connected' ? 'Connected' : server.status === 'error' ? 'Error' : 'Disconnected'}
                         </Badge>
                       </div>
                       <p className="text-sm text-text-secondary">{config.description}</p>
@@ -364,18 +319,18 @@ export const MCPStatusIndicator: React.FC<MCPStatusIndicatorProps> = ({
                     )}
 
                     <Button
-                      variant={isEnabled ? 'primary' : 'secondary'}
+                      variant={server.enabled ? 'primary' : 'secondary'}
                       size="sm"
-                      onClick={() => handleServerToggle(serverId)}
+                      onClick={() => handleServerToggle(server.id)}
                     >
-                      {isEnabled ? 'Enabled' : 'Disabled'}
+                      {server.enabled ? 'Enabled' : 'Disabled'}
                     </Button>
                   </div>
                 </div>
 
-                {status?.error && (
+                {server.error && (
                   <div className="mt-2 p-2 bg-semantic-error/10 rounded text-sm text-semantic-error">
-                    {status.error}
+                    {server.error}
                   </div>
                 )}
               </div>
@@ -389,14 +344,14 @@ export const MCPStatusIndicator: React.FC<MCPStatusIndicatorProps> = ({
             <div className="flex items-center justify-between mb-3">
               <h4 className="font-medium text-text-primary">Performance Metrics</h4>
               <span className="text-xs text-text-tertiary">
-                Last updated: {lastUpdate.toLocaleTimeString()}
+                Last updated: {lastUpdate?.toLocaleTimeString() || 'N/A'}
               </span>
             </div>
 
             <div className="grid grid-cols-3 gap-4">
               <div className="text-center">
                 <div className="text-2xl font-bold text-text-primary">
-                  {connectedServers}
+                  {connectedCount}
                 </div>
                 <div className="text-sm text-text-secondary">Connected</div>
               </div>
@@ -407,7 +362,7 @@ export const MCPStatusIndicator: React.FC<MCPStatusIndicatorProps> = ({
                         Object.values(serverStatus)
                           .filter(s => s.connected)
                           .reduce((sum, s) => sum + s.responseTime, 0) /
-                        Math.max(connectedServers, 1)
+                        Math.max(connectedCount, 1)
                       )
                     : 0}ms
                 </div>
@@ -415,7 +370,7 @@ export const MCPStatusIndicator: React.FC<MCPStatusIndicatorProps> = ({
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-text-primary">
-                  {Math.round(overallHealth * 100)}%
+                  {Math.round(healthScore)}%
                 </div>
                 <div className="text-sm text-text-secondary">Health Score</div>
               </div>
