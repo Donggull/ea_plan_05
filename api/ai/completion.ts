@@ -2,6 +2,7 @@
 // 프론트엔드에서 직접 API 키에 접근할 수 없으므로 서버사이드에서 처리
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { allLatestModels } from '../src/services/ai/latestModelsData'
 
 interface CompletionRequest {
   provider: 'openai' | 'anthropic' | 'google'
@@ -46,6 +47,23 @@ interface CompletionResponse {
   error?: string
 }
 
+/**
+ * User-facing model ID를 실제 API model ID로 변환
+ * 예: 'anthropic-claude-sonnet-4' -> 'claude-sonnet-4-20250514'
+ */
+function getActualModelId(userFacingId: string): string {
+  const modelInfo = allLatestModels.find(m => m.id === userFacingId)
+
+  if (modelInfo) {
+    console.log(`🔄 [Model Mapping] ${userFacingId} -> ${modelInfo.model_id}`)
+    return modelInfo.model_id
+  }
+
+  // 매핑 실패 시 원본 ID 반환 (fallback)
+  console.warn(`⚠️ [Model Mapping] ${userFacingId}에 대한 매핑을 찾을 수 없습니다. 원본 ID 사용.`)
+  return userFacingId
+}
+
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse
@@ -82,16 +100,20 @@ export default async function handler(
 
     const requestBody: CompletionRequest = req.body
     provider = requestBody.provider
-    model = requestBody.model
+    const userFacingModelId = requestBody.model
     const prompt = requestBody.prompt
     const messages = requestBody.messages
     maxTokens = requestBody.maxTokens
     temperature = requestBody.temperature
     const topP = requestBody.topP
 
+    // User-facing model ID를 실제 API model ID로 변환
+    model = getActualModelId(userFacingModelId)
+
     console.log('📝 [Vercel API] 요청 파라미터:', {
       provider,
-      model,
+      userFacingModelId,
+      actualModelId: model,
       promptLength: prompt?.length || 0,
       messagesCount: messages?.length || 0,
       maxTokens,
