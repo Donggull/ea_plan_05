@@ -6,6 +6,7 @@ export { MCPConfiguration } from './MCPConfiguration';
 export { MCPStatusIndicator } from './MCPStatusIndicator';
 export { MCPControl } from './MCPControl';
 export { AnalysisProgress } from './AnalysisProgress';
+export { DocumentAnalysisProgress } from './DocumentAnalysisProgress';
 export { QuestionAnswer } from './QuestionAnswer';
 export { QuestionAnswerEnhanced } from './QuestionAnswerEnhanced';
 export { AnalysisReport } from './AnalysisReport';

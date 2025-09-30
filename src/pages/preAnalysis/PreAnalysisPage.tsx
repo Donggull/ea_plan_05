@@ -13,6 +13,7 @@ import {
   AIModelStatus,
   MCPControl,
   AnalysisProgress,
+  DocumentAnalysisProgress,
   QuestionAnswer,
   AnalysisReport
 } from '@/components/preAnalysis';
@@ -81,6 +82,19 @@ export const PreAnalysisPage: React.FC = () => {
   // MCP integration state
   const [mcpResults, setMcpResults] = useState<MCPAnalysisResult[]>([]);
   const [mcpLoading, setMcpLoading] = useState(false);
+
+  // Document analysis state (문서별 분석 진행 상황)
+  const [documentAnalysisItems, setDocumentAnalysisItems] = useState<Array<{
+    documentId: string;
+    documentName: string;
+    status: 'pending' | 'analyzing' | 'completed' | 'error';
+    progress: number;
+    startTime?: Date;
+    endTime?: Date;
+    error?: string;
+    summary?: string;
+  }>>([]);
+  const [selectedDepth, setSelectedDepth] = useState<'quick' | 'standard' | 'deep' | 'comprehensive'>('standard');
 
   // UI state
   const [activeTab, setActiveTab] = useState('setup');
@@ -319,7 +333,8 @@ export const PreAnalysisPage: React.FC = () => {
   };
 
   /**
-   * AI 모델을 사용한 프로젝트 분석 실행
+   * AI 모델을 사용한 프로젝트 분석 실행 (MCP 통합 + 문서별 분석)
+   * 프로세스: 1차 문서 분석(MCP+AI) → 질문 생성 → 답변 수집 → 2차 통합 분석 → 최종 보고서
    */
   const executeAIAnalysis = async (depth: 'quick' | 'standard' | 'deep' | 'comprehensive' = 'standard') => {
     if (!session || !projectId) return;
@@ -341,46 +356,151 @@ export const PreAnalysisPage: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
+      setSelectedDepth(depth); // 분석 깊이 저장
 
-      // 1. 프로젝트 분석 실행
-      const analysisResult = await aiAnalysisService.analyzeProject({
-        model: selectedModel,
-        depth,
-        temperature: 0.7,
-        projectId,
-        sessionId: session.id,
-        projectContext: {
-          name: `프로젝트 ${projectId}`,
-          description: '사전 분석 대상 프로젝트',
-          industry: '미정',
-          techStack: []
+      console.log(`🚀 [Phase 1] 1차 문서 분석 시작 (깊이: ${depth})`);
+
+      // Step 0: 문서 분석 상태 초기화
+      setDocumentAnalysisItems(documents.map(doc => ({
+        documentId: doc.id,
+        documentName: doc.name,
+        status: 'pending' as const,
+        progress: 0
+      })));
+
+      // Step 1: MCP 컨텍스트 수집 (설정 단계에서 활성화된 MCP 서버 사용)
+      console.log('📡 MCP 컨텍스트 수집 중...');
+      await executeMCPAnalysis();
+
+      // Step 2: 문서별 개별 분석 (병렬 처리)
+      console.log(`📄 ${documents.length}개 문서 개별 분석 시작...`);
+      const documentAnalysisPromises = documents.map(async (doc) => {
+        // 분석 시작
+        setDocumentAnalysisItems(prev => prev.map(item =>
+          item.documentId === doc.id
+            ? { ...item, status: 'analyzing' as const, startTime: new Date(), progress: 0 }
+            : item
+        ));
+
+        try {
+          // 진행률 시뮬레이션 (실제로는 API에서 progress 이벤트를 받아야 함)
+          const progressInterval = setInterval(() => {
+            setDocumentAnalysisItems(prev => prev.map(item =>
+              item.documentId === doc.id && item.status === 'analyzing'
+                ? { ...item, progress: Math.min(item.progress + 10, 90) }
+                : item
+            ));
+          }, 500);
+
+          const result = await aiAnalysisService.analyzeProject({
+            model: selectedModel,
+            depth,
+            temperature: 0.7,
+            projectId,
+            sessionId: session.id,
+            documents: [doc], // 개별 문서 분석
+            projectContext: {
+              name: `프로젝트 ${projectId}`,
+              description: '사전 분석 대상 프로젝트',
+              industry: '웹 에이전시',
+              techStack: []
+            },
+            useContextEnhancement: true // MCP 컨텍스트 활용 플래그만 전달
+          });
+
+          clearInterval(progressInterval);
+
+          // 분석 완료
+          setDocumentAnalysisItems(prev => prev.map(item =>
+            item.documentId === doc.id
+              ? {
+                  ...item,
+                  status: 'completed' as const,
+                  progress: 100,
+                  endTime: new Date(),
+                  summary: result.data?.summary || '분석 완료'
+                }
+              : item
+          ));
+
+          return result;
+        } catch (error) {
+          // 분석 실패
+          setDocumentAnalysisItems(prev => prev.map(item =>
+            item.documentId === doc.id
+              ? {
+                  ...item,
+                  status: 'error' as const,
+                  endTime: new Date(),
+                  error: (error as Error).message || '분석 중 오류 발생'
+                }
+              : item
+          ));
+          throw error;
         }
       });
 
-      if (!analysisResult.success) {
-        setError(analysisResult.error || 'AI 분석 실행 중 오류가 발생했습니다');
-        return;
+      const documentAnalysisResults = await Promise.all(documentAnalysisPromises);
+
+      // 실패한 분석 체크
+      const failedAnalyses = documentAnalysisResults.filter(r => !r.success);
+      if (failedAnalyses.length > 0) {
+        console.warn(`⚠️ ${failedAnalyses.length}개 문서 분석 실패`);
       }
 
-      // 2. 분석 결과 기반 질문 생성
+      const successfulAnalyses = documentAnalysisResults.filter(r => r.success);
+      console.log(`✅ ${successfulAnalyses.length}개 문서 분석 완료`);
+
+      // Step 3: 통합 분석 결과 저장
+      const combinedAnalysis = {
+        documentAnalyses: successfulAnalyses.map((result, idx) => ({
+          documentId: documents[idx].id,
+          documentName: documents[idx].name,
+          analysis: result.data
+        })),
+        mcpContext: mcpResults,
+        depth: selectedDepth, // 선택된 분석 깊이 사용
+        timestamp: new Date().toISOString()
+      };
+
+      // 세션에 1차 분석 결과 저장
+      setSession(prev => prev ? {
+        ...prev,
+        analysis_result: combinedAnalysis as any
+      } : null);
+
+      console.log('🎯 [Phase 2] 질문 생성 시작...');
+
+      // Step 4: 1차 분석 결과 기반 질문 생성
       const questionsResult = await aiAnalysisService.generateQuestions({
         model: selectedModel,
         depth,
         temperature: 0.8,
         projectId,
         sessionId: session.id,
-        documents
+        documents,
+        // 1차 분석 결과 포함
+        projectContext: {
+          name: `프로젝트 ${projectId}`,
+          description: `사전 분석 대상 프로젝트. 1차 분석 결과: ${JSON.stringify(combinedAnalysis).substring(0, 500)}...`,
+          industry: '웹 에이전시',
+          techStack: []
+        }
       });
 
       if (questionsResult.success) {
         setQuestions(questionsResult.data || []);
+        console.log(`✅ ${questionsResult.data?.length || 0}개 질문 생성 완료`);
+      } else {
+        console.error('❌ 질문 생성 실패:', questionsResult.error);
       }
 
-      // 3. 현재 단계를 질문 단계로 이동
+      // Step 5: 다음 단계로 이동 (질문/답변 단계)
       setCurrentStep('questions');
+      console.log('✅ 1차 분석 완료 → 질문/답변 단계로 이동');
 
     } catch (err) {
-      console.error('AI 분석 실행 오류:', err);
+      console.error('❌ AI 분석 실행 오류:', err);
       setError('AI 분석 실행 중 예상치 못한 오류가 발생했습니다');
     } finally {
       setLoading(false);
@@ -388,7 +508,8 @@ export const PreAnalysisPage: React.FC = () => {
   };
 
   /**
-   * 최종 보고서 생성 (AI + MCP 결과 통합)
+   * 최종 보고서 생성 (2차 통합 분석: 1차 분석 + 질문/답변 통합)
+   * 프로세스: 1차 분석 결과 + 질문/답변 → AI 2차 통합 분석 → 최종 보고서
    */
   const generateFinalReport = async () => {
     if (!session || !projectId) return;
@@ -405,34 +526,66 @@ export const PreAnalysisPage: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      // Phase 5 - ReportGenerator를 사용한 종합 보고서 생성
+      console.log('🎯 [Phase 3] 2차 통합 분석 및 최종 보고서 생성 시작');
+
+      // Step 1: 1차 분석 결과 확인
+      const preliminaryAnalysis = (session as any).analysis_result;
+      if (!preliminaryAnalysis) {
+        setError('1차 분석 결과를 찾을 수 없습니다. 분석을 다시 시작해주세요.');
+        return;
+      }
+
+      console.log('📊 1차 분석 결과:', {
+        documentCount: (preliminaryAnalysis as any).documentAnalyses?.length || 0,
+        hasMCPContext: !!(preliminaryAnalysis as any).mcpContext,
+        depth: (preliminaryAnalysis as any).depth
+      });
+
+      // Step 2: 질문/답변 확인
+      console.log('💬 질문/답변:', {
+        questionCount: questions.length,
+        answeredCount: answers.length
+      });
+
+      // Step 3: 2차 통합 분석 실행 (1차 분석 + 질문/답변 통합)
+      console.log('🔄 2차 통합 분석 시작...');
       const reportGenerator = new ReportGenerator();
 
-      // 프로젝트 컨텍스트 준비
+      // 프로젝트 컨텍스트 준비 (1차 분석 결과 포함)
       const projectContext = {
         name: `프로젝트 ${projectId}`,
-        description: '사전 분석 대상 프로젝트',
-        industry: '미정',
-        techStack: []
+        description: '사전 분석 대상 프로젝트 (웹 에이전시 RFP)',
+        industry: '웹 에이전시',
+        techStack: [],
+        // 1차 분석 결과 포함
+        preliminaryAnalysis: preliminaryAnalysis as any,
+        // 질문/답변 포함
+        questionsAndAnswers: {
+          questions,
+          answers
+        }
       };
 
-      // 이전 단계 결과들을 수집
+      // 이전 단계 결과들을 수집 (2차 통합 분석용)
       const analysisResults = {
         documents,
         questions,
         answers,
         mcpResults,
-        sessionData: session
+        sessionData: session,
+        // 1차 분석 결과 명시적 포함
+        preliminaryAnalysis
       };
 
+      // 2차 통합 분석 실행
       const reportResult = await reportGenerator.generateReport({
-        model: selectedModel as any, // AIModel 타입 호환성
-        depth: 'comprehensive',
+        model: selectedModel as any,
+        depth: (preliminaryAnalysis as any).depth || 'comprehensive',
         temperature: 0.6,
         projectId,
         sessionId: session.id,
         projectContext,
-        analysisResult: analysisResults as any, // 타입 캐스팅으로 호환성 해결
+        analysisResult: analysisResults as any,
         questions,
         answers
       });
@@ -444,16 +597,21 @@ export const PreAnalysisPage: React.FC = () => {
         // 세션 상태 업데이트
         await preAnalysisService.updateSession(session.id, {
           currentStep: 'report',
-          status: 'completed'
-        });
+          status: 'completed',
+          metadata: {
+            ...session.metadata,
+            final_report: reportResult.data
+          }
+        } as any);
 
-        console.log('Phase 5 종합 보고서 생성 완료:', reportResult.data);
+        console.log('✅ 2차 통합 분석 및 최종 보고서 생성 완료');
       } else {
+        console.error('❌ 보고서 생성 실패:', reportResult.error);
         setError(reportResult.error || '보고서 생성 중 오류가 발생했습니다');
       }
 
     } catch (err) {
-      console.error('보고서 생성 오류:', err);
+      console.error('❌ 보고서 생성 오류:', err);
       setError('보고서 생성 중 예상치 못한 오류가 발생했습니다');
     } finally {
       setLoading(false);
@@ -667,14 +825,44 @@ export const PreAnalysisPage: React.FC = () => {
                 <div className="space-y-4">
                   <div>
                     <h3 className="text-sm font-semibold text-text-primary mb-1">분석 깊이 선택</h3>
-                    <p className="text-xs text-text-tertiary">프로젝트에 적합한 분석 깊이를 선택하세요</p>
+                    <p className="text-xs text-text-tertiary">
+                      RFP 문서 분석의 깊이를 선택하세요. 각 단계별로 문서 분석 → 질문 생성 → 답변 수집 → 최종 보고서 생성이 진행됩니다.
+                    </p>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                       {[
-                        { id: 'quick', name: 'Quick', desc: '2-3분', time: '빠른 개요' },
-                        { id: 'standard', name: 'Standard', desc: '5-10분', time: '표준 분석' },
-                        { id: 'deep', name: 'Deep', desc: '15-20분', time: '심층 분석' },
-                        { id: 'comprehensive', name: 'Comprehensive', desc: '30-45분', time: '종합 분석' }
+                        {
+                          id: 'quick',
+                          name: 'Quick',
+                          time: '2-3분',
+                          desc: '빠른 개요',
+                          details: '기본 문서 분석, 3-5개 핵심 질문',
+                          icon: '⚡'
+                        },
+                        {
+                          id: 'standard',
+                          name: 'Standard',
+                          time: '5-10분',
+                          desc: '표준 분석',
+                          details: '상세 문서 분석, 8-12개 질문, MCP 기본 연동',
+                          icon: '📊'
+                        },
+                        {
+                          id: 'deep',
+                          name: 'Deep',
+                          time: '15-20분',
+                          desc: '심층 분석',
+                          details: '전체 문서 심층 분석, 15-20개 질문, MCP 전체 연동, 시장 분석',
+                          icon: '🔍'
+                        },
+                        {
+                          id: 'comprehensive',
+                          name: 'Comprehensive',
+                          time: '30-45분',
+                          desc: '종합 분석',
+                          details: '최대 깊이 분석, 25-30개 질문, 전체 MCP + 경쟁사 분석 + 기술 스택 추천',
+                          icon: '🎯'
+                        }
                       ].map((depth) => (
                         <Button
                           key={depth.id}
@@ -682,12 +870,22 @@ export const PreAnalysisPage: React.FC = () => {
                           size="sm"
                           onClick={() => executeAIAnalysis(depth.id as any)}
                           disabled={loading || !aiModelState.selectedModelId || documentCount === 0}
-                          className="h-auto p-4 flex flex-col items-start text-left hover:border-primary-500/50 transition-all"
-                          title={documentCount === 0 ? '프로젝트에 문서를 먼저 업로드해주세요.' : ''}
+                          className={`
+                            h-auto p-4 flex flex-col items-start text-left
+                            hover:border-primary-500/50 hover:bg-bg-tertiary transition-all
+                            ${loading ? 'opacity-50 cursor-not-allowed' : ''}
+                          `}
+                          title={documentCount === 0 ? '프로젝트에 문서를 먼저 업로드해주세요.' : depth.details}
                         >
-                          <div className="font-semibold text-base">{depth.name}</div>
-                          <div className="text-xs text-text-secondary mt-1">{depth.desc}</div>
-                          <div className="text-xs text-text-tertiary mt-0.5">{depth.time}</div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-xl">{depth.icon}</span>
+                            <div className="font-semibold text-base">{depth.name}</div>
+                          </div>
+                          <div className="text-xs text-text-secondary font-medium">{depth.time}</div>
+                          <div className="text-xs text-text-tertiary mt-1">{depth.desc}</div>
+                          <div className="text-xs text-text-tertiary mt-2 line-clamp-2">
+                            {depth.details}
+                          </div>
                         </Button>
                       ))}
                     </div>
@@ -726,6 +924,21 @@ export const PreAnalysisPage: React.FC = () => {
                 )}
               </CardContent>
             </Card>
+
+            {/* 문서별 분석 진행 상황 (분석 중일 때만 표시) */}
+            {loading && documentAnalysisItems.length > 0 && (
+              <DocumentAnalysisProgress
+                documents={documentAnalysisItems}
+                totalProgress={
+                  documentAnalysisItems.reduce((sum, doc) => sum + doc.progress, 0) /
+                  Math.max(documentAnalysisItems.length, 1)
+                }
+                currentDocument={
+                  documentAnalysisItems.find(d => d.status === 'analyzing')?.documentName
+                }
+                isAnalyzing={loading}
+              />
+            )}
 
             {session && (
               <AnalysisProgress
