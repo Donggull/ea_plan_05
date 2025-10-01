@@ -160,13 +160,15 @@ export const PreAnalysisPage: React.FC = () => {
   useEffect(() => {
     if (!session?.id) return;
 
+    let channel: any = null;
+
     const subscribeToSession = async () => {
       const supabaseModule = await import('@/lib/supabase');
       const supabaseClient = supabaseModule.supabase;
 
       if (!supabaseClient) return;
 
-      const channel = supabaseClient
+      channel = supabaseClient
         .channel(`session-${session.id}`)
         .on(
           'postgres_changes',
@@ -176,25 +178,31 @@ export const PreAnalysisPage: React.FC = () => {
             table: 'pre_analysis_sessions',
             filter: `id=eq.${session.id}`
           },
-          (payload) => {
+          async (payload) => {
             console.log('🔄 세션 업데이트 감지:', payload);
 
-            // 세션 state 업데이트
-            const updatedSession = payload.new as PreAnalysisSession;
-            setSession(updatedSession);
-
-            // 진행률 재계산
-            calculateOverallProgress();
+            // 세션을 다시 로드하여 날짜 변환 문제 방지
+            try {
+              const sessionResponse = await preAnalysisService.getSession(session.id);
+              if (sessionResponse.success && sessionResponse.data) {
+                setSession(sessionResponse.data);
+                console.log('✅ 세션 새로고침 완료');
+              }
+            } catch (error) {
+              console.error('❌ 세션 새로고침 오류:', error);
+            }
           }
         )
         .subscribe();
-
-      return () => {
-        channel.unsubscribe();
-      };
     };
 
     subscribeToSession();
+
+    return () => {
+      if (channel) {
+        channel.unsubscribe();
+      }
+    };
   }, [session?.id]);
 
   useEffect(() => {
