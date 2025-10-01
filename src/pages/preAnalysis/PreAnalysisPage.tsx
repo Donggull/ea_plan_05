@@ -154,7 +154,48 @@ export const PreAnalysisPage: React.FC = () => {
 
   useEffect(() => {
     calculateOverallProgress();
-  }, [session, questions, answers]);
+  }, [session, questions, answers, documentAnalysisItems]);
+
+  // Supabase Realtime 구독: 세션 metadata 변경 감지
+  useEffect(() => {
+    if (!session?.id) return;
+
+    const subscribeToSession = async () => {
+      const supabaseModule = await import('@/lib/supabase');
+      const supabaseClient = supabaseModule.supabase;
+
+      if (!supabaseClient) return;
+
+      const channel = supabaseClient
+        .channel(`session-${session.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'pre_analysis_sessions',
+            filter: `id=eq.${session.id}`
+          },
+          (payload) => {
+            console.log('🔄 세션 업데이트 감지:', payload);
+
+            // 세션 state 업데이트
+            const updatedSession = payload.new as PreAnalysisSession;
+            setSession(updatedSession);
+
+            // 진행률 재계산
+            calculateOverallProgress();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        channel.unsubscribe();
+      };
+    };
+
+    subscribeToSession();
+  }, [session?.id]);
 
   useEffect(() => {
     // 워크플로우 완료 상태 확인
@@ -314,18 +355,34 @@ export const PreAnalysisPage: React.FC = () => {
         stepProgress = documentCount > 0 ? 50 : 0;
       }
     } else if (currentStep === 'analysis') {
-      // 분석 단계: 문서별 분석 진행률 기반
-      if (documentAnalysisItems.length > 0) {
+      // 분석 단계: DB metadata에서 진행률 읽기 (우선), 없으면 로컬 state 사용
+      const metadataProgress = session?.metadata?.['analysis_progress'];
+
+      if (typeof metadataProgress === 'number') {
+        // DB에 저장된 진행률이 있으면 우선 사용
+        stepProgress = metadataProgress;
+        console.log('📊 분석 진행률 (DB):', stepProgress);
+      } else if (documentAnalysisItems.length > 0) {
+        // DB에 없으면 로컬 state에서 계산
         const totalDocProgress = documentAnalysisItems.reduce((sum, doc) => sum + doc.progress, 0);
         stepProgress = totalDocProgress / documentAnalysisItems.length;
+        console.log('📊 분석 진행률 (로컬):', stepProgress);
       } else if (session?.status === 'processing') {
         stepProgress = 25; // 시작만 한 경우
       }
     } else if (currentStep === 'questions') {
-      // 질문/답변 단계: 답변 완료 비율
-      if (questions.length > 0) {
+      // 질문 단계: DB metadata에서 진행률 읽기 (우선), 없으면 로컬 답변 비율 사용
+      const metadataProgress = session?.metadata?.['questions_progress'];
+
+      if (typeof metadataProgress === 'number') {
+        // DB에 저장된 진행률이 있으면 우선 사용
+        stepProgress = metadataProgress;
+        console.log('❓ 질문 진행률 (DB):', stepProgress);
+      } else if (questions.length > 0) {
+        // DB에 없으면 답변 완료 비율로 계산
         const completedAnswers = answers.filter(a => a.answer?.trim().length > 0);
         stepProgress = (completedAnswers.length / questions.length) * 100;
+        console.log('❓ 질문 진행률 (답변):', stepProgress);
       }
     } else if (currentStep === 'report') {
       // 보고서 단계: 보고서 생성 완료 여부
