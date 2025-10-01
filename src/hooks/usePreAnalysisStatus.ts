@@ -1,230 +1,277 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/contexts/AuthContext';
-import { PreAnalysisSession, AnalysisDepth } from '@/types/preAnalysis';
+import { useState, useEffect } from 'react'
+import { supabase } from '../lib/supabase'
 
-interface PreAnalysisStatusData {
-  status: 'idle' | 'processing' | 'completed' | 'failed';
-  session?: PreAnalysisSession;
-  progress: number;
-  currentStep: string;
-  analysisCount: number;
-  questionCount: number;
-  reportExists: boolean;
-  lastUpdated?: Date;
-  error?: string;
+// Supabase null 체크를 위한 가드 함수
+const ensureSupabase = () => {
+  if (!supabase) {
+    throw new Error('Supabase client is not initialized')
+  }
+  return supabase
+}
+
+export interface PreAnalysisStatus {
+  sessionId: string | null
+  status: 'not_started' | 'processing' | 'completed' | 'error'
+  progress: number
+  currentStep: string | null
+  analysisCount: number
+  questionCount: number
+  reportExists: boolean
+  lastUpdated: Date | null
 }
 
 export function usePreAnalysisStatus(projectId: string) {
-  // 인증 컨텍스트
-  const { user } = useAuth();
-
-  const [data, setData] = useState<PreAnalysisStatusData>({
-    status: 'idle',
+  const [status, setStatus] = useState<PreAnalysisStatus>({
+    sessionId: null,
+    status: 'not_started',
     progress: 0,
-    currentStep: 'setup',
+    currentStep: null,
     analysisCount: 0,
     questionCount: 0,
     reportExists: false,
-  });
-  const [loading, setLoading] = useState(true);
+    lastUpdated: null
+  })
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const loadAnalysisStatus = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      // 1. 가장 최근 사전 분석 세션 확인
+      const client = ensureSupabase()
+      const { data: sessions, error: sessionError } = await client
+        .from('pre_analysis_sessions')
+        .select('*')
+        .eq('project_id', projectId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+
+      if (sessionError) {
+        console.error('세션 조회 오류:', sessionError)
+        throw sessionError
+      }
+
+      const latestSession = sessions?.[0]
+
+      if (!latestSession) {
+        // 세션이 없으면 시작하지 않음
+        setStatus(prev => ({
+          ...prev,
+          status: 'not_started',
+          progress: 0,
+          sessionId: null,
+          currentStep: null
+        }))
+        setLoading(false)
+        return
+      }
+
+      // 2. 문서 분석 수 확인
+      const { count: analysisCount } = await client
+        .from('document_analyses')
+        .select('*', { count: 'exact', head: true })
+        .eq('session_id', latestSession.id)
+
+      // 3. 생성된 질문 수 확인
+      const { count: questionCount } = await client
+        .from('ai_questions')
+        .select('*', { count: 'exact', head: true })
+        .eq('session_id', latestSession.id)
+
+      // 4. 분석 보고서 존재 확인
+      const { count: reportCount } = await client
+        .from('analysis_reports')
+        .select('*', { count: 'exact', head: true })
+        .eq('session_id', latestSession.id)
+
+      // 5. 진행률 계산
+      let progress = 10 // 세션 생성 완료
+      let currentStep = '분석 준비 중'
+      let sessionStatus: PreAnalysisStatus['status'] = 'processing'
+
+      if (latestSession.status === 'completed') {
+        progress = 100
+        currentStep = '분석 완료'
+        sessionStatus = 'completed'
+      } else if (latestSession.status === 'failed') {
+        sessionStatus = 'error'
+        currentStep = '분석 실패'
+      } else {
+        // 진행 단계별 계산 (더 세밀하게)
+        if (analysisCount && analysisCount > 0) {
+          progress = Math.max(progress, 30)
+          currentStep = '문서 분석 완료'
+        }
+
+        if (questionCount && questionCount > 0) {
+          progress = Math.max(progress, 70)
+          currentStep = '질문 준비 완료'
+
+          // 질문이 있으면 답변 대기 상태로 전환
+          if (progress < 85) {
+            currentStep = '답변 입력 대기 중'
+          }
+        }
+
+        if (reportCount && reportCount > 0) {
+          progress = Math.max(progress, 90)
+          currentStep = '보고서 생성 완료'
+        }
+
+        // 최종 완료 상태 체크
+        if (latestSession.status === 'completed') {
+          progress = 100
+          currentStep = '분석 완료'
+          sessionStatus = 'completed'
+        }
+      }
+
+      setStatus({
+        sessionId: latestSession.id,
+        status: sessionStatus,
+        progress,
+        currentStep,
+        analysisCount: analysisCount || 0,
+        questionCount: questionCount || 0,
+        reportExists: (reportCount || 0) > 0,
+        lastUpdated: latestSession.updated_at ? new Date(latestSession.updated_at) : null
+      })
+
+    } catch (err) {
+      console.error('분석 상태 로드 실패:', err)
+      setError(err instanceof Error ? err.message : '분석 상태를 불러올 수 없습니다')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    if (!projectId) {
-      setLoading(false);
-      return;
+    if (projectId) {
+      loadAnalysisStatus()
     }
+  }, [projectId])
 
-    const fetchStatus = async () => {
-      try {
-        setLoading(true);
+  // 실시간 구독 설정
+  useEffect(() => {
+    if (!projectId) return
 
-        // 최근 사전 분석 세션 조회
-        if (!supabase) {
-          throw new Error('Supabase client not initialized');
-        }
-
-        // 사용자 ID가 있는 경우 먼저 프로젝트 소유자 확인
-        if (user?.id) {
-          const { data: projectData, error: projectError } = await supabase
-            .from('projects')
-            .select('owner_id')
-            .eq('id', projectId)
-            .single();
-
-          if (projectError) {
-            console.error('프로젝트 조회 오류:', projectError);
-            setData(prev => ({
-              ...prev,
-              status: 'failed',
-              error: `프로젝트를 찾을 수 없습니다: ${projectError.message}`,
-            }));
-            return;
+    const client = ensureSupabase()
+    const channels = [
+      // 사전 분석 세션 변경사항 구독
+      client
+        .channel(`pre_analysis_sessions_${projectId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'pre_analysis_sessions',
+            filter: `project_id=eq.${projectId}`
+          },
+          () => {
+            loadAnalysisStatus()
           }
+        )
+        .subscribe(),
 
-          if (projectData.owner_id !== user.id) {
-            setData(prev => ({
-              ...prev,
-              status: 'failed',
-              error: '프로젝트에 대한 접근 권한이 없습니다',
-            }));
-            return;
+      // 문서 분석 변경사항 구독
+      client
+        .channel(`document_analyses_${projectId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'document_analyses'
+          },
+          () => {
+            loadAnalysisStatus()
           }
-        }
+        )
+        .subscribe(),
 
-        const { data: sessions, error } = await supabase
-          .from('pre_analysis_sessions')
-          .select('*')
-          .eq('project_id', projectId)
-          .order('created_at', { ascending: false })
-          .limit(1);
-
-        if (error) {
-          console.error('사전 분석 상태 조회 오류:', error);
-          setData(prev => ({
-            ...prev,
-            status: 'failed',
-            error: error.message,
-          }));
-          return;
-        }
-
-        if (!sessions || sessions.length === 0) {
-          // 세션이 없으면 idle 상태
-          setData({
-            status: 'idle',
-            progress: 0,
-            currentStep: 'setup',
-            analysisCount: 0,
-            questionCount: 0,
-            reportExists: false,
-          });
-          return;
-        }
-
-        const session = sessions[0];
-
-        // 세션 데이터를 PreAnalysisSession 타입으로 변환
-        const transformedSession: PreAnalysisSession = {
-          id: session.id,
-          projectId: session.project_id || '',
-          aiModel: session.ai_model || '',
-          aiProvider: session.ai_provider || '',
-          mcpConfig: (session.mcp_config as { filesystem: boolean; database: boolean; websearch: boolean; github: boolean; }) || { filesystem: false, database: false, websearch: false, github: false },
-          analysisDepth: (session.analysis_depth as AnalysisDepth) || 'standard',
-          status: (session.status as "completed" | "failed" | "cancelled" | "processing") || 'processing',
-          startedAt: session.started_at ? new Date(session.started_at) : new Date(),
-          completedAt: session.completed_at ? new Date(session.completed_at) : undefined,
-          processingTime: session.processing_time || 0,
-          totalCost: session.total_cost || 0,
-          createdBy: session.created_by || '',
-          createdAt: session.created_at ? new Date(session.created_at) : new Date(),
-          updatedAt: session.updated_at ? new Date(session.updated_at) : new Date(),
-          metadata: (session.metadata as Record<string, any>) || {},
-        };
-
-        // 진행률 계산
-        let progress = 0;
-        let currentStep = 'setup';
-
-        switch (session.status) {
-          case 'processing':
-            progress = 50;
-            currentStep = 'analysis';
-            break;
-          case 'completed':
-            progress = 100;
-            currentStep = 'report';
-            break;
-          case 'failed':
-            progress = 0;
-            currentStep = 'setup';
-            break;
-          default:
-            progress = 0;
-            currentStep = 'setup';
-        }
-
-        // 실제 분석 및 질문 수량 조회
-        let analysisCount = 0;
-        let questionCount = 0;
-
-        // 문서 분석 수량 조회
-        const { count: docAnalysisCount } = await supabase
-          .from('ai_analysis')
-          .select('*', { count: 'exact', head: true })
-          .eq('project_id', projectId);
-
-        analysisCount = docAnalysisCount || 0;
-
-        // 질문 수량은 세션 메타데이터에서 확인
-        // metadata에 questions 배열이 있으면 그 길이를 사용
-        if (session.metadata && typeof session.metadata === 'object') {
-          const metadata = session.metadata as Record<string, any>;
-          if (Array.isArray(metadata['questions'])) {
-            questionCount = metadata['questions'].length;
-          } else if (typeof metadata['questionCount'] === 'number') {
-            questionCount = metadata['questionCount'];
+      // AI 질문 변경사항 구독
+      client
+        .channel(`ai_questions_${projectId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'ai_questions'
+          },
+          () => {
+            loadAnalysisStatus()
           }
-        }
+        )
+        .subscribe(),
 
-        const reportExists = session.status === 'completed';
-
-        setData({
-          status: session.status as 'idle' | 'processing' | 'completed' | 'failed',
-          session: transformedSession,
-          progress,
-          currentStep,
-          analysisCount,
-          questionCount,
-          reportExists,
-          lastUpdated: session.updated_at ? new Date(session.updated_at) : new Date(),
-        });
-
-      } catch (error) {
-        console.error('사전 분석 상태 조회 중 오류:', error);
-        setData(prev => ({
-          ...prev,
-          status: 'failed',
-          error: error instanceof Error ? error.message : '알 수 없는 오류',
-        }));
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchStatus();
-
-    // 실시간 업데이트를 위한 구독 설정
-    const subscription = supabase
-      ?.channel(`pre_analysis_status_${projectId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'pre_analysis_sessions',
-          filter: `project_id=eq.${projectId}`,
-        },
-        () => {
-          fetchStatus();
-        }
-      )
-      .subscribe();
+      // 분석 보고서 변경사항 구독
+      client
+        .channel(`analysis_reports_${projectId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'analysis_reports'
+          },
+          () => {
+            loadAnalysisStatus()
+          }
+        )
+        .subscribe()
+    ]
 
     return () => {
-      subscription?.unsubscribe();
-    };
-  }, [projectId, user]);
+      channels.forEach(channel => {
+        client.removeChannel(channel)
+      })
+    }
+  }, [projectId])
+
+  const refreshStatus = () => {
+    loadAnalysisStatus()
+  }
+
+  const getStatusColor = (status: PreAnalysisStatus['status']) => {
+    switch (status) {
+      case 'not_started':
+        return 'bg-gray-500/10 text-gray-500'
+      case 'processing':
+        return 'bg-blue-500/10 text-blue-500'
+      case 'completed':
+        return 'bg-green-500/10 text-green-500'
+      case 'error':
+        return 'bg-red-500/10 text-red-500'
+      default:
+        return 'bg-gray-500/10 text-gray-500'
+    }
+  }
+
+  const getStatusLabel = (status: PreAnalysisStatus['status']) => {
+    switch (status) {
+      case 'not_started':
+        return '분석 대기'
+      case 'processing':
+        return '분석 진행중'
+      case 'completed':
+        return '분석 완료'
+      case 'error':
+        return '오류 발생'
+      default:
+        return '알 수 없음'
+    }
+  }
 
   return {
-    ...data,
+    status,
     loading,
-    refresh: () => {
-      if (projectId) {
-        setLoading(true);
-        // 재조회 로직은 useEffect에서 자동으로 실행됨
-      }
-    },
-  };
+    error,
+    refreshStatus,
+    getStatusColor,
+    getStatusLabel
+  }
 }

@@ -144,7 +144,7 @@ export function ForgotPasswordPage() {
               <Button
                 onClick={handleCheckEmail}
                 className="w-full"
-                variant="primary"
+                variant="default"
               >
                 이메일 확인하기
               </Button>

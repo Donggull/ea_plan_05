@@ -54,11 +54,7 @@
       "Bash(powershell:*)",
       "Bash(findstr:*)",
       "Bash(git reset:*)",
-      "Bash(xcopy:*)",
-      "Bash(git fetch:*)",
-      "Bash(git commit:*)",
-      "Bash(git pull:*)",
-      "Bash(npm test)"
+      "mcp__github-mcp__git-branch"
     ],
     "deny": [],
     "ask": []

@@ -1,89 +1,222 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
-import { Textarea } from '@/components/ui/Textarea';
-import { Badge } from '@/components/ui/Badge';
-import { Progress } from '@/components/ui/Progress';
-import { ScrollArea } from '@/components/ui/ScrollArea';
 import {
   MessageSquare,
-  CheckCircle2,
-  ArrowLeft,
-  ArrowRight,
+  CheckCircle,
+  Clock,
+  AlertCircle,
   Save,
-  RefreshCw,
-  Brain,
-  User,
-  Clock
+  Send,
+  ArrowRight,
+  ArrowLeft,
 } from 'lucide-react';
-import type { AIQuestion, UserAnswer } from '@/types/preAnalysis';
+import { AIQuestion, UserAnswer } from '../../types/preAnalysis';
 
 interface QuestionAnswerProps {
   sessionId: string;
-  questions: AIQuestion[];
-  answers: UserAnswer[];
-  onAnswerChange: (questionId: string, answer: string) => void;
   onComplete: () => void;
-  disabled?: boolean;
 }
 
 export const QuestionAnswer: React.FC<QuestionAnswerProps> = ({
-  sessionId: _sessionId,
-  questions,
-  answers,
-  onAnswerChange,
+  sessionId,
   onComplete,
-  disabled = false
 }) => {
+  const [questions, setQuestions] = useState<AIQuestion[]>([]);
+  const [answers, setAnswers] = useState<{[key: string]: UserAnswer}>({});
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [currentAnswer, setCurrentAnswer] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [autoSaveTimer, setAutoSaveTimer] = useState<NodeJS.Timeout | null>(null);
-
-  const currentQuestion = questions[currentQuestionIndex];
-  const existingAnswer = answers.find(a => a.questionId === currentQuestion?.id);
-  const completedAnswers = answers.filter(a => a.answer?.trim().length > 0);
-  const progress = questions.length > 0 ? (completedAnswers.length / questions.length) * 100 : 0;
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
 
   useEffect(() => {
-    if (existingAnswer) {
-      setCurrentAnswer(existingAnswer.answer || '');
-    } else {
-      setCurrentAnswer('');
-    }
-  }, [currentQuestionIndex, existingAnswer]);
+    loadQuestions();
+  }, [sessionId]);
 
   useEffect(() => {
-    // Auto-save 타이머 설정
-    if (autoSaveTimer) {
-      clearTimeout(autoSaveTimer);
-    }
+    updateProgress();
+  }, [answers, questions]);
 
-    if (currentAnswer.trim() !== (existingAnswer?.answer || '').trim()) {
-      const timer = setTimeout(() => {
-        handleSaveAnswer();
-      }, 2000); // 2초 후 자동 저장
-
-      setAutoSaveTimer(timer);
-    }
-
-    return () => {
-      if (autoSaveTimer) {
-        clearTimeout(autoSaveTimer);
-      }
-    };
-  }, [currentAnswer]);
-
-  const handleSaveAnswer = async () => {
-    if (!currentQuestion || saving) return;
-
-    setSaving(true);
+  const loadQuestions = async () => {
+    setIsLoading(true);
     try {
-      await onAnswerChange(currentQuestion.id, currentAnswer);
+      // 실제 구현에서는 API 호출
+      // const response = await preAnalysisService.getQuestions(sessionId);
+
+      // 임시 데이터
+      const mockQuestions: AIQuestion[] = [
+        {
+          id: 'q1',
+          sessionId,
+          category: 'business',
+          question: '프로젝트의 핵심 비즈니스 목표는 무엇입니까?',
+          context: '사업적 관점에서 이 프로젝트가 달성하고자 하는 주요 목적을 설명해주세요.',
+          required: true,
+          expectedFormat: '구체적인 목표와 성과 지표를 포함해주세요',
+          relatedDocuments: [],
+          orderIndex: 1,
+          generatedByAI: true,
+          aiModel: 'gpt-4o',
+          confidenceScore: 0.9,
+          createdAt: new Date(),
+        },
+        {
+          id: 'q2',
+          sessionId,
+          category: 'technical',
+          question: '기존 시스템과의 통합 요구사항이 있습니까?',
+          context: 'API 연동, 데이터 마이그레이션, 시스템 간 연결 등',
+          required: false,
+          expectedFormat: '통합 대상 시스템명과 연동 방식을 명시해주세요',
+          relatedDocuments: [],
+          orderIndex: 2,
+          generatedByAI: true,
+          aiModel: 'gpt-4o',
+          confidenceScore: 0.8,
+          createdAt: new Date(),
+        },
+        {
+          id: 'q3',
+          sessionId,
+          category: 'timeline',
+          question: '프로젝트의 주요 마일스톤과 일정은?',
+          context: '주요 단계별 완료 목표일과 중요한 이벤트',
+          required: true,
+          expectedFormat: '마일스톤명: 목표일자 형식으로 작성해주세요',
+          relatedDocuments: [],
+          orderIndex: 3,
+          generatedByAI: true,
+          aiModel: 'gpt-4o',
+          confidenceScore: 0.85,
+          createdAt: new Date(),
+        },
+        {
+          id: 'q4',
+          sessionId,
+          category: 'budget',
+          question: '예산 범위와 제약사항이 있다면 무엇입니까?',
+          context: '총 예산, 단계별 예산 배분, 예산 제약사항',
+          required: false,
+          expectedFormat: '구체적인 금액과 제약사항을 명시해주세요',
+          relatedDocuments: [],
+          orderIndex: 4,
+          generatedByAI: true,
+          aiModel: 'gpt-4o',
+          confidenceScore: 0.75,
+          createdAt: new Date(),
+        },
+        {
+          id: 'q5',
+          sessionId,
+          category: 'stakeholders',
+          question: '주요 이해관계자와 의사결정권자는 누구입니까?',
+          context: '프로젝트 승인, 요구사항 변경, 최종 검수 권한을 가진 사람들',
+          required: true,
+          expectedFormat: '역할과 함께 이름 또는 직책을 명시해주세요',
+          relatedDocuments: [],
+          orderIndex: 5,
+          generatedByAI: true,
+          aiModel: 'gpt-4o',
+          confidenceScore: 0.8,
+          createdAt: new Date(),
+        },
+      ];
+
+      setQuestions(mockQuestions);
     } catch (error) {
-      console.error('답변 저장 실패:', error);
+      setError('질문을 불러오는 중 오류가 발생했습니다.');
+      console.error('질문 로드 오류:', error);
     } finally {
-      setSaving(false);
+      setIsLoading(false);
+    }
+  };
+
+  const updateProgress = () => {
+    if (questions.length === 0) return;
+
+    const answeredCount = Object.keys(answers).length;
+
+    const progressValue = Math.round((answeredCount / questions.length) * 100);
+    setProgress(progressValue);
+  };
+
+  const handleAnswerChange = (questionId: string, value: string) => {
+    setAnswers(prev => ({
+      ...prev,
+      [questionId]: {
+        id: prev[questionId]?.id || `answer-${questionId}`,
+        questionId,
+        sessionId,
+        answer: value,
+        answerData: {},
+        confidence: prev[questionId]?.confidence || 70,
+        attachments: prev[questionId]?.attachments || [],
+        notes: prev[questionId]?.notes || '',
+        isDraft: true,
+        answeredBy: 'current-user-id', // TODO: 실제 사용자 ID
+        answeredAt: new Date(),
+        updatedAt: new Date(),
+      },
+    }));
+  };
+
+  const handleConfidenceChange = (questionId: string, confidence: number) => {
+    setAnswers(prev => ({
+      ...prev,
+      [questionId]: {
+        ...prev[questionId],
+        confidence,
+        updatedAt: new Date(),
+      },
+    }));
+  };
+
+  const handleNotesChange = (questionId: string, notes: string) => {
+    setAnswers(prev => ({
+      ...prev,
+      [questionId]: {
+        ...prev[questionId],
+        notes,
+        updatedAt: new Date(),
+      },
+    }));
+  };
+
+  const saveAnswer = async (questionId: string, isDraft = true) => {
+    const answer = answers[questionId];
+    if (!answer || !answer.answer.trim()) return;
+
+    setIsSaving(true);
+    try {
+      const answerToSave = {
+        ...answer,
+        isDraft,
+        updatedAt: new Date(),
+      };
+
+      // 실제 구현에서는 API 호출
+      // await preAnalysisService.saveAnswer(answerToSave);
+
+      setAnswers(prev => ({
+        ...prev,
+        [questionId]: answerToSave,
+      }));
+
+      console.log(`답변 ${isDraft ? '임시 저장' : '저장'} 완료:`, answerToSave);
+    } catch (error) {
+      setError('답변 저장 중 오류가 발생했습니다.');
+      console.error('답변 저장 오류:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const submitAnswer = (questionId: string) => {
+    saveAnswer(questionId, false);
+  };
+
+  const handleNext = () => {
+    if (currentQuestionIndex < questions.length - 1) {
+      setCurrentQuestionIndex(currentQuestionIndex + 1);
     }
   };
 
@@ -93,300 +226,298 @@ export const QuestionAnswer: React.FC<QuestionAnswerProps> = ({
     }
   };
 
-  const handleNext = () => {
-    if (currentQuestionIndex < questions.length - 1) {
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
-    }
-  };
-
   const handleComplete = async () => {
-    await handleSaveAnswer();
-    onComplete();
-  };
+    // 필수 질문 확인
+    const requiredQuestions = questions.filter(q => q.required);
+    const requiredAnswered = requiredQuestions.filter(q =>
+      answers[q.id] && !answers[q.id].isDraft && answers[q.id].answer.trim()
+    );
 
+    if (requiredAnswered.length < requiredQuestions.length) {
+      setError('모든 필수 질문에 답변해주세요.');
+      return;
+    }
 
-  const getQuestionTypeColor = (category: AIQuestion['category']) => {
-    switch (category) {
-      case 'technical': return 'bg-accent-blue/10 text-accent-blue border-accent-blue/20';
-      case 'business': return 'bg-accent-green/10 text-accent-green border-accent-green/20';
-      case 'risks': return 'bg-semantic-warning/10 text-semantic-warning border-semantic-warning/20';
-      case 'timeline': return 'bg-accent-purple/10 text-accent-purple border-accent-purple/20';
-      case 'budget': return 'bg-semantic-success/10 text-semantic-success border-semantic-success/20';
-      case 'design': return 'bg-primary-500/10 text-primary-500 border-primary-500/20';
-      case 'stakeholders': return 'bg-text-secondary/10 text-text-secondary border-text-secondary/20';
-      default: return 'bg-text-tertiary/10 text-text-tertiary border-text-tertiary/20';
+    try {
+      setIsSaving(true);
+
+      // 모든 답변을 서버에 제출
+      const answersToSubmit = Object.values(answers).filter(a => a.answer.trim());
+      // await preAnalysisService.submitAnswers(sessionId, answersToSubmit);
+
+      console.log('모든 답변 제출 완료:', answersToSubmit);
+      onComplete();
+    } catch (error) {
+      setError('답변 제출 중 오류가 발생했습니다.');
+      console.error('답변 제출 오류:', error);
+    } finally {
+      setIsSaving(false);
     }
   };
 
+  const getCategoryColor = (category: string) => {
+    const colors: {[key: string]: string} = {
+      business: 'bg-blue-900/30 text-blue-300 border-blue-700',
+      technical: 'bg-green-900/30 text-green-300 border-green-700',
+      timeline: 'bg-purple-900/30 text-purple-300 border-purple-700',
+      budget: 'bg-yellow-900/30 text-yellow-300 border-yellow-700',
+      stakeholders: 'bg-pink-900/30 text-pink-300 border-pink-700',
+      design: 'bg-indigo-900/30 text-indigo-300 border-indigo-700',
+      risks: 'bg-red-900/30 text-red-300 border-red-700',
+    };
+    return colors[category] || 'bg-gray-900/30 text-gray-300 border-gray-700';
+  };
 
-  if (!currentQuestion) {
+  const getCategoryLabel = (category: string) => {
+    const labels: {[key: string]: string} = {
+      business: '비즈니스',
+      technical: '기술',
+      timeline: '일정',
+      budget: '예산',
+      stakeholders: '이해관계자',
+      design: '디자인',
+      risks: '리스크',
+    };
+    return labels[category] || category;
+  };
+
+  if (isLoading) {
     return (
-      <Card className="w-full max-w-4xl mx-auto">
-        <CardContent className="p-8 text-center">
-          <MessageSquare className="w-12 h-12 mx-auto mb-4 text-text-tertiary" />
-          <p className="text-text-secondary">질문이 없습니다.</p>
-        </CardContent>
-      </Card>
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-gray-400">질문을 불러오는 중...</p>
+        </div>
+      </div>
     );
   }
 
-  const getQuestionTypeLabel = (type: string) => {
-    switch (type) {
-      case 'technical': return '기술적';
-      case 'business': return '비즈니스';
-      case 'risk': return '리스크';
-      case 'clarification': return '명확화';
-      default: return '일반';
-    }
-  };
-
-  const getImportanceColor = (importance: number) => {
-    if (importance >= 8) return 'text-semantic-error';
-    if (importance >= 6) return 'text-semantic-warning';
-    if (importance >= 4) return 'text-accent-blue';
-    return 'text-text-secondary';
-  };
-
-  if (!currentQuestion) {
+  if (questions.length === 0) {
     return (
-      <Card>
-        <CardContent className="py-12 text-center">
-          <MessageSquare className="w-12 h-12 text-text-tertiary mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-text-primary mb-2">
-            질문이 아직 생성되지 않았습니다
-          </h3>
-          <p className="text-text-secondary">
-            문서 분석이 완료되면 맞춤형 질문이 생성됩니다.
-          </p>
-        </CardContent>
-      </Card>
+      <div className="text-center py-12">
+        <MessageSquare className="w-12 h-12 text-gray-500 mx-auto mb-4" />
+        <h3 className="text-lg font-medium text-white mb-2">질문이 없습니다</h3>
+        <p className="text-gray-400">생성된 질문이 없습니다. 이전 단계를 확인해주세요.</p>
+      </div>
     );
   }
+
+  const currentQuestion = questions[currentQuestionIndex];
+  const currentAnswer = answers[currentQuestion.id];
 
   return (
     <div className="space-y-6">
-      {/* Progress Header */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-text-primary">
-              <MessageSquare className="w-5 h-5" />
-              질문 답변
-            </CardTitle>
-            <div className="flex items-center gap-3">
-              <Badge variant="primary" size="sm">
-                {currentQuestionIndex + 1} / {questions.length}
-              </Badge>
-              <Badge variant="success" size="sm">
-                {completedAnswers.length}개 완료
-              </Badge>
-            </div>
+      {/* 헤더 */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-xl font-semibold text-white">질문 답변</h3>
+          <p className="text-gray-400 mt-1">
+            AI가 생성한 질문에 답변하여 분석 정확도를 높입니다
+          </p>
+        </div>
+        <div className="text-right">
+          <div className="text-sm text-gray-400">
+            {currentQuestionIndex + 1} / {questions.length}
           </div>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-text-secondary">전체 진행률</span>
-              <span className="text-text-primary font-medium">{Math.round(progress)}%</span>
-            </div>
-            <Progress value={progress} className="h-2" />
+          <div className="text-lg font-semibold text-white">
+            {progress}% 완료
           </div>
-        </CardHeader>
-      </Card>
+        </div>
+      </div>
 
-      {/* Question Card */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-start justify-between">
-            <div className="flex items-start gap-3">
-              <div className="p-2 bg-primary-500/10 rounded-lg">
-                <Brain className="w-5 h-5 text-primary-500" />
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
-                  <Badge
-                    className={getQuestionTypeColor(currentQuestion.category)}
-                    size="sm"
-                  >
-                    {getQuestionTypeLabel(currentQuestion.category)}
-                  </Badge>
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs text-text-tertiary">중요도:</span>
-                    <span className={`text-xs font-medium ${getImportanceColor(currentQuestion.required ? 8 : 5)}`}>
-                      {currentQuestion.required ? '필수' : '선택'}
-                    </span>
-                  </div>
-                </div>
-                <h3 className="text-lg font-medium text-text-primary leading-relaxed">
-                  {currentQuestion.question}
-                </h3>
-                {currentQuestion.context && (
-                  <p className="text-sm text-text-secondary mt-2 leading-relaxed">
-                    {currentQuestion.context}
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-        </CardHeader>
+      {/* 진행률 */}
+      <div className="w-full bg-gray-700 rounded-full h-2">
+        <div
+          className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
 
-        <CardContent className="space-y-4">
-          {/* Answer Input */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <User className="w-4 h-4 text-text-secondary" />
-              <span className="text-sm font-medium text-text-primary">답변</span>
-              {saving && (
-                <div className="flex items-center gap-1 text-xs text-text-tertiary">
-                  <RefreshCw className="w-3 h-3 animate-spin" />
-                  저장 중...
-                </div>
-              )}
-              {existingAnswer && !saving && (
-                <div className="flex items-center gap-1 text-xs text-accent-green">
-                  <CheckCircle2 className="w-3 h-3" />
-                  저장됨
-                </div>
-              )}
-            </div>
-            <Textarea
-              value={currentAnswer}
-              onChange={(e) => setCurrentAnswer(e.target.value)}
-              placeholder="여기에 답변을 입력하세요..."
-              className="min-h-[120px] resize-none"
-              disabled={disabled}
-            />
-            <div className="flex items-center justify-between text-xs text-text-tertiary">
-              <span>
-                {currentAnswer.length}자
-                {currentQuestion.expectedFormat && (
-                  <span> (형식: {currentQuestion.expectedFormat})</span>
-                )}
+      {/* 에러 메시지 */}
+      {error && (
+        <div className="p-4 bg-red-900/20 border border-red-800 rounded-lg flex items-center gap-3">
+          <AlertCircle className="w-5 h-5 text-red-400" />
+          <span className="text-red-300">{error}</span>
+        </div>
+      )}
+
+      {/* 질문 카드 */}
+      <div className="p-6 bg-gray-800 rounded-lg border border-gray-700">
+        <div className="flex items-start gap-4 mb-6">
+          <div className="p-3 bg-blue-600 rounded-lg">
+            <MessageSquare className="w-6 h-6 text-white" />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-3 mb-2">
+              <span className={`px-3 py-1 rounded-full text-sm border ${getCategoryColor(currentQuestion.category)}`}>
+                {getCategoryLabel(currentQuestion.category)}
               </span>
-              <span>자동 저장 활성화</span>
+              {currentQuestion.required && (
+                <span className="px-2 py-1 bg-red-900/30 text-red-300 rounded text-xs border border-red-700">
+                  필수
+                </span>
+              )}
+              <span className="text-xs text-gray-500">
+                신뢰도: {Math.round((currentQuestion.confidenceScore || 0) * 100)}%
+              </span>
             </div>
-          </div>
-
-          {/* Suggestions */}
-          {currentQuestion.context && (
-            <div className="space-y-2">
-              <span className="text-sm font-medium text-text-primary">답변 가이드</span>
-              <div className="p-3 bg-bg-secondary rounded-md">
-                <p className="text-sm text-text-secondary">
-                  {currentQuestion.context}
+            <h4 className="text-lg font-medium text-white mb-2">
+              {currentQuestion.question}
+            </h4>
+            {currentQuestion.context && (
+              <p className="text-sm text-gray-400 mb-4">
+                {currentQuestion.context}
+              </p>
+            )}
+            {currentQuestion.expectedFormat && (
+              <div className="p-3 bg-blue-900/20 border border-blue-800 rounded-lg">
+                <p className="text-sm text-blue-300">
+                  <strong>예상 답변 형식:</strong> {currentQuestion.expectedFormat}
                 </p>
               </div>
+            )}
+          </div>
+        </div>
+
+        {/* 답변 입력 */}
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              답변
+            </label>
+            <textarea
+              value={currentAnswer?.answer || ''}
+              onChange={(e) => handleAnswerChange(currentQuestion.id, e.target.value)}
+              placeholder="답변을 입력해주세요..."
+              className="w-full bg-gray-900 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              rows={6}
+            />
+          </div>
+
+          {/* 확신도 슬라이더 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              답변 확신도: {currentAnswer?.confidence || 70}%
+            </label>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={currentAnswer?.confidence || 70}
+              onChange={(e) => handleConfidenceChange(currentQuestion.id, parseInt(e.target.value))}
+              className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
+            />
+            <div className="flex justify-between text-xs text-gray-500 mt-1">
+              <span>확신 없음</span>
+              <span>매우 확신</span>
             </div>
-          )}
+          </div>
 
-          {/* Navigation */}
-          <div className="flex items-center justify-between pt-4 border-t border-border-primary">
-            <Button
-              variant="ghost"
-              onClick={handlePrevious}
-              disabled={currentQuestionIndex === 0 || disabled}
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              이전 질문
-            </Button>
+          {/* 추가 메모 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              추가 메모 (선택사항)
+            </label>
+            <textarea
+              value={currentAnswer?.notes || ''}
+              onChange={(e) => handleNotesChange(currentQuestion.id, e.target.value)}
+              placeholder="추가 설명이나 메모를 입력해주세요..."
+              className="w-full bg-gray-900 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              rows={3}
+            />
+          </div>
 
-            <div className="flex items-center gap-2">
-              <Button
-                variant="secondary"
-                onClick={handleSaveAnswer}
-                disabled={saving || disabled}
+          {/* 버튼들 */}
+          <div className="flex items-center justify-between pt-4">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => saveAnswer(currentQuestion.id, true)}
+                disabled={!currentAnswer?.answer.trim() || isSaving}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
               >
-                <Save className="w-4 h-4 mr-2" />
-                저장
-              </Button>
+                <Save className="w-4 h-4" />
+                임시 저장
+              </button>
+              <button
+                onClick={() => submitAnswer(currentQuestion.id)}
+                disabled={!currentAnswer?.answer.trim() || isSaving}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+              >
+                <Send className="w-4 h-4" />
+                답변 제출
+              </button>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handlePrevious}
+                disabled={currentQuestionIndex === 0}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                이전
+              </button>
 
               {currentQuestionIndex === questions.length - 1 ? (
-                <Button
-                  variant="primary"
+                <button
                   onClick={handleComplete}
-                  disabled={completedAnswers.length < questions.length || disabled}
+                  disabled={isSaving}
+                  className="flex items-center gap-2 px-6 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-800 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
                 >
-                  <CheckCircle2 className="w-4 h-4 mr-2" />
-                  답변 완료
-                </Button>
+                  {isSaving ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <CheckCircle className="w-4 h-4" />
+                  )}
+                  완료
+                </button>
               ) : (
-                <Button
-                  variant="primary"
+                <button
                   onClick={handleNext}
-                  disabled={currentQuestionIndex === questions.length - 1 || disabled}
+                  disabled={currentQuestionIndex === questions.length - 1}
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
                 >
-                  다음 질문
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
+                  다음
+                  <ArrowRight className="w-4 h-4" />
+                </button>
               )}
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      {/* Question Overview */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-text-primary">질문 개요</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ScrollArea className="h-48">
-            <div className="space-y-2">
-              {questions.map((question, index) => {
-                const answer = answers.find(a => a.questionId === question.id);
-                const isCompleted = answer && answer.answer?.trim().length > 0;
-                const isCurrent = index === currentQuestionIndex;
+      {/* 답변 상태 요약 */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="p-4 bg-gray-800 rounded-lg border border-gray-700">
+          <div className="flex items-center gap-2 text-sm text-gray-400 mb-2">
+            <CheckCircle className="w-4 h-4" />
+            완료된 답변
+          </div>
+          <div className="text-2xl font-bold text-white">
+            {Object.values(answers).filter(a => !a.isDraft && a.answer.trim()).length}
+          </div>
+        </div>
 
-                return (
-                  <button
-                    key={question.id}
-                    onClick={() => setCurrentQuestionIndex(index)}
-                    disabled={disabled}
-                    className={`
-                      w-full p-3 rounded-lg border text-left transition-all duration-200
-                      ${isCurrent
-                        ? 'bg-primary-500/10 border-primary-500/30'
-                        : isCompleted
-                        ? 'bg-accent-green/5 border-accent-green/20 hover:bg-accent-green/10'
-                        : 'bg-bg-secondary border-border-primary hover:bg-bg-elevated'
-                      }
-                    `}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-text-tertiary">
-                          {index + 1}
-                        </span>
-                        {isCompleted ? (
-                          <CheckCircle2 className="w-4 h-4 text-accent-green" />
-                        ) : isCurrent ? (
-                          <Clock className="w-4 h-4 text-primary-500" />
-                        ) : (
-                          <div className="w-4 h-4 rounded-full border-2 border-border-primary" />
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-text-primary line-clamp-1">
-                          {question.question}
-                        </p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Badge
-                            className={getQuestionTypeColor(question.category)}
-                            size="sm"
-                          >
-                            {getQuestionTypeLabel(question.category)}
-                          </Badge>
-                          <span className="text-xs text-text-tertiary">
-                            {question.required ? '필수' : '선택'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </ScrollArea>
-        </CardContent>
-      </Card>
+        <div className="p-4 bg-gray-800 rounded-lg border border-gray-700">
+          <div className="flex items-center gap-2 text-sm text-gray-400 mb-2">
+            <Clock className="w-4 h-4" />
+            임시 저장
+          </div>
+          <div className="text-2xl font-bold text-white">
+            {Object.values(answers).filter(a => a.isDraft).length}
+          </div>
+        </div>
+
+        <div className="p-4 bg-gray-800 rounded-lg border border-gray-700">
+          <div className="flex items-center gap-2 text-sm text-gray-400 mb-2">
+            <AlertCircle className="w-4 h-4" />
+            필수 답변 필요
+          </div>
+          <div className="text-2xl font-bold text-white">
+            {questions.filter(q => q.required && (!answers[q.id] || answers[q.id].isDraft)).length}
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

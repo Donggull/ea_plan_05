@@ -11,7 +11,7 @@
   },
   "rewrites": [
     {
-      "source": "/((?!api/|assets/|vite\\.svg).*)",
+      "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
   ],

@@ -1,291 +1,311 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
-import { Badge } from '@/components/ui/Badge';
-import { Label } from '@/components/ui/Label';
-import { Slider } from '@/components/ui/Slider';
-import { Bot, Zap, Brain, Settings, CheckCircle2 } from 'lucide-react';
-import type { AIProvider, AIModel, AnalysisDepth } from '@/types/preAnalysis';
+import { ChevronDown, Info, DollarSign, Clock } from 'lucide-react';
+import { AnalysisSettings, AIModelInfo } from '../../types/preAnalysis';
 
 interface AIModelSelectorProps {
-  onSelectionChange: (selection: {
-    provider: AIProvider;
-    model: string;
-    depth: AnalysisDepth;
-    temperature: number;
-  }) => void;
-  disabled?: boolean;
+  settings: AnalysisSettings;
+  onSettingsChange: (settings: AnalysisSettings) => void;
 }
 
 export const AIModelSelector: React.FC<AIModelSelectorProps> = ({
-  onSelectionChange,
-  disabled = false
+  settings,
+  onSettingsChange,
 }) => {
-  const [selectedProvider, setSelectedProvider] = useState<AIProvider>('openai');
-  const [selectedModel, setSelectedModel] = useState<string>('');
-  const [analysisDepth, setAnalysisDepth] = useState<AnalysisDepth>('standard');
-  const [temperature, setTemperature] = useState([0.7]);
+  const [availableModels, setAvailableModels] = useState<AIModelInfo[]>([]);
+  const [selectedModel, setSelectedModel] = useState<AIModelInfo | null>(null);
+  const [showTooltip, setShowTooltip] = useState<string | null>(null);
 
-  const providers: { id: AIProvider; name: string; icon: React.ReactNode; models: AIModel[] }[] = [
-    {
-      id: 'openai',
-      name: 'OpenAI',
-      icon: <Bot className="w-4 h-4" />,
-      models: [
-        { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', provider: 'openai', capabilities: ['text', 'reasoning'], costPerInputToken: 0.01, costPerOutputToken: 0.03, maxTokens: 128000, description: '가장 강력한 모델', cost: 'high' },
-        { id: 'gpt-4', name: 'GPT-4', provider: 'openai', capabilities: ['text', 'reasoning'], costPerInputToken: 0.03, costPerOutputToken: 0.06, maxTokens: 8192, description: '균형잡힌 성능', cost: 'medium' },
-        { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', provider: 'openai', capabilities: ['text'], costPerInputToken: 0.0015, costPerOutputToken: 0.002, maxTokens: 4096, description: '빠르고 경제적', cost: 'low' }
-      ]
-    },
-    {
-      id: 'anthropic',
-      name: 'Anthropic',
-      icon: <Brain className="w-4 h-4" />,
-      models: [
-        { id: 'claude-3-opus', name: 'Claude 3 Opus', provider: 'anthropic', capabilities: ['text', 'reasoning', 'analysis'], costPerInputToken: 0.015, costPerOutputToken: 0.075, maxTokens: 200000, description: '최고 성능 모델', cost: 'high' },
-        { id: 'claude-3-sonnet', name: 'Claude 3 Sonnet', provider: 'anthropic', capabilities: ['text', 'reasoning'], costPerInputToken: 0.003, costPerOutputToken: 0.015, maxTokens: 200000, description: '균형잡힌 성능', cost: 'medium' },
-        { id: 'claude-3-haiku', name: 'Claude 3 Haiku', provider: 'anthropic', capabilities: ['text'], costPerInputToken: 0.00025, costPerOutputToken: 0.00125, maxTokens: 200000, description: '빠른 응답', cost: 'low' }
-      ]
-    },
-    {
-      id: 'google',
-      name: 'Google AI',
-      icon: <Zap className="w-4 h-4" />,
-      models: [
-        { id: 'gemini-pro', name: 'Gemini Pro', provider: 'google', capabilities: ['text', 'multimodal'], costPerInputToken: 0.0005, costPerOutputToken: 0.0015, maxTokens: 32000, description: '강력한 멀티모달', cost: 'medium' },
-        { id: 'gemini-pro-vision', name: 'Gemini Pro Vision', provider: 'google', capabilities: ['text', 'vision', 'multimodal'], costPerInputToken: 0.0005, costPerOutputToken: 0.0015, maxTokens: 32000, description: '이미지 분석 특화', cost: 'medium' }
-      ]
-    }
-  ];
-
-  const depthOptions: { id: AnalysisDepth; name: string; description: string; duration: string }[] = [
-    { id: 'quick', name: 'Quick', description: '빠른 개요 분석', duration: '2-3분' },
-    { id: 'standard', name: 'Standard', description: '표준 분석', duration: '5-10분' },
-    { id: 'deep', name: 'Deep', description: '심층 분석', duration: '15-20분' },
-    { id: 'comprehensive', name: 'Comprehensive', description: '종합 분석', duration: '30-45분' }
-  ];
-
-  const currentProvider = providers.find(p => p.id === selectedProvider);
-  const currentModel = currentProvider?.models.find(m => m.id === selectedModel);
-
+  // 사용 가능한 AI 모델 목록
   useEffect(() => {
-    if (currentProvider && !selectedModel) {
-      setSelectedModel(currentProvider.models[1]?.id || currentProvider.models[0]?.id);
-    }
-  }, [selectedProvider, currentProvider, selectedModel]);
+    const models: AIModelInfo[] = [
+      {
+        id: 'gpt-4o',
+        name: 'GPT-4o',
+        provider: 'openai',
+        capabilities: ['텍스트 분석', '구조화된 출력', '추론', '창의적 사고'],
+        costPerInputToken: 0.0025,
+        costPerOutputToken: 0.01,
+        maxTokens: 128000,
+        description: '가장 강력하고 균형잡힌 모델로 복잡한 분석에 적합',
+      },
+      {
+        id: 'gpt-4-turbo',
+        name: 'GPT-4 Turbo',
+        provider: 'openai',
+        capabilities: ['빠른 처리', '비용 효율성', '정확한 분석'],
+        costPerInputToken: 0.001,
+        costPerOutputToken: 0.003,
+        maxTokens: 128000,
+        description: '빠르고 경제적이면서도 높은 품질의 분석 제공',
+      },
+      {
+        id: 'claude-3-5-sonnet',
+        name: 'Claude 3.5 Sonnet',
+        provider: 'anthropic',
+        capabilities: ['논리적 추론', '상세한 분석', '안전한 출력'],
+        costPerInputToken: 0.003,
+        costPerOutputToken: 0.015,
+        maxTokens: 200000,
+        description: '뛰어난 추론 능력과 상세한 분석으로 유명',
+      },
+      {
+        id: 'gemini-1.5-pro',
+        name: 'Gemini 1.5 Pro',
+        provider: 'google',
+        capabilities: ['다중 모달', '긴 컨텍스트', '코드 이해'],
+        costPerInputToken: 0.00125,
+        costPerOutputToken: 0.005,
+        maxTokens: 1000000,
+        description: '매우 긴 컨텍스트와 다양한 형태의 입력 처리 가능',
+      },
+    ];
 
-  useEffect(() => {
-    if (selectedProvider && selectedModel && analysisDepth) {
-      onSelectionChange({
-        provider: selectedProvider,
-        model: selectedModel,
-        depth: analysisDepth,
-        temperature: temperature[0]
+    setAvailableModels(models);
+
+    // 현재 선택된 모델 찾기
+    const current = models.find(m => m.id === settings.aiModel);
+    setSelectedModel(current || models[0]);
+  }, [settings.aiModel]);
+
+  const handleModelChange = (modelId: string) => {
+    const model = availableModels.find(m => m.id === modelId);
+    if (model) {
+      setSelectedModel(model);
+      onSettingsChange({
+        ...settings,
+        aiModel: model.id,
+        aiProvider: model.provider,
       });
-    }
-  }, [selectedProvider, selectedModel, analysisDepth, temperature, onSelectionChange]);
-
-  const getCostColor = (cost?: string) => {
-    switch (cost) {
-      case 'high': return 'text-semantic-warning';
-      case 'medium': return 'text-accent-blue';
-      case 'low': return 'text-accent-green';
-      default: return 'text-text-secondary';
     }
   };
 
-  const getCostBadgeVariant = (cost?: string) => {
-    switch (cost) {
-      case 'high': return 'warning';
-      case 'medium': return 'primary';
-      case 'low': return 'success';
-      default: return 'default';
+  const handleDepthChange = (depth: AnalysisSettings['analysisDepth']) => {
+    onSettingsChange({
+      ...settings,
+      analysisDepth: depth,
+    });
+  };
+
+  const getDepthDescription = (depth: string) => {
+    switch (depth) {
+      case 'quick':
+        return '빠른 개요 분석 (~2분)';
+      case 'standard':
+        return '표준 분석 (~5분)';
+      case 'deep':
+        return '심층 분석 (~10분)';
+      case 'comprehensive':
+        return '종합 분석 (~20분)';
+      default:
+        return '';
     }
+  };
+
+  const estimateCost = () => {
+    if (!selectedModel) return 0;
+
+    const depthMultiplier = {
+      quick: 1,
+      standard: 2.5,
+      deep: 5,
+      comprehensive: 10,
+    };
+
+    const baseTokens = 5000; // 기본 토큰 수 추정
+    const multiplier = depthMultiplier[settings.analysisDepth];
+    const estimatedTokens = baseTokens * multiplier;
+
+    return (
+      (estimatedTokens * selectedModel.costPerInputToken) +
+      (estimatedTokens * 0.3 * selectedModel.costPerOutputToken)
+    );
+  };
+
+  const estimateTime = () => {
+    const depthTime = {
+      quick: 2,
+      standard: 5,
+      deep: 10,
+      comprehensive: 20,
+    };
+
+    return depthTime[settings.analysisDepth];
   };
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-text-primary">
-            <Bot className="w-5 h-5" />
-            AI 모델 선택
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Provider Selection */}
-          <div className="space-y-3">
-            <Label className="text-sm font-medium text-text-primary">AI 제공업체</Label>
-            <div className="grid grid-cols-3 gap-3">
-              {providers.map((provider) => (
-                <button
-                  key={provider.id}
-                  onClick={() => setSelectedProvider(provider.id)}
-                  disabled={disabled}
-                  className={`
-                    p-3 rounded-lg border transition-all duration-200 text-left
-                    ${selectedProvider === provider.id
-                      ? 'bg-primary-500/10 border-primary-500 shadow-lg'
-                      : 'bg-bg-secondary border-border-primary hover:bg-bg-elevated'
-                    }
-                    ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-                  `}
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    {provider.icon}
-                    <span className="font-medium text-text-primary text-sm">
-                      {provider.name}
-                    </span>
-                    {selectedProvider === provider.id && (
-                      <CheckCircle2 className="w-4 h-4 text-primary-500 ml-auto" />
-                    )}
+      {/* AI 모델 선택 */}
+      <div>
+        <label className="block text-sm font-medium text-gray-300 mb-3">
+          AI 모델 선택
+        </label>
+        <div className="relative">
+          <select
+            value={settings.aiModel}
+            onChange={(e) => handleModelChange(e.target.value)}
+            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none"
+          >
+            {availableModels.map((model) => (
+              <option key={model.id} value={model.id}>
+                {model.name} - {model.provider}
+              </option>
+            ))}
+          </select>
+          <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+        </div>
+
+        {/* 선택된 모델 정보 */}
+        {selectedModel && (
+          <div className="mt-4 p-4 bg-gray-800 rounded-lg border border-gray-700">
+            <div className="flex items-start justify-between mb-3">
+              <h4 className="font-medium text-white">{selectedModel.name}</h4>
+              <div
+                className="relative"
+                onMouseEnter={() => setShowTooltip('model-info')}
+                onMouseLeave={() => setShowTooltip(null)}
+              >
+                <Info className="w-4 h-4 text-gray-400 cursor-help" />
+                {showTooltip === 'model-info' && (
+                  <div className="absolute right-0 top-6 w-64 p-3 bg-gray-900 border border-gray-600 rounded-lg text-sm text-gray-300 z-10">
+                    {selectedModel.description}
                   </div>
-                  <p className="text-xs text-text-secondary">
-                    {provider.models.length}개 모델 사용 가능
-                  </p>
-                </button>
+                )}
+              </div>
+            </div>
+
+            <p className="text-sm text-gray-400 mb-3">
+              {selectedModel.description}
+            </p>
+
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-gray-400">최대 토큰:</span>
+                <span className="text-white ml-2">
+                  {selectedModel.maxTokens.toLocaleString()}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-400">입력 비용:</span>
+                <span className="text-white ml-2">
+                  ${selectedModel.costPerInputToken}/1K 토큰
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              {selectedModel.capabilities.map((capability) => (
+                <span
+                  key={capability}
+                  className="px-2 py-1 bg-blue-900/30 text-blue-300 rounded text-xs"
+                >
+                  {capability}
+                </span>
               ))}
             </div>
           </div>
+        )}
+      </div>
 
-          {/* Model Selection */}
-          {currentProvider && (
-            <div className="space-y-3">
-              <Label className="text-sm font-medium text-text-primary">모델</Label>
-              <Select value={selectedModel} onValueChange={setSelectedModel} disabled={disabled}>
-                <SelectTrigger className="bg-bg-secondary border-border-primary">
-                  <SelectValue placeholder="모델을 선택하세요" />
-                </SelectTrigger>
-                <SelectContent>
-                  {currentProvider.models.map((model) => (
-                    <SelectItem key={model.id} value={model.id}>
-                      <div className="flex items-center justify-between w-full">
-                        <div>
-                          <div className="font-medium">{model.name}</div>
-                          <div className="text-xs text-text-secondary">{model.description}</div>
-                        </div>
-                        <Badge variant={getCostBadgeVariant(model.cost)} size="sm">
-                          {model.cost}
-                        </Badge>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+      {/* 분석 깊이 선택 */}
+      <div>
+        <label className="block text-sm font-medium text-gray-300 mb-3">
+          분석 깊이
+        </label>
+        <div className="grid grid-cols-2 gap-3">
+          {(['quick', 'standard', 'deep', 'comprehensive'] as const).map((depth) => (
+            <button
+              key={depth}
+              onClick={() => handleDepthChange(depth)}
+              className={`
+                p-4 rounded-lg border-2 transition-all text-left
+                ${settings.analysisDepth === depth
+                  ? 'border-blue-500 bg-blue-900/20 text-white'
+                  : 'border-gray-700 bg-gray-800 text-gray-300 hover:border-gray-600'
+                }
+              `}
+            >
+              <div className="font-medium capitalize mb-1">
+                {depth === 'quick' && '빠른'}
+                {depth === 'standard' && '표준'}
+                {depth === 'deep' && '심층'}
+                {depth === 'comprehensive' && '종합'}
+              </div>
+              <div className="text-sm opacity-80">
+                {getDepthDescription(depth)}
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
 
-              {currentModel && (
-                <div className="p-3 bg-bg-secondary/50 rounded-lg border border-border-secondary">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-medium text-text-primary">{currentModel.name}</h4>
-                      <p className="text-sm text-text-secondary">{currentModel.description}</p>
-                    </div>
-                    <Badge variant={getCostBadgeVariant(currentModel.cost)} size="sm">
-                      {currentModel.cost} cost
-                    </Badge>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Analysis Depth */}
-          <div className="space-y-3">
-            <Label className="text-sm font-medium text-text-primary">분석 깊이</Label>
-            <div className="grid grid-cols-2 gap-3">
-              {depthOptions.map((option) => (
-                <button
-                  key={option.id}
-                  onClick={() => setAnalysisDepth(option.id)}
-                  disabled={disabled}
-                  className={`
-                    p-3 rounded-lg border transition-all duration-200 text-left
-                    ${analysisDepth === option.id
-                      ? 'bg-accent-blue/10 border-accent-blue shadow-lg'
-                      : 'bg-bg-secondary border-border-primary hover:bg-bg-elevated'
-                    }
-                    ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-                  `}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-medium text-text-primary text-sm">
-                      {option.name}
-                    </span>
-                    {analysisDepth === option.id && (
-                      <CheckCircle2 className="w-4 h-4 text-accent-blue" />
-                    )}
-                  </div>
-                  <p className="text-xs text-text-secondary mb-1">
-                    {option.description}
-                  </p>
-                  <Badge variant="primary" size="sm">
-                    {option.duration}
-                  </Badge>
-                </button>
-              ))}
-            </div>
+      {/* 예상 비용 및 시간 */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="p-4 bg-gray-800 rounded-lg border border-gray-700">
+          <div className="flex items-center gap-2 text-sm text-gray-400 mb-2">
+            <DollarSign className="w-4 h-4" />
+            예상 비용
           </div>
-
-          {/* Temperature Control */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label className="text-sm font-medium text-text-primary">창의성 (Temperature)</Label>
-              <span className="text-sm text-text-secondary">{temperature[0]}</span>
-            </div>
-            <div className="px-2">
-              <Slider
-                value={temperature}
-                onValueChange={setTemperature}
-                min={0}
-                max={1}
-                step={0.1}
-                disabled={disabled}
-                className="w-full"
-              />
-              <div className="flex justify-between text-xs text-text-tertiary mt-1">
-                <span>보수적 (0.0)</span>
-                <span>창의적 (1.0)</span>
-              </div>
-            </div>
+          <div className="text-lg font-semibold text-white">
+            ${estimateCost().toFixed(3)}
           </div>
-        </CardContent>
-      </Card>
+        </div>
 
-      {/* Summary */}
-      {selectedProvider && selectedModel && (
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 mb-3">
-              <Settings className="w-4 h-4 text-text-secondary" />
-              <span className="text-sm font-medium text-text-primary">선택 요약</span>
-            </div>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-text-secondary">모델:</span>
-                <span className="text-text-primary">{currentModel?.name}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-text-secondary">분석 깊이:</span>
-                <span className="text-text-primary">
-                  {depthOptions.find(d => d.id === analysisDepth)?.name}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-text-secondary">예상 소요시간:</span>
-                <span className="text-text-primary">
-                  {depthOptions.find(d => d.id === analysisDepth)?.duration}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-text-secondary">비용 예상:</span>
-                <span className={getCostColor(currentModel?.cost)}>
-                  {currentModel?.cost || 'unknown'} cost
-                </span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+        <div className="p-4 bg-gray-800 rounded-lg border border-gray-700">
+          <div className="flex items-center gap-2 text-sm text-gray-400 mb-2">
+            <Clock className="w-4 h-4" />
+            예상 시간
+          </div>
+          <div className="text-lg font-semibold text-white">
+            ~{estimateTime()}분
+          </div>
+        </div>
+      </div>
+
+      {/* 고급 설정 */}
+      <div>
+        <label className="block text-sm font-medium text-gray-300 mb-3">
+          사용자 정의 지시사항 (선택사항)
+        </label>
+        <textarea
+          value={settings.customInstructions || ''}
+          onChange={(e) => onSettingsChange({
+            ...settings,
+            customInstructions: e.target.value,
+          })}
+          placeholder="특별한 분석 요구사항이 있다면 입력해주세요..."
+          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+          rows={3}
+        />
+      </div>
+
+      {/* 출력 형식 */}
+      <div>
+        <label className="block text-sm font-medium text-gray-300 mb-3">
+          출력 형식
+        </label>
+        <div className="flex gap-3">
+          {(['standard', 'detailed', 'executive'] as const).map((format) => (
+            <button
+              key={format}
+              onClick={() => onSettingsChange({
+                ...settings,
+                outputFormat: format,
+              })}
+              className={`
+                px-4 py-2 rounded-lg border transition-colors
+                ${settings.outputFormat === format
+                  ? 'border-blue-500 bg-blue-900/20 text-blue-300'
+                  : 'border-gray-700 bg-gray-800 text-gray-400 hover:border-gray-600'
+                }
+              `}
+            >
+              {format === 'standard' && '표준'}
+              {format === 'detailed' && '상세'}
+              {format === 'executive' && '경영진용'}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 };

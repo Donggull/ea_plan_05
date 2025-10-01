@@ -11,8 +11,6 @@ import {
   QuestionGenerationOptions,
   ReportGenerationOptions,
   DocumentCategory,
-  AnalysisDepth,
-  AnalysisStep,
 } from '../../types/preAnalysis';
 
 export class PreAnalysisService {
@@ -54,152 +52,6 @@ export class PreAnalysisService {
       return {
         success: false,
         error: '문서 조회 중 오류가 발생했습니다.',
-      };
-    }
-  }
-
-  /**
-   * 새 세션 시작
-   */
-  static async startSession(projectId: string, config: any, userId: string): Promise<ServiceResponse<PreAnalysisSession>> {
-    try {
-      if (!supabase) {
-        throw new Error('Supabase client not initialized');
-      }
-
-      const { data, error } = await supabase
-        .from('pre_analysis_sessions')
-        .insert({
-          project_id: projectId,
-          ai_model: config.model,
-          ai_provider: config.provider,
-          analysis_depth: config.depth,
-          status: 'processing',
-          started_at: new Date().toISOString(),
-          total_cost: 0,
-          created_by: userId,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          mcp_config: config.mcpConfig || {},
-          metadata: {}
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error('세션 생성 오류:', error);
-        return { success: false, error: error.message };
-      }
-
-      // 데이터 변환
-      const transformedSession: PreAnalysisSession = {
-        id: data.id,
-        projectId: data.project_id || '',
-        aiModel: data.ai_model || '',
-        aiProvider: data.ai_provider || '',
-        mcpConfig: (data.mcp_config as { filesystem: boolean; database: boolean; websearch: boolean; github: boolean; }) || { filesystem: false, database: false, websearch: false, github: false },
-        analysisDepth: (data.analysis_depth as AnalysisDepth) || 'standard',
-        status: (data.status as "completed" | "failed" | "cancelled" | "processing") || 'processing',
-        currentStep: 'setup',
-        startedAt: data.started_at ? new Date(data.started_at) : new Date(),
-        completedAt: data.completed_at ? new Date(data.completed_at) : undefined,
-        processingTime: data.processing_time || 0,
-        totalCost: data.total_cost || 0,
-        createdBy: data.created_by || '',
-        createdAt: data.created_at ? new Date(data.created_at) : new Date(),
-        updatedAt: data.updated_at ? new Date(data.updated_at) : new Date(),
-        metadata: (data.metadata as Record<string, any>) || {},
-      };
-
-      return {
-        success: true,
-        data: transformedSession,
-      };
-    } catch (error) {
-      console.error('세션 시작 중 오류:', error);
-      return {
-        success: false,
-        error: '세션 시작 중 오류가 발생했습니다.',
-      };
-    }
-  }
-
-  /**
-   * 활성 세션 조회
-   */
-  async getActiveSession(projectId: string, userId?: string): Promise<ServiceResponse<PreAnalysisSession | null>> {
-    try {
-      if (!supabase) {
-        throw new Error('Supabase client not initialized');
-      }
-
-      // 사용자 ID가 제공된 경우 먼저 프로젝트 소유자 확인
-      if (userId) {
-        const { data: projectData, error: projectError } = await supabase
-          .from('projects')
-          .select('owner_id')
-          .eq('id', projectId)
-          .single();
-
-        if (projectError) {
-          console.error('프로젝트 조회 오류:', projectError);
-          throw new Error(`프로젝트를 찾을 수 없습니다: ${projectError.message}`);
-        }
-
-        if (projectData.owner_id !== userId) {
-          throw new Error('프로젝트에 대한 접근 권한이 없습니다');
-        }
-      }
-
-      const { data, error } = await supabase
-        .from('pre_analysis_sessions')
-        .select('*')
-        .eq('project_id', projectId)
-        .eq('status', 'processing')
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      if (error) {
-        console.error('활성 세션 조회 오류:', error);
-        return { success: false, error: error.message };
-      }
-
-      // 배열에서 첫 번째 요소를 가져옵니다 (없으면 null)
-      const sessionData = data && data.length > 0 ? data[0] : null;
-
-      if (!sessionData) {
-        return { success: true, data: null };
-      }
-
-      // 데이터 변환
-      const transformedSession: PreAnalysisSession = {
-        id: sessionData.id,
-        projectId: sessionData.project_id || '',
-        aiModel: sessionData.ai_model || '',
-        aiProvider: sessionData.ai_provider || '',
-        mcpConfig: (sessionData.mcp_config as { filesystem: boolean; database: boolean; websearch: boolean; github: boolean; }) || { filesystem: false, database: false, websearch: false, github: false },
-        analysisDepth: (sessionData.analysis_depth as AnalysisDepth) || 'standard',
-        status: (sessionData.status as "completed" | "failed" | "cancelled" | "processing") || 'processing',
-        currentStep: (sessionData as any).current_step || 'setup',
-        startedAt: sessionData.started_at ? new Date(sessionData.started_at) : new Date(),
-        completedAt: sessionData.completed_at ? new Date(sessionData.completed_at) : undefined,
-        processingTime: sessionData.processing_time || 0,
-        totalCost: sessionData.total_cost || 0,
-        createdBy: sessionData.created_by || '',
-        createdAt: sessionData.created_at ? new Date(sessionData.created_at) : new Date(),
-        updatedAt: sessionData.updated_at ? new Date(sessionData.updated_at) : new Date(),
-        metadata: (sessionData.metadata as Record<string, any>) || {},
-      };
-
-      return {
-        success: true,
-        data: transformedSession,
-      };
-    } catch (error) {
-      console.error('활성 세션 조회 중 오류:', error);
-      return {
-        success: false,
-        error: '활성 세션 조회 중 오류가 발생했습니다.',
       };
     }
   }
@@ -421,42 +273,32 @@ export class PreAnalysisService {
         console.log('📝 문서 분석 완료, AI 질문 생성을 자동으로 시작합니다...');
         console.log(`📍 세션 ID: ${sessionId}, 프로젝트 ID: ${projectId}`);
 
-        // 세션 상태를 즉시 업데이트 (질문 생성 단계로)
-        try {
-          await this.updateSessionCurrentStep(sessionId, 'questions');
-          console.log('✅ 세션 상태를 질문 생성 단계로 업데이트했습니다.');
-        } catch (error) {
-          console.error('❌ 세션 상태 업데이트 실패:', error);
-        }
+        // 비동기로 질문 생성 시작 (await 하지 않음으로써 응답을 먼저 반환)
+        setTimeout(async () => {
+          try {
+            console.log('⏰ 1초 대기 완료, 이제 generateQuestions 메서드를 호출합니다...');
 
-        // 즉시 질문 생성 실행 (setTimeout 제거)
-        try {
-          console.log('🚀 질문 생성을 즉시 시작합니다...');
+            const questionResult = await this.generateQuestions(sessionId, {
+              categories: ['technical', 'business', 'risks', 'budget', 'timeline'],
+              maxQuestions: 20,
+              includeRequired: true,
+              customContext: '문서 분석이 완료된 프로젝트에 대한 추가 질문을 생성합니다.',
+              documentTypes: [DocumentCategory.TECHNICAL, DocumentCategory.BUSINESS, DocumentCategory.REQUIREMENTS]
+            });
 
-          const questionResult = await this.generateQuestions(sessionId, {
-            categories: ['technical', 'business', 'risks', 'budget', 'timeline'],
-            maxQuestions: 20,
-            includeRequired: true,
-            customContext: '문서 분석이 완료된 프로젝트에 대한 추가 질문을 생성합니다.',
-            documentTypes: [DocumentCategory.TECHNICAL, DocumentCategory.BUSINESS, DocumentCategory.REQUIREMENTS]
-          });
+            console.log('🔄 generateQuestions 메서드 결과:', questionResult);
 
-          console.log('🔄 generateQuestions 메서드 결과:', questionResult);
-
-          if (questionResult.success) {
-            console.log('✅ AI 질문 생성이 자동으로 완료되었습니다.');
-            console.log('📊 생성된 질문 데이터:', questionResult.data);
-
-            // 질문 생성 완료 후 보고서 단계로 이동
-            await this.updateSessionCurrentStep(sessionId, 'report');
-            console.log('✅ 세션 상태를 보고서 단계로 업데이트했습니다.');
-          } else {
-            console.error('❌ AI 질문 생성 자동 실행 실패:', questionResult.error);
+            if (questionResult.success) {
+              console.log('✅ AI 질문 생성이 자동으로 완료되었습니다.');
+              console.log('📊 생성된 질문 데이터:', questionResult.data);
+            } else {
+              console.error('❌ AI 질문 생성 자동 실행 실패:', questionResult.error);
+            }
+          } catch (error) {
+            console.error('❌ AI 질문 생성 자동 실행 중 오류:', error);
+            console.error('❌ 오류 스택:', error instanceof Error ? error.stack : 'Stack trace not available');
           }
-        } catch (error) {
-          console.error('❌ AI 질문 생성 자동 실행 중 오류:', error);
-          console.error('❌ 오류 스택:', error instanceof Error ? error.stack : 'Stack trace not available');
-        }
+        }, 1000); // 1초 후 실행
       } else {
         console.warn('⚠️ 성공한 문서가 없어서 AI 질문 생성을 건너뛰었습니다.');
       }
@@ -1183,153 +1025,6 @@ export class PreAnalysisService {
     }
   }
 
-  /**
-   * 세션 업데이트
-   */
-  async updateSession(sessionId: string, updates: Partial<PreAnalysisSession>): Promise<ServiceResponse<PreAnalysisSession>> {
-    try {
-      if (!supabase) {
-        throw new Error('Supabase client not initialized');
-      }
-
-      const updateData: any = {};
-      if (updates.aiModel) updateData.ai_model = updates.aiModel;
-      if (updates.aiProvider) updateData.ai_provider = updates.aiProvider;
-      if (updates.mcpConfig) updateData.mcp_config = updates.mcpConfig;
-      if (updates.analysisDepth) updateData.analysis_depth = updates.analysisDepth;
-      if (updates.status) updateData.status = updates.status;
-      if (updates.metadata) updateData.metadata = updates.metadata;
-
-      const { data, error } = await supabase
-        .from('pre_analysis_sessions')
-        .update(updateData)
-        .eq('id', sessionId)
-        .select()
-        .single();
-
-      if (error) {
-        return { success: false, error: error.message };
-      }
-
-      return {
-        success: true,
-        data: this.transformSessionData(data),
-      };
-    } catch (error) {
-      console.error('세션 업데이트 오류:', error);
-      return {
-        success: false,
-        error: '세션 업데이트 중 오류가 발생했습니다.',
-      };
-    }
-  }
-
-  /**
-   * 세션의 현재 단계 업데이트
-   */
-  private async updateSessionCurrentStep(sessionId: string, step: AnalysisStep): Promise<void> {
-    try {
-      if (!supabase) {
-        throw new Error('Supabase client not initialized');
-      }
-
-      const { error } = await supabase
-        .from('pre_analysis_sessions')
-        .update({
-          metadata: { currentStep: step, lastUpdated: new Date().toISOString() },
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', sessionId);
-
-      if (error) {
-        throw error;
-      }
-
-      console.log(`✅ 세션 ${sessionId}의 현재 단계를 ${step}로 업데이트했습니다.`);
-    } catch (error) {
-      console.error('세션 단계 업데이트 오류:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * 답변 저장
-   */
-  async saveAnswer(answer: Omit<UserAnswer, 'id' | 'answeredAt' | 'updatedAt'>): Promise<ServiceResponse<UserAnswer>> {
-    try {
-      if (!supabase) {
-        throw new Error('Supabase client not initialized');
-      }
-
-      const answerData = {
-        question_id: answer.questionId,
-        session_id: answer.sessionId,
-        answer: answer.answer,
-        answer_data: answer.answerData,
-        confidence: answer.confidence,
-        attachments: answer.attachments,
-        notes: answer.notes,
-        is_draft: answer.isDraft,
-        answered_by: answer.answeredBy,
-      };
-
-      const { data, error } = await supabase
-        .from('user_answers')
-        .upsert(answerData, {
-          onConflict: 'question_id,answered_by',
-        })
-        .select()
-        .single();
-
-      if (error) {
-        return { success: false, error: error.message };
-      }
-
-      return {
-        success: true,
-        data: this.transformAnswerData(data),
-      };
-    } catch (error) {
-      console.error('답변 저장 오류:', error);
-      return {
-        success: false,
-        error: '답변 저장 중 오류가 발생했습니다.',
-      };
-    }
-  }
-
-  /**
-   * 보고서 조회
-   */
-  async getReport(sessionId: string): Promise<ServiceResponse<AnalysisReport>> {
-    try {
-      if (!supabase) {
-        throw new Error('Supabase client not initialized');
-      }
-
-      const { data, error } = await supabase
-        .from('analysis_reports')
-        .select('*')
-        .eq('session_id', sessionId)
-        .single();
-
-      if (error) {
-        return { success: false, error: error.message };
-      }
-
-      return {
-        success: true,
-        data: this.transformReportData(data),
-      };
-    } catch (error) {
-      console.error('보고서 조회 오료:', error);
-      return {
-        success: false,
-        error: '보고서 조회 중 오류가 발생했습니다.',
-      };
-    }
-  }
-
   // 프라이빗 메서드들
 
   private async performAIAnalysis(
@@ -1967,12 +1662,7 @@ ${answersContext}
             body: JSON.stringify({
               provider,
               model,
-              messages: [
-                {
-                  role: 'user',
-                  content: prompt
-                }
-              ],
+              prompt,
               maxTokens,
               temperature
             }),
@@ -1999,29 +1689,12 @@ ${answersContext}
           }
 
           const data = await response.json();
-
-          // API가 성공적으로 응답했는지 확인
-          if (!data.success) {
-            throw new Error(data.error || 'AI API 호출 실패');
-          }
-
           console.log(`✅ [통합 API] 성공 (${attempt + 1}차 시도)`, {
-            inputTokens: data.data?.usage?.promptTokens,
-            outputTokens: data.data?.usage?.completionTokens,
-            totalTokens: data.data?.usage?.totalTokens
+            inputTokens: data.usage?.inputTokens,
+            outputTokens: data.usage?.outputTokens,
+            cost: data.cost?.totalCost
           });
-
-          // 기존 형식에 맞춰 반환
-          return {
-            content: data.data?.content,
-            usage: {
-              inputTokens: data.data?.usage?.promptTokens || 0,
-              outputTokens: data.data?.usage?.completionTokens || 0,
-              totalTokens: data.data?.usage?.totalTokens || 0
-            },
-            model: data.data?.model,
-            finishReason: data.data?.finishReason
-          };
+          return data;
 
         } catch (fetchError) {
           clearTimeout(timeoutId);
@@ -2322,12 +1995,12 @@ ${documentContext.map((doc, index) =>
       mcpConfig: data.mcp_config,
       analysisDepth: data.analysis_depth,
       status: data.status,
-      startedAt: data.started_at ? new Date(data.started_at) : new Date(),
+      startedAt: new Date(data.started_at),
       completedAt: data.completed_at ? new Date(data.completed_at) : undefined,
       processingTime: data.processing_time,
       totalCost: data.total_cost,
       createdBy: data.created_by,
-      createdAt: data.created_at ? new Date(data.created_at) : new Date(),
+      createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at),
       metadata: data.metadata,
     };
@@ -2347,7 +2020,7 @@ ${documentContext.map((doc, index) =>
       aiModel: data.ai_model,
       aiProvider: data.ai_provider,
       status: data.status,
-      createdAt: data.created_at ? new Date(data.created_at) : new Date(),
+      createdAt: new Date(data.created_at),
     };
   }
 
@@ -2365,7 +2038,7 @@ ${documentContext.map((doc, index) =>
       generatedByAI: data.generated_by_ai,
       aiModel: data.ai_model,
       confidenceScore: data.confidence_score,
-      createdAt: data.created_at ? new Date(data.created_at) : new Date(),
+      createdAt: new Date(data.created_at),
     };
   }
 
@@ -2405,7 +2078,7 @@ ${documentContext.map((doc, index) =>
       inputTokens: data.input_tokens,
       outputTokens: data.output_tokens,
       generatedBy: data.generated_by,
-      createdAt: data.created_at ? new Date(data.created_at) : new Date(),
+      createdAt: new Date(data.created_at),
     };
   }
 
@@ -2479,179 +2152,6 @@ ${documentContext.map((doc, index) =>
     } catch (error) {
       console.error('❌ buildDocumentContext 오류:', error);
       return [];
-    }
-  }
-
-  /**
-   * 세션의 질문 목록 조회 (ai_questions 테이블에서)
-   */
-  async getQuestions(sessionId: string): Promise<ServiceResponse<AIQuestion[]>> {
-    try {
-      if (!supabase) {
-        return { success: false, error: 'Supabase client not initialized' };
-      }
-
-      console.log('📋 질문 목록 조회 시작:', sessionId);
-
-      const { data, error } = await supabase
-        .from('ai_questions')
-        .select('*')
-        .eq('session_id', sessionId)
-        .order('order_index', { ascending: true });
-
-      if (error) {
-        console.error('❌ 질문 조회 실패:', error);
-        return { success: false, error: error.message };
-      }
-
-      if (!data || data.length === 0) {
-        console.log('⚠️ 저장된 질문이 없습니다');
-        return { success: true, data: [] };
-      }
-
-      // DB 데이터를 AIQuestion 타입으로 변환
-      const questions: AIQuestion[] = data.map((q) => ({
-        id: q.id,
-        sessionId: q.session_id || '',
-        category: (q.category || 'business') as AIQuestion['category'],
-        question: q.question,
-        context: q.context || undefined,
-        required: q.required || false,
-        expectedFormat: q.expected_format || undefined,
-        relatedDocuments: q.related_documents || [],
-        orderIndex: q.order_index,
-        generatedByAI: q.generated_by_ai || true,
-        aiModel: q.ai_model || undefined,
-        confidenceScore: q.confidence_score || undefined,
-        createdAt: q.created_at ? new Date(q.created_at) : new Date(),
-        importance: (typeof q.metadata === 'object' && q.metadata && 'importance' in q.metadata)
-          ? (q.metadata['importance'] as 'high' | 'medium' | 'low')
-          : 'medium',
-      }));
-
-      console.log(`✅ ${questions.length}개 질문 조회 완료`);
-
-      return { success: true, data: questions };
-
-    } catch (error) {
-      console.error('❌ getQuestions 오류:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : '알 수 없는 오류',
-      };
-    }
-  }
-
-  /**
-   * 세션의 답변 목록 조회 (user_answers 테이블에서)
-   */
-  async getAnswers(sessionId: string): Promise<ServiceResponse<UserAnswer[]>> {
-    try {
-      if (!supabase) {
-        return { success: false, error: 'Supabase client not initialized' };
-      }
-
-      console.log('💬 답변 목록 조회 시작:', sessionId);
-
-      const { data, error } = await supabase
-        .from('user_answers')
-        .select('*')
-        .eq('session_id', sessionId);
-
-      if (error) {
-        console.error('❌ 답변 조회 실패:', error);
-        return { success: false, error: error.message };
-      }
-
-      if (!data || data.length === 0) {
-        console.log('⚠️ 저장된 답변이 없습니다');
-        return { success: true, data: [] };
-      }
-
-      // DB 데이터를 UserAnswer 타입으로 변환
-      const answers: UserAnswer[] = data.map((a) => this.transformAnswerData(a));
-
-      console.log(`✅ ${answers.length}개 답변 조회 완료`);
-
-      return { success: true, data: answers };
-
-    } catch (error) {
-      console.error('❌ getAnswers 오류:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : '알 수 없는 오류',
-      };
-    }
-  }
-
-  /**
-   * 문서 분석 결과 목록 조회 (document_analyses 테이블에서)
-   */
-  async getDocumentAnalyses(sessionId: string): Promise<ServiceResponse<DocumentAnalysis[]>> {
-    try {
-      if (!supabase) {
-        return { success: false, error: 'Supabase client not initialized' };
-      }
-
-      console.log('📄 문서 분석 결과 조회 시작:', sessionId);
-
-      const { data, error } = await supabase
-        .from('document_analyses')
-        .select('*')
-        .eq('session_id', sessionId)
-        .order('created_at', { ascending: true });
-
-      if (error) {
-        console.error('❌ 문서 분석 결과 조회 실패:', error);
-        return { success: false, error: error.message };
-      }
-
-      if (!data || data.length === 0) {
-        console.log('⚠️ 저장된 분석 결과가 없습니다');
-        return { success: true, data: [] };
-      }
-
-      // DB 데이터를 DocumentAnalysis 타입으로 변환
-      const analyses: DocumentAnalysis[] = data.map((a) => ({
-        id: a.id,
-        sessionId: a.session_id || '',
-        projectId: '', // document_analyses 테이블에는 project_id가 없으므로 빈 문자열
-        documentId: a.document_id || '',
-        category: (a.category || 'requirements') as DocumentCategory,
-        analysis: (a.analysis_result as any) || {
-          summary: '',
-          keyRequirements: [],
-          stakeholders: [],
-          constraints: [],
-          risks: [],
-          opportunities: [],
-          technicalStack: [],
-          timeline: []
-        },
-        analysisResult: a.analysis_result,
-        mcpEnrichment: (a.mcp_enrichment as any) || undefined,
-        confidenceScore: a.confidence_score || undefined,
-        processingTime: a.processing_time || undefined,
-        aiModel: a.ai_model || '',
-        aiProvider: a.ai_provider || '',
-        inputTokens: a.input_tokens || 0,
-        outputTokens: a.output_tokens || 0,
-        cost: a.cost || 0,
-        status: (a.status || 'pending') as 'pending' | 'processing' | 'completed' | 'failed',
-        errorMessage: a.error_message || undefined,
-        createdAt: a.created_at ? new Date(a.created_at) : new Date(),
-      }));
-
-      console.log(`✅ ${analyses.length}개 문서 분석 결과 조회 완료`);
-
-      return { success: true, data: analyses };
-
-    } catch (error) {
-      console.error('❌ getDocumentAnalyses 오류:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : '알 수 없는 오류',
-      };
     }
   }
 }

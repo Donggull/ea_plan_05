@@ -3,89 +3,30 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
-// Model ID mapping: user-facing ID -> actual API model ID
-const MODEL_ID_MAP: Record<string, string> = {
-  // OpenAI
-  'openai-gpt-4.1': 'gpt-4.1',
-  'openai-gpt-4o': 'gpt-4o',
-  'openai-gpt-4o-mini': 'gpt-4o-mini',
-  'openai-gpt-4-turbo': 'gpt-4-turbo',
-  'openai-gpt-3.5-turbo': 'gpt-3.5-turbo',
-
-  // Anthropic
-  'anthropic-claude-opus-4': 'claude-opus-4-20250514',
-  'anthropic-claude-sonnet-4': 'claude-sonnet-4-20250514',
-  'anthropic-claude-sonnet-3-5': 'claude-3-5-sonnet-20241022',
-  'anthropic-claude-haiku-3-5': 'claude-3-5-haiku-20241022',
-  'anthropic-claude-opus-3': 'claude-3-opus-20240229',
-  'anthropic-claude-sonnet-3': 'claude-3-sonnet-20240229',
-  'anthropic-claude-haiku-3': 'claude-3-haiku-20240307',
-
-  // Google
-  'google-gemini-2.0-flash-thinking': 'gemini-2.0-flash-thinking-exp-1219',
-  'google-gemini-2.0-flash': 'gemini-2.0-flash-exp',
-  'google-gemini-1.5-pro': 'gemini-1.5-pro',
-  'google-gemini-1.5-flash': 'gemini-1.5-flash',
-}
-
 interface CompletionRequest {
   provider: 'openai' | 'anthropic' | 'google'
   model: string
-  prompt?: string
-  messages?: Array<{
-    role: 'system' | 'user' | 'assistant'
-    content: string
-  }>
+  prompt: string
   maxTokens?: number
   temperature?: number
   topP?: number
 }
 
 interface CompletionResponse {
-  success?: boolean
-  data?: {
-    content: string
-    usage: {
-      promptTokens: number
-      completionTokens: number
-      totalTokens: number
-    }
-    model: string
-    finishReason?: string
-  }
-  // 기존 형식 (하위 호환성)
-  content?: string
-  usage?: {
+  content: string
+  usage: {
     inputTokens: number
     outputTokens: number
     totalTokens: number
   }
-  cost?: {
+  cost: {
     inputCost: number
     outputCost: number
     totalCost: number
   }
-  model?: string
-  finishReason?: string
-  responseTime?: number
-  error?: string
-}
-
-/**
- * User-facing model ID를 실제 API model ID로 변환
- * 예: 'anthropic-claude-sonnet-4' -> 'claude-sonnet-4-20250514'
- */
-function getActualModelId(userFacingId: string): string {
-  const actualModelId = MODEL_ID_MAP[userFacingId]
-
-  if (actualModelId) {
-    console.log(`🔄 [Model Mapping] ${userFacingId} -> ${actualModelId}`)
-    return actualModelId
-  }
-
-  // 매핑 실패 시 원본 ID 반환 (fallback)
-  console.warn(`⚠️ [Model Mapping] ${userFacingId}에 대한 매핑을 찾을 수 없습니다. 원본 ID 사용.`)
-  return userFacingId
+  model: string
+  finishReason: string
+  responseTime: number
 }
 
 export default async function handler(
@@ -106,13 +47,6 @@ export default async function handler(
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  // 변수를 try 블록 밖에서 선언 (catch 블록에서도 접근 가능하도록)
-  let provider: 'openai' | 'anthropic' | 'google' | undefined
-  let model: string | undefined
-  let finalPrompt: string | undefined
-  let maxTokens: number | undefined
-  let temperature: number | undefined
-
   try {
     console.log('🚀 [Vercel API] AI 완성 요청 수신:', {
       timestamp: new Date().toISOString(),
@@ -122,47 +56,19 @@ export default async function handler(
       bodySize: req.body ? JSON.stringify(req.body).length : 0
     })
 
-    const requestBody: CompletionRequest = req.body
-    provider = requestBody.provider
-    const userFacingModelId = requestBody.model
-    const prompt = requestBody.prompt
-    const messages = requestBody.messages
-    maxTokens = requestBody.maxTokens
-    temperature = requestBody.temperature
-    const topP = requestBody.topP
-
-    // User-facing model ID를 실제 API model ID로 변환
-    model = getActualModelId(userFacingModelId)
+    const { provider, model, prompt, maxTokens, temperature, topP }: CompletionRequest = req.body
 
     console.log('📝 [Vercel API] 요청 파라미터:', {
       provider,
-      userFacingModelId,
-      actualModelId: model,
+      model,
       promptLength: prompt?.length || 0,
-      messagesCount: messages?.length || 0,
       maxTokens,
       temperature
     })
 
-    // prompt 또는 messages 중 하나는 필수
-    if (!provider || !model || (!prompt && (!messages || messages.length === 0))) {
-      console.error('❌ [Vercel API] 필수 파라미터 누락:', { provider, model, hasPrompt: !!prompt, hasMessages: !!messages })
-      return res.status(400).json({
-        success: false,
-        error: 'Missing required parameters. Provider, model, and (prompt or messages) are required.'
-      })
-    }
-
-    // messages를 prompt로 변환 (messages가 있고 prompt가 없는 경우)
-    finalPrompt = prompt
-    if (!finalPrompt && messages) {
-      // system + user messages를 하나의 prompt로 합침
-      finalPrompt = messages.map(msg => {
-        if (msg.role === 'system') return `[System]: ${msg.content}`
-        if (msg.role === 'user') return `[User]: ${msg.content}`
-        return msg.content
-      }).join('\n\n')
-      console.log('📝 [Vercel API] messages를 prompt로 변환 완료 (길이: ' + finalPrompt.length + ')')
+    if (!provider || !model || !prompt) {
+      console.error('❌ [Vercel API] 필수 파라미터 누락:', { provider, model, hasPrompt: !!prompt })
+      return res.status(400).json({ error: 'Missing required parameters' })
     }
 
     // 환경 변수에서 API 키 가져오기
@@ -211,49 +117,24 @@ export default async function handler(
 
     console.log(`🤖 [Vercel API] AI 완성 요청 처리 시작: ${provider} ${model}`)
 
-    let internalResponse: any
+    let response: CompletionResponse
 
     switch (provider) {
       case 'anthropic':
-        internalResponse = await handleAnthropicRequest(apiKey, model, finalPrompt, maxTokens, temperature, topP)
+        response = await handleAnthropicRequest(apiKey, model, prompt, maxTokens, temperature, topP)
         break
       case 'openai':
-        internalResponse = await handleOpenAIRequest(apiKey, model, finalPrompt, maxTokens, temperature, topP)
+        response = await handleOpenAIRequest(apiKey, model, prompt, maxTokens, temperature, topP)
         break
       case 'google':
-        internalResponse = await handleGoogleAIRequest(apiKey, model, finalPrompt, maxTokens, temperature, topP)
+        response = await handleGoogleAIRequest(apiKey, model, prompt, maxTokens, temperature, topP)
         break
       default:
-        return res.status(400).json({
-          success: false,
-          error: `지원하지 않는 프로바이더: ${provider}`
-        })
+        return res.status(400).json({ error: `지원하지 않는 프로바이더: ${provider}` })
     }
 
-    // 응답 형식 변환: DocumentAnalysisService가 기대하는 형식으로
-    const standardizedResponse: CompletionResponse = {
-      success: true,
-      data: {
-        content: internalResponse.content || '',
-        usage: {
-          promptTokens: internalResponse.usage?.inputTokens || 0,
-          completionTokens: internalResponse.usage?.outputTokens || 0,
-          totalTokens: internalResponse.usage?.totalTokens || 0
-        },
-        model: internalResponse.model || model,
-        finishReason: internalResponse.finishReason
-      },
-      // 하위 호환성을 위한 기존 형식도 포함
-      content: internalResponse.content,
-      usage: internalResponse.usage,
-      cost: internalResponse.cost,
-      model: internalResponse.model,
-      finishReason: internalResponse.finishReason,
-      responseTime: internalResponse.responseTime
-    }
-
-    console.log(`✅ [Vercel API] AI 응답 완료: ${standardizedResponse.data?.usage.totalTokens} 토큰, $${internalResponse.cost?.totalCost.toFixed(4) || 0}`)
-    return res.status(200).json(standardizedResponse)
+    console.log(`✅ [Vercel API] AI 응답 완료: ${response.usage.totalTokens} 토큰, $${response.cost.totalCost.toFixed(4)}`)
+    return res.status(200).json(response)
 
   } catch (error) {
     console.error('❌ [Vercel API] AI 완성 처리 오류 상세:', {
@@ -261,14 +142,13 @@ export default async function handler(
       stack: error instanceof Error ? error.stack : undefined,
       provider,
       model,
-      promptLength: finalPrompt?.length || 0,
+      promptLength: prompt?.length || 0,
       maxTokens,
       temperature,
       timestamp: new Date().toISOString()
     })
     return res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : '서버 오류가 발생했습니다.',
+      error: '서버 오류가 발생했습니다.',
       details: error instanceof Error ? error.message : String(error),
       provider,
       timestamp: new Date().toISOString()

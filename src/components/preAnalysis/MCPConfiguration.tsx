@@ -1,392 +1,376 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
-import { Switch } from '@/components/ui/Switch';
-import { Badge } from '@/components/ui/Badge';
-import { Label } from '@/components/ui/Label';
-import { Input } from '@/components/ui/Input';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/Tabs';
 import {
-  Server,
   Database,
   Search,
-  FileText,
   Github,
-  Globe,
-  Settings,
-  CheckCircle2,
-  XCircle,
-  AlertTriangle,
-  Loader2
+  FolderOpen,
+  Wifi,
+  Info,
+  AlertCircle,
+  CheckCircle,
 } from 'lucide-react';
-import type { MCPServer, MCPConfiguration as MCPConfig } from '@/types/preAnalysis';
+import { AnalysisSettings } from '../../types/preAnalysis';
+import { mcpManager } from '../../services/preAnalysis/MCPManager';
 
 interface MCPConfigurationProps {
-  onConfigurationChange: (config: MCPConfig) => void;
-  disabled?: boolean;
+  settings: AnalysisSettings;
+  onSettingsChange: (settings: AnalysisSettings) => void;
+}
+
+interface MCPServerInfo {
+  id: keyof AnalysisSettings['mcpServers'];
+  name: string;
+  description: string;
+  icon: React.ElementType;
+  capabilities: string[];
+  requiredFor: string[];
+  costImpact: 'none' | 'low' | 'medium' | 'high';
+  timeImpact: 'none' | 'low' | 'medium' | 'high';
 }
 
 export const MCPConfiguration: React.FC<MCPConfigurationProps> = ({
-  onConfigurationChange,
-  disabled = false
+  settings,
+  onSettingsChange,
 }) => {
-  const [servers, setServers] = useState<MCPServer[]>([
+  const [serverHealth, setServerHealth] = useState<Record<string, boolean>>({});
+  const [isCheckingHealth, setIsCheckingHealth] = useState(false);
+  const [showTooltip, setShowTooltip] = useState<string | null>(null);
+
+  const mcpServers: MCPServerInfo[] = [
     {
       id: 'filesystem',
-      name: 'File System',
-      description: '프로젝트 파일 구조 분석',
-      icon: <FileText className="w-4 h-4" />,
-      enabled: true,
-      status: 'connected',
-      config: {},
-      capabilities: ['파일 구조 분석', '코드베이스 스캔', '의존성 분석']
+      name: '파일시스템',
+      description: '프로젝트 파일 구조 및 코드 분석',
+      icon: FolderOpen,
+      capabilities: ['파일 구조 분석', '코드 복잡도 측정', '기술 스택 탐지'],
+      requiredFor: ['기술적 분석', '아키텍처 리뷰'],
+      costImpact: 'low',
+      timeImpact: 'low',
     },
     {
       id: 'database',
-      name: 'Database',
-      description: '기존 프로젝트 데이터 조회',
-      icon: <Database className="w-4 h-4" />,
-      enabled: true,
-      status: 'connected',
-      config: {},
-      capabilities: ['과거 프로젝트 조회', '패턴 분석', '성공 사례 검색']
+      name: '데이터베이스',
+      description: '과거 프로젝트 데이터 및 베스트 프랙티스 조회',
+      icon: Database,
+      capabilities: ['과거 프로젝트 참조', '성공률 분석', '위험도 평가'],
+      requiredFor: ['리스크 분석', '예산 추정', '일정 계획'],
+      costImpact: 'none',
+      timeImpact: 'low',
     },
     {
       id: 'websearch',
-      name: 'Web Search',
-      description: '시장 조사 및 트렌드 분석',
-      icon: <Search className="w-4 h-4" />,
-      enabled: false,
-      status: 'disconnected',
-      config: {
-        apiKey: '',
-        searchEngine: 'google',
-        maxResults: 10
-      },
-      capabilities: ['시장 조사', '경쟁사 분석', '기술 트렌드 조사']
+      name: '웹 검색',
+      description: '시장 조사 및 최신 트렌드 분석',
+      icon: Search,
+      capabilities: ['시장 조사', '경쟁사 분석', '기술 트렌드'],
+      requiredFor: ['시장 분석', '경쟁력 평가'],
+      costImpact: 'medium',
+      timeImpact: 'medium',
     },
     {
       id: 'github',
       name: 'GitHub',
-      description: '오픈소스 프로젝트 검색',
-      icon: <Github className="w-4 h-4" />,
-      enabled: false,
-      status: 'disconnected',
-      config: {
-        token: '',
-        organization: ''
-      },
-      capabilities: ['유사 프로젝트 검색', '오픈소스 라이브러리 분석', 'README 분석']
+      description: '오픈소스 프로젝트 및 코드 패턴 분석',
+      icon: Github,
+      capabilities: ['유사 프로젝트 검색', '코드 패턴 분석', '라이브러리 추천'],
+      requiredFor: ['기술적 참조', '아키텍처 벤치마킹'],
+      costImpact: 'low',
+      timeImpact: 'medium',
     },
-    {
-      id: 'web',
-      name: 'Web Browse',
-      description: '웹사이트 콘텐츠 분석',
-      icon: <Globe className="w-4 h-4" />,
-      enabled: false,
-      status: 'disconnected',
-      config: {
-        userAgent: 'ELUO-PreAnalysis-Bot',
-        timeout: 10000
-      },
-      capabilities: ['웹사이트 분석', '콘텐츠 스크래핑', '경쟁사 조사']
-    }
-  ]);
-
-  const [selectedServer, setSelectedServer] = useState<string>('filesystem');
-  const [testingConnection, setTestingConnection] = useState<string | null>(null);
+  ];
 
   useEffect(() => {
-    onConfigurationChange({
-      servers: servers.reduce((acc, server) => {
-        acc[server.id] = server;
-        return acc;
-      }, {} as Record<string, MCPServer>),
-      enabledServers: servers.filter(s => s.enabled).map(s => s.id),
-      serverConfigs: servers.reduce((acc, server) => {
-        acc[server.id] = server.config;
-        return acc;
-      }, {} as Record<string, any>),
-      defaultTimeout: 30000,
-      maxRetries: 3,
-      globalSettings: {
-        enableLogging: true,
-        enableMetrics: true,
-        enableRealtime: true
-      }
-    });
-  }, [servers, onConfigurationChange]);
+    checkServerHealth();
+  }, []);
 
-  const toggleServer = (serverId: string) => {
-    setServers(prev => prev.map(server =>
-      server.id === serverId
-        ? { ...server, enabled: !server.enabled }
-        : server
-    ));
-  };
-
-  const updateServerConfig = (serverId: string, config: any) => {
-    setServers(prev => prev.map(server =>
-      server.id === serverId
-        ? { ...server, config: { ...server.config, ...config } }
-        : server
-    ));
-  };
-
-  const testConnection = async (serverId: string) => {
-    setTestingConnection(serverId);
+  const checkServerHealth = async () => {
+    setIsCheckingHealth(true);
     try {
-      // 실제 연결 테스트 로직 구현
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      setServers(prev => prev.map(server =>
-        server.id === serverId
-          ? { ...server, status: 'connected' }
-          : server
-      ));
+      const health = await mcpManager.checkServerHealth();
+      setServerHealth(health);
     } catch (error) {
-      setServers(prev => prev.map(server =>
-        server.id === serverId
-          ? { ...server, status: 'error' }
-          : server
-      ));
+      console.error('서버 상태 확인 오류:', error);
     } finally {
-      setTestingConnection(null);
+      setIsCheckingHealth(false);
     }
   };
 
-  const getStatusIcon = (status: string, serverId: string) => {
-    if (testingConnection === serverId) {
-      return <Loader2 className="w-4 h-4 animate-spin text-accent-blue" />;
-    }
+  const handleToggleServer = (serverId: keyof AnalysisSettings['mcpServers']) => {
+    const newMcpServers = {
+      ...settings.mcpServers,
+      [serverId]: !settings.mcpServers[serverId],
+    };
 
-    switch (status) {
-      case 'connected':
-        return <CheckCircle2 className="w-4 h-4 text-accent-green" />;
-      case 'error':
-        return <XCircle className="w-4 h-4 text-semantic-error" />;
-      case 'warning':
-        return <AlertTriangle className="w-4 h-4 text-semantic-warning" />;
+    // MCP Manager에도 상태 반영
+    mcpManager.setServerStatus(serverId, newMcpServers[serverId]);
+
+    onSettingsChange({
+      ...settings,
+      mcpServers: newMcpServers,
+    });
+  };
+
+  const getImpactColor = (impact: string) => {
+    switch (impact) {
+      case 'none':
+        return 'text-gray-400';
+      case 'low':
+        return 'text-green-400';
+      case 'medium':
+        return 'text-yellow-400';
+      case 'high':
+        return 'text-red-400';
       default:
-        return <XCircle className="w-4 h-4 text-text-tertiary" />;
+        return 'text-gray-400';
     }
   };
 
-  const getStatusBadgeVariant = (status: string) => {
-    switch (status) {
-      case 'connected': return 'success';
-      case 'error': return 'error';
-      case 'warning': return 'warning';
-      default: return 'default';
+  const getImpactText = (impact: string) => {
+    switch (impact) {
+      case 'none':
+        return '없음';
+      case 'low':
+        return '낮음';
+      case 'medium':
+        return '보통';
+      case 'high':
+        return '높음';
+      default:
+        return '알 수 없음';
     }
   };
 
+  const getEnabledServersCount = () => {
+    return Object.values(settings.mcpServers).filter(Boolean).length;
+  };
+
+  const getEstimatedImpact = () => {
+    const enabledServers = mcpServers.filter(server =>
+      settings.mcpServers[server.id]
+    );
+
+    const costImpacts = enabledServers.map(s => s.costImpact);
+    const timeImpacts = enabledServers.map(s => s.timeImpact);
+
+    const maxCostImpact = costImpacts.includes('high') ? 'high' :
+      costImpacts.includes('medium') ? 'medium' :
+      costImpacts.includes('low') ? 'low' : 'none';
+
+    const maxTimeImpact = timeImpacts.includes('high') ? 'high' :
+      timeImpacts.includes('medium') ? 'medium' :
+      timeImpacts.includes('low') ? 'low' : 'none';
+
+    return { cost: maxCostImpact, time: maxTimeImpact };
+  };
+
+  const impact = getEstimatedImpact();
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-text-primary">
-          <Server className="w-5 h-5" />
-          MCP 서버 설정
-        </CardTitle>
-        <p className="text-sm text-text-secondary">
-          Model Context Protocol 서버를 설정하여 외부 데이터를 활용하세요
-        </p>
-      </CardHeader>
-      <CardContent>
-        <Tabs value={selectedServer} onValueChange={setSelectedServer}>
-          <TabsList className="grid grid-cols-5 w-full mb-6">
-            {servers.map((server) => (
-              <TabsTrigger
-                key={server.id}
-                value={server.id}
-                className="flex flex-col items-center gap-1 p-3 h-auto"
-              >
-                {server.icon}
-                <span className="text-xs">{server.name}</span>
-              </TabsTrigger>
-            ))}
-          </TabsList>
+    <div className="space-y-6">
+      {/* 헤더 및 상태 */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h4 className="text-sm font-medium text-gray-300">
+            MCP 서버 설정
+          </h4>
+          <p className="text-xs text-gray-500 mt-1">
+            {getEnabledServersCount()}개 서버 활성화됨
+          </p>
+        </div>
+        <button
+          onClick={checkServerHealth}
+          disabled={isCheckingHealth}
+          className="flex items-center gap-2 px-3 py-1 text-xs text-gray-400 hover:text-white border border-gray-700 hover:border-gray-600 rounded transition-colors"
+        >
+          {isCheckingHealth ? (
+            <div className="w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <Wifi className="w-3 h-3" />
+          )}
+          상태 확인
+        </button>
+      </div>
 
-          {servers.map((server) => (
-            <TabsContent key={server.id} value={server.id} className="space-y-6">
-              {/* Server Header */}
-              <div className="flex items-center justify-between p-4 bg-bg-secondary rounded-lg border border-border-primary">
-                <div className="flex items-center gap-3">
-                  {server.icon}
-                  <div>
-                    <h3 className="font-medium text-text-primary">{server.name}</h3>
-                    <p className="text-sm text-text-secondary">{server.description}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2">
-                    {getStatusIcon(server.status, server.id)}
-                    <Badge variant={getStatusBadgeVariant(server.status)} size="sm">
-                      {server.status}
-                    </Badge>
-                  </div>
-                  <Switch
-                    checked={server.enabled}
-                    onCheckedChange={() => toggleServer(server.id)}
-                    disabled={disabled}
-                  />
-                </div>
-              </div>
+      {/* MCP 서버 목록 */}
+      <div className="space-y-4">
+        {mcpServers.map((server) => {
+          const Icon = server.icon;
+          const isEnabled = settings.mcpServers[server.id];
+          const isHealthy = serverHealth[server.id];
 
-              {/* Server Configuration */}
-              {server.enabled && (
-                <div className="space-y-4">
-                  {/* Capabilities */}
-                  <div>
-                    <Label className="text-sm font-medium text-text-primary mb-2 block">
-                      제공 기능
-                    </Label>
-                    <div className="flex flex-wrap gap-2">
-                      {server.capabilities.map((capability, index) => (
-                        <Badge key={index} variant="primary" size="sm">
+          return (
+            <div
+              key={server.id}
+              className={`
+                p-4 rounded-lg border-2 transition-all
+                ${isEnabled
+                  ? 'border-blue-500 bg-blue-900/10'
+                  : 'border-gray-700 bg-gray-800/50'
+                }
+              `}
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex items-start gap-3 flex-1">
+                  <div className={`
+                    p-2 rounded-lg
+                    ${isEnabled
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-700 text-gray-400'
+                    }
+                  `}>
+                    <Icon className="w-4 h-4" />
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h5 className={`font-medium ${
+                        isEnabled ? 'text-white' : 'text-gray-400'
+                      }`}>
+                        {server.name}
+                      </h5>
+
+                      {/* 서버 상태 표시 */}
+                      {isEnabled && (
+                        <div className="flex items-center gap-1">
+                          {isHealthy ? (
+                            <CheckCircle className="w-3 h-3 text-green-400" />
+                          ) : (
+                            <AlertCircle className="w-3 h-3 text-red-400" />
+                          )}
+                        </div>
+                      )}
+
+                      {/* 정보 툴팁 */}
+                      <div
+                        className="relative"
+                        onMouseEnter={() => setShowTooltip(server.id)}
+                        onMouseLeave={() => setShowTooltip(null)}
+                      >
+                        <Info className="w-3 h-3 text-gray-500 cursor-help" />
+                        {showTooltip === server.id && (
+                          <div className="absolute left-0 top-5 w-72 p-3 bg-gray-900 border border-gray-600 rounded-lg text-sm z-10">
+                            <div className="space-y-2">
+                              <p className="text-gray-300">{server.description}</p>
+
+                              <div>
+                                <span className="text-gray-400">주요 기능:</span>
+                                <ul className="list-disc list-inside text-gray-300 text-xs mt-1">
+                                  {server.capabilities.map((cap, idx) => (
+                                    <li key={idx}>{cap}</li>
+                                  ))}
+                                </ul>
+                              </div>
+
+                              <div>
+                                <span className="text-gray-400">필요한 경우:</span>
+                                <ul className="list-disc list-inside text-gray-300 text-xs mt-1">
+                                  {server.requiredFor.map((req, idx) => (
+                                    <li key={idx}>{req}</li>
+                                  ))}
+                                </ul>
+                              </div>
+
+                              <div className="flex justify-between text-xs">
+                                <span>
+                                  비용 영향:
+                                  <span className={`ml-1 ${getImpactColor(server.costImpact)}`}>
+                                    {getImpactText(server.costImpact)}
+                                  </span>
+                                </span>
+                                <span>
+                                  시간 영향:
+                                  <span className={`ml-1 ${getImpactColor(server.timeImpact)}`}>
+                                    {getImpactText(server.timeImpact)}
+                                  </span>
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <p className={`text-sm ${
+                      isEnabled ? 'text-gray-300' : 'text-gray-500'
+                    }`}>
+                      {server.description}
+                    </p>
+
+                    {/* 기능 태그 */}
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {server.capabilities.slice(0, 3).map((capability) => (
+                        <span
+                          key={capability}
+                          className={`px-2 py-0.5 rounded text-xs ${
+                            isEnabled
+                              ? 'bg-blue-900/30 text-blue-300'
+                              : 'bg-gray-700 text-gray-400'
+                          }`}
+                        >
                           {capability}
-                        </Badge>
+                        </span>
                       ))}
                     </div>
                   </div>
-
-                  {/* Server-specific Configuration */}
-                  {server.id === 'websearch' && (
-                    <div className="space-y-4">
-                      <div>
-                        <Label className="text-sm font-medium text-text-primary">
-                          API Key
-                        </Label>
-                        <Input
-                          type="password"
-                          placeholder="검색 엔진 API 키를 입력하세요"
-                          value={server.config?.['apiKey'] || ''}
-                          onChange={(e) => updateServerConfig(server.id, { apiKey: e.target.value })}
-                          disabled={disabled}
-                          className="mt-1"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-sm font-medium text-text-primary">
-                          최대 검색 결과
-                        </Label>
-                        <Input
-                          type="number"
-                          min="1"
-                          max="50"
-                          value={server.config?.['maxResults'] || 10}
-                          onChange={(e) => updateServerConfig(server.id, { maxResults: parseInt(e.target.value) })}
-                          disabled={disabled}
-                          className="mt-1"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {server.id === 'github' && (
-                    <div className="space-y-4">
-                      <div>
-                        <Label className="text-sm font-medium text-text-primary">
-                          GitHub Token
-                        </Label>
-                        <Input
-                          type="password"
-                          placeholder="GitHub Personal Access Token"
-                          value={server.config?.['token'] || ''}
-                          onChange={(e) => updateServerConfig(server.id, { token: e.target.value })}
-                          disabled={disabled}
-                          className="mt-1"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-sm font-medium text-text-primary">
-                          Organization (선택사항)
-                        </Label>
-                        <Input
-                          placeholder="특정 조직의 저장소만 검색"
-                          value={server.config?.['organization'] || ''}
-                          onChange={(e) => updateServerConfig(server.id, { organization: e.target.value })}
-                          disabled={disabled}
-                          className="mt-1"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {server.id === 'web' && (
-                    <div className="space-y-4">
-                      <div>
-                        <Label className="text-sm font-medium text-text-primary">
-                          User Agent
-                        </Label>
-                        <Input
-                          placeholder="웹 브라우징에 사용할 User Agent"
-                          value={server.config?.['userAgent'] || ''}
-                          onChange={(e) => updateServerConfig(server.id, { userAgent: e.target.value })}
-                          disabled={disabled}
-                          className="mt-1"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-sm font-medium text-text-primary">
-                          Timeout (ms)
-                        </Label>
-                        <Input
-                          type="number"
-                          min="1000"
-                          max="60000"
-                          value={server.config?.['timeout'] || 10000}
-                          onChange={(e) => updateServerConfig(server.id, { timeout: parseInt(e.target.value) })}
-                          disabled={disabled}
-                          className="mt-1"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Test Connection Button */}
-                  <div className="flex gap-2">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => testConnection(server.id)}
-                      disabled={disabled || testingConnection === server.id}
-                    >
-                      {testingConnection === server.id ? (
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      ) : (
-                        <Settings className="w-4 h-4 mr-2" />
-                      )}
-                      연결 테스트
-                    </Button>
-                  </div>
                 </div>
-              )}
-            </TabsContent>
-          ))}
-        </Tabs>
 
-        {/* Summary */}
-        <div className="mt-6 p-4 bg-bg-secondary/50 rounded-lg border border-border-secondary">
-          <div className="flex items-center gap-2 mb-3">
-            <Settings className="w-4 h-4 text-text-secondary" />
-            <span className="text-sm font-medium text-text-primary">활성화된 서버</span>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            {servers.filter(s => s.enabled).map((server) => (
-              <div key={server.id} className="flex items-center gap-2">
-                {server.icon}
-                <span className="text-sm text-text-primary">{server.name}</span>
-                {getStatusIcon(server.status, server.id)}
+                {/* 토글 스위치 */}
+                <button
+                  onClick={() => handleToggleServer(server.id)}
+                  className={`
+                    relative w-11 h-6 rounded-full transition-colors
+                    ${isEnabled ? 'bg-blue-600' : 'bg-gray-600'}
+                  `}
+                >
+                  <div className={`
+                    absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform
+                    ${isEnabled ? 'translate-x-5' : 'translate-x-0.5'}
+                  `} />
+                </button>
               </div>
-            ))}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* 예상 영향 요약 */}
+      {getEnabledServersCount() > 0 && (
+        <div className="p-4 bg-gray-800 rounded-lg border border-gray-700">
+          <h5 className="font-medium text-white mb-3">예상 영향</h5>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <span className="text-gray-400">추가 비용:</span>
+              <span className={`ml-2 font-medium ${getImpactColor(impact.cost)}`}>
+                {getImpactText(impact.cost)}
+              </span>
+            </div>
+            <div>
+              <span className="text-gray-400">추가 시간:</span>
+              <span className={`ml-2 font-medium ${getImpactColor(impact.time)}`}>
+                {getImpactText(impact.time)}
+              </span>
+            </div>
           </div>
-          {servers.filter(s => s.enabled).length === 0 && (
-            <p className="text-sm text-text-tertiary">활성화된 서버가 없습니다</p>
+
+          {getEnabledServersCount() > 2 && (
+            <div className="mt-3 p-2 bg-yellow-900/20 border border-yellow-800 rounded text-xs text-yellow-300">
+              <AlertCircle className="w-3 h-3 inline mr-1" />
+              많은 MCP 서버를 활성화하면 분석 시간과 비용이 증가할 수 있습니다.
+            </div>
           )}
         </div>
-      </CardContent>
-    </Card>
+      )}
+
+      {/* 권장 설정 */}
+      <div className="p-4 bg-blue-900/10 border border-blue-800 rounded-lg">
+        <h5 className="font-medium text-blue-300 mb-2">💡 권장 설정</h5>
+        <div className="text-sm text-blue-200 space-y-1">
+          <p>• <strong>표준 분석</strong>: 파일시스템 + 데이터베이스</p>
+          <p>• <strong>시장 분석 포함</strong>: 파일시스템 + 데이터베이스 + 웹 검색</p>
+          <p>• <strong>기술 벤치마킹</strong>: 파일시스템 + GitHub</p>
+          <p>• <strong>종합 분석</strong>: 모든 서버 활성화</p>
+        </div>
+      </div>
+    </div>
   );
 };
