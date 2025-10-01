@@ -448,12 +448,20 @@ export const PreAnalysisPage: React.FC = () => {
           analysisDepth: depth === 'comprehensive' ? 'deep' : depth,
           userId: user.id,
         },
-        (progressData) => {
+        async (progressData) => {
           // 진행 상황 업데이트
           console.log(`📊 분석 진행: ${progressData.currentDocument}/${progressData.totalDocuments} (${progressData.progress}%)`);
           if (progressData.currentDocumentName) {
             console.log(`   - 현재 문서: ${progressData.currentDocumentName}`);
           }
+
+          // DB에 진행률 저장
+          const { SessionUpdateService } = await import('@/services/preAnalysis/SessionUpdateService');
+          await SessionUpdateService.updateSessionProgress(
+            session.id,
+            'analysis',
+            progressData.progress
+          );
 
           // 문서별 진행 상황 업데이트 (UI에 표시용)
           setDocumentAnalysisItems(prev => {
@@ -498,8 +506,14 @@ export const PreAnalysisPage: React.FC = () => {
 
       console.log(`✅ 문서 분석 완료: ${analysisResult.successCount}/${analysisResult.totalDocuments}개`);
 
-      // 질문 생성
+      // 질문 생성 단계로 이동
       console.log('❓ 질문 생성 시작');
+      setCurrentStep('questions');
+
+      // DB에 질문 생성 단계 시작 기록
+      const { SessionUpdateService } = await import('@/services/preAnalysis/SessionUpdateService');
+      await SessionUpdateService.updateSessionProgress(session.id, 'questions', 0);
+
       const { QuestionGenerationService } = await import('@/services/preAnalysis/QuestionGenerationService');
 
       const questionResult = await QuestionGenerationService.generateQuestions({
@@ -517,6 +531,9 @@ export const PreAnalysisPage: React.FC = () => {
         // 질문 생성 실패는 치명적이지 않으므로 계속 진행
       } else {
         console.log(`✅ 질문 생성 완료: ${questionResult.totalGenerated}개`);
+
+        // DB에 질문 생성 완료 기록
+        await SessionUpdateService.updateSessionProgress(session.id, 'questions', 100);
 
         // 카테고리 매핑 함수
         const mapCategory = (cat: string): AIQuestion['category'] => {
@@ -550,12 +567,8 @@ export const PreAnalysisPage: React.FC = () => {
       }
 
       // 세션 완료 처리
-      const { SessionUpdateService } = await import('@/services/preAnalysis/SessionUpdateService');
       await SessionUpdateService.updateSessionStatus(session.id, 'completed');
-
-      // 다음 단계로 이동
-      setCurrentStep('questions');
-      console.log('✅ 분석 완료 → 질문/답변 단계로 이동');
+      console.log('✅ 분석 완료 → 질문/답변 단계');
 
     } catch (err) {
       console.error('❌ AI 분석 실행 오류:', err);
