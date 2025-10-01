@@ -153,6 +153,13 @@ export const PreAnalysisPage: React.FC = () => {
   };
 
   useEffect(() => {
+    console.log('🔄 calculateOverallProgress 호출됨', {
+      sessionId: session?.id,
+      currentStep: session?.currentStep,
+      analysisProgress: session?.metadata?.['analysis_progress'],
+      questionsProgress: session?.metadata?.['questions_progress'],
+      documentAnalysisItemsCount: documentAnalysisItems.length
+    });
     calculateOverallProgress();
   }, [session, questions, answers, documentAnalysisItems]);
 
@@ -501,13 +508,20 @@ export const PreAnalysisPage: React.FC = () => {
         name: selectedModel.name
       });
 
-      // ✅ 분석 시작 전 진행률 0으로 초기화
+      // ✅ 분석 시작 전 모든 상태 초기화
       const { SessionUpdateService } = await import('@/services/preAnalysis/SessionUpdateService');
       const { DocumentAnalysisService } = await import('@/services/preAnalysis/DocumentAnalysisService');
       const { QuestionGenerationService } = await import('@/services/preAnalysis/QuestionGenerationService');
 
+      // DB 진행률 초기화
       await SessionUpdateService.updateSessionProgress(session.id, 'analysis', 0);
-      console.log('🔄 분석 진행률 초기화 완료 (0%)');
+
+      // 로컬 state 초기화 (중요!)
+      setDocumentAnalysisItems([]);
+      setQuestions([]);
+      setAnswers([]);
+
+      console.log('🔄 모든 상태 초기화 완료 (DB + 로컬 state)');
 
       const analysisResult = await DocumentAnalysisService.analyzeProjectDocuments(
         {
