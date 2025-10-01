@@ -18,6 +18,7 @@ const MODEL_ID_MAP: Record<string, string> = {
   'anthropic-claude-sonnet-3-5': 'claude-3-5-sonnet-20241022',
   'anthropic-claude-haiku-3-5': 'claude-3-5-haiku-20241022',
   'anthropic-claude-opus-3': 'claude-3-opus-20240229',
+  'anthropic-claude-sonnet-3': 'claude-3-sonnet-20240229',
   'anthropic-claude-haiku-3': 'claude-3-haiku-20240307',
 
   // Google
