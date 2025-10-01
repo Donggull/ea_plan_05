@@ -544,6 +544,17 @@ export const PreAnalysisPage: React.FC = () => {
     }
 
     try {
+      console.log('═══════════════════════════════════════════════════');
+      console.log('🚀🚀🚀 executeAIAnalysis 시작');
+      console.log('═══════════════════════════════════════════════════');
+      console.log('📋 입력 파라미터:', {
+        sessionId: session.id,
+        projectId,
+        userId: user.id,
+        depth,
+        documentCount
+      });
+
       setLoading(true);
       setError(null);
       setSelectedDepth(depth);
@@ -553,13 +564,16 @@ export const PreAnalysisPage: React.FC = () => {
       console.log('📌 선택된 AI 모델:', {
         id: selectedModel.id,
         provider: selectedModel.provider,
-        name: selectedModel.name
+        name: selectedModel.name,
+        model_id: selectedModel.model_id
       });
 
       // ✅ 분석 시작 전 모든 상태 완전 초기화
+      console.log('📦 서비스 모듈 임포트 시작...');
       const { SessionUpdateService } = await import('@/services/preAnalysis/SessionUpdateService');
       const { DocumentAnalysisService } = await import('@/services/preAnalysis/DocumentAnalysisService');
       const { QuestionGenerationService } = await import('@/services/preAnalysis/QuestionGenerationService');
+      console.log('✅ 서비스 모듈 임포트 완료');
 
       console.log('🔄 [Step 1] DB metadata 완전 초기화 시작...');
 
@@ -597,6 +611,18 @@ export const PreAnalysisPage: React.FC = () => {
       await SessionUpdateService.updateSessionProgress(session.id, 'analysis', 0);
 
       console.log('🔄 모든 상태 초기화 완료 (DB + 로컬 state)');
+
+      console.log('═══════════════════════════════════════════════════');
+      console.log('📚📚📚 DocumentAnalysisService.analyzeProjectDocuments 호출');
+      console.log('═══════════════════════════════════════════════════');
+      console.log('📤 Request:', {
+        projectId,
+        sessionId: session.id,
+        aiModel: selectedModel.id,
+        aiProvider: selectedModel.provider,
+        analysisDepth: depth === 'comprehensive' ? 'deep' : depth,
+        userId: user.id,
+      });
 
       const analysisResult = await DocumentAnalysisService.analyzeProjectDocuments(
         {
@@ -646,6 +672,9 @@ export const PreAnalysisPage: React.FC = () => {
         }
       );
 
+      console.log('═══════════════════════════════════════════════════');
+      console.log('📥📥📥 DocumentAnalysisService.analyzeProjectDocuments 응답');
+      console.log('═══════════════════════════════════════════════════');
       console.log('📊 문서 분석 결과:', {
         success: analysisResult.success,
         totalDocuments: analysisResult.totalDocuments,
@@ -726,9 +755,17 @@ export const PreAnalysisPage: React.FC = () => {
       console.log('✅ 분석 완료 → 질문/답변 단계');
 
     } catch (err) {
-      console.error('❌ AI 분석 실행 오류:', err);
+      console.log('═══════════════════════════════════════════════════');
+      console.error('❌❌❌ executeAIAnalysis 오류 발생');
+      console.log('═══════════════════════════════════════════════════');
+      console.error('❌ AI 분석 실행 오류:', {
+        errorType: err instanceof Error ? err.constructor.name : typeof err,
+        errorMessage: err instanceof Error ? err.message : String(err),
+        errorStack: err instanceof Error ? err.stack : 'N/A'
+      });
       setError(err instanceof Error ? err.message : 'AI 분석 실행 중 예상치 못한 오류가 발생했습니다');
     } finally {
+      console.log('🏁 executeAIAnalysis 종료 (loading = false)');
       setLoading(false);
     }
   };
