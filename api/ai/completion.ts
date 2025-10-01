@@ -422,6 +422,7 @@ function getAnthropicPricing(model: string): { inputCost: number; outputCost: nu
   const pricing: Record<string, { inputCost: number; outputCost: number }> = {
     'claude-sonnet-4-20250514': { inputCost: 3, outputCost: 15 },
     'claude-3-5-sonnet-20241022': { inputCost: 3, outputCost: 15 },
+    'claude-3-5-haiku-20241022': { inputCost: 0.8, outputCost: 4 },
     'claude-3-opus-20240229': { inputCost: 15, outputCost: 75 },
     'claude-3-haiku-20240307': { inputCost: 0.25, outputCost: 1.25 }
   }

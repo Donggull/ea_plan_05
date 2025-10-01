@@ -253,7 +253,7 @@ export const anthropicLatestModels: LatestModelInfo[] = [
     id: 'anthropic-claude-sonnet-3-5',
     name: 'Claude Sonnet 3.5',
     provider: 'anthropic',
-    model_id: 'claude-sonnet-3.5',
+    model_id: 'claude-3-5-sonnet-20241022', // 실제 Anthropic API 모델명
     status: 'active',
     max_tokens: 200000,
     cost_per_input_token: 3 / 1000000,    // $3 per 1M tokens
@@ -308,7 +308,7 @@ export const anthropicLatestModels: LatestModelInfo[] = [
     id: 'anthropic-claude-haiku-3',
     name: 'Claude Haiku 3',
     provider: 'anthropic',
-    model_id: 'claude-haiku-3',
+    model_id: 'claude-3-haiku-20240307', // 실제 Anthropic API 모델명
     status: 'active',
     max_tokens: 200000,
     cost_per_input_token: 0.25 / 1000000, // $0.25 per 1M tokens
