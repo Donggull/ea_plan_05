@@ -51,7 +51,8 @@ export const AnalysisProgress: React.FC<AnalysisProgressProps> = ({
 
     // 각 단계별 실제 진행 상황 기반 details 생성 함수
     const getAnalysisDetails = (): string[] => {
-      const progress = session.analysis_progress || 0;
+      // metadata에서 진행률 읽기
+      const progress = session.metadata?.['analysis_progress'] || session.analysis_progress || 0;
       if (progress === 0) return ['문서 분석 대기중'];
       if (progress < 30) return ['문서 수집 중'];
       if (progress < 70) return ['AI 분석 진행중'];
@@ -60,7 +61,8 @@ export const AnalysisProgress: React.FC<AnalysisProgressProps> = ({
     };
 
     const getQuestionsDetails = (): string[] => {
-      const progress = session.questions_progress || 0;
+      // metadata에서 진행률 읽기
+      const progress = session.metadata?.['questions_progress'] || session.questions_progress || 0;
       if (progress === 0) return ['질문 생성 대기중'];
       if (progress < 50) return ['AI 질문 생성 중'];
       if (progress < 100) return ['질문 검증 중'];
@@ -82,7 +84,7 @@ export const AnalysisProgress: React.FC<AnalysisProgressProps> = ({
         name: '문서 분석',
         description: '업로드된 문서 및 프로젝트 구조 분석',
         status: currentStepIndex > 1 ? 'completed' : currentStepIndex === 1 ? 'running' : 'pending',
-        progress: currentStepIndex > 1 ? 100 : currentStepIndex === 1 ? (session.analysis_progress || 0) : 0,
+        progress: currentStepIndex > 1 ? 100 : currentStepIndex === 1 ? (session.metadata?.['analysis_progress'] || session.analysis_progress || 0) : 0,
         details: currentStepIndex >= 1 ? getAnalysisDetails() : ['문서 분석 대기중'],
         estimatedTime: 300
       },
@@ -91,7 +93,7 @@ export const AnalysisProgress: React.FC<AnalysisProgressProps> = ({
         name: '질문 생성',
         description: 'AI 기반 맞춤형 질문 생성',
         status: currentStepIndex > 2 ? 'completed' : currentStepIndex === 2 ? 'running' : 'pending',
-        progress: currentStepIndex > 2 ? 100 : currentStepIndex === 2 ? (session.questions_progress || 0) : 0,
+        progress: currentStepIndex > 2 ? 100 : currentStepIndex === 2 ? (session.metadata?.['questions_progress'] || session.questions_progress || 0) : 0,
         details: currentStepIndex >= 2 ? getQuestionsDetails() : ['질문 생성 대기중'],
         estimatedTime: 120
       },
@@ -99,9 +101,10 @@ export const AnalysisProgress: React.FC<AnalysisProgressProps> = ({
         id: 'report',
         name: '보고서 생성',
         description: '최종 분석 보고서 생성',
-        status: currentStepIndex > 3 || sessionStatus === 'completed' ? 'completed' : currentStepIndex === 3 ? 'running' : 'pending',
-        progress: currentStepIndex > 3 || sessionStatus === 'completed' ? 100 : currentStepIndex === 3 ? 50 : 0,
-        details: sessionStatus === 'completed' ? ['보고서 생성 완료'] : currentStepIndex === 3 ? ['보고서 생성 중'] : ['보고서 생성 대기중'],
+        // 보고서는 실제 보고서가 생성되었을 때만 완료로 표시 (metadata.final_report 존재 여부)
+        status: currentStepIndex > 3 || (session.metadata?.['final_report'] && sessionStatus === 'completed') ? 'completed' : currentStepIndex === 3 ? 'running' : 'pending',
+        progress: currentStepIndex > 3 || (session.metadata?.['final_report'] && sessionStatus === 'completed') ? 100 : currentStepIndex === 3 ? 50 : 0,
+        details: session.metadata?.['final_report'] ? ['보고서 생성 완료'] : currentStepIndex === 3 ? ['보고서 생성 중'] : ['보고서 생성 대기중'],
         estimatedTime: 60
       }
     ];
