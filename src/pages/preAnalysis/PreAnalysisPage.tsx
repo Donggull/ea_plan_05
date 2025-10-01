@@ -152,16 +152,32 @@ export const PreAnalysisPage: React.FC = () => {
     }
   };
 
+  // 진행률 자동 재계산 (모든 상태 변경 감지)
   useEffect(() => {
-    console.log('🔄 calculateOverallProgress 호출됨', {
+    console.log('🔄 calculateOverallProgress 자동 호출', {
       sessionId: session?.id,
-      currentStep: session?.currentStep,
+      currentStep,
+      status: session?.status,
       analysisProgress: session?.metadata?.['analysis_progress'],
       questionsProgress: session?.metadata?.['questions_progress'],
-      documentAnalysisItemsCount: documentAnalysisItems.length
+      documentAnalysisItemsCount: documentAnalysisItems.length,
+      questionsCount: questions.length,
+      answersCount: answers.length,
+      documentCount,
+      hasSelectedModel: !!aiModelState.selectedModelId,
+      hasReport: !!report
     });
     calculateOverallProgress();
-  }, [session, questions, answers, documentAnalysisItems]);
+  }, [
+    session,
+    currentStep,
+    questions,
+    answers,
+    documentAnalysisItems,
+    documentCount,
+    aiModelState.selectedModelId,
+    report
+  ]);
 
   // Supabase Realtime 구독: 세션 metadata 변경 감지
   useEffect(() => {
@@ -389,6 +405,8 @@ export const PreAnalysisPage: React.FC = () => {
       sessionId: session.id,
       currentStep,
       currentStepIndex,
+      sessionStatus: session.status,
+      metadata: session.metadata,
     });
 
     // 완료된 단계들의 가중치 더하기
@@ -407,10 +425,19 @@ export const PreAnalysisPage: React.FC = () => {
       } else {
         stepProgress = documentCount > 0 ? 50 : 0;
       }
-      console.log(`  📋 설정 단계 진행률: ${stepProgress}%`);
+      console.log(`  📋 설정 단계 진행률: ${stepProgress}% (문서: ${documentCount}, 모델: ${aiModelState.selectedModelId})`);
     } else if (currentStep === 'analysis') {
       // 분석 단계: DB metadata 우선, 로컬 state는 보조
-      const metadataProgress = session?.metadata?.['analysis_progress'];
+      const metadata = session?.metadata as Record<string, any> | undefined;
+      const metadataProgress = metadata?.['analysis_progress'];
+
+      console.log(`  🔍 metadata 상세 체크:`, {
+        hasMetadata: !!metadata,
+        metadataType: typeof metadata,
+        metadataKeys: metadata ? Object.keys(metadata) : [],
+        analysis_progress: metadataProgress,
+        analysis_progress_type: typeof metadataProgress
+      });
 
       if (typeof metadataProgress === 'number') {
         // ✅ DB 우선: 저장된 진행률이 있으면 우선 사용
@@ -424,10 +451,19 @@ export const PreAnalysisPage: React.FC = () => {
       } else if (session?.status === 'processing') {
         stepProgress = 25; // 시작만 한 경우
         console.log(`  📊 분석 진행률 (시작): ${stepProgress}%`);
+      } else {
+        console.warn(`  ⚠️ 분석 진행률을 계산할 수 없음 (metadata 없음, 로컬 items 없음, status=${session?.status})`);
       }
     } else if (currentStep === 'questions') {
       // 질문 단계: DB metadata 우선, 로컬 답변 비율은 보조
-      const metadataProgress = session?.metadata?.['questions_progress'];
+      const metadata = session?.metadata as Record<string, any> | undefined;
+      const metadataProgress = metadata?.['questions_progress'];
+
+      console.log(`  🔍 metadata 상세 체크:`, {
+        hasMetadata: !!metadata,
+        questions_progress: metadataProgress,
+        questions_progress_type: typeof metadataProgress
+      });
 
       if (typeof metadataProgress === 'number') {
         // ✅ DB 우선: 저장된 진행률이 있으면 우선 사용
@@ -1152,9 +1188,36 @@ export const PreAnalysisPage: React.FC = () => {
                           key={depth.id}
                           type="button"
                           onClick={() => {
-                            if (loading || !session || !aiModelState.selectedModelId || documentCount === 0) {
+                            console.log('🔘🔘🔘 버튼 클릭됨:', depth.id);
+                            console.log('🔍 조건 체크:', {
+                              loading,
+                              hasSession: !!session,
+                              sessionId: session?.id,
+                              hasSelectedModel: !!aiModelState.selectedModelId,
+                              selectedModelId: aiModelState.selectedModelId,
+                              documentCount,
+                              availableModelsCount: aiModelState.availableModels.length
+                            });
+
+                            if (loading) {
+                              console.warn('⚠️ 분석 중단: loading = true');
                               return;
                             }
+                            if (!session) {
+                              console.warn('⚠️ 분석 중단: session 없음');
+                              return;
+                            }
+                            if (!aiModelState.selectedModelId) {
+                              console.warn('⚠️ 분석 중단: AI 모델 선택 안 됨');
+                              console.warn('   Available models:', aiModelState.availableModels.map(m => m.id));
+                              return;
+                            }
+                            if (documentCount === 0) {
+                              console.warn('⚠️ 분석 중단: 문서 없음');
+                              return;
+                            }
+
+                            console.log('✅ 모든 조건 통과 - 분석 시작!');
                             console.log('🎯 분석 깊이 선택 및 분석 시작:', depth.id);
                             console.log('세션:', session?.id);
                             console.log('문서 수:', documentCount);
