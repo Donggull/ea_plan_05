@@ -127,6 +127,12 @@ export class DocumentAnalysisService {
           }
 
           console.log(`📝 분석 준비 완료: ${document.file_name} (${documentContent.length}자)`);
+          console.log(`🔧 분석 파라미터:`, {
+            aiModel: request.aiModel,
+            aiProvider: request.aiProvider,
+            analysisDepth: request.analysisDepth,
+            documentLength: documentContent.length
+          });
 
           // AI 분석 수행
           const analysisResult = await this.analyzeDocument({
@@ -142,20 +148,30 @@ export class DocumentAnalysisService {
             userId: request.userId,
           });
 
+          console.log(`📋 analyzeDocument 결과:`, {
+            success: analysisResult.success,
+            hasAnalysisId: !!analysisResult.analysisId,
+            error: analysisResult.error
+          });
+
           if (analysisResult.success && analysisResult.analysisId) {
             analysisIds.push(analysisResult.analysisId);
             successCount++;
             console.log(`✅ 분석 완료: ${document.file_name}`);
           } else {
             failCount++;
-            console.warn(`❌ 분석 실패: ${document.file_name}`, analysisResult.error);
+            console.error(`❌ 분석 실패: ${document.file_name}`);
+            console.error(`   └─ 오류 상세: ${analysisResult.error || '알 수 없는 오류'}`);
           }
 
           // API 부하 방지를 위한 짧은 대기
           await new Promise(resolve => setTimeout(resolve, 1000));
 
         } catch (error) {
-          console.error(`문서 분석 오류: ${document.file_name}`, error);
+          console.error(`❌❌ 문서 분석 예외 발생: ${document.file_name}`);
+          console.error(`   └─ 에러 타입: ${error instanceof Error ? error.constructor.name : typeof error}`);
+          console.error(`   └─ 에러 메시지: ${error instanceof Error ? error.message : String(error)}`);
+          console.error(`   └─ 스택:`, error instanceof Error ? error.stack : 'N/A');
           failCount++;
         }
       }
@@ -216,39 +232,99 @@ export class DocumentAnalysisService {
         params.analysisDepth
       );
 
-      // AI API 호출
-      const aiResponse = await fetch('/api/ai/completion', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          provider: params.aiProvider,
-          model: params.aiModel,
-          messages: [
-            {
-              role: 'system',
-              content: '당신은 전문적인 문서 분석가입니다. 제공된 문서를 분석하여 핵심 내용, 주요 개념, 기술 스택, 요구사항 등을 추출해주세요.',
-            },
-            {
-              role: 'user',
-              content: analysisPrompt,
-            },
-          ],
-          temperature: 0.3, // 일관성 있는 분석을 위해 낮은 temperature
-          maxTokens: this.getMaxTokensByDepth(params.analysisDepth),
-        }),
+      console.log(`🤖 [${params.documentName}] AI API 호출 시작:`, {
+        endpoint: '/api/ai/completion',
+        provider: params.aiProvider,
+        model: params.aiModel,
+        promptLength: analysisPrompt.length,
+        maxTokens: this.getMaxTokensByDepth(params.analysisDepth),
+        timestamp: new Date().toISOString()
       });
 
-      if (!aiResponse.ok) {
-        const errorText = await aiResponse.text();
-        throw new Error(`AI API 호출 실패: ${aiResponse.status} - ${errorText}`);
-      }
+      // AbortController를 사용한 타임아웃 처리
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+        console.error(`⏰ [${params.documentName}] AI API 호출 타임아웃 (60초)`);
+      }, 60000); // 60초 타임아웃
 
-      const aiResult = await aiResponse.json();
+      let aiResult: any;
 
-      if (!aiResult.success || !aiResult.data?.content) {
-        throw new Error(aiResult.error || 'AI 분석 결과가 없습니다');
+      try {
+        // AI API 호출
+        const aiResponse = await fetch('/api/ai/completion', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            provider: params.aiProvider,
+            model: params.aiModel,
+            messages: [
+              {
+                role: 'system',
+                content: '당신은 전문적인 문서 분석가입니다. 제공된 문서를 분석하여 핵심 내용, 주요 개념, 기술 스택, 요구사항 등을 추출해주세요.',
+              },
+              {
+                role: 'user',
+                content: analysisPrompt,
+              },
+            ],
+            temperature: 0.3, // 일관성 있는 분석을 위해 낮은 temperature
+            maxTokens: this.getMaxTokensByDepth(params.analysisDepth),
+          }),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        console.log(`📡 [${params.documentName}] AI API 응답 수신:`, {
+          status: aiResponse.status,
+          statusText: aiResponse.statusText,
+          ok: aiResponse.ok,
+          headers: Object.fromEntries(aiResponse.headers.entries())
+        });
+
+        if (!aiResponse.ok) {
+          const errorText = await aiResponse.text();
+          console.error(`❌ [${params.documentName}] AI API 오류 응답:`, errorText);
+          throw new Error(`AI API 호출 실패 (${aiResponse.status}): ${errorText.substring(0, 500)}`);
+        }
+
+        aiResult = await aiResponse.json();
+
+        console.log(`✅ [${params.documentName}] AI 분석 결과 파싱 완료:`, {
+          success: aiResult.success,
+          hasData: !!aiResult.data,
+          hasContent: !!aiResult.data?.content,
+          contentLength: aiResult.data?.content?.length || 0,
+          hasUsage: !!aiResult.data?.usage,
+          error: aiResult.error
+        });
+
+        if (!aiResult.success) {
+          console.error(`❌ [${params.documentName}] AI 분석 실패:`, aiResult.error);
+          throw new Error(aiResult.error || 'AI 분석이 실패했습니다');
+        }
+
+        if (!aiResult.data?.content) {
+          console.error(`❌ [${params.documentName}] AI 분석 결과 내용 없음:`, aiResult);
+          throw new Error('AI 분석 결과에 내용이 없습니다');
+        }
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+
+        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+          console.error(`⏰❌ [${params.documentName}] AI API 타임아웃`);
+          throw new Error(`AI API 호출 타임아웃 (60초 초과)`);
+        }
+
+        console.error(`❌ [${params.documentName}] Fetch 오류:`, {
+          name: fetchError instanceof Error ? fetchError.name : 'Unknown',
+          message: fetchError instanceof Error ? fetchError.message : String(fetchError),
+          stack: fetchError instanceof Error ? fetchError.stack : 'N/A'
+        });
+        throw fetchError;
       }
 
       const analysisContent = aiResult.data.content;
