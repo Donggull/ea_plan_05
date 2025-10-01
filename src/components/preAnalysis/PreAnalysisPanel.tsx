@@ -326,13 +326,13 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
         } else {
           console.log('⏳ 질문 생성이 아직 완료되지 않음 - 잠시 대기 후 다시 확인');
 
-          // 최대 10초간 3초 간격으로 재확인
+          // 최대 20초간 3초 간격으로 재확인 (AnalysisProgress의 15초 대기 시간보다 여유있게 설정)
           let attempts = 0;
-          const maxAttempts = 3;
+          const maxAttempts = 6; // 3초 × 6회 = 최대 18초 대기
 
           const checkInterval = setInterval(async () => {
             attempts++;
-            console.log(`🔄 질문 생성 재확인 (${attempts}/${maxAttempts})`);
+            console.log(`🔄 질문 생성 재확인 (${attempts}/${maxAttempts}, ${attempts * 3}초 경과)`);
 
             if (currentSession && await verifyQuestionsGenerated(currentSession.id)) {
               console.log('✅ 질문 생성 재확인 성공 - questions 단계로 이동');
@@ -341,7 +341,7 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
                 onStepChange('questions');
               }
             } else if (attempts >= maxAttempts) {
-              console.warn('⚠️ 질문 생성 확인 시간 초과 - 강제로 questions 단계로 이동');
+              console.warn('⚠️ 질문 생성 확인 시간 초과 (18초) - 강제로 questions 단계로 이동');
               clearInterval(checkInterval);
               if (onStepChange) {
                 onStepChange('questions');
