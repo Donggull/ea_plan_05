@@ -638,7 +638,9 @@ export class PreAnalysisService {
           project?.name || '',
           project?.description || '',
           (project as any)?.project_types || [],
-          documentContext
+          documentContext,
+          analyses || [], // 분석 결과 전달
+          options.maxQuestions || 15
         );
 
         console.log('📝 질문 생성 프롬프트 준비 완료:', {
@@ -1721,7 +1723,9 @@ ${answersContext}
     projectName: string,
     projectDescription: string,
     projectTypes: string[],
-    documentContext: Array<{ name: string; summary?: string; content?: string }>
+    documentContext: Array<{ name: string; summary?: string; content?: string }>,
+    analyses: any[],
+    maxQuestions: number = 15
   ): string {
     let prompt = `당신은 전문 프로젝트 컨설턴트입니다. 사전 분석 단계에서 프로젝트 이해를 위한 핵심 질문들을 생성해주세요.
 
@@ -1741,8 +1745,24 @@ ${documentContext.map((doc, index) =>
 `;
     }
 
+    // 🔥 분석 결과 기반 문서 복잡도 계산
+    const complexityScore = this.calculateDocumentComplexity(documentContext, analyses);
+    const recommendedQuestions = this.calculateRecommendedQuestions(complexityScore, maxQuestions);
+
+    console.log('📊 문서 복잡도 분석:', {
+      complexityScore,
+      recommendedQuestions,
+      documentsCount: documentContext.length,
+      analysesCount: analyses.length
+    });
+
     prompt += `요구사항:
-1. 프로젝트의 핵심을 파악할 수 있는 6-10개의 실질적인 질문을 생성하세요.
+1. 프로젝트 분석 결과를 기반으로 **${recommendedQuestions}개 내외**의 실질적인 질문을 생성하세요.
+   - 문서 복잡도: ${complexityScore}/100점
+   - 권장 질문 개수: ${recommendedQuestions}개
+   - 복잡도가 높을수록(상세한 요구사항, 기술스택, 이해관계자가 많을수록) 더 많은 질문 생성
+   - 복잡도가 낮으면 핵심적인 질문만 간결하게 생성
+
 2. 다양한 관점을 포함하세요: 기술적 요구사항, 비즈니스 목표, 일정, 예산, 위험 요소, 이해관계자 등
 3. 각 질문은 구체적이고 실행 가능한 답변을 유도해야 합니다.
 4. 업로드된 문서가 있다면 해당 내용을 반영한 질문을 포함하세요.
@@ -1773,6 +1793,85 @@ ${documentContext.map((doc, index) =>
 정확한 JSON 형식만 반환하고 다른 설명은 포함하지 마세요.`;
 
     return prompt;
+  }
+
+  /**
+   * 문서 내용 기반 복잡도 계산
+   */
+  private calculateDocumentComplexity(
+    documentContext: Array<{ name: string; summary?: string; content?: string }>,
+    analyses: any[]
+  ): number {
+    let score = 0;
+
+    // 1. 문서 내용 분석 (최대 40점)
+    let contentScore = 0;
+    documentContext.forEach(doc => {
+      const summaryLength = (doc.summary || '').length;
+      const contentLength = (doc.content || '').length;
+
+      // 내용 길이에 따른 점수 (문서당 최대 10점)
+      const docScore = Math.min(10, (summaryLength + contentLength) / 500);
+      contentScore += docScore;
+    });
+    score += Math.min(40, contentScore);
+
+    // 2. 분석 결과 복잡도 (최대 60점)
+    let analysisScore = 0;
+    analyses.forEach(analysis => {
+      const result = analysis.analysis_result;
+      if (!result) return;
+
+      // 각 카테고리별 요소 개수 계산
+      const requirements = Array.isArray(result.keyRequirements) ? result.keyRequirements.length : 0;
+      const stakeholders = Array.isArray(result.stakeholders) ? result.stakeholders.length : 0;
+      const constraints = Array.isArray(result.constraints) ? result.constraints.length : 0;
+      const risks = Array.isArray(result.risks) ? result.risks.length : 0;
+      const opportunities = Array.isArray(result.opportunities) ? result.opportunities.length : 0;
+      const techStack = Array.isArray(result.technicalStack) ? result.technicalStack.length : 0;
+      const timeline = Array.isArray(result.timeline) ? result.timeline.length : 0;
+
+      // 총 요소 개수
+      const totalElements = requirements + stakeholders + constraints + risks + opportunities + techStack + timeline;
+
+      // 요소 개수에 따른 점수 (분석당 최대 15점)
+      // 30개 이상 요소가 있으면 만점
+      const elementsScore = Math.min(15, (totalElements / 30) * 15);
+      analysisScore += elementsScore;
+    });
+    score += Math.min(60, analysisScore);
+
+    // 최종 점수를 0-100 범위로 정규화
+    return Math.round(Math.min(100, score));
+  }
+
+  /**
+   * 복잡도 기반 권장 질문 개수 계산
+   */
+  private calculateRecommendedQuestions(complexityScore: number, maxQuestions: number): number {
+    // 복잡도에 따른 질문 개수 매핑
+    // 0-20점: 6-8개
+    // 21-40점: 9-12개
+    // 41-60점: 13-16개
+    // 61-80점: 17-20개
+    // 81-100점: 21-25개
+
+    let recommended: number;
+
+    if (complexityScore <= 20) {
+      recommended = 6 + Math.floor((complexityScore / 20) * 2); // 6-8개
+    } else if (complexityScore <= 40) {
+      recommended = 9 + Math.floor(((complexityScore - 20) / 20) * 3); // 9-12개
+    } else if (complexityScore <= 60) {
+      recommended = 13 + Math.floor(((complexityScore - 40) / 20) * 3); // 13-16개
+    } else if (complexityScore <= 80) {
+      recommended = 17 + Math.floor(((complexityScore - 60) / 20) * 3); // 17-20개
+    } else {
+      recommended = 21 + Math.floor(((complexityScore - 80) / 20) * 4); // 21-25개
+    }
+
+    // maxQuestions 제한 적용
+    return Math.min(recommended, maxQuestions);
   }
 
   /**
