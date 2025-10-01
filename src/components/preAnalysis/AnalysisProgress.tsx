@@ -407,6 +407,30 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
 
             return hasRealChanges ? updated : prev;
           });
+
+          // 🔥 중요: 문서 상태 조회 후 항상 전체 진행률 및 완료 조건 확인
+          // documentStatuses가 업데이트되지 않더라도 DB에서 새로운 정보를 받아왔으므로
+          // 문서 분석 완료 조건을 다시 확인해야 함
+          setTimeout(() => {
+            const completedDocs = documentStatuses.filter(doc => doc.status === 'completed').length;
+            const processedDocs = documentStatuses.filter(doc => doc.status === 'completed' || doc.status === 'error').length;
+            const totalDocs = documentStatuses.length;
+
+            console.log('🔍 문서 분석 완료 조건 확인:', {
+              completedDocs,
+              processedDocs,
+              totalDocs,
+              questionGenerationTriggered,
+              analysisCompleted
+            });
+
+            // 모든 문서가 처리되었고 아직 질문 생성이 트리거되지 않았으면 강제로 updateOverallProgress 실행
+            if (totalDocs > 0 && processedDocs === totalDocs && !questionGenerationTriggered && !analysisCompleted) {
+              console.log('🚨 문서 분석 완료 감지 - 강제로 진행률 업데이트 및 질문 생성 트리거');
+              // 강제로 documentStatuses 상태 업데이트를 트리거하여 useEffect 실행
+              setDocumentStatuses(prev => [...prev]);
+            }
+          }, 500); // 상태 업데이트 완료 대기
         }
       } catch (error) {
         console.error('❌ 진행 상황 확인 오류:', error);
