@@ -702,6 +702,63 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
       }
     };
 
+    // 질문 생성 DB 저장 확인 함수
+    const verifyQuestionsInDB = async (sessionId: string): Promise<number> => {
+      try {
+        const { supabase } = await import('../../lib/supabase');
+        if (!supabase) {
+          console.error('❌ Supabase 클라이언트가 초기화되지 않음');
+          return 0;
+        }
+
+        const { count, error } = await supabase
+          .from('ai_questions')
+          .select('id', { count: 'exact', head: true })
+          .eq('session_id', sessionId);
+
+        if (error) {
+          console.error('❌ 질문 수 확인 오류:', error);
+          return 0;
+        }
+
+        return count || 0;
+      } catch (error) {
+        console.error('❌ verifyQuestionsInDB 오류:', error);
+        return 0;
+      }
+    };
+
+    // 질문 DB 저장 대기 함수
+    const waitForQuestionsInDB = async (
+      sessionId: string,
+      onUpdate: (count: number) => boolean,
+      maxWaitTime: number = 15000
+    ): Promise<void> => {
+      const startTime = Date.now();
+      const checkInterval = 2000; // 2초 간격 확인
+
+      return new Promise((resolve) => {
+        const intervalId = setInterval(async () => {
+          const elapsed = Date.now() - startTime;
+
+          if (elapsed >= maxWaitTime) {
+            console.warn('⚠️ 질문 생성 DB 저장 확인 시간 초과');
+            clearInterval(intervalId);
+            resolve();
+            return;
+          }
+
+          const questionCount = await verifyQuestionsInDB(sessionId);
+          const completed = onUpdate(questionCount);
+
+          if (completed) {
+            clearInterval(intervalId);
+            resolve();
+          }
+        }, checkInterval);
+      });
+    };
+
     const renderDocumentProgress = () => {
       if (documentStatuses.length === 0) {
         return (
@@ -1322,63 +1379,6 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
         </Card>
       </div>
     );
-
-    // 질문 생성 DB 저장 확인 함수
-    const verifyQuestionsInDB = async (sessionId: string): Promise<number> => {
-      try {
-        const { supabase } = await import('../../lib/supabase');
-        if (!supabase) {
-          console.error('❌ Supabase 클라이언트가 초기화되지 않음');
-          return 0;
-        }
-
-        const { count, error } = await supabase
-          .from('ai_questions')
-          .select('id', { count: 'exact', head: true })
-          .eq('session_id', sessionId);
-
-        if (error) {
-          console.error('❌ 질문 수 확인 오류:', error);
-          return 0;
-        }
-
-        return count || 0;
-      } catch (error) {
-        console.error('❌ verifyQuestionsInDB 오류:', error);
-        return 0;
-      }
-    };
-
-    // 질문 DB 저장 대기 함수
-    const waitForQuestionsInDB = async (
-      sessionId: string,
-      onUpdate: (count: number) => boolean,
-      maxWaitTime: number = 15000
-    ): Promise<void> => {
-      const startTime = Date.now();
-      const checkInterval = 2000; // 2초 간격 확인
-
-      return new Promise((resolve) => {
-        const intervalId = setInterval(async () => {
-          const elapsed = Date.now() - startTime;
-
-          if (elapsed >= maxWaitTime) {
-            console.warn('⚠️ 질문 생성 DB 저장 확인 시간 초과');
-            clearInterval(intervalId);
-            resolve();
-            return;
-          }
-
-          const questionCount = await verifyQuestionsInDB(sessionId);
-          const completed = onUpdate(questionCount);
-
-          if (completed) {
-            clearInterval(intervalId);
-            resolve();
-          }
-        }, checkInterval);
-      });
-    };
   }
 );
 
