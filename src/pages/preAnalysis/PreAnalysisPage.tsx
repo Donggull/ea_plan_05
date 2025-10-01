@@ -175,6 +175,8 @@ export const PreAnalysisPage: React.FC = () => {
 
       if (!supabaseClient) return;
 
+      console.log('🔔 Realtime 구독 시작:', session.id);
+
       channel = supabaseClient
         .channel(`session-${session.id}`)
         .on(
@@ -186,13 +188,39 @@ export const PreAnalysisPage: React.FC = () => {
             filter: `id=eq.${session.id}`
           },
           async (payload) => {
-            console.log('🔄 세션 업데이트 감지:', payload);
+            console.log('🔄 세션 업데이트 감지:', {
+              sessionId: session.id,
+              timestamp: new Date().toISOString(),
+              hasMetadata: !!(payload.new as any)?.metadata
+            });
 
             // 세션을 다시 로드하여 날짜 변환 문제 방지
             try {
               const sessionResponse = await preAnalysisService.getSession(session.id);
               if (sessionResponse.success && sessionResponse.data) {
-                setSession(sessionResponse.data);
+                const updatedSession = sessionResponse.data;
+                setSession(updatedSession);
+
+                // metadata에서 진행률 즉시 추출 및 로깅
+                const metadata = updatedSession.metadata as Record<string, any> | undefined;
+                if (metadata) {
+                  const analysisProgress = metadata['analysis_progress'];
+                  const questionsProgress = metadata['questions_progress'];
+
+                  console.log('📊 업데이트된 진행률:', {
+                    analysis_progress: analysisProgress,
+                    questions_progress: questionsProgress,
+                    current_step: metadata['current_step'],
+                  });
+
+                  // 진행률이 변경되었으면 즉시 UI에 반영
+                  if (typeof analysisProgress === 'number' || typeof questionsProgress === 'number') {
+                    // calculateOverallProgress가 자동으로 호출되도록 트리거
+                    // (useEffect의 dependency에 session이 포함되어 있음)
+                    console.log('✅ 진행률 UI 반영 트리거됨');
+                  }
+                }
+
                 console.log('✅ 세션 새로고침 완료');
               }
             } catch (error) {
@@ -200,13 +228,16 @@ export const PreAnalysisPage: React.FC = () => {
             }
           }
         )
-        .subscribe();
+        .subscribe((status) => {
+          console.log('🔔 Realtime 구독 상태:', status);
+        });
     };
 
     subscribeToSession();
 
     return () => {
       if (channel) {
+        console.log('🔕 Realtime 구독 종료:', session.id);
         channel.unsubscribe();
       }
     };
@@ -354,9 +385,16 @@ export const PreAnalysisPage: React.FC = () => {
     const steps: AnalysisStep[] = ['setup', 'analysis', 'questions', 'report'];
     const currentStepIndex = steps.indexOf(currentStep);
 
+    console.log('🧮 전체 진행률 계산 시작:', {
+      sessionId: session.id,
+      currentStep,
+      currentStepIndex,
+    });
+
     // 완료된 단계들의 가중치 더하기
     for (let i = 0; i < currentStepIndex; i++) {
       progress += stepWeights[steps[i]];
+      console.log(`  ✅ 완료된 단계 [${steps[i]}]: +${stepWeights[steps[i]]}% (누적: ${progress}%)`);
     }
 
     // 현재 단계의 세부 진행률 계산
@@ -369,43 +407,53 @@ export const PreAnalysisPage: React.FC = () => {
       } else {
         stepProgress = documentCount > 0 ? 50 : 0;
       }
+      console.log(`  📋 설정 단계 진행률: ${stepProgress}%`);
     } else if (currentStep === 'analysis') {
-      // 분석 단계: DB metadata에서 진행률 읽기 (우선), 없으면 로컬 state 사용
+      // 분석 단계: DB metadata 우선, 로컬 state는 보조
       const metadataProgress = session?.metadata?.['analysis_progress'];
 
       if (typeof metadataProgress === 'number') {
-        // DB에 저장된 진행률이 있으면 우선 사용
+        // ✅ DB 우선: 저장된 진행률이 있으면 우선 사용
         stepProgress = metadataProgress;
-        console.log('📊 분석 진행률 (DB):', stepProgress);
+        console.log(`  📊 분석 진행률 (DB 우선): ${stepProgress}%`);
       } else if (documentAnalysisItems.length > 0) {
-        // DB에 없으면 로컬 state에서 계산
+        // ⚠️ 로컬 보조: DB에 없으면 로컬 state에서 계산
         const totalDocProgress = documentAnalysisItems.reduce((sum, doc) => sum + doc.progress, 0);
         stepProgress = totalDocProgress / documentAnalysisItems.length;
-        console.log('📊 분석 진행률 (로컬):', stepProgress);
+        console.log(`  📊 분석 진행률 (로컬 보조): ${stepProgress}% (문서 ${documentAnalysisItems.length}개)`);
       } else if (session?.status === 'processing') {
         stepProgress = 25; // 시작만 한 경우
+        console.log(`  📊 분석 진행률 (시작): ${stepProgress}%`);
       }
     } else if (currentStep === 'questions') {
-      // 질문 단계: DB metadata에서 진행률 읽기 (우선), 없으면 로컬 답변 비율 사용
+      // 질문 단계: DB metadata 우선, 로컬 답변 비율은 보조
       const metadataProgress = session?.metadata?.['questions_progress'];
 
       if (typeof metadataProgress === 'number') {
-        // DB에 저장된 진행률이 있으면 우선 사용
+        // ✅ DB 우선: 저장된 진행률이 있으면 우선 사용
         stepProgress = metadataProgress;
-        console.log('❓ 질문 진행률 (DB):', stepProgress);
+        console.log(`  ❓ 질문 진행률 (DB 우선): ${stepProgress}%`);
       } else if (questions.length > 0) {
-        // DB에 없으면 답변 완료 비율로 계산
+        // ⚠️ 로컬 보조: DB에 없으면 답변 완료 비율로 계산
         const completedAnswers = answers.filter(a => a.answer?.trim().length > 0);
         stepProgress = (completedAnswers.length / questions.length) * 100;
-        console.log('❓ 질문 진행률 (답변):', stepProgress);
+        console.log(`  ❓ 질문 진행률 (로컬 보조): ${stepProgress}% (${completedAnswers.length}/${questions.length})`);
       }
     } else if (currentStep === 'report') {
       // 보고서 단계: 보고서 생성 완료 여부
       stepProgress = report ? 100 : 0;
+      console.log(`  📄 보고서 단계 진행률: ${stepProgress}%`);
     }
 
-    progress += (stepProgress / 100) * stepWeights[currentStep];
-    setOverallProgress(Math.min(Math.round(progress), 100));
+    const currentStepContribution = (stepProgress / 100) * stepWeights[currentStep];
+    progress += currentStepContribution;
+
+    const finalProgress = Math.min(Math.round(progress), 100);
+
+    console.log(`  🎯 현재 단계 [${currentStep}] 기여: +${currentStepContribution.toFixed(1)}%`);
+    console.log(`  🏁 최종 전체 진행률: ${finalProgress}%`);
+
+    setOverallProgress(finalProgress);
   };
 
 
@@ -508,18 +556,45 @@ export const PreAnalysisPage: React.FC = () => {
         name: selectedModel.name
       });
 
-      // ✅ 분석 시작 전 모든 상태 초기화
+      // ✅ 분석 시작 전 모든 상태 완전 초기화
       const { SessionUpdateService } = await import('@/services/preAnalysis/SessionUpdateService');
       const { DocumentAnalysisService } = await import('@/services/preAnalysis/DocumentAnalysisService');
       const { QuestionGenerationService } = await import('@/services/preAnalysis/QuestionGenerationService');
 
-      // DB 진행률 초기화
-      await SessionUpdateService.updateSessionProgress(session.id, 'analysis', 0);
+      console.log('🔄 [Step 1] DB metadata 완전 초기화 시작...');
 
-      // 로컬 state 초기화 (중요!)
+      // 1. DB metadata 완전 초기화 (이전 분석 데이터 제거)
+      const supabaseModule = await import('@/lib/supabase');
+      const supabaseClient = supabaseModule.supabase;
+
+      if (supabaseClient) {
+        await supabaseClient
+          .from('pre_analysis_sessions')
+          .update({
+            metadata: {
+              // 이전 데이터 완전 제거
+              analysis_progress: 0,
+              questions_progress: 0,
+              current_step: 'analysis',
+              last_updated: new Date().toISOString(),
+            },
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', session.id);
+
+        console.log('✅ DB metadata 초기화 완료');
+      }
+
+      // 2. 로컬 state 초기화
       setDocumentAnalysisItems([]);
       setQuestions([]);
       setAnswers([]);
+      setOverallProgress(0);
+
+      console.log('✅ 로컬 state 초기화 완료');
+
+      // 3. SessionUpdateService를 통한 진행률 초기화 (검증 포함)
+      await SessionUpdateService.updateSessionProgress(session.id, 'analysis', 0);
 
       console.log('🔄 모든 상태 초기화 완료 (DB + 로컬 state)');
 

@@ -19,6 +19,13 @@ export class SessionUpdateService {
         throw new Error('Supabase client not initialized');
       }
 
+      console.log(`📊 [SessionUpdate] 진행률 업데이트 시작:`, {
+        sessionId,
+        currentStep,
+        progress,
+        timestamp: new Date().toISOString()
+      });
+
       // 기존 metadata 조회
       const { data: session, error: fetchError } = await supabase
         .from('pre_analysis_sessions')
@@ -27,7 +34,7 @@ export class SessionUpdateService {
         .single();
 
       if (fetchError) {
-        console.error('세션 조회 실패:', fetchError);
+        console.error('❌ 세션 조회 실패:', fetchError);
         throw new Error(`세션 조회 실패: ${fetchError.message}`);
       }
 
@@ -36,13 +43,16 @@ export class SessionUpdateService {
       const newMetadata: Record<string, any> = {
         ...existingMetadata,
         current_step: currentStep,
+        last_updated: new Date().toISOString(),
       };
 
       // 단계별 진행률 저장
       if (currentStep === 'analysis') {
-        newMetadata['analysis_progress'] = progress;
+        newMetadata['analysis_progress'] = Math.round(progress);
+        console.log(`📈 분석 진행률: ${Math.round(progress)}%`);
       } else if (currentStep === 'questions') {
-        newMetadata['questions_progress'] = progress;
+        newMetadata['questions_progress'] = Math.round(progress);
+        console.log(`❓ 질문 생성 진행률: ${Math.round(progress)}%`);
       }
 
       const { error } = await supabase
@@ -54,14 +64,36 @@ export class SessionUpdateService {
         .eq('id', sessionId);
 
       if (error) {
-        console.error('세션 진행 상황 업데이트 실패:', error);
+        console.error('❌ 세션 진행 상황 업데이트 실패:', error);
         throw new Error(`세션 업데이트 실패: ${error.message}`);
+      }
+
+      console.log('✅ 진행률 업데이트 성공');
+
+      // 업데이트 결과 검증
+      const { data: verifyData, error: verifyError } = await supabase
+        .from('pre_analysis_sessions')
+        .select('metadata')
+        .eq('id', sessionId)
+        .single();
+
+      if (!verifyError && verifyData) {
+        const verifyMetadata = verifyData.metadata as Record<string, any>;
+        const savedProgress = currentStep === 'analysis'
+          ? verifyMetadata['analysis_progress']
+          : verifyMetadata['questions_progress'];
+
+        console.log(`🔍 검증: DB에 저장된 진행률 = ${savedProgress}%`);
+
+        if (savedProgress !== Math.round(progress)) {
+          console.warn(`⚠️ 진행률 불일치 감지: 요청=${Math.round(progress)}%, 저장=${savedProgress}%`);
+        }
       }
 
       return { success: true };
 
     } catch (error) {
-      console.error('세션 업데이트 오류:', error);
+      console.error('❌ 세션 업데이트 오류:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : '알 수 없는 오류',
