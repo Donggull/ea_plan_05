@@ -99,7 +99,8 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
         if (interval) clearInterval(interval);
 
         interval = setInterval(() => {
-          if (!isPaused && !analysisCompleted) {
+          // 🔥 폴링 중지 조건 개선: 분석 완료 AND 질문 생성 트리거됨
+          if (!isPaused && !(analysisCompleted && questionGenerationTriggered)) {
             checkAnalysisProgress();
           }
           updateElapsedTime();
@@ -112,7 +113,7 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
       startPolling();
 
       return () => clearInterval(interval);
-    }, [sessionId, isPaused]);
+    }, [sessionId, isPaused, analysisCompleted, questionGenerationTriggered]);
 
     // documentStatuses 변경 시 진행률 업데이트
     useEffect(() => {
@@ -364,7 +365,7 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
           const statusMap = statusResponse.data;
           console.log('📄 문서 상태 맵:', statusMap);
 
-          // 문서 상태 업데이트
+          // 문서 상태 업데이트 및 완료 조건 체크
           setDocumentStatuses(prev => {
             const updated = prev.map(doc => {
               const status = statusMap[doc.id];
@@ -395,6 +396,41 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
               return doc;
             });
 
+            // 🔥 중요: 상태 업데이트 콜백 내에서 완료 조건 체크 (클로저 문제 해결)
+            const completedDocs = updated.filter(doc => doc.status === 'completed').length;
+            const processedDocs = updated.filter(doc => doc.status === 'completed' || doc.status === 'error').length;
+            const totalDocs = updated.length;
+
+            console.log('🔍 문서 분석 완료 조건 확인 (최신 상태):', {
+              completedDocs,
+              processedDocs,
+              totalDocs,
+              questionGenerationTriggered,
+              analysisCompleted
+            });
+
+            // 모든 문서가 처리 완료되고, 아직 질문 생성이 트리거되지 않았으면 직접 트리거
+            if (totalDocs > 0 && processedDocs === totalDocs && !questionGenerationTriggered && !analysisCompleted) {
+              console.log('🚨 문서 분석 완료 감지!');
+
+              // 분석 완료 상태 설정
+              setAnalysisCompleted(true);
+
+              // 질문 생성 자동 시작
+              if (completedDocs > 0) {
+                console.log('🚀 AI 질문 생성을 자동으로 시작합니다!');
+                setQuestionGenerationTriggered(true);
+
+                // 즉시 질문 생성 트리거
+                setTimeout(() => {
+                  console.log('⚡ triggerQuestionGeneration 호출');
+                  triggerQuestionGeneration();
+                }, 1500); // 1.5초 후 실행
+              } else {
+                console.log('❌ 성공한 문서가 없어서 질문 생성 불가');
+              }
+            }
+
             // 실제 변경이 있었는지 확인
             const hasRealChanges = updated.some((doc, index) =>
               doc.status !== prev[index]?.status ||
@@ -407,30 +443,6 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
 
             return hasRealChanges ? updated : prev;
           });
-
-          // 🔥 중요: 문서 상태 조회 후 항상 전체 진행률 및 완료 조건 확인
-          // documentStatuses가 업데이트되지 않더라도 DB에서 새로운 정보를 받아왔으므로
-          // 문서 분석 완료 조건을 다시 확인해야 함
-          setTimeout(() => {
-            const completedDocs = documentStatuses.filter(doc => doc.status === 'completed').length;
-            const processedDocs = documentStatuses.filter(doc => doc.status === 'completed' || doc.status === 'error').length;
-            const totalDocs = documentStatuses.length;
-
-            console.log('🔍 문서 분석 완료 조건 확인:', {
-              completedDocs,
-              processedDocs,
-              totalDocs,
-              questionGenerationTriggered,
-              analysisCompleted
-            });
-
-            // 모든 문서가 처리되었고 아직 질문 생성이 트리거되지 않았으면 강제로 updateOverallProgress 실행
-            if (totalDocs > 0 && processedDocs === totalDocs && !questionGenerationTriggered && !analysisCompleted) {
-              console.log('🚨 문서 분석 완료 감지 - 강제로 진행률 업데이트 및 질문 생성 트리거');
-              // 강제로 documentStatuses 상태 업데이트를 트리거하여 useEffect 실행
-              setDocumentStatuses(prev => [...prev]);
-            }
-          }, 500); // 상태 업데이트 완료 대기
         }
       } catch (error) {
         console.error('❌ 진행 상황 확인 오류:', error);
@@ -479,44 +491,32 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
             }
           }
 
-          // 🎯 핵심: 문서 분석 완료 조건 확인 및 질문 생성 트리거
+          // 🎯 문서 분석 완료 시 상태 업데이트 (UI 업데이트용)
+          // 질문 생성 트리거는 checkAnalysisProgress()에서만 처리
           if (processedDocs === totalDocs && docStage.status !== 'completed' && totalDocs > 0) {
-            console.log('🎉 문서 분석 완료 조건 충족!', {
+            console.log('📊 updateOverallProgress: 문서 분석 완료 상태 업데이트', {
               processedDocs,
               totalDocs,
               completedDocs,
-              errorDocs,
-              questionGenerationTriggered
+              errorDocs
             });
 
             docStage.status = 'completed';
             docStage.endTime = new Date();
             docStage.progress = 100;
 
-            addToActivityLog(`✅ 문서 분석이 완료되었습니다! (성공: ${completedDocs}개, 오류: ${errorDocs}개)`);
-            setAnalysisCompleted(true);
+            // 로그만 추가 (상태 설정은 checkAnalysisProgress에서 처리)
+            if (!analysisCompleted) {
+              addToActivityLog(`✅ 문서 분석이 완료되었습니다! (성공: ${completedDocs}개, 오류: ${errorDocs}개)`);
+            }
 
-            // 질문 생성 자동 시작 - 중요한 부분!
-            if (completedDocs > 0 && !questionGenerationTriggered) {
-              console.log('🚀 AI 질문 생성을 자동으로 시작합니다!');
-              setQuestionGenerationTriggered(true);
-              addToActivityLog('🔄 AI 질문 생성 단계로 자동 진행합니다...');
-
-              // 즉시 질문 생성 실행
-              setTimeout(() => {
-                console.log('⚡ triggerQuestionGeneration 호출');
-                triggerQuestionGeneration();
-              }, 1000); // 1초 후 실행 (시각적 효과)
-            } else if (completedDocs === 0) {
+            // 질문 생성 실패 케이스만 여기서 처리
+            if (completedDocs === 0 && !questionGenerationTriggered && questionStage && questionStage.status === 'pending') {
               console.log('❌ 성공한 문서가 없어서 질문 생성 불가');
-              if (questionStage && questionStage.status === 'pending') {
-                questionStage.status = 'failed';
-                questionStage.endTime = new Date();
-                questionStage.message = '분석 성공한 문서가 없음';
-                addToActivityLog('❌ 분석 성공한 문서가 없어 질문을 생성할 수 없습니다.');
-              }
-            } else {
-              console.log('🔄 질문 생성이 이미 트리거됨:', { completedDocs, questionGenerationTriggered });
+              questionStage.status = 'failed';
+              questionStage.endTime = new Date();
+              questionStage.message = '분석 성공한 문서가 없음';
+              addToActivityLog('❌ 분석 성공한 문서가 없어 질문을 생성할 수 없습니다.');
             }
           }
         }
@@ -989,28 +989,41 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
     };
 
     const adjustPollingInterval = () => {
+      // 🔥 분석 완료 및 질문 생성 트리거 완료 시 폴링 완전히 중지
+      if (analysisCompleted && questionGenerationTriggered) {
+        console.log('✅ 분석 및 질문 생성 완료 - 폴링 중지');
+        return; // 더 이상 조정하지 않음
+      }
+
       const now = Date.now();
       const timeSinceLastUpdate = now - lastUpdateTime;
 
       // 진행률에 따른 동적 폴링 간격 조정
-      const overallProgressNum = Math.floor(overallProgress);
       const analyzingDocs = documentStatuses.filter(doc => doc.status === 'analyzing').length;
       const completedDocs = documentStatuses.filter(doc => doc.status === 'completed').length;
+      const errorDocs = documentStatuses.filter(doc => doc.status === 'error').length;
       const totalDocs = documentStatuses.length;
+      const processedDocs = completedDocs + errorDocs;
 
       let newInterval = pollInterval;
 
-      // 전체 분석이 완료된 경우 폴링 거의 중지
-      if (overallProgressNum >= 100 || (totalDocs > 0 && completedDocs + documentStatuses.filter(doc => doc.status === 'error').length === totalDocs)) {
-        newInterval = 30000; // 30초로 대폭 늘림
+      // 문서 분석 완료 및 질문 생성 대기 중
+      if (analysisCompleted && !questionGenerationTriggered) {
+        newInterval = 10000; // 10초 간격으로 느리게
+        console.log('📊 문서 분석 완료, 질문 생성 대기 중');
+      }
+      // 전체 문서 처리 완료
+      else if (totalDocs > 0 && processedDocs === totalDocs) {
+        newInterval = 15000; // 15초 간격으로 대폭 늘림
+        console.log('📊 모든 문서 처리 완료, 폴링 간격 대폭 증가');
       }
       // 활발한 분석 중일 때
       else if (analyzingDocs > 0) {
-        newInterval = 5000; // 5초 간격
+        newInterval = 3000; // 3초 간격 (빠른 폴링)
       }
       // 대기 상태일 때
       else {
-        newInterval = 8000; // 8초 간격
+        newInterval = 5000; // 5초 간격
       }
 
       // 간격이 실제로 변경되었을 때만 업데이트
