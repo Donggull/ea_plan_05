@@ -339,6 +339,13 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
               if (stageIndex !== -1) {
                 const stage = updated[stageIndex];
 
+                // 🔥 로컬에서 이미 completed로 설정한 상태는 덮어쓰지 않음
+                // DB 동기화 지연으로 인해 로컬 상태가 더 최신일 수 있음
+                if (stage.status === 'completed') {
+                  console.log(`✅ ${progress.stage} 단계는 이미 완료 상태 - DB 업데이트 무시`);
+                  return; // DB 상태로 덮어쓰지 않음
+                }
+
                 // 실제 변경이 있을 때만 업데이트
                 if (stage.status !== progress.status || Math.abs(stage.progress - progress.progress) > 5) {
                   console.log(`🔄 단계 업데이트: ${progress.stage} - ${progress.status} (${progress.progress}%)`);
@@ -450,6 +457,12 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
     };
 
     const updateOverallProgress = () => {
+      // 🔥 이미 분석이 완료되고 질문 생성도 트리거된 경우 불필요한 업데이트 스킵
+      if (analysisCompleted && questionGenerationTriggered) {
+        console.log('⏭️ 분석 완료 - updateOverallProgress 스킵');
+        return;
+      }
+
       const completedDocs = documentStatuses.filter(doc => doc.status === 'completed').length;
       const analyzingDocs = documentStatuses.filter(doc => doc.status === 'analyzing').length;
       const errorDocs = documentStatuses.filter(doc => doc.status === 'error').length;
@@ -461,7 +474,9 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
         completed: completedDocs,
         analyzing: analyzingDocs,
         error: errorDocs,
-        total: totalDocs
+        total: totalDocs,
+        analysisCompleted,
+        questionGenerationTriggered
       });
 
       // 문서 분석 진행률 계산
