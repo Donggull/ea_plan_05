@@ -501,8 +501,13 @@ export const PreAnalysisPage: React.FC = () => {
         name: selectedModel.name
       });
 
-      // DocumentAnalysisService를 사용하여 document_content에서 텍스트를 가져와 분석
+      // ✅ 분석 시작 전 진행률 0으로 초기화
+      const { SessionUpdateService } = await import('@/services/preAnalysis/SessionUpdateService');
       const { DocumentAnalysisService } = await import('@/services/preAnalysis/DocumentAnalysisService');
+      const { QuestionGenerationService } = await import('@/services/preAnalysis/QuestionGenerationService');
+
+      await SessionUpdateService.updateSessionProgress(session.id, 'analysis', 0);
+      console.log('🔄 분석 진행률 초기화 완료 (0%)');
 
       const analysisResult = await DocumentAnalysisService.analyzeProjectDocuments(
         {
@@ -521,7 +526,6 @@ export const PreAnalysisPage: React.FC = () => {
           }
 
           // DB에 진행률 저장
-          const { SessionUpdateService } = await import('@/services/preAnalysis/SessionUpdateService');
           await SessionUpdateService.updateSessionProgress(
             session.id,
             'analysis',
@@ -576,10 +580,7 @@ export const PreAnalysisPage: React.FC = () => {
       setCurrentStep('questions');
 
       // DB에 질문 생성 단계 시작 기록
-      const { SessionUpdateService } = await import('@/services/preAnalysis/SessionUpdateService');
       await SessionUpdateService.updateSessionProgress(session.id, 'questions', 0);
-
-      const { QuestionGenerationService } = await import('@/services/preAnalysis/QuestionGenerationService');
 
       const questionResult = await QuestionGenerationService.generateQuestions({
         projectId,
