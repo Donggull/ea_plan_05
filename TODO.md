@@ -511,3 +511,69 @@ if (documentCount === 0) {
 - **오류 방지**: 목업 데이터로 인한 잘못된 분석 방지
 - **사용자 경험 개선**: 명확한 안내로 혼란 방지
 - **시스템 안정성 향상**: 필수 조건 검증으로 예상치 못한 오류 방지
+
+---
+
+## 🔧 Phase 11: 데이터 저장 아키텍처 개선 ✅ (2025-10-01)
+
+### 📊 문제점 진단
+- **진행률 표시 문제**: 분석 완료 후 진행률이 "초기 설정 50%"에서 멈춤
+- **근본 원인 발견**:
+  - 질문 생성 완료 후 metadata JSONB에만 저장
+  - ai_questions 테이블에는 저장되지 않음
+  - UI는 테이블 기반으로 로드하므로 질문이 표시되지 않음
+  - 아키텍처 불일치로 인한 데이터 동기화 실패
+
+### ✨ 구현 완료 (옵션 B: 완전 재구축)
+- [x] **QuestionGenerationService.ts 개선**
+  - ai_questions 테이블에 질문 정식 저장 (lines 121-193)
+  - DB 스키마 호환 카테고리 매핑 함수 구현
+  - metadata에도 저장하여 백워드 호환성 유지
+  - confidence_score 및 importance 기반 우선순위 설정
+
+- [x] **PreAnalysisService.ts 확장**
+  - `getQuestions()`: ai_questions 테이블에서 질문 조회 (lines 2485-2543)
+  - `getAnswers()`: user_answers 테이블에서 답변 조회 (lines 2545-2593)
+  - `getDocumentAnalyses()`: document_analyses 테이블에서 분석 결과 조회 (lines 2595-2643)
+  - 완전한 타입 안전성 보장 및 null 처리
+
+- [x] **PreAnalysisPage.tsx 리팩토링**
+  - `loadQuestions()`: DB 기반 질문/답변 로드 (lines 375-393)
+  - `loadDocumentAnalyses()`: DB 기반 분석 결과 로드 (lines 395-422)
+  - status 매핑: DB 'failed' → UI 'error' 변환
+  - Realtime 구독 개선: ai_questions, document_analyses, user_answers 테이블 추가 (lines 196-292)
+  - 질문 생성 후 DB 재조회로 정확한 데이터 표시 (lines 815-824)
+
+### 🔍 타입 안전성 개선
+- [x] **6가지 타입 오류 모두 해결**
+  1. Status 타입 불일치 → 명시적 매핑으로 해결
+  2. Null sessionId → null coalescing 연산자 적용
+  3. Category 타입 불일치 → 타입 단언 추가
+  4. Metadata 프로퍼티 접근 → 브래킷 표기법 사용
+  5. Analysis 타입 불일치 → 타입 캐스팅 및 기본값 제공
+  6. aiModel/aiProvider undefined → 빈 문자열 기본값 설정
+
+### 📈 아키텍처 개선 결과
+- **이전**: metadata JSONB에만 저장 → 쿼리 어려움, 참조 무결성 없음
+- **이후**: 관계형 테이블에 저장 → 쿼리 용이, ACID 준수, 관계 명확
+- **실시간 동기화**: 4개 테이블 구독으로 즉각적인 UI 업데이트
+- **백워드 호환성**: metadata 저장 유지로 기존 시스템과 호환
+
+### 🎯 해결 결과
+- ✅ **질문 생성 완료 후 DB에 정식 저장**: ai_questions 테이블 활용
+- ✅ **진행률 정상 표시**: 실시간 Realtime 구독으로 즉시 반영
+- ✅ **데이터 영속성 보장**: 관계형 테이블 기반 안정적 저장
+- ✅ **타입 안전성 100%**: 모든 TypeScript 타입 오류 해결
+- ✅ **실시간 UI 업데이트**: 테이블 변경 시 자동 리로드
+
+### 📝 개발 노트
+- **검증 프로젝트**: K-AI 홍보사이트 프로젝트로 테스트 완료
+- **타입 체크**: `npm run type-check` 통과 ✅
+- **배포 준비**: Vercel 프로덕션 배포 준비 완료
+
+---
+
+**🎉 Phase 11 완료**: 사전 분석 데이터 저장 아키텍처 완전 개선 ✅
+**📊 안정성**: 관계형 테이블 기반 데이터 무결성 보장
+**🚀 성능**: 실시간 동기화로 즉각적인 UI 반영
+**🔧 유지보수**: 타입 안전성 및 명확한 데이터 흐름

@@ -118,7 +118,55 @@ export class QuestionGenerationService {
 
       console.log(`✅ ${questions.length}개 질문 생성 완료`);
 
-      // 5. 세션 메타데이터에 질문 저장
+      // 5. ai_questions 테이블에 질문 저장 (정석 방식)
+      console.log('💾 ai_questions 테이블에 질문 저장 시작...');
+
+      // 카테고리 매핑 함수 (DB 스키마에 맞게)
+      const mapCategoryToDb = (category: string): 'business' | 'technical' | 'design' | 'timeline' | 'budget' | 'stakeholders' | 'risks' => {
+        const lowerCat = category.toLowerCase();
+
+        if (lowerCat.includes('기술') || lowerCat.includes('tech')) return 'technical';
+        if (lowerCat.includes('비즈니스') || lowerCat.includes('business') || lowerCat.includes('요구사항')) return 'business';
+        if (lowerCat.includes('디자인') || lowerCat.includes('design')) return 'design';
+        if (lowerCat.includes('일정') || lowerCat.includes('timeline') || lowerCat.includes('schedule')) return 'timeline';
+        if (lowerCat.includes('예산') || lowerCat.includes('budget') || lowerCat.includes('리소스')) return 'budget';
+        if (lowerCat.includes('이해관계') || lowerCat.includes('stakeholder')) return 'stakeholders';
+        if (lowerCat.includes('리스크') || lowerCat.includes('risk') || lowerCat.includes('위험')) return 'risks';
+
+        return 'business'; // 기본값
+      };
+
+      const { data: insertedQuestions, error: insertError } = await supabase
+        .from('ai_questions')
+        .insert(
+          questions.map((q, index) => ({
+            session_id: request.sessionId,
+            category: mapCategoryToDb(q.category),
+            question: q.question,
+            context: q.context || '문서 분석 결과를 바탕으로 생성된 질문입니다.',
+            required: q.importance === 'high',
+            expected_format: 'text',
+            order_index: index,
+            generated_by_ai: true,
+            ai_model: request.aiModel,
+            confidence_score: q.importance === 'high' ? 0.9 : q.importance === 'medium' ? 0.7 : 0.5,
+            metadata: {
+              importance: q.importance,
+              original_category: q.category,
+              ai_provider: request.aiProvider,
+            }
+          }))
+        )
+        .select();
+
+      if (insertError) {
+        console.error('❌ ai_questions 테이블 저장 실패:', insertError);
+        throw new Error(`질문 저장 실패: ${insertError.message}`);
+      }
+
+      console.log(`✅ ai_questions 테이블에 ${insertedQuestions?.length || 0}개 질문 저장 완료`);
+
+      // 6. 세션 메타데이터에도 저장 (호환성 유지)
       const { error: updateError } = await supabase
         .from('pre_analysis_sessions')
         .update({
@@ -127,14 +175,15 @@ export class QuestionGenerationService {
             questions_generated_at: new Date().toISOString(),
             total_questions: questions.length,
             questions_progress: 100,
+            questions_saved_to_table: true, // 테이블 저장 완료 플래그
           },
           updated_at: new Date().toISOString(),
         })
         .eq('id', request.sessionId);
 
       if (updateError) {
-        console.warn('세션 메타데이터 업데이트 실패:', updateError);
-        // 질문 생성은 성공했으므로 계속 진행
+        console.warn('⚠️ 세션 메타데이터 업데이트 실패:', updateError);
+        // 질문은 테이블에 저장되었으므로 계속 진행
       }
 
       return {

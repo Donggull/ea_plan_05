@@ -2481,6 +2481,179 @@ ${documentContext.map((doc, index) =>
       return [];
     }
   }
+
+  /**
+   * 세션의 질문 목록 조회 (ai_questions 테이블에서)
+   */
+  async getQuestions(sessionId: string): Promise<ServiceResponse<AIQuestion[]>> {
+    try {
+      if (!supabase) {
+        return { success: false, error: 'Supabase client not initialized' };
+      }
+
+      console.log('📋 질문 목록 조회 시작:', sessionId);
+
+      const { data, error } = await supabase
+        .from('ai_questions')
+        .select('*')
+        .eq('session_id', sessionId)
+        .order('order_index', { ascending: true });
+
+      if (error) {
+        console.error('❌ 질문 조회 실패:', error);
+        return { success: false, error: error.message };
+      }
+
+      if (!data || data.length === 0) {
+        console.log('⚠️ 저장된 질문이 없습니다');
+        return { success: true, data: [] };
+      }
+
+      // DB 데이터를 AIQuestion 타입으로 변환
+      const questions: AIQuestion[] = data.map((q) => ({
+        id: q.id,
+        sessionId: q.session_id || '',
+        category: (q.category || 'business') as AIQuestion['category'],
+        question: q.question,
+        context: q.context || undefined,
+        required: q.required || false,
+        expectedFormat: q.expected_format || undefined,
+        relatedDocuments: q.related_documents || [],
+        orderIndex: q.order_index,
+        generatedByAI: q.generated_by_ai || true,
+        aiModel: q.ai_model || undefined,
+        confidenceScore: q.confidence_score || undefined,
+        createdAt: q.created_at ? new Date(q.created_at) : new Date(),
+        importance: (typeof q.metadata === 'object' && q.metadata && 'importance' in q.metadata)
+          ? (q.metadata['importance'] as 'high' | 'medium' | 'low')
+          : 'medium',
+      }));
+
+      console.log(`✅ ${questions.length}개 질문 조회 완료`);
+
+      return { success: true, data: questions };
+
+    } catch (error) {
+      console.error('❌ getQuestions 오류:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : '알 수 없는 오류',
+      };
+    }
+  }
+
+  /**
+   * 세션의 답변 목록 조회 (user_answers 테이블에서)
+   */
+  async getAnswers(sessionId: string): Promise<ServiceResponse<UserAnswer[]>> {
+    try {
+      if (!supabase) {
+        return { success: false, error: 'Supabase client not initialized' };
+      }
+
+      console.log('💬 답변 목록 조회 시작:', sessionId);
+
+      const { data, error } = await supabase
+        .from('user_answers')
+        .select('*')
+        .eq('session_id', sessionId);
+
+      if (error) {
+        console.error('❌ 답변 조회 실패:', error);
+        return { success: false, error: error.message };
+      }
+
+      if (!data || data.length === 0) {
+        console.log('⚠️ 저장된 답변이 없습니다');
+        return { success: true, data: [] };
+      }
+
+      // DB 데이터를 UserAnswer 타입으로 변환
+      const answers: UserAnswer[] = data.map((a) => this.transformAnswerData(a));
+
+      console.log(`✅ ${answers.length}개 답변 조회 완료`);
+
+      return { success: true, data: answers };
+
+    } catch (error) {
+      console.error('❌ getAnswers 오류:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : '알 수 없는 오류',
+      };
+    }
+  }
+
+  /**
+   * 문서 분석 결과 목록 조회 (document_analyses 테이블에서)
+   */
+  async getDocumentAnalyses(sessionId: string): Promise<ServiceResponse<DocumentAnalysis[]>> {
+    try {
+      if (!supabase) {
+        return { success: false, error: 'Supabase client not initialized' };
+      }
+
+      console.log('📄 문서 분석 결과 조회 시작:', sessionId);
+
+      const { data, error } = await supabase
+        .from('document_analyses')
+        .select('*')
+        .eq('session_id', sessionId)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.error('❌ 문서 분석 결과 조회 실패:', error);
+        return { success: false, error: error.message };
+      }
+
+      if (!data || data.length === 0) {
+        console.log('⚠️ 저장된 분석 결과가 없습니다');
+        return { success: true, data: [] };
+      }
+
+      // DB 데이터를 DocumentAnalysis 타입으로 변환
+      const analyses: DocumentAnalysis[] = data.map((a) => ({
+        id: a.id,
+        sessionId: a.session_id || '',
+        projectId: '', // document_analyses 테이블에는 project_id가 없으므로 빈 문자열
+        documentId: a.document_id || '',
+        category: (a.category || 'requirements') as DocumentCategory,
+        analysis: (a.analysis_result as any) || {
+          summary: '',
+          keyRequirements: [],
+          stakeholders: [],
+          constraints: [],
+          risks: [],
+          opportunities: [],
+          technicalStack: [],
+          timeline: []
+        },
+        analysisResult: a.analysis_result,
+        mcpEnrichment: (a.mcp_enrichment as any) || undefined,
+        confidenceScore: a.confidence_score || undefined,
+        processingTime: a.processing_time || undefined,
+        aiModel: a.ai_model || '',
+        aiProvider: a.ai_provider || '',
+        inputTokens: a.input_tokens || 0,
+        outputTokens: a.output_tokens || 0,
+        cost: a.cost || 0,
+        status: (a.status || 'pending') as 'pending' | 'processing' | 'completed' | 'failed',
+        errorMessage: a.error_message || undefined,
+        createdAt: a.created_at ? new Date(a.created_at) : new Date(),
+      }));
+
+      console.log(`✅ ${analyses.length}개 문서 분석 결과 조회 완료`);
+
+      return { success: true, data: analyses };
+
+    } catch (error) {
+      console.error('❌ getDocumentAnalyses 오류:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : '알 수 없는 오류',
+      };
+    }
+  }
 }
 
 export const preAnalysisService = PreAnalysisService.getInstance();

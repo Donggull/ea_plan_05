@@ -195,6 +195,7 @@ export const PreAnalysisPage: React.FC = () => {
 
       channel = supabaseClient
         .channel(`session-${session.id}`)
+        // 1️⃣ pre_analysis_sessions 테이블 구독 (진행률 업데이트)
         .on(
           'postgres_changes',
           {
@@ -242,6 +243,48 @@ export const PreAnalysisPage: React.FC = () => {
             } catch (error) {
               console.error('❌ 세션 새로고침 오류:', error);
             }
+          }
+        )
+        // 2️⃣ ai_questions 테이블 구독 (질문 생성 시 실시간 업데이트)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'ai_questions',
+            filter: `session_id=eq.${session.id}`
+          },
+          async () => {
+            console.log('📋 ai_questions INSERT 감지 → 질문 다시 로드');
+            await loadQuestions(session.id);
+          }
+        )
+        // 3️⃣ document_analyses 테이블 구독 (분석 완료 시 실시간 업데이트)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'document_analyses',
+            filter: `session_id=eq.${session.id}`
+          },
+          async () => {
+            console.log('📄 document_analyses 변경 감지 → 분석 결과 다시 로드');
+            await loadDocumentAnalyses(session.id);
+          }
+        )
+        // 4️⃣ user_answers 테이블 구독 (답변 저장 시 실시간 업데이트)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'user_answers',
+            filter: `session_id=eq.${session.id}`
+          },
+          async () => {
+            console.log('💬 user_answers 변경 감지 → 답변 다시 로드');
+            await loadQuestions(session.id); // 답변도 함께 로드
           }
         )
         .subscribe((status) => {
@@ -338,6 +381,17 @@ export const PreAnalysisPage: React.FC = () => {
         setSession(existingSession);
         setCurrentStep(existingSession.currentStep || 'setup');
 
+        console.log('📊 세션 로드 완료, 데이터 로딩 시작:', {
+          sessionId: existingSession.id,
+          currentStep: existingSession.currentStep,
+          status: existingSession.status
+        });
+
+        // Load document analyses if in analysis/questions/report phase
+        if (existingSession.currentStep !== 'setup') {
+          await loadDocumentAnalyses(existingSession.id);
+        }
+
         // Load questions and answers if in questions/report phase
         if (existingSession.currentStep === 'questions' || existingSession.currentStep === 'report') {
           await loadQuestions(existingSession.id);
@@ -347,6 +401,8 @@ export const PreAnalysisPage: React.FC = () => {
         if (existingSession.currentStep === 'report') {
           await loadReport(existingSession.id);
         }
+
+        console.log('✅ 모든 세션 데이터 로드 완료');
       } else {
         // 세션이 없으면 새로 생성
         await createNewSession();
@@ -361,13 +417,71 @@ export const PreAnalysisPage: React.FC = () => {
 
   const loadQuestions = async (sessionId: string) => {
     try {
-      // TODO: Implement getQuestions and getAnswers methods in PreAnalysisService
-      // For now, using empty arrays
+      console.log('📋 질문 목록 로드 시작:', sessionId);
+
+      // ai_questions 테이블에서 질문 조회
+      const questionsResponse = await preAnalysisService.getQuestions(sessionId);
+
+      if (questionsResponse.success && questionsResponse.data) {
+        setQuestions(questionsResponse.data);
+        console.log(`✅ ${questionsResponse.data.length}개 질문 로드 완료`);
+      } else {
+        console.warn('⚠️ 질문 로드 실패 또는 질문 없음:', questionsResponse.error);
+        setQuestions([]);
+      }
+
+      // user_answers 테이블에서 답변 조회
+      const answersResponse = await preAnalysisService.getAnswers(sessionId);
+
+      if (answersResponse.success && answersResponse.data) {
+        setAnswers(answersResponse.data);
+        console.log(`✅ ${answersResponse.data.length}개 답변 로드 완료`);
+      } else {
+        console.warn('⚠️ 답변 로드 실패 또는 답변 없음:', answersResponse.error);
+        setAnswers([]);
+      }
+
+    } catch (err) {
+      console.error('❌ 질문/답변 로드 오류:', err);
       setQuestions([]);
       setAnswers([]);
-      console.log('Session ID for questions:', sessionId); // Use sessionId to avoid unused warning
+    }
+  };
+
+  const loadDocumentAnalyses = async (sessionId: string) => {
+    try {
+      console.log('📄 문서 분석 결과 로드 시작:', sessionId);
+
+      // document_analyses 테이블에서 분석 결과 조회
+      const analysesResponse = await preAnalysisService.getDocumentAnalyses(sessionId);
+
+      if (analysesResponse.success && analysesResponse.data) {
+        // 분석 결과를 UI용 documentAnalysisItems로 변환
+        const items = analysesResponse.data.map((analysis) => {
+          // status 매핑: DB의 'failed'를 UI의 'error'로 변환
+          let uiStatus: 'pending' | 'analyzing' | 'completed' | 'error' = 'pending';
+          if (analysis.status === 'completed') uiStatus = 'completed';
+          else if (analysis.status === 'processing') uiStatus = 'analyzing';
+          else if (analysis.status === 'failed') uiStatus = 'error';
+
+          return {
+            documentId: analysis.documentId || '',
+            documentName: `Document ${analysis.id.substring(0, 8)}`,
+            status: uiStatus,
+            progress: analysis.status === 'completed' ? 100 : 0
+          };
+        });
+
+        setDocumentAnalysisItems(items);
+        console.log(`✅ ${items.length}개 문서 분석 결과 로드 완료`);
+      } else {
+        console.warn('⚠️ 문서 분석 결과 로드 실패:', analysesResponse.error);
+        setDocumentAnalysisItems([]);
+      }
+
     } catch (err) {
-      console.error('Questions load error:', err);
+      console.error('❌ 문서 분석 결과 로드 오류:', err);
+      setDocumentAnalysisItems([]);
     }
   };
 
@@ -729,6 +843,11 @@ export const PreAnalysisPage: React.FC = () => {
 
       console.log(`✅ 문서 분석 완료: ${analysisResult.successCount}/${analysisResult.totalDocuments}개`);
 
+      // ✅ DB에서 저장된 분석 결과 다시 조회
+      console.log('📄 document_analyses 테이블에서 분석 결과 로드 시작...');
+      await loadDocumentAnalyses(session.id);
+      console.log('✅ 분석 결과 로드 완료');
+
       // 질문 생성 단계로 이동
       console.log('❓ 질문 생성 시작');
       setCurrentStep('questions');
@@ -747,7 +866,7 @@ export const PreAnalysisPage: React.FC = () => {
       });
 
       if (!questionResult.success) {
-        console.warn('질문 생성 실패:', questionResult.error);
+        console.warn('❌ 질문 생성 실패:', questionResult.error);
         // 질문 생성 실패는 치명적이지 않으므로 계속 진행
       } else {
         console.log(`✅ 질문 생성 완료: ${questionResult.totalGenerated}개`);
@@ -755,35 +874,10 @@ export const PreAnalysisPage: React.FC = () => {
         // DB에 질문 생성 완료 기록
         await SessionUpdateService.updateSessionProgress(session.id, 'questions', 100);
 
-        // 카테고리 매핑 함수
-        const mapCategory = (cat: string): AIQuestion['category'] => {
-          const validCategories: AIQuestion['category'][] = ['technical', 'business', 'design', 'timeline', 'budget', 'stakeholders', 'risks'];
-          const lowerCat = cat.toLowerCase();
-
-          // 한글-영어 매핑
-          if (lowerCat.includes('기술') || lowerCat.includes('tech')) return 'technical';
-          if (lowerCat.includes('비즈니스') || lowerCat.includes('business') || lowerCat.includes('요구사항')) return 'business';
-          if (lowerCat.includes('디자인') || lowerCat.includes('design')) return 'design';
-          if (lowerCat.includes('일정') || lowerCat.includes('timeline') || lowerCat.includes('schedule')) return 'timeline';
-          if (lowerCat.includes('예산') || lowerCat.includes('budget') || lowerCat.includes('리소스')) return 'budget';
-          if (lowerCat.includes('이해관계') || lowerCat.includes('stakeholder')) return 'stakeholders';
-          if (lowerCat.includes('리스크') || lowerCat.includes('risk') || lowerCat.includes('위험')) return 'risks';
-
-          return validCategories.includes(cat as AIQuestion['category']) ? cat as AIQuestion['category'] : 'technical';
-        };
-
-        setQuestions(questionResult.questions.map((q, index) => ({
-          id: `q-${index}`,
-          sessionId: session.id,
-          question: q.question,
-          category: mapCategory(q.category),
-          importance: q.importance,
-          context: q.context,
-          createdAt: new Date(),
-          required: q.importance === 'high',
-          orderIndex: index,
-          generatedByAI: true
-        })));
+        // ✅ DB에서 저장된 질문 다시 조회 (정석 방식)
+        console.log('📋 ai_questions 테이블에서 질문 로드 시작...');
+        await loadQuestions(session.id);
+        console.log('✅ 질문 로드 완료');
       }
 
       // 세션 완료 처리
