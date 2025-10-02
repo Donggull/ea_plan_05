@@ -638,7 +638,12 @@ export class PreAnalysisService {
         .single();
 
       const metadata = sessionData?.metadata as Record<string, any> | null;
-      console.log('🔍 세션 metadata 확인:', metadata);
+      console.log('🔍 [질문생성] 세션 metadata 확인:', {
+        hasMetadata: !!metadata,
+        isGenerating: metadata?.['generating_questions'],
+        attempts: metadata?.['question_generation_attempts'] || 0,
+        startedAt: metadata?.['generation_started_at']
+      });
 
       // 🔥 질문 생성 락 체크 - 타임스탬프 기반 무효화 (10분)
       const LOCK_TIMEOUT_MS = 10 * 60 * 1000; // 10분
@@ -747,13 +752,27 @@ export class PreAnalysisService {
       const session = sessions[0];
 
       // 기존 문서 분석 결과 조회
+      console.log('📊 [질문생성] 1단계: 문서 분석 결과 조회 시작');
       const { data: analyses, error: analysesError } = await supabase
         .from('document_analyses')
         .select('*')
-        .eq('session_id', sessionId);
+        .eq('session_id', sessionId)
+        .eq('status', 'completed'); // 🔥 완료된 분석만 조회
 
       if (analysesError) {
+        console.error('❌ [질문생성] 문서 분석 조회 실패:', analysesError);
         return { success: false, error: '문서 분석 결과를 조회할 수 없습니다.' };
+      }
+
+      console.log(`✅ [질문생성] 문서 분석 조회 완료: ${analyses?.length || 0}개`);
+
+      // 🔥 완료된 분석이 없으면 에러
+      if (!analyses || analyses.length === 0) {
+        console.error('❌ [질문생성] 완료된 문서 분석이 없습니다');
+        return {
+          success: false,
+          error: '문서 분석이 아직 완료되지 않았습니다. 문서 분석이 완료될 때까지 기다려주세요.'
+        };
       }
 
       // 진행 상황 업데이트
@@ -768,34 +787,51 @@ export class PreAnalysisService {
 
       // project_id null 체크
       if (!session.project_id) {
+        console.error('❌ [질문생성] 프로젝트 ID 없음');
         throw new Error('프로젝트 ID가 없습니다.');
       }
 
       // 프로젝트 정보 조회 for AIQuestionGenerator
+      console.log('📊 [질문생성] 2단계: 프로젝트 정보 조회');
       const { data: project } = await supabase
         .from('projects')
         .select('name, description, project_types')
         .eq('id', session.project_id)
         .single();
 
+      console.log('✅ [질문생성] 프로젝트 정보 조회 완료:', {
+        name: project?.name,
+        hasDescription: !!project?.description,
+        projectTypes: (project as any)?.project_types
+      });
+
       // 문서 정보 구성 - 더 상세한 컨텍스트 제공
+      console.log('📊 [질문생성] 3단계: 문서 컨텍스트 빌드 시작');
       const documentContext = await this.buildDocumentContext(analyses, session.project_id);
 
-      console.log('📑 문서 컨텍스트 구성 완료:', {
+      console.log('✅ [질문생성] 문서 컨텍스트 구성 완료:', {
         analysesCount: analyses?.length || 0,
-        documentsCount: documentContext.length
+        documentsCount: documentContext.length,
+        totalContentLength: documentContext.reduce((sum, doc) => sum + (doc.content?.length || 0), 0)
       });
 
       // AI를 통한 질문 생성 (통합된 completion API 사용)
       let generatedQuestions: any[] = [];
       try {
-        console.log('🤖 AI 질문 생성 시작 (통합 completion API):', {
+        console.log('📊 [질문생성] 4단계: AI 질문 생성 시작');
+        console.log('🤖 AI 설정:', {
+          provider: session.ai_provider || 'anthropic',
+          model: session.ai_model || 'claude-3-5-sonnet-20241022',
           projectId: session.project_id,
           projectName: project?.name,
           hasDocuments: documentContext.length > 0
         });
 
+        // 🔥 프롬프트 크기 제한 (50KB)
+        const MAX_PROMPT_SIZE = 50000;
+
         // 질문 생성을 위한 프롬프트 구성
+        console.log('📊 [질문생성] 5단계: 프롬프트 빌드 시작');
         const questionPrompt = this.buildQuestionGenerationPrompt(
           project?.name || '',
           project?.description || '',
@@ -805,13 +841,22 @@ export class PreAnalysisService {
           options.maxQuestions || 15
         );
 
-        console.log('📝 질문 생성 프롬프트 준비 완료:', {
+        console.log('✅ [질문생성] 프롬프트 빌드 완료:', {
           promptLength: questionPrompt.length,
+          promptSizeKB: (questionPrompt.length / 1024).toFixed(2),
+          exceedsLimit: questionPrompt.length > MAX_PROMPT_SIZE,
           projectName: project?.name,
           documentCount: documentContext.length
         });
 
+        // 🔥 프롬프트 크기 체크
+        if (questionPrompt.length > MAX_PROMPT_SIZE) {
+          console.error(`❌ [질문생성] 프롬프트가 너무 큽니다: ${(questionPrompt.length / 1024).toFixed(2)}KB > ${(MAX_PROMPT_SIZE / 1024).toFixed(2)}KB`);
+          throw new Error(`프롬프트 크기가 ${(questionPrompt.length / 1024).toFixed(2)}KB로 제한(${(MAX_PROMPT_SIZE / 1024).toFixed(2)}KB)을 초과했습니다. 문서 개수를 줄이거나 더 짧은 문서로 다시 시도해주세요.`);
+        }
+
         // completion API를 사용하여 질문 생성
+        console.log('📊 [질문생성] 6단계: AI API 호출 시작');
         const questionResponse = await this.callAICompletionAPI(
           session.ai_provider || 'anthropic',
           session.ai_model || 'claude-3-5-sonnet-20241022',
@@ -819,6 +864,8 @@ export class PreAnalysisService {
           3000,
           0.7
         );
+
+        console.log('✅ [질문생성] AI API 호출 성공');
 
         console.log('✅ AI 질문 생성 응답 수신:', {
           contentLength: questionResponse.content.length,
