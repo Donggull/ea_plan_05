@@ -253,7 +253,7 @@ export class PermissionCheck {
 
 // React Hook으로 권한 검증
 export function usePermissionCheck() {
-  const { user, isAuthenticated } = useAuth()
+  const { user, profile, isAuthenticated } = useAuth()
 
   const checkPermission = async (
     resource: string,
@@ -268,36 +268,54 @@ export function usePermissionCheck() {
   }
 
   const hasPermissionFor = (resource: string, action: string): boolean => {
-    if (!user) {
+    if (!user || !profile) {
       return false
     }
 
-    // AuthContext에서 가져온 profile 정보 사용
-    const userRole = user.user_metadata?.['role'] || 'user'
-    const userLevel = user.user_metadata?.['user_level'] || 1
+    // AuthContext의 profile 정보 사용
+    const userRole = profile.role || 'user'
+    const userLevel = profile.user_level || 1
 
     return hasPermission(userRole, userLevel, resource, action)
   }
 
   const isAdminUser = (): boolean => {
-    if (!user) return false
+    if (!user || !profile) {
+      console.log('🔍 [isAdminUser] user 또는 profile 없음:', { hasUser: !!user, hasProfile: !!profile })
+      return false
+    }
 
-    // user_metadata 또는 profile 정보에서 role 확인
-    const role = user.user_metadata?.['role'] || (user as any).role
+    // AuthContext의 profile 정보에서 role 확인
+    const role = profile.role
+    console.log('🔍 [isAdminUser] 권한 확인:', {
+      userId: user.id,
+      email: user.email,
+      role,
+      isAdmin: role === 'admin'
+    })
     return role === 'admin'
   }
 
   const isSubAdminUser = (): boolean => {
-    if (!user) return false
+    if (!user || !profile) {
+      console.log('🔍 [isSubAdminUser] user 또는 profile 없음:', { hasUser: !!user, hasProfile: !!profile })
+      return false
+    }
 
-    const role = user.user_metadata?.['role'] || (user as any).role
+    const role = profile.role
+    console.log('🔍 [isSubAdminUser] 권한 확인:', {
+      userId: user.id,
+      email: user.email,
+      role,
+      isSubAdmin: role === 'subadmin'
+    })
     return role === 'subadmin'
   }
 
   const getUserLevel = (): number => {
-    if (!user) return 1
+    if (!user || !profile) return 1
 
-    return user.user_metadata?.['user_level'] || (user as any).user_level || 1
+    return profile.user_level || 1
   }
 
   return {
@@ -306,7 +324,8 @@ export function usePermissionCheck() {
     isAdminUser,
     isSubAdminUser,
     getUserLevel,
-    user
+    user,
+    profile
   }
 }
 
