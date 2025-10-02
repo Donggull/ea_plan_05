@@ -655,6 +655,35 @@ export class PreAnalysisService {
 
       console.log(`✅ 문서 분석 완료 - status='completed'로 업데이트됨`)
 
+      // 🔥 비용 정보 세션에 누적
+      const analysisCost = analysisResult.cost;
+      console.log('💰 [문서분석] 비용 정보:', {
+        inputTokens: analysisResult.inputTokens,
+        outputTokens: analysisResult.outputTokens,
+        cost: analysisCost
+      });
+
+      // 현재 세션의 total_cost 조회 및 업데이트
+      const { data: currentSession } = await supabase
+        .from('pre_analysis_sessions')
+        .select('total_cost')
+        .eq('id', sessionId)
+        .single();
+
+      const currentTotalCost = Number(currentSession?.total_cost || 0);
+      const newTotalCost = currentTotalCost + analysisCost;
+
+      console.log('💰 [문서분석] 세션 비용 업데이트:', {
+        이전_총비용: currentTotalCost,
+        문서분석_비용: analysisCost,
+        새_총비용: newTotalCost
+      });
+
+      await supabase
+        .from('pre_analysis_sessions')
+        .update({ total_cost: newTotalCost })
+        .eq('id', sessionId);
+
       // 진행 상황 업데이트
       await this.emitProgressUpdate({
         sessionId,
@@ -918,6 +947,7 @@ export class PreAnalysisService {
 
       // AI를 통한 질문 생성 (통합된 completion API 사용)
       let generatedQuestions: any[] = [];
+      let questionResponse: any = null; // 🔥 비용 정보를 위해 스코프 밖에 선언
       try {
         console.log('📊 [질문생성] 4단계: AI 질문 생성 시작');
         console.log('🤖 AI 설정:', {
@@ -958,7 +988,7 @@ export class PreAnalysisService {
 
         // completion API를 사용하여 질문 생성
         console.log('📊 [질문생성] 6단계: AI API 호출 시작');
-        const questionResponse = await this.callAICompletionAPI(
+        questionResponse = await this.callAICompletionAPI(
           session.ai_provider || 'anthropic',
           session.ai_model || 'claude-3-5-sonnet-20241022',
           questionPrompt,
@@ -1136,20 +1166,56 @@ export class PreAnalysisService {
         timestamp: new Date(),
       });
 
-      // 🔥 성공 시 락 해제 + 재시도 카운터 초기화
+      // 🔥 비용 정보 세션에 누적
+      let newTotalCost: number | undefined;
+
+      if (!questionResponse || !questionResponse.cost) {
+        console.warn('⚠️  [질문생성] questionResponse에 비용 정보가 없습니다. 비용 누적 건너뜀');
+      } else {
+        const questionCost = questionResponse.cost.totalCost;
+        console.log('💰 [질문생성] 비용 정보:', {
+          inputTokens: questionResponse.usage.inputTokens,
+          outputTokens: questionResponse.usage.outputTokens,
+          cost: questionCost
+        });
+
+        // 현재 세션의 total_cost 조회
+        const { data: currentSession } = await supabase
+          .from('pre_analysis_sessions')
+          .select('total_cost')
+          .eq('id', sessionId)
+          .single();
+
+        const currentTotalCost = Number(currentSession?.total_cost || 0);
+        newTotalCost = currentTotalCost + questionCost;
+
+        console.log('💰 [질문생성] 세션 비용 업데이트:', {
+          이전_총비용: currentTotalCost,
+          질문생성_비용: questionCost,
+          새_총비용: newTotalCost
+        });
+      }
+
+      // 🔥 성공 시 락 해제 + 재시도 카운터 초기화 (+ 비용 누적)
+      const updateData: any = {
+        metadata: {
+          ...(metadata || {}),
+          generating_questions: false,
+          generation_started_at: null,
+          question_generation_attempts: 0
+        }
+      };
+
+      if (newTotalCost !== undefined) {
+        updateData.total_cost = newTotalCost;
+      }
+
       await supabase
         .from('pre_analysis_sessions')
-        .update({
-          metadata: {
-            ...(metadata || {}),
-            generating_questions: false,
-            generation_started_at: null,
-            question_generation_attempts: 0 // 성공 시 재시도 카운터 초기화
-          } as any
-        })
+        .update(updateData)
         .eq('id', sessionId);
 
-      console.log('✅ 질문 생성 완료 - 락 해제 및 재시도 카운터 초기화');
+      console.log('✅ 질문 생성 완료 - 락 해제, 재시도 카운터 초기화' + (newTotalCost !== undefined ? ', 비용 누적 완료' : ''));
 
       return {
         success: true,
@@ -2173,7 +2239,7 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
     maxTokens: number = 4000,
     temperature: number = 0.3
   ): Promise<any> {
-    const maxRetries = 2;
+    const maxRetries = 1; // 🔥 2 → 1로 감소 (총 2회만 시도, 비용 절감)
     const baseTimeout = 200000; // 200초 (3분 20초) - 서버 타임아웃(180초)보다 길게 설정
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -2252,6 +2318,7 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
             // 504 Gateway Timeout인 경우에만 재시도
             if (response.status === 504 && attempt < maxRetries) {
               console.warn(`🔄 [${provider}/${model}] 504 Gateway Timeout, ${attempt + 2}차 시도 중...`);
+              console.warn(`⚠️  재시도 시 추가 비용이 발생할 수 있습니다!`);
               await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
               continue;
             }
