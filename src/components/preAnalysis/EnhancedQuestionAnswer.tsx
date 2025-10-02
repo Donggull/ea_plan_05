@@ -61,6 +61,9 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(true)
   const [questionStartTime, setQuestionStartTime] = useState<Date>(new Date())
 
+  // 🔥 질문 로드 여부 추적 (새로고침 방지를 위한 ref)
+  const hasLoadedQuestionsRef = React.useRef(false)
+
   // 진행률 계산
   const progress = questions.length > 0
     ? (Array.from(answers.values()).filter(a => a.isComplete).length / questions.length) * 100
@@ -71,11 +74,12 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
 
   // 질문 로드 (이미 로드되어 있으면 재로드하지 않음 - 브라우저 포커스 시 새로고침 방지)
   useEffect(() => {
-    // 🔥 이미 질문이 로드되어 있으면 재로드하지 않음
-    if (questions.length === 0) {
+    // 🔥 ref를 사용하여 이미 로드했는지 확인 (컴포넌트 생애주기 동안 한 번만 실행)
+    if (!hasLoadedQuestionsRef.current) {
+      hasLoadedQuestionsRef.current = true
       loadQuestions()
     }
-  }, [projectId, workflowStep, questions.length])
+  }, [projectId, workflowStep])
 
   // 🔥 자동 저장 제거 - 다음 질문 이동 시에만 저장
   // 자동 저장 기능은 비활성화하고 다음 질문 이동 시에만 저장합니다.

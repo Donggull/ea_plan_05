@@ -111,7 +111,9 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
         aiProvider: currentSelectedModel.provider
       });
     }
-  }, [aiModelState.selectedModelId, aiModelState.selectedProviderId, getSelectedModel]);
+    // 🔥 getSelectedModel은 함수이므로 dependency에서 제거 (불필요한 재실행 방지)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aiModelState.selectedModelId, aiModelState.selectedProviderId]);
 
   const loadDocumentCount = async () => {
     try {

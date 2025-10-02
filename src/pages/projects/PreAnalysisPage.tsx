@@ -170,7 +170,9 @@ export const PreAnalysisPage: React.FC = () => {
     };
 
     loadProject();
-  }, [id, projectState.currentProject?.id, selectProject]);
+    // 🔥 selectProject는 함수이므로 dependency에서 제거 (무한 루프 방지)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, projectState.currentProject?.id]);
 
   // 문서 수 로드
   const loadDocumentCount = async () => {
