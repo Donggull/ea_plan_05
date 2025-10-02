@@ -179,6 +179,32 @@ export class PreAnalysisService {
         timestamp: new Date(),
       });
 
+      // 🔥 이미 분석 완료/진행 중인 문서 확인
+      if (!supabase) {
+        throw new Error('Supabase client not initialized');
+      }
+
+      const { data: existingAnalyses } = await supabase
+        .from('document_analyses')
+        .select('document_id, status')
+        .eq('session_id', sessionId);
+
+      const completedDocumentIds = new Set(
+        existingAnalyses
+          ?.filter(a => a.status === 'completed')
+          .map(a => a.document_id) || []
+      );
+
+      const processingDocumentIds = new Set(
+        existingAnalyses
+          ?.filter(a => a.status === 'processing')
+          .map(a => a.document_id) || []
+      );
+
+      console.log(`✅ 이미 분석 완료된 문서: ${completedDocumentIds.size}개`);
+      console.log(`⏳ 현재 분석 중인 문서: ${processingDocumentIds.size}개`);
+      console.log(`📝 분석 필요한 문서: ${documents.length - completedDocumentIds.size - processingDocumentIds.size}개`);
+
       const results = [];
       const totalDocuments = documents.length;
 
@@ -186,6 +212,30 @@ export class PreAnalysisService {
       for (let i = 0; i < documents.length; i++) {
         const document = documents[i];
         const progressPercent = 20 + Math.floor((i / totalDocuments) * 40); // 20-60% 범위
+
+        // 🔥 이미 분석 완료된 문서는 건너뛰기
+        if (completedDocumentIds.has(document.id)) {
+          console.log(`⏭️ "${document.file_name}" - 이미 분석 완료, 건너뜀`);
+          results.push({
+            documentId: document.id,
+            fileName: document.file_name,
+            status: 'completed',
+            result: null, // 기존 결과 재사용
+          });
+          continue;
+        }
+
+        // 🔥 현재 분석 중인 문서는 건너뛰기 (중복 API 호출 방지)
+        if (processingDocumentIds.has(document.id)) {
+          console.log(`⏳ "${document.file_name}" - 현재 분석 중, 건너뜀`);
+          results.push({
+            documentId: document.id,
+            fileName: document.file_name,
+            status: 'processing',
+            result: null,
+          });
+          continue;
+        }
 
         try {
           // 문서별 분석 시작 알림
@@ -558,6 +608,33 @@ export class PreAnalysisService {
   ): Promise<ServiceResponse<AIQuestion[]>> {
     console.log('❓ PreAnalysisService.generateQuestions 호출됨', { sessionId, options });
     try {
+      // 세션 정보 조회
+      if (!supabase) {
+        throw new Error('Supabase client not initialized');
+      }
+
+      // 🔥 이미 질문이 생성되었는지 확인 (중복 생성 방지)
+      const { data: existingQuestions, error: questionCheckError } = await supabase
+        .from('ai_questions')
+        .select('id')
+        .eq('session_id', sessionId);
+
+      if (!questionCheckError && existingQuestions && existingQuestions.length > 0) {
+        console.log(`⏭️ 이미 ${existingQuestions.length}개의 질문이 생성되어 있음, 건너뜀`);
+        // 기존 질문 전체 데이터 조회
+        const { data: fullQuestions } = await supabase
+          .from('ai_questions')
+          .select('*')
+          .eq('session_id', sessionId)
+          .order('created_at', { ascending: true });
+
+        return {
+          success: true,
+          data: fullQuestions?.map(q => this.transformQuestionData(q)) || [],
+          message: '기존에 생성된 질문을 반환합니다.',
+        };
+      }
+
       // 진행 상황 업데이트
       await this.emitProgressUpdate({
         sessionId,
@@ -567,11 +644,6 @@ export class PreAnalysisService {
         message: 'AI 질문을 생성하고 있습니다.',
         timestamp: new Date(),
       });
-
-      // 세션 정보 조회
-      if (!supabase) {
-        throw new Error('Supabase client not initialized');
-      }
 
       const { data: sessions, error: sessionError } = await supabase
         .from('pre_analysis_sessions')
