@@ -523,8 +523,8 @@ export class PreAnalysisService {
         if (existingAnalysis.status === 'processing') {
           console.log('⏳ [문서분석] 다른 프로세스가 현재 처리 중입니다. 건너뜀');
           return {
-            success: false,
-            error: '이 문서는 이미 다른 프로세스에서 분석 중입니다.',
+            success: true,
+            message: '이미 다른 프로세스에서 분석 중입니다. 완료를 기다리세요.',
           };
         } else if (existingAnalysis.status === 'completed') {
           console.log('✅ [문서분석] 이미 완료된 분석입니다. 건너뜀');
@@ -571,20 +571,11 @@ export class PreAnalysisService {
       if (insertError) {
         // 🔥 중복 INSERT 에러 (23505: unique_violation)
         if (insertError.code === '23505') {
-          console.warn('⚠️ [문서분석] 동시 INSERT 충돌 감지. 기존 레코드 사용');
-          const { data: conflictedAnalysis } = await supabase
-            .from('document_analyses')
-            .select('id, status')
-            .eq('session_id', sessionId)
-            .eq('document_id', documentId)
-            .single();
-
-          if (conflictedAnalysis?.status === 'processing') {
-            return {
-              success: false,
-              error: '이 문서는 이미 다른 프로세스에서 분석 중입니다.',
-            };
-          }
+          console.warn('⚠️ [문서분석] 동시 INSERT 충돌 감지. 다른 프로세스가 먼저 시작함');
+          return {
+            success: true,
+            message: '다른 프로세스가 이미 분석을 시작했습니다. 완료를 기다리세요.',
+          };
         }
 
         console.error('❌ [문서분석] 초기화 실패:', insertError);
@@ -805,8 +796,8 @@ export class PreAnalysisService {
       if (verifyTimestamp !== lockTimestamp) {
         console.warn(`⚠️ [질문생성] 락 경쟁 감지. 다른 프로세스가 먼저 획득했습니다. (내 시각: ${lockTimestamp}, 실제: ${verifyTimestamp})`);
         return {
-          success: false,
-          error: '다른 프로세스가 이미 질문을 생성 중입니다.',
+          success: true,
+          message: '다른 프로세스가 이미 질문을 생성 중입니다. 완료를 기다리세요.',
         };
       }
 
