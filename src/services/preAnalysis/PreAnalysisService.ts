@@ -1651,6 +1651,15 @@ ${answersContext}
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
 
+            console.error(`❌ [통합 API] HTTP ${response.status} 오류:`, {
+              status: response.status,
+              statusText: response.statusText,
+              errorData,
+              provider,
+              model,
+              attempt: attempt + 1
+            });
+
             // 504 Gateway Timeout인 경우 재시도
             if (response.status === 504 && attempt < maxRetries) {
               console.warn(`🔄 [통합 API] 504 Gateway Timeout, ${attempt + 2}차 시도 중...`);
@@ -1658,9 +1667,21 @@ ${answersContext}
               continue;
             }
 
+            // 500 에러의 경우 더 상세한 메시지 제공
+            if (response.status === 500) {
+              const detailedError = errorData.details || errorData.error || '서버 내부 오류';
+              throw new Error(
+                `AI 서비스 오류 (${provider}): ${detailedError}\n\n` +
+                `문제가 계속되면 다음을 확인해주세요:\n` +
+                `1. Vercel 환경 변수에 ${provider.toUpperCase()}_API_KEY가 설정되어 있는지 확인\n` +
+                `2. API 키가 올바른 형식인지 확인\n` +
+                `3. AI 서비스 상태 확인 (https://status.anthropic.com 등)`
+              );
+            }
+
             throw new Error(
-              errorData.error ||
               errorData.details ||
+              errorData.error ||
               `API 요청 실패: ${response.status} ${response.statusText}`
             );
           }

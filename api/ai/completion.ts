@@ -140,18 +140,45 @@ export default async function handler(
     console.error('❌ [Vercel API] AI 완성 처리 오류 상세:', {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
-      provider,
-      model,
-      promptLength: prompt?.length || 0,
-      maxTokens,
-      temperature,
+      provider: req.body?.provider,
+      model: req.body?.model,
+      promptLength: req.body?.prompt?.length || 0,
+      maxTokens: req.body?.maxTokens,
+      temperature: req.body?.temperature,
       timestamp: new Date().toISOString()
     })
+
+    // 더 상세한 에러 정보 제공
+    let errorMessage = '서버 오류가 발생했습니다.'
+    let errorDetails = error instanceof Error ? error.message : String(error)
+
+    // 구체적인 에러 타입에 따른 메시지
+    if (error instanceof Error) {
+      if (error.message.includes('API 키')) {
+        errorMessage = 'AI API 인증 오류'
+        errorDetails = `${req.body?.provider || 'unknown'} AI 서비스의 API 키가 올바르지 않거나 설정되지 않았습니다.`
+      } else if (error.message.includes('timeout')) {
+        errorMessage = 'AI API 응답 시간 초과'
+        errorDetails = 'AI 서비스 응답이 지연되고 있습니다. 잠시 후 다시 시도해주세요.'
+      } else if (error.message.includes('API 오류')) {
+        errorMessage = 'AI 서비스 오류'
+        errorDetails = `${req.body?.provider || 'unknown'} AI 서비스에서 오류가 발생했습니다: ${error.message}`
+      }
+    }
+
     return res.status(500).json({
-      error: '서버 오류가 발생했습니다.',
-      details: error instanceof Error ? error.message : String(error),
-      provider,
-      timestamp: new Date().toISOString()
+      error: errorMessage,
+      details: errorDetails,
+      provider: req.body?.provider,
+      model: req.body?.model,
+      timestamp: new Date().toISOString(),
+      // 디버깅을 위한 추가 정보 (개발 환경에서만)
+      ...(process.env.NODE_ENV === 'development' && {
+        debugInfo: {
+          stack: error instanceof Error ? error.stack : undefined,
+          requestBody: req.body
+        }
+      })
     })
   }
 }
