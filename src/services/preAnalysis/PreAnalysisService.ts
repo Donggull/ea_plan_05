@@ -884,19 +884,17 @@ export class PreAnalysisService {
       console.log('🤖 [ultrathink] AI 보고서 생성 완료:', { hasSummary: !!reportContent.summary, totalCost: reportContent.totalCost });
 
       console.log('💾 [ultrathink] 보고서 데이터 저장 준비 중...');
-      // 보고서 저장
+      // 🔥 보고서 저장 - 데이터베이스 스키마에 맞게 flat 구조로 변경
       const reportData = {
         session_id: sessionId,
-        report_type: 'comprehensive',
-        report_content: {
-          summary: reportContent.summary,
-          executive_summary: reportContent.executiveSummary,
-          key_insights: reportContent.keyInsights,
-          risk_assessment: reportContent.riskAssessment,
-          recommendations: reportContent.recommendations,
-          baseline_data: reportContent.baselineData,
-          visualization_data: reportContent.visualizationData,
-        },
+        project_id: sessionData.data!.session.project_id,
+        summary: reportContent.summary,
+        executive_summary: reportContent.executiveSummary,
+        key_insights: reportContent.keyInsights,
+        risk_assessment: reportContent.riskAssessment,
+        recommendations: reportContent.recommendations,
+        baseline_data: reportContent.baselineData,
+        visualization_data: reportContent.visualizationData,
         ai_model: sessionData.data!.session.ai_model,
         ai_provider: sessionData.data!.session.ai_provider,
         total_processing_time: reportContent.totalProcessingTime,
@@ -905,7 +903,7 @@ export class PreAnalysisService {
         output_tokens: reportContent.outputTokens,
         generated_by: sessionData.data!.session.created_by,
       };
-      console.log('💾 [ultrathink] 보고서 데이터 구조 완성:', { reportType: reportData.report_type, aiModel: reportData.ai_model });
+      console.log('💾 [ultrathink] 보고서 데이터 구조 완성:', { projectId: reportData.project_id, aiModel: reportData.ai_model });
 
       if (!supabase) {
         console.error('❌ [ultrathink] Supabase 클라이언트 미초기화!');
