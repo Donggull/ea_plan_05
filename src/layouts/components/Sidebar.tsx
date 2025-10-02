@@ -28,7 +28,6 @@ import {
   Clock,
   Sparkles
 } from 'lucide-react'
-import { ApiUsageService } from '../../services/apiUsageService'
 import { useAIModel } from '../../contexts/AIModelContext'
 import { useProject } from '../../contexts/ProjectContext'
 import { usePermissionCheck } from '@/lib/middleware/permissionCheck'
@@ -126,7 +125,7 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
     today: '$0.00',
     thisMonth: '$0.00',
     tokens: '0',
-    trend: '0%'
+    currentSession: '$0.00'
   })
 
   // 비용 데이터 로딩
@@ -141,17 +140,62 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
 
         const userId = user.id
 
-        const realTimeUsage = await ApiUsageService.getRealTimeUsage(userId)
+        // 🔥 실제 API 사용량 데이터 조회 (user_api_usage 테이블)
+        const { supabase } = await import('../../lib/supabase')
+
+        if (!supabase) {
+          console.warn('Supabase client not initialized')
+          return
+        }
+
+        // 오늘 비용 조회
+        const today = new Date().toISOString().split('T')[0]
+        const { data: todayData } = await supabase
+          .from('user_api_usage')
+          .select('cost')
+          .eq('user_id', userId)
+          .eq('date', today)
+
+        const todayCost = todayData?.reduce((sum, row) => sum + Number(row.cost || 0), 0) || 0
+
+        // 이번 달 비용 조회
+        const firstDayOfMonth = new Date()
+        firstDayOfMonth.setDate(1)
+        const monthStart = firstDayOfMonth.toISOString().split('T')[0]
+
+        const { data: monthData } = await supabase
+          .from('user_api_usage')
+          .select('cost, input_tokens, output_tokens')
+          .eq('user_id', userId)
+          .gte('date', monthStart)
+
+        const monthCost = monthData?.reduce((sum, row) => sum + Number(row.cost || 0), 0) || 0
+        const totalTokens = monthData?.reduce((sum, row) =>
+          sum + Number(row.input_tokens || 0) + Number(row.output_tokens || 0), 0) || 0
+
+        // 🔥 현재 세션 비용 조회 (현재 프로젝트의 활성 세션)
+        let sessionCost = 0
+        if (currentProject?.id) {
+          const { data: sessionData } = await supabase
+            .from('pre_analysis_sessions')
+            .select('total_cost')
+            .eq('project_id', currentProject.id)
+            .eq('status', 'processing')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single()
+
+          sessionCost = Number(sessionData?.total_cost || 0)
+        }
 
         // 비용 데이터 포맷팅
         setCostData({
-          today: `$${realTimeUsage.currentDayRequests * 0.001}`, // 임시 계산
-          thisMonth: `$${realTimeUsage.currentDayRequests * 30 * 0.001}`, // 임시 계산
-          tokens: realTimeUsage.currentHourRequests > 1000
-            ? `${(realTimeUsage.currentHourRequests / 1000).toFixed(1)}K`
-            : realTimeUsage.currentHourRequests.toString(),
-          trend: realTimeUsage.avgResponseTime > 1000 ? '+' : '-' +
-                 Math.abs(realTimeUsage.avgResponseTime / 100).toFixed(1) + '%'
+          today: `$${todayCost.toFixed(4)}`,
+          thisMonth: `$${monthCost.toFixed(2)}`,
+          tokens: totalTokens > 1000
+            ? `${(totalTokens / 1000).toFixed(1)}K`
+            : totalTokens.toString(),
+          currentSession: `$${sessionCost.toFixed(4)}`
         })
       } catch (err) {
         console.error('Failed to load cost data:', err)
@@ -170,7 +214,7 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
 
     // 인증되지 않은 경우 빈 cleanup 함수 반환
     return () => {}
-  }, [user?.id, isAuthenticated])
+  }, [user?.id, isAuthenticated, currentProject?.id])
 
   // MCP 서버 상태 초기화 및 동기화
   useEffect(() => {
@@ -756,7 +800,7 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
         </div>
       </div>
 
-      {/* 하단 비용 모니터링 위젯 - 컴팩트 버전 */}
+      {/* 하단 비용 모니터링 위젯 - 실시간 세션 비용 포함 */}
       {!collapsed && (
         <div className="p-3 border-t border-border-secondary">
           <div className="space-y-2">
@@ -764,11 +808,19 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
               <h3 className="text-text-tertiary text-mini font-medium uppercase tracking-wide">
                 API Usage
               </h3>
-              <Activity className="w-3 h-3 text-accent-green" />
+              <Activity className="w-3 h-3 text-accent-green animate-pulse" />
             </div>
 
-            <div className="bg-bg-tertiary/30 rounded-md p-2 space-y-1">
-              <div className="flex items-center justify-between">
+            <div className="bg-bg-tertiary/30 rounded-md p-2 space-y-1.5">
+              {/* 현재 세션 비용 - 강조 표시 */}
+              {currentProject && (
+                <div className="flex items-center justify-between bg-accent-blue/10 -m-2 p-2 rounded-t-md border-l-2 border-accent-blue">
+                  <span className="text-accent-blue text-mini font-medium">현재 세션</span>
+                  <span className="text-accent-blue text-mini font-bold">{costData.currentSession}</span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between pt-1">
                 <span className="text-text-secondary text-mini">Today</span>
                 <span className="text-text-primary text-mini font-medium">{costData.today}</span>
               </div>
@@ -789,10 +841,10 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
       {collapsed && (
         <div className="p-3 border-t border-border-secondary">
           <button
-            title={`API Usage - Today: ${costData.today}, Month: ${costData.thisMonth}`}
+            title={`API Usage\n현재 세션: ${costData.currentSession}\nToday: ${costData.today}\nMonth: ${costData.thisMonth}`}
             className="w-full flex justify-center p-2 text-accent-green hover:bg-bg-tertiary rounded-lg transition-colors"
           >
-            <DollarSign className="w-4 h-4" />
+            <DollarSign className="w-4 h-4 animate-pulse" />
           </button>
         </div>
       )}

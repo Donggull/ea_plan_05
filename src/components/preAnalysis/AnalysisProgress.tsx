@@ -457,6 +457,36 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
             return hasRealChanges ? updated : prev;
           });
         }
+
+        // 🔥 3. 질문 생성 완료 확인 (폴링으로 감지)
+        if (questionGenerationTriggered && !questionGenerationCompleted) {
+          console.log('🔍 질문 생성 완료 확인 중...');
+
+          const questionCount = await verifyQuestionsInDB(sessionId);
+          console.log(`📊 현재 생성된 질문 개수: ${questionCount}개`);
+
+          if (questionCount > 0) {
+            console.log('✅ 질문 생성 완료 감지!');
+
+            setStages(prev => {
+              const updated = [...prev];
+              const questionStage = updated.find(s => s.id === 'question_generation');
+              if (questionStage && questionStage.status !== 'completed') {
+                questionStage.status = 'completed';
+                questionStage.progress = 100;
+                questionStage.endTime = new Date();
+                questionStage.message = `${questionCount}개 맞춤형 질문 생성 완료!`;
+
+                console.log('🎉 질문 생성 단계 완료 처리');
+              }
+              return updated;
+            });
+
+            setQuestionGenerationCompleted(true);
+            setOverallProgress(100);
+            addToActivityLog(`✅ ${questionCount}개의 맞춤형 질문이 생성되었습니다!`);
+          }
+        }
       } catch (error) {
         console.error('❌ 진행 상황 확인 오류:', error);
       }
