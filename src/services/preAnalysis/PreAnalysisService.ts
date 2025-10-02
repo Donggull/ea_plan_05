@@ -948,9 +948,26 @@ export class PreAnalysisService {
     } catch (error) {
       console.error('❌ [ultrathink] 보고서 생성 오류 상세:', error);
       console.error('❌ [ultrathink] 오류 스택:', error instanceof Error ? error.stack : 'No stack trace');
+
+      // 🔥 명확한 오류 메시지 제공
+      let errorMessage = 'AI 보고서 생성 중 오류가 발생했습니다.';
+      if (error instanceof Error) {
+        errorMessage = `AI 보고서 생성 실패: ${error.message}`;
+      }
+
+      // 진행 상황 업데이트 (실패 상태)
+      await this.emitProgressUpdate({
+        sessionId,
+        stage: 'report_generation',
+        status: 'failed',
+        progress: 0,
+        message: errorMessage,
+        timestamp: new Date(),
+      });
+
       return {
         success: false,
-        error: '보고서 생성 중 오류가 발생했습니다.',
+        error: errorMessage,
       };
     }
   }
@@ -1318,12 +1335,22 @@ ${content}
         6000,
         0.2
       );
-      console.log('🔗 [ultrathink] AI API 응답 수신:', { hasContent: !!response.content, contentLength: response.content?.length });
+      console.log('🔗 [ultrathink] AI API 응답 수신:', {
+        hasContent: !!response.content,
+        contentLength: response.content?.length,
+        contentPreview: response.content?.substring(0, 200)
+      });
 
       console.log('🔍 [ultrathink] AI 응답 파싱 시작...');
+      console.log('📝 [ultrathink] 전체 AI 응답:', response.content);
+
       // 응답 파싱
       const reportContent = this.parseReportResponse(response.content, analyses, answers);
-      console.log('🔍 [ultrathink] 응답 파싱 완료:', { hasSummary: !!reportContent.summary });
+      console.log('🔍 [ultrathink] 응답 파싱 완료:', {
+        hasSummary: !!reportContent.summary,
+        summaryLength: reportContent.summary?.length,
+        keyInsightsCount: reportContent.keyInsights?.length
+      });
 
       const processingTime = Date.now() - startTime;
       console.log('⏱️ [ultrathink] 처리 시간:', processingTime, 'ms');
@@ -1341,34 +1368,10 @@ ${content}
       console.error('❌ [ultrathink] AI 보고서 생성 오류 상세:', error);
       console.error('❌ [ultrathink] 오류 타입:', error instanceof Error ? error.constructor.name : typeof error);
       console.error('❌ [ultrathink] 오류 메시지:', error instanceof Error ? error.message : String(error));
+      console.error('❌ [ultrathink] 오류 스택:', error instanceof Error ? error.stack : 'No stack trace');
 
-      // 오류 발생 시 기본 보고서 반환
-      return {
-        summary: '분석 완료된 프로젝트에 대한 종합 보고서입니다.',
-        executiveSummary: '프로젝트 추진을 위한 핵심 정보가 정리되었습니다.',
-        keyInsights: ['문서 분석이 완료되었습니다.', '질문 답변이 수집되었습니다.'],
-        riskAssessment: {
-          high: [],
-          medium: ['일부 정보가 부족할 수 있습니다.'],
-          low: [],
-          overallScore: 40,
-        },
-        recommendations: ['상세 계획 수립을 권장합니다.', '추가 검토가 필요한 영역을 확인하세요.'],
-        baselineData: {
-          requirements: [],
-          stakeholders: [],
-          constraints: [],
-          timeline: [],
-          budgetEstimates: {},
-          technicalStack: [],
-          integrationPoints: [],
-        },
-        visualizationData: {},
-        totalProcessingTime: Date.now() - startTime,
-        totalCost: 0.01,
-        inputTokens: 1000,
-        outputTokens: 500,
-      };
+      // 🔥 오류를 throw하여 상위에서 처리하도록 함
+      throw error;
     }
   }
 
@@ -1573,17 +1576,35 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
   }
 
   private parseReportResponse(response: string, analyses: any[], _answers: any[]): any {
+    console.log('🔍 [parseReportResponse] 파싱 시작');
+    console.log('📏 [parseReportResponse] 응답 길이:', response.length);
+
+    let jsonMatch: RegExpMatchArray | null = null;
+
     try {
       // JSON 응답 파싱 시도
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      console.log('🔎 [parseReportResponse] JSON 패턴 매칭 시도...');
+      jsonMatch = response.match(/\{[\s\S]*\}/);
+
       if (jsonMatch) {
+        console.log('✅ [parseReportResponse] JSON 패턴 발견, 파싱 시도...');
+        console.log('📝 [parseReportResponse] JSON 문자열 길이:', jsonMatch[0].length);
+        console.log('📝 [parseReportResponse] JSON 미리보기:', jsonMatch[0].substring(0, 300));
+
         const parsedReport = JSON.parse(jsonMatch[0]);
+        console.log('✅ [parseReportResponse] JSON 파싱 성공!');
+        console.log('📊 [parseReportResponse] 파싱된 키:', Object.keys(parsedReport));
         return parsedReport;
+      } else {
+        console.warn('⚠️ [parseReportResponse] JSON 패턴을 찾을 수 없음');
+        console.log('📝 [parseReportResponse] 응답 샘플:', response.substring(0, 500));
       }
     } catch (error) {
-      console.warn('AI 보고서 응답 JSON 파싱 실패:', error);
+      console.error('❌ [parseReportResponse] JSON 파싱 실패:', error);
+      console.error('📝 [parseReportResponse] 파싱 시도한 문자열:', jsonMatch ? jsonMatch[0].substring(0, 500) : 'N/A');
     }
 
+    console.warn('⚠️ [parseReportResponse] JSON 파싱 실패, 텍스트 추출 모드로 전환');
     // JSON 파싱 실패시 텍스트에서 정보 추출
     return {
       summary: this.extractSectionFromText(response, '요약') || '프로젝트 분석이 완료되었습니다.',
