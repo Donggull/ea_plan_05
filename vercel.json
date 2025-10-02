@@ -8,7 +8,7 @@
     "pages/api/ai/completion.ts": {
       "maxDuration": 180
     },
-    "api/**/*.ts": {
+    "pages/api/**/*.ts": {
       "maxDuration": 30
     }
   },
