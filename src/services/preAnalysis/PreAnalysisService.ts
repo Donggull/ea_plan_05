@@ -957,13 +957,22 @@ export class PreAnalysisService {
       let questionResponse: any = null; // 🔥 비용 정보를 위해 스코프 밖에 선언
       try {
         console.log('📊 [질문생성] 4단계: AI 질문 생성 시작');
-        console.log('🤖 AI 설정:', {
-          provider: session.ai_provider || 'anthropic',
-          model: session.ai_model || 'claude-3-5-sonnet-20241022',
+        console.log('🔍 세션에서 읽어온 AI 설정:', {
+          provider: session.ai_provider,
+          model: session.ai_model,
           projectId: session.project_id,
           projectName: project?.name,
-          hasDocuments: documentContext.length > 0
+          hasDocuments: documentContext.length > 0,
+          hasProvider: !!session.ai_provider,
+          hasModel: !!session.ai_model
         });
+
+        // DB에 AI 모델 정보가 없으면 명확한 오류 발생
+        if (!session.ai_provider || !session.ai_model) {
+          const errorMsg = `AI 모델 정보가 세션에 저장되지 않았습니다. Left 사이드바에서 AI 모델을 선택한 후 다시 시작해주세요. (Provider: ${session.ai_provider || '없음'}, Model: ${session.ai_model || '없음'})`;
+          console.error('❌ AI 모델 정보 누락:', errorMsg);
+          throw new Error(errorMsg);
+        }
 
         // 🔥 프롬프트 크기 제한 (50KB)
         const MAX_PROMPT_SIZE = 50000;
@@ -997,8 +1006,8 @@ export class PreAnalysisService {
         // 🔥 temperature를 0.9로 높여 더 다양한 질문 생성 (매번 다른 관점과 개수)
         console.log('📊 [질문생성] 6단계: AI API 호출 시작');
         questionResponse = await this.callAICompletionAPI(
-          session.ai_provider || 'anthropic',
-          session.ai_model || 'claude-3-5-sonnet-20241022',
+          session.ai_provider,
+          session.ai_model,
           questionPrompt,
           3000,
           0.9 // 높은 temperature로 더 창의적이고 다양한 질문 생성
@@ -1539,16 +1548,34 @@ export class PreAnalysisService {
         throw new Error('Supabase client not initialized');
       }
 
-      const { data: session } = await supabase
+      const { data: session, error: sessionError } = await supabase
         .from('pre_analysis_sessions')
         .select('ai_model, ai_provider')
         .eq('id', sessionId)
         .single();
 
+      if (sessionError || !session) {
+        console.error('❌ 세션 조회 실패:', sessionError);
+        throw new Error('세션 정보를 가져올 수 없습니다.');
+      }
+
+      console.log('🔍 세션에서 읽어온 AI 설정:', {
+        aiModel: session.ai_model,
+        aiProvider: session.ai_provider,
+        sessionId
+      });
+
+      // DB에 AI 모델 정보가 없으면 명확한 오류 발생
+      if (!session.ai_model || !session.ai_provider) {
+        const errorMsg = `AI 모델 정보가 세션에 저장되지 않았습니다. Left 사이드바에서 AI 모델을 선택한 후 다시 시작해주세요. (Provider: ${session.ai_provider || '없음'}, Model: ${session.ai_model || '없음'})`;
+        console.error('❌ AI 모델 정보 누락:', errorMsg);
+        throw new Error(errorMsg);
+      }
+
       // 세션에서 가져온 설정으로 업데이트
       settings = {
-        aiModel: session?.ai_model || 'claude-sonnet-4-20250514',
-        aiProvider: session?.ai_provider || 'anthropic'
+        aiModel: session.ai_model,
+        aiProvider: session.ai_provider
       };
 
       // 분석 프롬프트 생성
@@ -1803,10 +1830,24 @@ ${content}
       console.log('📝 [ultrathink] 프롬프트 생성 완료, 길이:', reportPrompt.length);
 
       console.log('⚙️ [ultrathink] AI 설정 확인 중...');
-      // AI 설정 가져오기
-      const aiProvider = sessionData.session?.settings?.aiProvider || 'anthropic';
-      const aiModel = sessionData.session?.settings?.aiModel || 'claude-sonnet-4-20250514';
-      console.log('⚙️ [ultrathink] AI 설정:', { aiProvider, aiModel });
+      // AI 설정 가져오기 - DB 세션 데이터에서 직접 추출
+      const aiProvider = sessionData.session?.ai_provider;
+      const aiModel = sessionData.session?.ai_model;
+
+      console.log('⚙️ [ultrathink] DB에서 읽어온 AI 설정:', {
+        aiProvider,
+        aiModel,
+        sessionId: sessionData.session?.id,
+        hasProvider: !!aiProvider,
+        hasModel: !!aiModel
+      });
+
+      // DB에 AI 모델 정보가 없으면 명확한 오류 발생
+      if (!aiProvider || !aiModel) {
+        const errorMsg = `AI 모델 정보가 세션에 저장되지 않았습니다. Left 사이드바에서 AI 모델을 선택한 후 다시 시작해주세요. (Provider: ${aiProvider || '없음'}, Model: ${aiModel || '없음'})`;
+        console.error('❌ [ultrathink] AI 모델 정보 누락:', errorMsg);
+        throw new Error(errorMsg);
+      }
 
       console.log('🔗 [ultrathink] AI 완성 API 호출 시작...');
       // API 라우트를 통한 AI 보고서 생성
