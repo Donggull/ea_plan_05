@@ -12,9 +12,18 @@ import {
   DollarSign,
   Target,
   Lightbulb,
+  AlertCircle as AlertCircleIcon,
+  Briefcase,
+  Palette,
+  Code,
+  Layout,
+  ThumbsUp,
+  ThumbsDown,
+  Clock,
 } from 'lucide-react';
 import { AnalysisReport as AnalysisReportType } from '../../types/preAnalysis';
 import { supabase } from '../../lib/supabase';
+import { preAnalysisService } from '../../services/preAnalysis/PreAnalysisService';
 
 interface AnalysisReportProps {
   sessionId: string;
@@ -27,14 +36,15 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
 }) => {
   const [report, setReport] = useState<AnalysisReportType | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'summary' | 'insights' | 'risks' | 'recommendations' | 'baseline'>('summary');
+  const [activeTab, setActiveTab] = useState<'summary' | 'insights' | 'risks' | 'recommendations' | 'baseline' | 'agency'>('summary');
 
   useEffect(() => {
-    loadReport();
+    loadOrGenerateReport();
   }, [sessionId]);
 
-  const loadReport = async () => {
+  const loadOrGenerateReport = async () => {
     setIsLoading(true);
     setError(null);
 
@@ -43,78 +53,86 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
         throw new Error('데이터베이스 연결이 초기화되지 않았습니다.');
       }
 
-      console.log('📊 실제 데이터 기반 보고서 생성 시작:', sessionId);
+      console.log('📊 보고서 확인 시작:', sessionId);
 
-      // 1. 세션 및 프로젝트 기본 정보 조회
-      const { data: session } = await supabase
-        .from('pre_analysis_sessions')
-        .select(`
-          *,
-          projects!inner (
-            id,
-            name,
-            description,
-            metadata
-          )
-        `)
-        .eq('id', sessionId)
-        .single();
+      // 1. 먼저 기존 보고서가 있는지 확인
+      const { data: existingReports } = await supabase
+        .from('analysis_reports')
+        .select('*')
+        .eq('session_id', sessionId)
+        .order('created_at', { ascending: false })
+        .limit(1);
 
-      if (!session) {
-        throw new Error('세션 정보를 찾을 수 없습니다.');
+      if (existingReports && existingReports.length > 0) {
+        console.log('✅ 기존 보고서 발견:', existingReports[0].id);
+        setReport(transformReportData(existingReports[0]));
+        setIsLoading(false);
+        return;
       }
 
-      const project = session.projects;
+      console.log('🎯 보고서가 없어서 AI 기반 생성 시작');
+      setIsGenerating(true);
 
-      // 2. 문서 분석 결과 조회
-      const { data: documentAnalyses } = await supabase
-        .from('document_analyses')
-        .select('*')
-        .eq('session_id', sessionId)
-        .order('created_at', { ascending: true });
-
-      // 3. AI 생성 질문들 조회
-      const { data: questions } = await supabase
-        .from('ai_questions')
-        .select('*')
-        .eq('session_id', sessionId)
-        .order('order_index', { ascending: true });
-
-      // 4. 사용자 답변들 조회
-      const { data: answers } = await supabase
-        .from('user_answers')
-        .select('*')
-        .eq('session_id', sessionId);
-
-      console.log('🔍 수집된 데이터:', {
-        project: project?.name,
-        documentCount: documentAnalyses?.length || 0,
-        questionCount: questions?.length || 0,
-        answerCount: answers?.length || 0
+      // 2. AI 기반 보고서 생성
+      const response = await preAnalysisService.generateReport(sessionId, {
+        format: 'json',
+        sections: ['all'],
+        includeCharts: true,
+        includeAppendix: true,
       });
 
-      // 5. 실제 데이터를 기반으로 보고서 생성
-      const actualReport = await generateReportFromData({
-        session,
-        project,
-        documentAnalyses: documentAnalyses || [],
-        questions: questions || [],
-        answers: answers || []
-      });
+      if (response.success && response.data) {
+        console.log('✅ AI 보고서 생성 완료');
+        setReport(response.data);
+      } else {
+        throw new Error(response.error || '보고서 생성에 실패했습니다.');
+      }
 
-      setReport(actualReport);
     } catch (error) {
-      setError('보고서를 불러오는 중 오류가 발생했습니다.');
-      console.error('보고서 로드 오류:', error);
+      console.error('❌ 보고서 로드/생성 오류:', error);
+      setError(error instanceof Error ? error.message : '보고서를 불러오는 중 오류가 발생했습니다.');
     } finally {
       setIsLoading(false);
+      setIsGenerating(false);
     }
+  };
+
+  // Supabase 데이터를 AnalysisReportType으로 변환
+  const transformReportData = (data: any): AnalysisReportType => {
+    return {
+      id: data.id,
+      sessionId: data.session_id,
+      projectId: data.project_id,
+      summary: data.summary || '',
+      executiveSummary: data.executive_summary || '',
+      keyInsights: data.key_insights || [],
+      riskAssessment: data.risk_assessment || { high: [], medium: [], low: [], overallScore: 0 },
+      recommendations: data.recommendations || [],
+      agencyPerspective: data.agency_perspective,
+      baselineData: data.baseline_data || {
+        requirements: [],
+        stakeholders: [],
+        constraints: [],
+        timeline: [],
+        budgetEstimates: {},
+        technicalStack: [],
+        integrationPoints: [],
+      },
+      visualizationData: data.visualization_data || {},
+      aiModel: data.ai_model || 'unknown',
+      aiProvider: data.ai_provider || 'unknown',
+      totalProcessingTime: data.total_processing_time || 0,
+      totalCost: data.total_cost || 0,
+      inputTokens: data.input_tokens || 0,
+      outputTokens: data.output_tokens || 0,
+      generatedBy: data.generated_by || '',
+      createdAt: new Date(data.created_at),
+    };
   };
 
   const handleDownload = (format: 'pdf' | 'json' | 'markdown') => {
     if (!report) return;
 
-    // 실제 구현에서는 서버에서 파일 생성 후 다운로드
     const data = format === 'json' ? JSON.stringify(report, null, 2) : '보고서 내용';
     const blob = new Blob([data], { type: format === 'json' ? 'application/json' : 'text/plain' });
     const url = URL.createObjectURL(blob);
@@ -128,7 +146,6 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
   };
 
   const handleShare = () => {
-    // 공유 기능 구현
     if (navigator.share) {
       navigator.share({
         title: '사전 분석 보고서',
@@ -136,248 +153,15 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
         url: window.location.href,
       });
     } else {
-      // 폴백: 클립보드에 복사
       navigator.clipboard.writeText(window.location.href);
       alert('링크가 클립보드에 복사되었습니다.');
     }
   };
 
-  // 실제 데이터를 기반으로 보고서 생성
-  const generateReportFromData = async (data: {
-    session: any;
-    project: any;
-    documentAnalyses: any[];
-    questions: any[];
-    answers: any[];
-  }): Promise<AnalysisReportType> => {
-    const { session, project, documentAnalyses, questions, answers } = data;
-
-    // 답변 완료율 계산
-    const completedAnswers = answers.filter(a => !a.is_draft && a.answer?.trim());
-    const completionRate = questions.length > 0 ? (completedAnswers.length / questions.length) * 100 : 0;
-
-    // 위험도 평가 (답변 완료율 기반)
-    const overallScore = Math.round(completionRate);
-    const risks = generateRiskAssessment(completionRate, answers, questions);
-
-    // 문서 분석 결과에서 인사이트 추출
-    const insights = extractInsights(documentAnalyses, answers);
-
-    // 권장사항 생성
-    const recommendations = generateRecommendations(completionRate);
-
-    // 기초 데이터 구성
-    const baselineData = buildBaselineData(project, questions, answers, documentAnalyses);
-
-    return {
-      id: `report-${sessionId}`,
-      sessionId,
-      projectId: project.id,
-      summary: `${project.name} 프로젝트의 사전 분석이 완료되었습니다. 총 ${questions.length}개의 질문 중 ${completedAnswers.length}개(${completionRate.toFixed(1)}%)에 대한 답변이 수집되었습니다. ${documentAnalyses.length}개의 문서가 분석되었으며, 웹에이전시 관점에서 프로젝트의 실행 가능성과 위험 요소를 종합적으로 평가했습니다.`,
-      executiveSummary: `본 프로젝트는 ${project.description || '상세 설명 미제공'} 프로젝트입니다. 사전 분석 결과 답변 완료율 ${completionRate.toFixed(1)}%를 기록했으며, ${overallScore >= 80 ? '높은' : overallScore >= 60 ? '보통' : '낮은'} 수준의 준비도를 보여줍니다. 주요 위험 요소와 권장사항을 바탕으로 성공적인 프로젝트 실행을 위한 로드맵을 제시합니다.`,
-      keyInsights: insights,
-      riskAssessment: {
-        high: risks.filter(r => r.severity === 'high'),
-        medium: risks.filter(r => r.severity === 'medium'),
-        low: risks.filter(r => r.severity === 'low'),
-        overallScore
-      },
-      recommendations,
-      baselineData,
-      visualizationData: {
-        riskDistribution: {
-          high: risks.filter(r => r.severity === 'high').length,
-          medium: risks.filter(r => r.severity === 'medium').length,
-          low: risks.filter(r => r.severity === 'low').length
-        },
-        budgetBreakdown: {
-          development: 60,
-          design: 20,
-          testing: 15,
-          infrastructure: 5
-        },
-        timelinePhases: [
-          { name: '요구사항 분석', duration: 20, progress: completionRate },
-          { name: '설계 및 개발', duration: 60, progress: 0 },
-          { name: '테스트 및 배포', duration: 20, progress: 0 }
-        ]
-      },
-      aiModel: 'claude-3-5-sonnet',
-      aiProvider: 'anthropic',
-      totalProcessingTime: Math.floor((new Date().getTime() - new Date(session.created_at).getTime()) / 1000),
-      totalCost: 0,
-      inputTokens: 0,
-      outputTokens: 0,
-      generatedBy: session.created_by,
-      createdAt: new Date()
-    };
-  };
-
-  // 위험도 평가 생성
-  const generateRiskAssessment = (completionRate: number, answers: any[], questions: any[]): Array<{
-    id: string;
-    category: 'technical' | 'business' | 'timeline' | 'budget' | 'resource';
-    title: string;
-    description: string;
-    probability: number;
-    impact: number;
-    severity: 'low' | 'medium' | 'high' | 'critical';
-    mitigation?: string;
-  }> => {
-    const risks: Array<{
-      id: string;
-      category: 'technical' | 'business' | 'timeline' | 'budget' | 'resource';
-      title: string;
-      description: string;
-      probability: number;
-      impact: number;
-      severity: 'low' | 'medium' | 'high' | 'critical';
-      mitigation?: string;
-    }> = [];
-
-    // 답변 완료율 기반 위험 평가
-    if (completionRate < 50) {
-      risks.push({
-        id: 'incomplete-analysis',
-        category: 'business',
-        title: '불완전한 요구사항 분석',
-        description: `답변 완료율이 ${completionRate.toFixed(1)}%로 낮아 프로젝트 요구사항 파악이 불완전합니다.`,
-        probability: 90,
-        impact: 80,
-        severity: 'high' as const,
-        mitigation: '미답변 질문에 대한 추가 분석 및 이해관계자 인터뷰 진행'
-      });
-    }
-
-    // 필수 질문 미답변 위험
-    const requiredQuestions = questions.filter(q => q.required);
-    const answeredRequired = requiredQuestions.filter(q =>
-      answers.some(a => a.question_id === q.id && !a.is_draft && a.answer?.trim())
-    );
-
-    if (answeredRequired.length < requiredQuestions.length) {
-      risks.push({
-        id: 'missing-requirements',
-        category: 'business',
-        title: '핵심 요구사항 누락',
-        description: `필수 질문 ${requiredQuestions.length}개 중 ${answeredRequired.length}개만 답변되어 핵심 요구사항이 누락될 위험이 있습니다.`,
-        probability: 70,
-        impact: 90,
-        severity: 'high' as const,
-        mitigation: '필수 질문에 대한 우선적 답변 수집 및 검토'
-      });
-    }
-
-    // 기술적 복잡도 평가 (카테고리 기반)
-    const technicalQuestions = questions.filter(q => q.category === 'technical');
-    if (technicalQuestions.length > 0) {
-      risks.push({
-        id: 'technical-complexity',
-        category: 'technical',
-        title: '기술적 복잡도',
-        description: '다양한 기술적 요구사항으로 인한 구현 복잡도 증가 가능성',
-        probability: 60,
-        impact: 70,
-        severity: 'medium' as const,
-        mitigation: '기술 스택 검토 및 프로토타입 개발을 통한 기술적 검증'
-      });
-    }
-
-    // 일반적인 프로젝트 리스크 (낮은 수준)
-    risks.push({
-      id: 'general-project-risk',
-      category: 'timeline' as const,
-      title: '일반적인 프로젝트 리스크',
-      description: '예상되는 일반적인 개발 과정에서의 소규모 지연 및 변경사항',
-      probability: 30,
-      impact: 40,
-      severity: 'low' as const,
-      mitigation: '충분한 버퍼 시간 확보 및 체계적인 프로젝트 관리'
-    });
-
-    return risks;
-  };
-
-  // 인사이트 추출
-  const extractInsights = (documentAnalyses: any[], answers: any[]) => {
-    const insights = [];
-
-    if (documentAnalyses.length > 0) {
-      insights.push(`${documentAnalyses.length}개의 프로젝트 문서가 분석되어 체계적인 접근이 가능합니다.`);
-    }
-
-    if (answers.length > 0) {
-      const avgConfidence = answers
-        .filter(a => !a.is_draft && a.confidence)
-        .reduce((sum, a) => sum + a.confidence, 0) / answers.length;
-
-      if (avgConfidence > 70) {
-        insights.push('높은 답변 확신도로 명확한 프로젝트 방향성을 확인했습니다.');
-      }
-    }
-
-    insights.push('웹에이전시 관점에서 프로젝트 실행 가능성을 종합적으로 평가했습니다.');
-    insights.push('체계적인 사전 분석을 통해 프로젝트 리스크를 사전에 식별했습니다.');
-
-    return insights;
-  };
-
-  // 권장사항 생성
-  const generateRecommendations = (completionRate: number) => {
-    const recommendations = [];
-
-    if (completionRate < 80) {
-      recommendations.push('미답변 질문에 대한 추가 분석을 통해 요구사항을 명확히 하세요.');
-    }
-
-    recommendations.push('정기적인 이해관계자 미팅을 통해 프로젝트 진행상황을 공유하세요.');
-    recommendations.push('애자일 개발 방법론을 적용하여 변화하는 요구사항에 유연하게 대응하세요.');
-    recommendations.push('MVP 접근법으로 핵심 기능을 우선 개발하세요.');
-    recommendations.push('지속적인 사용자 피드백을 수집하여 제품의 품질을 향상시키세요.');
-
-    return recommendations;
-  };
-
-  // 기초 데이터 구성
-  const buildBaselineData = (project: any, questions: any[], answers: any[], documentAnalyses: any[]) => {
-    const answeredQuestions = questions.filter(q =>
-      answers.some(a => a.question_id === q.id && !a.is_draft && a.answer?.trim())
-    );
-
-    return {
-      requirements: answeredQuestions
-        .filter(q => q.category === 'business' || q.category === 'functional')
-        .map(q => q.question)
-        .slice(0, 10),
-      stakeholders: ['프로젝트 관리자', '개발팀', '디자이너', '클라이언트', '최종 사용자'],
-      constraints: [
-        '예산 제약',
-        '일정 제약',
-        '기술적 제약',
-        '리소스 제약'
-      ],
-      timeline: [
-        {
-          phase: '요구사항 분석 및 설계',
-          startDate: new Date().toISOString().split('T')[0],
-          endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          duration: 30,
-          milestones: ['요구사항 정의', 'UI/UX 설계', '기술 아키텍처']
-        }
-      ],
-      budgetEstimates: {
-        development: 60,
-        design: 20,
-        testing: 15,
-        infrastructure: 5
-      },
-      technicalStack: project.metadata?.tech_stack || ['React', 'TypeScript', 'Node.js'],
-      integrationPoints: documentAnalyses.map(da => da.file_name || '외부 시스템').slice(0, 5)
-    };
-  };
-
   const getRiskColor = (severity: string) => {
     switch (severity) {
+      case 'critical':
+        return 'text-red-500 bg-red-900/20 border-red-800';
       case 'high':
         return 'text-red-400 bg-red-900/20 border-red-800';
       case 'medium':
@@ -389,12 +173,59 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
     }
   };
 
+  const getDecisionColor = (decision: string) => {
+    switch (decision) {
+      case 'accept':
+        return 'text-green-400 bg-green-900/20 border-green-700';
+      case 'conditional_accept':
+        return 'text-yellow-400 bg-yellow-900/20 border-yellow-700';
+      case 'decline':
+        return 'text-red-400 bg-red-900/20 border-red-700';
+      default:
+        return 'text-gray-400 bg-gray-900/20 border-gray-700';
+    }
+  };
+
+  const getDecisionIcon = (decision: string) => {
+    switch (decision) {
+      case 'accept':
+        return <ThumbsUp className="w-6 h-6" />;
+      case 'conditional_accept':
+        return <AlertCircleIcon className="w-6 h-6" />;
+      case 'decline':
+        return <ThumbsDown className="w-6 h-6" />;
+      default:
+        return <AlertCircleIcon className="w-6 h-6" />;
+    }
+  };
+
+  const getDecisionLabel = (decision: string) => {
+    switch (decision) {
+      case 'accept':
+        return '프로젝트 수락 권장';
+      case 'conditional_accept':
+        return '조건부 수락';
+      case 'decline':
+        return '프로젝트 거절 권장';
+      default:
+        return '판단 보류';
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="text-center">
           <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-gray-400">보고서를 생성하는 중...</p>
+          <p className="text-gray-400">
+            {isGenerating ? 'AI가 심층 분석 보고서를 생성하고 있습니다...' : '보고서를 불러오는 중...'}
+          </p>
+          {isGenerating && (
+            <p className="text-gray-500 text-sm mt-2">
+              문서 분석, 질문-답변 데이터를 종합하여<br />
+              웹에이전시 관점의 전문적인 보고서를 작성 중입니다.
+            </p>
+          )}
         </div>
       </div>
     );
@@ -405,7 +236,13 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
       <div className="text-center py-12">
         <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
         <h3 className="text-lg font-medium text-white mb-2">오류 발생</h3>
-        <p className="text-gray-400">{error}</p>
+        <p className="text-gray-400 mb-4">{error}</p>
+        <button
+          onClick={loadOrGenerateReport}
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+        >
+          다시 시도
+        </button>
       </div>
     );
   }
@@ -415,7 +252,13 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
       <div className="text-center py-12">
         <FileText className="w-12 h-12 text-gray-500 mx-auto mb-4" />
         <h3 className="text-lg font-medium text-white mb-2">보고서가 없습니다</h3>
-        <p className="text-gray-400">생성된 보고서가 없습니다.</p>
+        <p className="text-gray-400 mb-4">생성된 보고서가 없습니다.</p>
+        <button
+          onClick={loadOrGenerateReport}
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+        >
+          보고서 생성
+        </button>
       </div>
     );
   }
@@ -427,7 +270,7 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
         <div>
           <h3 className="text-xl font-semibold text-white">종합 분석 보고서</h3>
           <p className="text-gray-400 mt-1">
-            사전 분석 결과를 종합한 보고서입니다
+            AI 기반 심층 분석 결과 - 웹에이전시 엘루오씨앤씨 관점
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -466,6 +309,39 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
           </div>
         </div>
       </div>
+
+      {/* 🔥 프로젝트 결정 배너 (웹에이전시 관점) */}
+      {report.agencyPerspective?.projectDecision && (
+        <div className={`p-6 rounded-lg border-2 ${getDecisionColor(report.agencyPerspective.projectDecision.recommendation)}`}>
+          <div className="flex items-center gap-4 mb-4">
+            {getDecisionIcon(report.agencyPerspective.projectDecision.recommendation)}
+            <div>
+              <h4 className="text-lg font-bold">
+                {getDecisionLabel(report.agencyPerspective.projectDecision.recommendation)}
+              </h4>
+              <p className="text-sm opacity-80">
+                확신도: {report.agencyPerspective.projectDecision.confidence}%
+              </p>
+            </div>
+          </div>
+          <p className="text-sm leading-relaxed opacity-90 mb-4">
+            {report.agencyPerspective.projectDecision.reasoning}
+          </p>
+          {report.agencyPerspective.projectDecision.conditions && report.agencyPerspective.projectDecision.conditions.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-current border-opacity-20">
+              <p className="text-sm font-semibold mb-2">충족 조건:</p>
+              <ul className="space-y-1">
+                {report.agencyPerspective.projectDecision.conditions.map((condition, index) => (
+                  <li key={index} className="text-sm flex items-start gap-2">
+                    <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                    <span>{condition}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 보고서 메타 정보 */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -515,6 +391,7 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
         <nav className="flex space-x-8">
           {[
             { id: 'summary', label: '요약', icon: FileText },
+            { id: 'agency', label: '웹에이전시 관점', icon: Briefcase },
             { id: 'insights', label: '주요 인사이트', icon: Lightbulb },
             { id: 'risks', label: '위험 분석', icon: AlertTriangle },
             { id: 'recommendations', label: '권장사항', icon: CheckCircle },
@@ -554,6 +431,252 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
               <h4 className="text-lg font-semibold text-white mb-4">경영진 요약</h4>
               <p className="text-gray-300 leading-relaxed">{report.executiveSummary}</p>
             </div>
+          </div>
+        )}
+
+        {activeTab === 'agency' && report.agencyPerspective && (
+          <div className="space-y-6">
+            {/* 4가지 관점 그리드 */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* 기획 관점 */}
+              <div className="p-6 bg-gray-800 rounded-lg border border-gray-700">
+                <div className="flex items-center gap-2 mb-4">
+                  <Briefcase className="w-5 h-5 text-blue-400" />
+                  <h4 className="text-lg font-semibold text-white">기획 관점</h4>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <span className="text-sm text-gray-400">실행 가능성:</span>
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className="flex-1 bg-gray-700 rounded-full h-2">
+                        <div
+                          className="bg-blue-500 h-2 rounded-full"
+                          style={{ width: `${report.agencyPerspective.perspectives.planning.feasibility}%` }}
+                        />
+                      </div>
+                      <span className="text-white font-semibold">{report.agencyPerspective.perspectives.planning.feasibility}%</span>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-sm text-gray-400">예상 공수:</span>
+                    <p className="text-white font-medium mt-1">{report.agencyPerspective.perspectives.planning.estimatedEffort}</p>
+                  </div>
+                  <div>
+                    <span className="text-sm text-gray-400 block mb-2">핵심 고려사항:</span>
+                    <ul className="space-y-1">
+                      {report.agencyPerspective.perspectives.planning.keyConsiderations.map((item, index) => (
+                        <li key={index} className="text-sm text-gray-300 flex items-start gap-2">
+                          <span className="text-blue-400 mt-1">•</span>
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              {/* 디자인 관점 */}
+              <div className="p-6 bg-gray-800 rounded-lg border border-gray-700">
+                <div className="flex items-center gap-2 mb-4">
+                  <Palette className="w-5 h-5 text-purple-400" />
+                  <h4 className="text-lg font-semibold text-white">디자인 관점</h4>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <span className="text-sm text-gray-400">복잡도:</span>
+                    <p className="text-white font-medium mt-1 capitalize">{report.agencyPerspective.perspectives.design.complexity}</p>
+                  </div>
+                  <div>
+                    <span className="text-sm text-gray-400">예상 작업 시간:</span>
+                    <p className="text-white font-medium mt-1">{report.agencyPerspective.perspectives.design.estimatedHours}시간</p>
+                  </div>
+                  <div>
+                    <span className="text-sm text-gray-400 block mb-2">필요 스킬:</span>
+                    <div className="flex flex-wrap gap-2">
+                      {report.agencyPerspective.perspectives.design.requiredSkills.map((skill, index) => (
+                        <span key={index} className="px-2 py-1 bg-purple-900/30 text-purple-300 rounded text-xs border border-purple-700">
+                          {skill}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 퍼블리싱 관점 */}
+              <div className="p-6 bg-gray-800 rounded-lg border border-gray-700">
+                <div className="flex items-center gap-2 mb-4">
+                  <Layout className="w-5 h-5 text-green-400" />
+                  <h4 className="text-lg font-semibold text-white">퍼블리싱 관점</h4>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <span className="text-sm text-gray-400">반응형 복잡도:</span>
+                    <p className="text-white font-medium mt-1 capitalize">{report.agencyPerspective.perspectives.publishing.responsiveComplexity}</p>
+                  </div>
+                  <div>
+                    <span className="text-sm text-gray-400">예상 작업 시간:</span>
+                    <p className="text-white font-medium mt-1">{report.agencyPerspective.perspectives.publishing.estimatedHours}시간</p>
+                  </div>
+                  <div>
+                    <span className="text-sm text-gray-400 block mb-2">브라우저 호환성:</span>
+                    <div className="flex flex-wrap gap-2">
+                      {report.agencyPerspective.perspectives.publishing.compatibility.map((browser, index) => (
+                        <span key={index} className="px-2 py-1 bg-green-900/30 text-green-300 rounded text-xs border border-green-700">
+                          {browser}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 개발 관점 */}
+              <div className="p-6 bg-gray-800 rounded-lg border border-gray-700">
+                <div className="flex items-center gap-2 mb-4">
+                  <Code className="w-5 h-5 text-orange-400" />
+                  <h4 className="text-lg font-semibold text-white">개발 관점</h4>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <span className="text-sm text-gray-400">기술 복잡도:</span>
+                    <p className="text-white font-medium mt-1 capitalize">{report.agencyPerspective.perspectives.development.technicalComplexity}</p>
+                  </div>
+                  <div>
+                    <span className="text-sm text-gray-400">예상 개발 인월:</span>
+                    <p className="text-white font-medium mt-1">{report.agencyPerspective.perspectives.development.estimatedManMonths}MM</p>
+                  </div>
+                  <div>
+                    <span className="text-sm text-gray-400 block mb-2">핵심 기술:</span>
+                    <div className="flex flex-wrap gap-2">
+                      {report.agencyPerspective.perspectives.development.criticalTechnologies.map((tech, index) => (
+                        <span key={index} className="px-2 py-1 bg-orange-900/30 text-orange-300 rounded text-xs border border-orange-700">
+                          {tech}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 상세 리스크 분석 */}
+            {report.agencyPerspective.detailedRisks && report.agencyPerspective.detailedRisks.length > 0 && (
+              <div className="p-6 bg-gray-800 rounded-lg border border-gray-700">
+                <h4 className="text-lg font-semibold text-white mb-4">상세 리스크 분석</h4>
+                <div className="space-y-4">
+                  {report.agencyPerspective.detailedRisks.map((risk, index) => (
+                    <div key={index} className={`p-4 rounded-lg border ${getRiskColor(risk.severity)}`}>
+                      <div className="flex items-start justify-between mb-2">
+                        <h5 className="font-medium">{risk.title}</h5>
+                        <span className="text-xs px-2 py-1 rounded bg-current bg-opacity-20 capitalize">
+                          {risk.severity}
+                        </span>
+                      </div>
+                      <p className="text-sm opacity-90 mb-3">{risk.description}</p>
+                      <div className="grid grid-cols-2 gap-4 text-sm mb-3">
+                        <div>
+                          <span className="opacity-70">발생 확률:</span> {risk.probability}%
+                        </div>
+                        <div>
+                          <span className="opacity-70">영향도:</span> {risk.impact}%
+                        </div>
+                      </div>
+                      <div className="text-sm mb-2">
+                        <span className="opacity-70">완화 방안:</span> {risk.mitigation}
+                      </div>
+                      {risk.contingencyPlan && (
+                        <div className="text-sm">
+                          <span className="opacity-70">비상 대응:</span> {risk.contingencyPlan}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 실행 계획 */}
+            {report.agencyPerspective.executionPlan && (
+              <div className="p-6 bg-gray-800 rounded-lg border border-gray-700">
+                <h4 className="text-lg font-semibold text-white mb-4">실행 계획</h4>
+                <div className="mb-4">
+                  <span className="text-sm text-gray-400">전체 예상 기간:</span>
+                  <p className="text-white font-medium text-lg">{report.agencyPerspective.executionPlan.totalEstimatedDays}일</p>
+                </div>
+                <div className="space-y-4">
+                  {report.agencyPerspective.executionPlan.phases.map((phase, index) => (
+                    <div key={index} className="p-4 bg-gray-900/50 rounded border border-gray-700">
+                      <div className="flex items-center justify-between mb-2">
+                        <h5 className="font-medium text-white">{phase.name}</h5>
+                        <span className="text-sm text-gray-400 flex items-center gap-1">
+                          <Clock className="w-4 h-4" />
+                          {phase.duration}일
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3 text-sm">
+                        <div>
+                          <span className="text-gray-400 block mb-1">산출물:</span>
+                          <ul className="space-y-1">
+                            {phase.deliverables.map((item, i) => (
+                              <li key={i} className="text-gray-300">• {item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                        <div>
+                          <span className="text-gray-400 block mb-1">필요 리소스:</span>
+                          <ul className="space-y-1">
+                            {phase.resources.map((item, i) => (
+                              <li key={i} className="text-gray-300">• {item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 비용 추정 */}
+            {report.agencyPerspective.costEstimate && (
+              <div className="p-6 bg-gray-800 rounded-lg border border-gray-700">
+                <h4 className="text-lg font-semibold text-white mb-4">비용 추정</h4>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+                  <div>
+                    <span className="text-sm text-gray-400">기획:</span>
+                    <p className="text-white font-medium">{report.agencyPerspective.costEstimate.planning.toLocaleString()} {report.agencyPerspective.costEstimate.currency}</p>
+                  </div>
+                  <div>
+                    <span className="text-sm text-gray-400">디자인:</span>
+                    <p className="text-white font-medium">{report.agencyPerspective.costEstimate.design.toLocaleString()} {report.agencyPerspective.costEstimate.currency}</p>
+                  </div>
+                  <div>
+                    <span className="text-sm text-gray-400">개발:</span>
+                    <p className="text-white font-medium">{report.agencyPerspective.costEstimate.development.toLocaleString()} {report.agencyPerspective.costEstimate.currency}</p>
+                  </div>
+                  <div>
+                    <span className="text-sm text-gray-400">테스트:</span>
+                    <p className="text-white font-medium">{report.agencyPerspective.costEstimate.testing.toLocaleString()} {report.agencyPerspective.costEstimate.currency}</p>
+                  </div>
+                  <div>
+                    <span className="text-sm text-gray-400">배포:</span>
+                    <p className="text-white font-medium">{report.agencyPerspective.costEstimate.deployment.toLocaleString()} {report.agencyPerspective.costEstimate.currency}</p>
+                  </div>
+                </div>
+                <div className="pt-4 border-t border-gray-700">
+                  <div className="flex items-center justify-between">
+                    <span className="text-lg font-semibold text-white">총 예상 비용:</span>
+                    <span className="text-2xl font-bold text-blue-400">
+                      {report.agencyPerspective.costEstimate.total.toLocaleString()} {report.agencyPerspective.costEstimate.currency}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-400 mt-2">
+                    신뢰도: {report.agencyPerspective.costEstimate.confidence}%
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
