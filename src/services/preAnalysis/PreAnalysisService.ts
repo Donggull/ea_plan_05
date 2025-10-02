@@ -994,13 +994,14 @@ export class PreAnalysisService {
         }
 
         // completion API를 사용하여 질문 생성
+        // 🔥 temperature를 0.9로 높여 더 다양한 질문 생성 (매번 다른 관점과 개수)
         console.log('📊 [질문생성] 6단계: AI API 호출 시작');
         questionResponse = await this.callAICompletionAPI(
           session.ai_provider || 'anthropic',
           session.ai_model || 'claude-3-5-sonnet-20241022',
           questionPrompt,
           3000,
-          0.7
+          0.9 // 높은 temperature로 더 창의적이고 다양한 질문 생성
         );
 
         console.log('✅ [질문생성] AI API 호출 성공');
@@ -1011,31 +1012,37 @@ export class PreAnalysisService {
           outputTokens: questionResponse.usage.outputTokens
         });
 
-        // 🔥 복잡도 계산 및 권장 개수 확인
+        // 🔥 복잡도 계산 및 권장 범위 확인
         const complexityScore = this.calculateDocumentComplexity(documentContext, analyses || []);
-        const recommendedCount = this.calculateRecommendedQuestions(complexityScore, options.maxQuestions || 15);
+        const questionRange = this.calculateQuestionRange(complexityScore, options.maxQuestions || 25);
 
         // AI 응답을 파싱하여 질문 배열 생성
         generatedQuestions = this.parseQuestionResponse(questionResponse.content);
 
         console.log('🔄 질문 파싱 완료:', {
           questionsCount: generatedQuestions.length,
-          recommendedCount,
+          questionRange,
           categories: [...new Set(generatedQuestions.map(q => q.category))]
         });
 
-        // 🔥 질문 개수 검증 및 보완
-        if (generatedQuestions.length < recommendedCount) {
-          console.warn(`⚠️ AI가 생성한 질문(${generatedQuestions.length}개)이 권장 개수(${recommendedCount}개)보다 적습니다. 기본 질문으로 보충합니다.`);
+        // 🔥 질문 개수 검증 및 보완 (최소 개수 미만인 경우만)
+        if (generatedQuestions.length < questionRange.min) {
+          console.warn(`⚠️ AI가 생성한 질문(${generatedQuestions.length}개)이 최소 권장 개수(${questionRange.min}개)보다 적습니다. 기본 질문으로 보충합니다.`);
 
           const additionalQuestions = this.generateFallbackQuestions(
-            recommendedCount - generatedQuestions.length,
+            questionRange.min - generatedQuestions.length,
             generatedQuestions.map(q => q.category)
           );
 
           generatedQuestions = [...generatedQuestions, ...additionalQuestions];
 
           console.log(`✅ 기본 질문 ${additionalQuestions.length}개 추가 완료. 총 ${generatedQuestions.length}개`);
+        } else if (generatedQuestions.length > questionRange.max) {
+          // 최대 개수를 초과한 경우 상위 질문만 사용
+          console.warn(`⚠️ AI가 생성한 질문(${generatedQuestions.length}개)이 최대 권장 개수(${questionRange.max}개)를 초과했습니다. ${questionRange.max}개로 제한합니다.`);
+          generatedQuestions = generatedQuestions.slice(0, questionRange.max);
+        } else {
+          console.log(`✅ 생성된 질문 개수(${generatedQuestions.length}개)가 권장 범위(${questionRange.min}-${questionRange.max}개) 내에 있습니다.`);
         }
 
       } catch (aiError) {
@@ -2437,21 +2444,22 @@ ${documentContext.map((doc, index) =>
 
     // 🔥 분석 결과 기반 문서 복잡도 계산
     const complexityScore = this.calculateDocumentComplexity(documentContext, analyses);
-    const recommendedQuestions = this.calculateRecommendedQuestions(complexityScore, maxQuestions);
+    const questionRange = this.calculateQuestionRange(complexityScore, maxQuestions);
 
     console.log('📊 문서 복잡도 분석:', {
       complexityScore,
-      recommendedQuestions,
+      questionRange,
       documentsCount: documentContext.length,
       analysesCount: analyses.length
     });
 
     prompt += `요구사항:
-1. 프로젝트 분석 결과를 기반으로 **정확히 ${recommendedQuestions}개의 질문**을 생성하세요.
+1. 프로젝트 분석 결과를 기반으로 **최소 ${questionRange.min}개에서 최대 ${questionRange.max}개 사이의 질문**을 생성하세요.
    - 문서 복잡도: ${complexityScore}/100점
-   - 필수 생성 개수: ${recommendedQuestions}개 (반드시 이 개수를 맞춰야 함)
-   - 복잡도가 높을수록(상세한 요구사항, 기술스택, 이해관계자가 많을수록) 더 심화된 질문 생성
-   - 복잡도가 낮으면 핵심적이고 일반적인 질문 생성
+   - 권장 범위: ${questionRange.min}-${questionRange.max}개
+   - 복잡도가 높을수록(상세한 요구사항, 기술스택, 이해관계자가 많을수록) 더 많은 심화 질문 생성 (범위 상한)
+   - 복잡도가 낮으면 핵심적인 필수 질문만 생성 (범위 하한)
+   - 동일한 문서라도 분석 관점에 따라 다른 질문을 생성할 수 있습니다
 
 2. 다양한 관점을 포함하세요: 기술적 요구사항, 비즈니스 목표, 일정, 예산, 위험 요소, 이해관계자, 디자인 등
 3. 각 질문은 구체적이고 실행 가능한 답변을 유도해야 합니다.
@@ -2546,34 +2554,38 @@ ${documentContext.map((doc, index) =>
   }
 
   /**
-   * 복잡도 기반 권장 질문 개수 계산 (개선됨)
+   * 복잡도 기반 질문 개수 범위 계산 (동적 생성을 위한 범위 반환)
    */
-  private calculateRecommendedQuestions(complexityScore: number, maxQuestions: number): number {
-    // 🔥 개선된 복잡도에 따른 질문 개수 매핑
-    // 기본 복잡도 30점 보장으로 인해 최소 10개 이상 보장
-    // 30-40점: 10-12개
-    // 41-60점: 13-16개
-    // 61-80점: 17-20개
-    // 81-100점: 21-25개
+  private calculateQuestionRange(complexityScore: number, maxQuestions: number): { min: number; max: number } {
+    // 🔥 복잡도에 따른 질문 개수 범위 매핑
+    // AI가 범위 내에서 자유롭게 선택하여 매번 다른 개수 생성 가능
+    // 30-40점: 10-15개 (범위: 5개)
+    // 41-60점: 12-18개 (범위: 6개)
+    // 61-80점: 15-22개 (범위: 7개)
+    // 81-100점: 18-25개 (범위: 7개)
 
-    let recommended: number;
+    let min: number;
+    let max: number;
 
     if (complexityScore <= 40) {
-      // 최소 10개 보장
-      recommended = 10 + Math.floor(((complexityScore - 30) / 10) * 2); // 10-12개
+      min = 10;
+      max = 15;
     } else if (complexityScore <= 60) {
-      recommended = 13 + Math.floor(((complexityScore - 40) / 20) * 3); // 13-16개
+      min = 12;
+      max = 18;
     } else if (complexityScore <= 80) {
-      recommended = 17 + Math.floor(((complexityScore - 60) / 20) * 3); // 17-20개
+      min = 15;
+      max = 22;
     } else {
-      recommended = 21 + Math.floor(((complexityScore - 80) / 20) * 4); // 21-25개
+      min = 18;
+      max = 25;
     }
 
-    // 🔥 절대 최소값 보장 (10개)
-    recommended = Math.max(10, recommended);
-
     // maxQuestions 제한 적용
-    return Math.min(recommended, maxQuestions);
+    max = Math.min(max, maxQuestions);
+    min = Math.min(min, max); // min이 max를 초과하지 않도록
+
+    return { min, max };
   }
 
   /**
