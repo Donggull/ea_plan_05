@@ -17,7 +17,6 @@ import {
   RotateCcw,
   Lightbulb,
   SkipForward,
-  Clock,
   Edit3
 } from 'lucide-react'
 import { Question, QuestionResponse, AIQuestionGenerator } from '../../services/proposal/aiQuestionGenerator'
@@ -70,10 +69,13 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
   // 🔥 최소 1개 답변 완료 체크 (필수 질문 완료 체크 대신)
   const atLeastOneAnswerCompleted = Array.from(answers.values()).some(a => a.isComplete)
 
-  // 질문 로드
+  // 질문 로드 (이미 로드되어 있으면 재로드하지 않음 - 브라우저 포커스 시 새로고침 방지)
   useEffect(() => {
-    loadQuestions()
-  }, [projectId, workflowStep])
+    // 🔥 이미 질문이 로드되어 있으면 재로드하지 않음
+    if (questions.length === 0) {
+      loadQuestions()
+    }
+  }, [projectId, workflowStep, questions.length])
 
   // 🔥 자동 저장 제거 - 다음 질문 이동 시에만 저장
   // 자동 저장 기능은 비활성화하고 다음 질문 이동 시에만 저장합니다.
@@ -259,24 +261,7 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
     return AIQuestionGenerator.validateResponse(question, answer)
   }
 
-  // 답변 요약 생성
-  const getAnswerSummary = (answer: any): string => {
-    if (!answer) return '답변 없음'
-
-    if (typeof answer === 'string') {
-      return answer.length > 100 ? answer.substring(0, 100) + '...' : answer
-    }
-
-    if (Array.isArray(answer)) {
-      return answer.length > 0 ? `${answer.length}개 항목 선택: ${answer.slice(0, 2).join(', ')}${answer.length > 2 ? ' 등' : ''}` : '선택된 항목 없음'
-    }
-
-    if (typeof answer === 'number') {
-      return answer.toString()
-    }
-
-    return String(answer)
-  }
+  // 🔥 getAnswerSummary 함수 제거 - 미리보기 기능 제거로 더 이상 사용하지 않음
 
   // 답변 변경 핸들러 (자동 저장 제거 - 다음 질문 이동 시에만 저장)
   const handleAnswerChange = async (questionId: string, value: any) => {
@@ -676,30 +661,7 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
                 {hasAnswer && !isCompleted && !isSkipped && <Edit3 className="w-3 h-3 ml-1 inline opacity-60" />}
               </button>
 
-              {/* 상태별 미리보기 */}
-              {!isCurrent && (hasAnswer || isSkipped) && (
-                <div className="mt-1 px-2 py-1 bg-bg-secondary rounded text-xs text-text-secondary max-w-[200px]">
-                  <div className="font-medium text-text-primary mb-1 truncate">{question.text}</div>
-                  <div className="truncate">
-                    {isSkipped ? (
-                      <span className="text-text-tertiary flex items-center space-x-1">
-                        <SkipForward className="w-3 h-3" />
-                        <span>스킵됨</span>
-                      </span>
-                    ) : isCompleted ? (
-                      <span className="text-status-success flex items-center space-x-1">
-                        <CheckCircle className="w-3 h-3" />
-                        <span>{getAnswerSummary(answer?.answer || '')}</span>
-                      </span>
-                    ) : (
-                      <span className="text-status-info flex items-center space-x-1">
-                        <Clock className="w-3 h-3" />
-                        <span>진행 중: {getAnswerSummary(answer?.answer || '')}</span>
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
+              {/* 🔥 버튼 아래 답변 미리보기 제거 - 버튼의 아이콘만으로 상태 표시 */}
             </div>
           )
         })}
@@ -740,24 +702,7 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
                   </p>
                 )}
 
-                {/* 완료된 질문의 답변 표시 */}
-                {answers.get(currentQuestion.id)?.isComplete && (
-                  <div className="mb-4 p-4 bg-status-success/5 border border-status-success/20 rounded-lg">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <CheckCircle className="w-4 h-4 text-status-success" />
-                      <span className="text-sm font-medium text-status-success">답변 완료</span>
-                      <span className="text-xs text-text-secondary">• 확신도 {Math.round((answers.get(currentQuestion.id)?.confidence || 0) * 100)}%</span>
-                    </div>
-                    <div className="text-text-primary text-sm">
-                      <strong>답변:</strong> {getAnswerSummary(answers.get(currentQuestion.id)?.answer || '')}
-                    </div>
-                    {answers.get(currentQuestion.id)?.notes && (
-                      <div className="text-text-secondary text-sm mt-1">
-                        <strong>메모:</strong> {answers.get(currentQuestion.id)?.notes || ''}
-                      </div>
-                    )}
-                  </div>
-                )}
+                {/* 🔥 완료된 질문의 답변 표시 제거 - 버튼에만 표시 */}
               </div>
               <div className="flex items-center space-x-2">
                 <button
