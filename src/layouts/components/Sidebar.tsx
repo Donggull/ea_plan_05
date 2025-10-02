@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import {
@@ -84,10 +84,27 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
   const { state: projectState, selectProject } = useProject()
 
   // 인증 컨텍스트 사용
-  const { user, isAuthenticated } = useAuth()
+  const { user, profile, isAuthenticated } = useAuth()
 
   // 권한 검증 사용
   const { isAdminUser, isSubAdminUser } = usePermissionCheck()
+
+  // 🔥 권한 체크 결과를 메모이제이션 (1회만 체크, profile 변경 시에만 재계산)
+  const hasAdminPermission = useMemo(() => {
+    const result = isAdminUser()
+    if (result) {
+      console.log('✅ [Sidebar] 관리자 권한 확인됨:', {
+        userId: user?.id,
+        email: user?.email,
+        role: profile?.role
+      })
+    }
+    return result
+  }, [user?.id, profile?.role, isAdminUser])
+
+  const hasSubAdminPermission = useMemo(() => {
+    return isSubAdminUser()
+  }, [user?.id, profile?.role, isSubAdminUser])
 
   // MCP 서버 상태 - 실제 MCPManager와 연동
   const [mcpServers, setMcpServers] = useState<MCPServer[]>([
@@ -302,12 +319,12 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
     { path: '/settings', icon: Settings, label: 'Settings' }
   ]
 
-  // 관리자 권한이 있는 경우 관리자 메뉴 추가
-  const adminNavItems = [
-    ...(isAdminUser() || isSubAdminUser() ? [
+  // 관리자 권한이 있는 경우 관리자 메뉴 추가 (메모이제이션된 권한 체크 결과 사용)
+  const adminNavItems = useMemo(() => {
+    return hasAdminPermission || hasSubAdminPermission ? [
       { path: '/admin', icon: Shield, label: '관리자', isAdmin: true as boolean }
-    ] : [])
-  ]
+    ] : []
+  }, [hasAdminPermission, hasSubAdminPermission])
 
   return (
     <aside

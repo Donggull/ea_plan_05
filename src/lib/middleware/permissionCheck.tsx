@@ -281,35 +281,19 @@ export function usePermissionCheck() {
 
   const isAdminUser = (): boolean => {
     if (!user || !profile) {
-      console.log('🔍 [isAdminUser] user 또는 profile 없음:', { hasUser: !!user, hasProfile: !!profile })
       return false
     }
 
     // AuthContext의 profile 정보에서 role 확인
-    const role = profile.role
-    console.log('🔍 [isAdminUser] 권한 확인:', {
-      userId: user.id,
-      email: user.email,
-      role,
-      isAdmin: role === 'admin'
-    })
-    return role === 'admin'
+    return profile.role === 'admin'
   }
 
   const isSubAdminUser = (): boolean => {
     if (!user || !profile) {
-      console.log('🔍 [isSubAdminUser] user 또는 profile 없음:', { hasUser: !!user, hasProfile: !!profile })
       return false
     }
 
-    const role = profile.role
-    console.log('🔍 [isSubAdminUser] 권한 확인:', {
-      userId: user.id,
-      email: user.email,
-      role,
-      isSubAdmin: role === 'subadmin'
-    })
-    return role === 'subadmin'
+    return profile.role === 'subadmin'
   }
 
   const getUserLevel = (): number => {
