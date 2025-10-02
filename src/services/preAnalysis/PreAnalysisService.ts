@@ -650,6 +650,13 @@ export class PreAnalysisService {
 
       if (updateError) {
         console.error('문서 분석 업데이트 오류:', updateError);
+
+        // 🔥 UPDATE 실패 시 status='failed'로 변경
+        await supabase
+          .from('document_analyses')
+          .update({ status: 'failed' })
+          .eq('id', processingRecord.id);
+
         return { success: false, error: updateError.message };
       }
 
