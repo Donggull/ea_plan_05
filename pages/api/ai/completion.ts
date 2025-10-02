@@ -29,6 +29,12 @@ interface CompletionResponse {
   responseTime: number
 }
 
+// Vercel 서버리스 함수 설정
+// 큰 문서 분석 시 80초 이상 소요될 수 있으므로 타임아웃을 180초로 설정
+export const config = {
+  maxDuration: 180, // 3분 (Pro 플랜 기준, Hobby는 60초 제한)
+}
+
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse
