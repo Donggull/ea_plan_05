@@ -1753,7 +1753,7 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
     temperature: number = 0.3
   ): Promise<any> {
     const maxRetries = 2;
-    const baseTimeout = 45000; // 45초 기본 타임아웃
+    const baseTimeout = 200000; // 200초 (3분 20초) - 서버 타임아웃(180초)보다 길게 설정
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
