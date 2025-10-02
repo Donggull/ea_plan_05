@@ -508,7 +508,44 @@ export class PreAnalysisService {
         };
       }
 
+      // 🔥 원자적 락: 기존 레코드 먼저 체크
+      console.log('🔍 [문서분석] 기존 분석 레코드 확인 중...');
+      const { data: existingAnalysis } = await supabase
+        .from('document_analyses')
+        .select('id, status')
+        .eq('session_id', sessionId)
+        .eq('document_id', documentId)
+        .maybeSingle();
+
+      if (existingAnalysis) {
+        console.log(`⏭️ [문서분석] 이미 존재하는 분석 (ID: ${existingAnalysis.id}, 상태: ${existingAnalysis.status})`);
+
+        if (existingAnalysis.status === 'processing') {
+          console.log('⏳ [문서분석] 다른 프로세스가 현재 처리 중입니다. 건너뜀');
+          return {
+            success: false,
+            error: '이 문서는 이미 다른 프로세스에서 분석 중입니다.',
+          };
+        } else if (existingAnalysis.status === 'completed') {
+          console.log('✅ [문서분석] 이미 완료된 분석입니다. 건너뜀');
+          // 기존 완료된 분석 조회
+          const { data: completedAnalysis } = await supabase
+            .from('document_analyses')
+            .select('*')
+            .eq('id', existingAnalysis.id)
+            .single();
+
+          return {
+            success: true,
+            data: this.transformAnalysisData(completedAnalysis),
+            message: '이미 분석이 완료된 문서입니다.',
+          };
+        }
+        // status가 'failed'인 경우 재시도 허용 → 계속 진행
+      }
+
       // 🔥 AI 호출 전 DB에 processing 상태 먼저 INSERT (중복 호출 방지)
+      console.log('📝 [문서분석] processing 상태로 신규 레코드 생성');
       const initialAnalysisData = {
         session_id: sessionId,
         document_id: documentId,
@@ -532,11 +569,29 @@ export class PreAnalysisService {
         .single();
 
       if (insertError) {
-        console.error('문서 분석 초기화 실패:', insertError);
+        // 🔥 중복 INSERT 에러 (23505: unique_violation)
+        if (insertError.code === '23505') {
+          console.warn('⚠️ [문서분석] 동시 INSERT 충돌 감지. 기존 레코드 사용');
+          const { data: conflictedAnalysis } = await supabase
+            .from('document_analyses')
+            .select('id, status')
+            .eq('session_id', sessionId)
+            .eq('document_id', documentId)
+            .single();
+
+          if (conflictedAnalysis?.status === 'processing') {
+            return {
+              success: false,
+              error: '이 문서는 이미 다른 프로세스에서 분석 중입니다.',
+            };
+          }
+        }
+
+        console.error('❌ [문서분석] 초기화 실패:', insertError);
         return { success: false, error: insertError.message };
       }
 
-      console.log(`🔒 문서 분석 시작 - DB에 processing 상태 기록됨 (ID: ${processingRecord.id})`);
+      console.log(`🔒 [문서분석] processing 상태 기록 완료 (ID: ${processingRecord.id})`);
 
       // AI 분석 수행 (안전한 오류 처리 포함)
       let analysisResult;
@@ -717,18 +772,45 @@ export class PreAnalysisService {
       }
 
       // 🔥 3단계: metadata에 generating_questions 플래그 + 타임스탬프 설정 (락 역할)
-      await supabase
+      const lockTimestamp = new Date().toISOString();
+      console.log('🔐 [질문생성] 락 획득 시도:', lockTimestamp);
+
+      const { error: lockError } = await supabase
         .from('pre_analysis_sessions')
         .update({
           metadata: {
             ...(metadata || {}),
             generating_questions: true,
-            generation_started_at: new Date().toISOString() // 🔥 타임스탬프 추가
+            generation_started_at: lockTimestamp
           } as any
         })
         .eq('id', sessionId);
 
-      console.log('🔒 질문 생성 시작 - 락 설정 완료 (타임스탬프:', new Date().toISOString(), ')');
+      if (lockError) {
+        console.error('❌ [질문생성] 락 설정 실패:', lockError);
+        return { success: false, error: '질문 생성 락 설정에 실패했습니다.' };
+      }
+
+      // 🔥 락 설정 확인 (다른 프로세스가 동시에 설정했을 수 있음)
+      const { data: verifySession } = await supabase
+        .from('pre_analysis_sessions')
+        .select('metadata')
+        .eq('id', sessionId)
+        .single();
+
+      const verifyMetadata = verifySession?.metadata as Record<string, any> | null;
+      const verifyTimestamp = verifyMetadata?.['generation_started_at'] as string;
+
+      // 타임스탬프가 내가 설정한 값과 다르면 → 다른 프로세스가 먼저 획득
+      if (verifyTimestamp !== lockTimestamp) {
+        console.warn(`⚠️ [질문생성] 락 경쟁 감지. 다른 프로세스가 먼저 획득했습니다. (내 시각: ${lockTimestamp}, 실제: ${verifyTimestamp})`);
+        return {
+          success: false,
+          error: '다른 프로세스가 이미 질문을 생성 중입니다.',
+        };
+      }
+
+      console.log('✅ [질문생성] 락 획득 성공:', lockTimestamp);
 
       // 진행 상황 업데이트
       await this.emitProgressUpdate({
