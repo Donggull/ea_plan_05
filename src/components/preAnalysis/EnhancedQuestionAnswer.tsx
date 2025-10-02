@@ -67,27 +67,16 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
     ? (Array.from(answers.values()).filter(a => a.isComplete).length / questions.length) * 100
     : 0
 
-  // 필수 질문 완료 체크
-  const requiredQuestionsCompleted = questions
-    .filter(q => q.required)
-    .every(q => answers.get(q.id)?.isComplete)
+  // 🔥 최소 1개 답변 완료 체크 (필수 질문 완료 체크 대신)
+  const atLeastOneAnswerCompleted = Array.from(answers.values()).some(a => a.isComplete)
 
   // 질문 로드
   useEffect(() => {
     loadQuestions()
   }, [projectId, workflowStep])
 
-  // 자동 저장
-  useEffect(() => {
-    if (autoSaveEnabled && answers.size > 0) {
-      const timeoutId = setTimeout(() => {
-        handleAutoSave()
-      }, 3000) // 3초 후 자동 저장
-
-      return () => clearTimeout(timeoutId)
-    }
-    return undefined
-  }, [answers, autoSaveEnabled])
+  // 🔥 자동 저장 제거 - 다음 질문 이동 시에만 저장
+  // 자동 저장 기능은 비활성화하고 다음 질문 이동 시에만 저장합니다.
 
   // 질문 로드 (기존 질문 우선, 없으면 AI 생성)
   const loadQuestions = async (): Promise<void> => {
@@ -289,7 +278,7 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
     return String(answer)
   }
 
-  // 답변 변경 핸들러 (자동 저장 포함)
+  // 답변 변경 핸들러 (자동 저장 제거 - 다음 질문 이동 시에만 저장)
   const handleAnswerChange = async (questionId: string, value: any) => {
     const isComplete = checkAnswerCompleteness(questionId, value)
     const timeSpent = Date.now() - questionStartTime.getTime()
@@ -300,15 +289,7 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
       timeSpent: Math.round(timeSpent / 1000)
     })
 
-    // 답변이 완성된 경우 자동 저장
-    if (isComplete && autoSaveEnabled) {
-      try {
-        await saveIndividualAnswer(questionId, false)
-        console.log('✅ 자동 저장 완료:', questionId)
-      } catch (error) {
-        console.error('자동 저장 실패:', error)
-      }
-    }
+    // 🔥 자동 저장 제거 - 다음 질문 이동 시에만 저장됩니다
   }
 
   // 신뢰도 변경 핸들러
@@ -321,18 +302,7 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
     updateAnswer(questionId, { notes })
   }
 
-  // 자동 저장
-  const handleAutoSave = async () => {
-    if (onSave && !isSaving) {
-      const responses: QuestionResponse[] = Array.from(answers.values()).map(answer => ({
-        questionId: answer.questionId,
-        answer: answer.answer,
-        confidence: answer.confidence,
-        notes: answer.notes
-      }))
-      onSave(responses)
-    }
-  }
+  // 🔥 자동 저장 제거 - 더 이상 사용하지 않음
 
   // 개별 답변 저장
   const saveIndividualAnswer = async (questionId: string, isDraft: boolean = false) => {
@@ -441,10 +411,11 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
     }
   }
 
-  // 완료 처리
+  // 완료 처리 (최소 1개 답변 확인)
   const handleComplete = () => {
-    if (!requiredQuestionsCompleted) {
-      setError('필수 질문에 모두 답변해주세요.')
+    // 🔥 최소 1개 이상의 답변이 완료되어야 함
+    if (!atLeastOneAnswerCompleted) {
+      setError('최소 1개 이상의 질문에 답변해주세요.')
       return
     }
 
@@ -458,9 +429,23 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
     onComplete(responses)
   }
 
-  // 질문 네비게이션
-  const goToQuestion = (index: number) => {
+  // 질문 네비게이션 (이전 질문 답변 자동 저장 추가)
+  const goToQuestion = async (index: number) => {
     if (index >= 0 && index < questions.length) {
+      // 🔥 현재 질문의 답변이 있으면 저장 (다음 질문으로 이동 전에)
+      const currentQuestionId = questions[currentQuestionIndex]?.id
+      const currentAnswer = currentQuestionId ? answers.get(currentQuestionId) : undefined
+
+      if (currentAnswer && (currentAnswer.answer !== '' || currentAnswer.notes !== '')) {
+        try {
+          await saveIndividualAnswer(currentQuestionId, !currentAnswer.isComplete) // 완료된 답변은 정식 저장, 미완료는 초안 저장
+          console.log('✅ 질문 이동 전 자동 저장 완료:', currentQuestionId)
+        } catch (error) {
+          console.error('❌ 질문 이동 전 저장 실패:', error)
+          // 저장 실패해도 질문 이동은 허용
+        }
+      }
+
       setCurrentQuestionIndex(index)
       setQuestionStartTime(new Date())
     }
@@ -845,7 +830,8 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
                 {currentQuestionIndex + 1} / {questions.length}
               </span>
 
-              {!currentQuestion.required && !answers.get(currentQuestion.id)?.isComplete && (
+              {/* 🔥 필수 질문도 건너뛰기 가능하도록 required 체크 제거 */}
+              {!answers.get(currentQuestion.id)?.isComplete && (
                 <button
                   onClick={() => skipQuestion(currentQuestion.id)}
                   className="flex items-center space-x-2 px-3 py-1.5 text-text-tertiary hover:text-status-warning hover:bg-status-warning/10 border border-status-warning/20 rounded-lg transition-colors text-sm"
@@ -873,8 +859,9 @@ export const EnhancedQuestionAnswer: React.FC<EnhancedQuestionAnswerProps> = ({
       <div className="flex justify-center pt-6 pb-8">
         <button
           onClick={handleComplete}
-          disabled={!requiredQuestionsCompleted}
+          disabled={!atLeastOneAnswerCompleted}
           className="flex items-center space-x-2 px-8 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-sm transition-all duration-200 hover:shadow-md"
+          title={!atLeastOneAnswerCompleted ? '최소 1개 이상의 질문에 답변해주세요' : '답변을 완료하고 보고서를 생성합니다'}
         >
           <Send className="w-5 h-5" />
           <span>답변 완료</span>

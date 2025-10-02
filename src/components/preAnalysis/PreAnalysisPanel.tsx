@@ -202,21 +202,20 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
         reports: reportCount
       });
 
-      // PreAnalysisPage와 동일한 로직으로 현재 단계 결정
+      // 🔥 수정된 로직: 보고서가 실제로 생성된 경우에만 report 단계로 이동
+      // 답변이 1개라도 있다고 해서 자동으로 report로 이동하지 않음 (사용자가 "답변 완료" 버튼을 눌러야만 보고서 생성 시작)
       if (reportCount > 0) {
+        // 보고서가 실제로 생성된 경우
         onStepChange?.('report');
-      } else if (totalQuestionCount > 0 && completedAnswerCount === 0) {
-        // 질문이 생성되었지만 답변이 완료되지 않은 경우
+      } else if (totalQuestionCount > 0) {
+        // 질문이 생성되었으면 questions 단계 (답변 유무와 관계없이)
         onStepChange?.('questions');
-      } else if (completedAnalysisCount > 0 && totalQuestionCount === 0) {
-        // 문서 분석은 완료되었지만 질문이 아직 생성되지 않은 경우
-        onStepChange?.('analysis');
-      } else if (completedAnalysisCount === 0) {
-        // 문서 분석이 시작되지 않은 경우
+      } else if (completedAnalysisCount > 0) {
+        // 문서 분석이 완료되었지만 질문이 생성되지 않은 경우
         onStepChange?.('analysis');
       } else {
-        // 모든 단계가 완료된 경우 보고서 단계로
-        onStepChange?.('report');
+        // 문서 분석이 시작되지 않은 경우
+        onStepChange?.('analysis');
       }
     } catch (error) {
       console.error('단계 결정 오류:', error);
