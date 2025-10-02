@@ -84,27 +84,14 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
   const { state: projectState, selectProject } = useProject()
 
   // 인증 컨텍스트 사용
-  const { user, profile, isAuthenticated } = useAuth()
+  const { user, isAuthenticated } = useAuth()
 
   // 권한 검증 사용
   const { isAdminUser, isSubAdminUser } = usePermissionCheck()
 
-  // 🔥 권한 체크 결과를 메모이제이션 (1회만 체크, profile 변경 시에만 재계산)
-  const hasAdminPermission = useMemo(() => {
-    const result = isAdminUser()
-    if (result) {
-      console.log('✅ [Sidebar] 관리자 권한 확인됨:', {
-        userId: user?.id,
-        email: user?.email,
-        role: profile?.role
-      })
-    }
-    return result
-  }, [user?.id, profile?.role, isAdminUser])
-
-  const hasSubAdminPermission = useMemo(() => {
-    return isSubAdminUser()
-  }, [user?.id, profile?.role, isSubAdminUser])
+  // 🔥 권한 체크 결과를 메모이제이션 (useCallback으로 메모이제이션된 함수 사용)
+  const hasAdminPermission = useMemo(() => isAdminUser(), [isAdminUser])
+  const hasSubAdminPermission = useMemo(() => isSubAdminUser(), [isSubAdminUser])
 
   // MCP 서버 상태 - 실제 MCPManager와 연동
   const [mcpServers, setMcpServers] = useState<MCPServer[]>([

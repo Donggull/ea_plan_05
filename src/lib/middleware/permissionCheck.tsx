@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useCallback } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { UserService } from '@/services/userService'
 import { hasPermission, canAccessAllProjects, isAdmin, isSubAdmin } from '@/types/user'
@@ -255,7 +255,7 @@ export class PermissionCheck {
 export function usePermissionCheck() {
   const { user, profile, isAuthenticated } = useAuth()
 
-  const checkPermission = async (
+  const checkPermission = useCallback(async (
     resource: string,
     action: string,
     resourceId?: string
@@ -265,9 +265,9 @@ export function usePermissionCheck() {
     }
 
     return PermissionCheck.checkPermission(user.id, resource, action, resourceId)
-  }
+  }, [isAuthenticated, user])
 
-  const hasPermissionFor = (resource: string, action: string): boolean => {
+  const hasPermissionFor = useCallback((resource: string, action: string): boolean => {
     if (!user || !profile) {
       return false
     }
@@ -277,30 +277,30 @@ export function usePermissionCheck() {
     const userLevel = profile.user_level || 1
 
     return hasPermission(userRole, userLevel, resource, action)
-  }
+  }, [user, profile])
 
-  const isAdminUser = (): boolean => {
+  const isAdminUser = useCallback((): boolean => {
     if (!user || !profile) {
       return false
     }
 
     // AuthContext의 profile 정보에서 role 확인
     return profile.role === 'admin'
-  }
+  }, [user, profile])
 
-  const isSubAdminUser = (): boolean => {
+  const isSubAdminUser = useCallback((): boolean => {
     if (!user || !profile) {
       return false
     }
 
     return profile.role === 'subadmin'
-  }
+  }, [user, profile])
 
-  const getUserLevel = (): number => {
+  const getUserLevel = useCallback((): number => {
     if (!user || !profile) return 1
 
     return profile.user_level || 1
-  }
+  }, [user, profile])
 
   return {
     checkPermission,
