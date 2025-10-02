@@ -87,6 +87,7 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
     const [lastUpdateTime, setLastUpdateTime] = useState<number>(Date.now());
     const [analysisCompleted, setAnalysisCompleted] = useState(false);
     const [questionGenerationTriggered, setQuestionGenerationTriggered] = useState(false);
+    const [questionGenerationCompleted, setQuestionGenerationCompleted] = useState(false);
 
     useEffect(() => {
       // 세션 시작 시 초기화
@@ -99,8 +100,8 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
         if (interval) clearInterval(interval);
 
         interval = setInterval(() => {
-          // 🔥 폴링 중지 조건 개선: 분석 완료 AND 질문 생성 트리거됨
-          if (!isPaused && !(analysisCompleted && questionGenerationTriggered)) {
+          // 🔥 폴링 중지 조건 개선: 분석 완료 AND 질문 생성 완료
+          if (!isPaused && !(analysisCompleted && questionGenerationCompleted)) {
             checkAnalysisProgress();
           }
           updateElapsedTime();
@@ -113,7 +114,7 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
       startPolling();
 
       return () => clearInterval(interval);
-    }, [sessionId, isPaused, analysisCompleted, questionGenerationTriggered]);
+    }, [sessionId, isPaused, analysisCompleted, questionGenerationCompleted]);
 
     // documentStatuses 변경 시 진행률 업데이트
     useEffect(() => {
@@ -637,6 +638,7 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
               return updated;
             });
 
+            setQuestionGenerationCompleted(true); // 🔥 질문 생성 완료 상태 설정
             setOverallProgress(100);
             addToActivityLog(`🎯 ${actualQuestionCount}개 맞춤형 질문이 생성되었습니다!`);
             addToActivityLog('🎉 모든 사전 분석이 완료되었습니다!');
@@ -668,6 +670,7 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
                   return updated;
                 });
 
+                setQuestionGenerationCompleted(true); // 🔥 질문 생성 완료 상태 설정
                 setOverallProgress(100);
                 addToActivityLog(`🎯 ${count}개 맞춤형 질문이 생성되었습니다!`);
                 addToActivityLog('🎉 모든 사전 분석이 완료되었습니다!');
@@ -747,7 +750,7 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
     const waitForQuestionsInDB = async (
       sessionId: string,
       onUpdate: (count: number) => boolean,
-      maxWaitTime: number = 15000
+      maxWaitTime: number = 240000 // 240초 (4분) - AI 질문 생성은 오래 걸릴 수 있음
     ): Promise<void> => {
       const startTime = Date.now();
       const checkInterval = 2000; // 2초 간격 확인
@@ -1004,8 +1007,8 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
     };
 
     const adjustPollingInterval = () => {
-      // 🔥 분석 완료 및 질문 생성 트리거 완료 시 폴링 완전히 중지
-      if (analysisCompleted && questionGenerationTriggered) {
+      // 🔥 분석 완료 및 질문 생성 완료 시 폴링 완전히 중지
+      if (analysisCompleted && questionGenerationCompleted) {
         console.log('✅ 분석 및 질문 생성 완료 - 폴링 중지');
         return; // 더 이상 조정하지 않음
       }
