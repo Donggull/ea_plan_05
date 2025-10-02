@@ -508,8 +508,39 @@ export class PreAnalysisService {
         };
       }
 
+      // 🔥 AI 호출 전 DB에 processing 상태 먼저 INSERT (중복 호출 방지)
+      const initialAnalysisData = {
+        session_id: sessionId,
+        document_id: documentId,
+        category: category || this.detectDocumentCategory(document.file_name),
+        analysis_result: {},
+        mcp_enrichment: {},
+        confidence_score: 0,
+        processing_time: 0,
+        ai_model: '',
+        ai_provider: '',
+        input_tokens: 0,
+        output_tokens: 0,
+        cost: 0,
+        status: 'processing', // 🔥 AI 호출 전 processing 상태로 저장
+      };
+
+      const { data: processingRecord, error: insertError } = await supabase
+        .from('document_analyses')
+        .insert(initialAnalysisData)
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error('문서 분석 초기화 실패:', insertError);
+        return { success: false, error: insertError.message };
+      }
+
+      console.log(`🔒 문서 분석 시작 - DB에 processing 상태 기록됨 (ID: ${processingRecord.id})`);
+
       // AI 분석 수행 (안전한 오류 처리 포함)
       let analysisResult;
+
       try {
         analysisResult = await this.performAIAnalysis(
           textContent,
@@ -519,39 +550,22 @@ export class PreAnalysisService {
       } catch (analysisError) {
         console.error('AI 분석 수행 실패:', analysisError);
 
-        // 분석 실패 시 기본 분석 결과 생성
-        analysisResult = {
-          analysis: {
-            summary: `${document.file_name} 문서 분석 완료`,
-            keyRequirements: [`${document.file_name}에서 추출된 요구사항`],
-            stakeholders: ['프로젝트 관련자'],
-            constraints: [],
-            risks: [],
-            opportunities: [],
-            technicalStack: [],
-            timeline: []
-          },
-          mcpEnrichment: {
-            similarProjects: [],
-            marketInsights: {},
-            competitorAnalysis: [],
-            technologyTrends: [],
-          },
-          confidenceScore: 0.6,
-          processingTime: 1000,
-          aiModel: 'fallback',
-          aiProvider: 'fallback',
-          inputTokens: 100,
-          outputTokens: 50,
-          cost: 0.001,
+        // 🔥 분석 실패 시 status='failed'로 UPDATE
+        await supabase
+          .from('document_analyses')
+          .update({ status: 'failed' })
+          .eq('id', processingRecord.id);
+
+        console.log(`❌ 문서 분석 실패 - status='failed'로 업데이트됨`);
+
+        return {
+          success: false,
+          error: `AI 분석 실패: ${analysisError instanceof Error ? analysisError.message : String(analysisError)}`,
         };
       }
 
-      // 분석 결과 저장
-      const analysisData = {
-        session_id: sessionId,
-        document_id: documentId,
-        category: category || this.detectDocumentCategory(document.file_name),
+      // 🔥 분석 완료 후 status='completed'로 UPDATE
+      const updateData = {
         analysis_result: analysisResult.analysis,
         mcp_enrichment: analysisResult.mcpEnrichment,
         confidence_score: analysisResult.confidenceScore,
@@ -561,19 +575,22 @@ export class PreAnalysisService {
         input_tokens: analysisResult.inputTokens,
         output_tokens: analysisResult.outputTokens,
         cost: analysisResult.cost,
-        status: 'completed',
+        status: 'completed', // 🔥 AI 완료 후 completed로 변경
       };
 
-      const { data: savedAnalysis, error: saveError } = await supabase
+      const { data: savedAnalysis, error: updateError } = await supabase
         .from('document_analyses')
-        .insert(analysisData)
+        .update(updateData)
+        .eq('id', processingRecord.id)
         .select()
         .single();
 
-      if (saveError) {
-        console.error('문서 분석 저장 오류:', saveError);
-        return { success: false, error: saveError.message };
+      if (updateError) {
+        console.error('문서 분석 업데이트 오류:', updateError);
+        return { success: false, error: updateError.message };
       }
+
+      console.log(`✅ 문서 분석 완료 - status='completed'로 업데이트됨`)
 
       // 진행 상황 업데이트
       await this.emitProgressUpdate({
@@ -623,13 +640,53 @@ export class PreAnalysisService {
       const metadata = sessionData?.metadata as Record<string, any> | null;
       console.log('🔍 세션 metadata 확인:', metadata);
 
-      // 🔥 질문 생성이 이미 진행 중이면 건너뛰기
-      if (metadata?.['generating_questions'] === true) {
-        console.log('⏳ 질문 생성이 이미 진행 중입니다. 건너뜀');
+      // 🔥 질문 생성 락 체크 - 타임스탬프 기반 무효화 (10분)
+      const LOCK_TIMEOUT_MS = 10 * 60 * 1000; // 10분
+      const isGenerating = metadata?.['generating_questions'] === true;
+      const generationStartedAt = metadata?.['generation_started_at'] as string | undefined;
+
+      if (isGenerating && generationStartedAt) {
+        const lockAge = Date.now() - new Date(generationStartedAt).getTime();
+
+        if (lockAge < LOCK_TIMEOUT_MS) {
+          // 락이 아직 유효함 (10분 이내)
+          console.log(`⏳ 질문 생성이 이미 진행 중입니다 (${Math.floor(lockAge / 1000)}초 경과). 건너뜀`);
+          return {
+            success: false,
+            error: '질문 생성이 이미 진행 중입니다. 잠시 후 다시 시도해주세요.',
+          };
+        } else {
+          // 락이 만료됨 (10분 초과) - 강제 해제
+          console.warn(`⚠️ 질문 생성 락이 만료되었습니다 (${Math.floor(lockAge / 60000)}분 경과). 락을 해제하고 재시도합니다.`);
+
+          await supabase
+            .from('pre_analysis_sessions')
+            .update({
+              metadata: {
+                ...(metadata || {}),
+                generating_questions: false,
+                generation_started_at: null,
+                question_generation_attempts: 0 // 성공 시 재시도 카운터 초기화
+              } as any
+            })
+            .eq('id', sessionId);
+        }
+      }
+
+      // 🔥 실패 추적: 최대 재시도 횟수 확인 (3회 실패 시 영구 중단)
+      const attempts = (metadata?.['question_generation_attempts'] as number) || 0;
+      const MAX_ATTEMPTS = 3;
+
+      if (attempts >= MAX_ATTEMPTS) {
+        console.error(`❌ 질문 생성이 ${MAX_ATTEMPTS}회 실패했습니다. 더 이상 재시도하지 않습니다.`);
         return {
           success: false,
-          error: '질문 생성이 이미 진행 중입니다. 잠시 후 다시 시도해주세요.',
+          error: `질문 생성에 ${MAX_ATTEMPTS}회 실패했습니다. 네트워크 상태를 확인하거나 나중에 다시 시도해주세요.`,
         };
+      }
+
+      if (attempts > 0) {
+        console.warn(`⚠️ 질문 생성 재시도 중 (${attempts}/${MAX_ATTEMPTS})`);
       }
 
       // 🔥 2단계: 이미 질문이 생성되었는지 확인 (중복 생성 방지)
@@ -654,18 +711,19 @@ export class PreAnalysisService {
         };
       }
 
-      // 🔥 3단계: metadata에 generating_questions 플래그 설정 (락 역할)
+      // 🔥 3단계: metadata에 generating_questions 플래그 + 타임스탬프 설정 (락 역할)
       await supabase
         .from('pre_analysis_sessions')
         .update({
           metadata: {
             ...(metadata || {}),
-            generating_questions: true
+            generating_questions: true,
+            generation_started_at: new Date().toISOString() // 🔥 타임스탬프 추가
           } as any
         })
         .eq('id', sessionId);
 
-      console.log('🔒 질문 생성 시작 - 락 설정 완료');
+      console.log('🔒 질문 생성 시작 - 락 설정 완료 (타임스탬프:', new Date().toISOString(), ')');
 
       // 진행 상황 업데이트
       await this.emitProgressUpdate({
@@ -816,16 +874,20 @@ export class PreAnalysisService {
           }
         }
 
-        // 🔥 AI 실패 시 락 해제
+        // 🔥 AI 실패 시 락 해제 + 실패 카운터 증가
         await supabase
           .from('pre_analysis_sessions')
           .update({
             metadata: {
               ...(metadata || {}),
-              generating_questions: false
+              generating_questions: false,
+              generation_started_at: null,
+              question_generation_attempts: attempts + 1 // 실패 횟수 증가
             } as any
           })
           .eq('id', sessionId);
+
+        console.error(`❌ AI 질문 생성 실패 (시도 ${attempts + 1}/${MAX_ATTEMPTS})`);
 
         return {
           success: false,
@@ -846,16 +908,20 @@ export class PreAnalysisService {
           hasProject: !!(project?.name || project?.description)
         });
 
-        // 🔥 질문 없음 시 락 해제
+        // 🔥 질문 없음 시 락 해제 + 실패 카운터 증가
         await supabase
           .from('pre_analysis_sessions')
           .update({
             metadata: {
               ...(metadata || {}),
-              generating_questions: false
+              generating_questions: false,
+              generation_started_at: null,
+              question_generation_attempts: attempts + 1 // 실패 횟수 증가
             } as any
           })
           .eq('id', sessionId);
+
+        console.error(`❌ 질문 생성 실패 - 결과 없음 (시도 ${attempts + 1}/${MAX_ATTEMPTS})`);
 
         return {
           success: false,
@@ -894,16 +960,20 @@ export class PreAnalysisService {
       if (saveError) {
         console.error('질문 저장 오류:', saveError);
 
-        // 🔥 저장 실패 시 락 해제
+        // 🔥 저장 실패 시 락 해제 + 실패 카운터 증가
         await supabase
           .from('pre_analysis_sessions')
           .update({
             metadata: {
               ...(metadata || {}),
-              generating_questions: false
+              generating_questions: false,
+              generation_started_at: null,
+              question_generation_attempts: attempts + 1
             } as any
           })
           .eq('id', sessionId);
+
+        console.error(`❌ 질문 DB 저장 실패 (시도 ${attempts + 1}/${MAX_ATTEMPTS})`);
 
         return { success: false, error: saveError.message };
       }
@@ -918,18 +988,20 @@ export class PreAnalysisService {
         timestamp: new Date(),
       });
 
-      // 🔥 성공 시 락 해제
+      // 🔥 성공 시 락 해제 + 재시도 카운터 초기화
       await supabase
         .from('pre_analysis_sessions')
         .update({
           metadata: {
             ...(metadata || {}),
-            generating_questions: false
+            generating_questions: false,
+            generation_started_at: null,
+            question_generation_attempts: 0 // 성공 시 재시도 카운터 초기화
           } as any
         })
         .eq('id', sessionId);
 
-      console.log('🔓 질문 생성 완료 - 락 해제');
+      console.log('✅ 질문 생성 완료 - 락 해제 및 재시도 카운터 초기화');
 
       return {
         success: true,
@@ -939,7 +1011,7 @@ export class PreAnalysisService {
     } catch (error) {
       console.error('질문 생성 오류:', error);
 
-      // 🔥 오류 발생 시에도 락 해제
+      // 🔥 오류 발생 시에도 락 해제 + 실패 카운터 증가
       try {
         if (supabase) {
           const { data: currentSession } = await supabase
@@ -949,18 +1021,21 @@ export class PreAnalysisService {
             .single();
 
           const currentMetadata = currentSession?.metadata as Record<string, any> | null;
+          const currentAttempts = (currentMetadata?.['question_generation_attempts'] as number) || 0;
 
           await supabase
             .from('pre_analysis_sessions')
             .update({
               metadata: {
                 ...(currentMetadata || {}),
-                generating_questions: false
+                generating_questions: false,
+                generation_started_at: null,
+                question_generation_attempts: currentAttempts + 1
               } as any
             })
             .eq('id', sessionId);
 
-          console.log('🔓 오류 발생 - 락 해제');
+          console.error(`❌ 예외 발생 - 락 해제 (시도 ${currentAttempts + 1}/${3})`);
         }
       } catch (unlockError) {
         console.error('락 해제 실패:', unlockError);
@@ -1955,7 +2030,7 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        console.log(`🔗 [통합 API] AI 완성 요청 (시도 ${attempt + 1}/${maxRetries + 1}):`, {
+        console.log(`🤖 [${provider}/${model}] AI 완성 요청 (시도 ${attempt + 1}/${maxRetries + 1}):`, {
           provider,
           model,
           promptLength: prompt.length,
@@ -1967,9 +2042,9 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
         try {
           const session = await supabase?.auth.getSession()
           authToken = session?.data.session?.access_token
-          console.log('🔐 [통합 API] 인증 토큰:', authToken ? '있음' : '없음')
+          console.log(`🔐 [${provider}/${model}] 인증 토큰:`, authToken ? '있음' : '없음')
         } catch (authError) {
-          console.warn('🔐 [통합 API] 인증 토큰 추출 실패:', authError)
+          console.warn(`🔐 [${provider}/${model}] 인증 토큰 추출 실패:`, authError)
         }
 
         // 개발환경에서는 Vercel 프로덕션 API 직접 호출, 프로덕션에서는 상대 경로 사용
@@ -1977,7 +2052,7 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
           ? 'https://ea-plan-05.vercel.app/api/ai/completion'
           : '/api/ai/completion';
 
-        console.log('🌐 [통합 API] 호출 URL:', apiUrl);
+        console.log(`🌐 [${provider}/${model}] 호출 URL:`, apiUrl);
 
         // 인증 헤더 구성
         const headers: Record<string, string> = {
@@ -1992,7 +2067,7 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
         const controller = new AbortController();
         const timeoutId = setTimeout(() => {
           controller.abort();
-          console.warn(`⏰ [통합 API] 요청 타임아웃 (${baseTimeout}ms)`);
+          console.warn(`⏰ [${provider}/${model}] 요청 타임아웃 (${baseTimeout}ms)`);
         }, baseTimeout);
 
         try {
@@ -2015,7 +2090,7 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
             const errorData = await response.json().catch(() => ({}));
 
             // 🔍 상세한 에러 정보 로깅 (근본 원인 파악용)
-            console.error(`❌ [통합 API] HTTP ${response.status} 오류 - 상세 정보:`, {
+            console.error(`❌ [${provider}/${model}] HTTP ${response.status} 오류 - 상세 정보:`, {
               status: response.status,
               statusText: response.statusText,
               provider,
@@ -2028,7 +2103,7 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
 
             // 504 Gateway Timeout인 경우에만 재시도
             if (response.status === 504 && attempt < maxRetries) {
-              console.warn(`🔄 [통합 API] 504 Gateway Timeout, ${attempt + 2}차 시도 중...`);
+              console.warn(`🔄 [${provider}/${model}] 504 Gateway Timeout, ${attempt + 2}차 시도 중...`);
               await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
               continue;
             }
@@ -2037,7 +2112,7 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
             // 500은 서버 내부 오류이므로 재시도해도 같은 결과
             if (response.status === 500) {
               const detailedError = errorData.details || errorData.error || '서버 내부 오류';
-              console.error('🔴 [통합 API] 500 에러 - 재시도 없이 즉시 실패 처리:', {
+              console.error(`🔴 [${provider}/${model}] 500 에러 - 재시도 없이 즉시 실패 처리:`, {
                 provider,
                 model,
                 error: detailedError,
@@ -2059,7 +2134,7 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
           }
 
           const data = await response.json();
-          console.log(`✅ [통합 API] 성공 (${attempt + 1}차 시도)`, {
+          console.log(`✅ [${provider}/${model}] 성공 (${attempt + 1}차 시도)`, {
             inputTokens: data.usage?.inputTokens,
             outputTokens: data.usage?.outputTokens,
             cost: data.cost?.totalCost
@@ -2071,7 +2146,7 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
 
           // AbortError (타임아웃)인 경우 재시도
           if (fetchError instanceof Error && fetchError.name === 'AbortError' && attempt < maxRetries) {
-            console.warn(`🔄 [통합 API] 요청 타임아웃, ${attempt + 2}차 시도 중...`);
+            console.warn(`🔄 [${provider}/${model}] 요청 타임아웃, ${attempt + 2}차 시도 중...`);
             await new Promise(resolve => setTimeout(resolve, 2000 * (attempt + 1))); // 점진적 대기
             continue;
           }
@@ -2082,7 +2157,7 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
       } catch (error) {
         // 마지막 시도에서도 실패한 경우에만 에러 처리
         if (attempt === maxRetries) {
-          console.error('❌ [통합 API] 모든 재시도 실패:', error);
+          console.error(`❌ [${provider}/${model}] 모든 재시도 실패:`, error);
 
           // 타임아웃 관련 에러 메시지 개선
           if (error instanceof Error) {
@@ -2099,7 +2174,7 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
         }
 
         // 재시도 가능한 에러인 경우 계속 진행
-        console.warn(`⚠️ [통합 API] ${attempt + 1}차 시도 실패, 재시도 중...`, error);
+        console.warn(`⚠️ [${provider}/${model}] ${attempt + 1}차 시도 실패, 재시도 중...`, error);
         await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
       }
     }
