@@ -406,7 +406,8 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
 
             // 🔥 중요: 상태 업데이트 콜백 내에서 완료 조건 체크 (클로저 문제 해결)
             const completedDocs = updated.filter(doc => doc.status === 'completed').length;
-            const processedDocs = updated.filter(doc => doc.status === 'completed' || doc.status === 'error').length;
+            const errorDocs = updated.filter(doc => doc.status === 'error').length;
+            const processedDocs = completedDocs + errorDocs;
             const totalDocs = updated.length;
 
             console.log('🔍 문서 분석 완료 조건 확인 (최신 상태):', {
@@ -417,9 +418,13 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
               analysisCompleted
             });
 
-            // 모든 문서가 처리 완료되고, 아직 질문 생성이 트리거되지 않았으면 직접 트리거
-            if (totalDocs > 0 && processedDocs === totalDocs && !questionGenerationTriggered && !analysisCompleted) {
-              console.log('🚨 문서 분석 완료 감지!');
+            // 🔥 모든 문서가 성공적으로 완료되어야 질문 생성 시작 (오류 문서 제외)
+            if (totalDocs > 0 && completedDocs === totalDocs && !questionGenerationTriggered && !analysisCompleted) {
+              console.log('🚨 문서 분석 100% 완료 감지!', {
+                completedDocs,
+                totalDocs,
+                errorDocs
+              });
 
               // 분석 완료 상태 설정
               setAnalysisCompleted(true);
@@ -509,31 +514,47 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
 
           // 🎯 문서 분석 완료 시 상태 업데이트 (UI 업데이트용)
           // 질문 생성 트리거는 checkAnalysisProgress()에서만 처리
-          if (processedDocs === totalDocs && docStage.status !== 'completed' && totalDocs > 0) {
-            console.log('📊 updateOverallProgress: 문서 분석 완료 상태 업데이트', {
-              processedDocs,
-              totalDocs,
+          // 🔥 모든 문서가 성공적으로 완료된 경우만 100% 표시
+          if (completedDocs === totalDocs && docStage.status !== 'completed' && totalDocs > 0) {
+            console.log('📊 updateOverallProgress: 문서 분석 100% 완료 상태 업데이트', {
               completedDocs,
+              totalDocs,
               errorDocs
             });
 
             docStage.status = 'completed';
             docStage.endTime = new Date();
             docStage.progress = 100;
+            docStage.message = `${completedDocs}개 문서 분석 완료!`;
 
             // 로그만 추가 (상태 설정은 checkAnalysisProgress에서 처리)
             if (!analysisCompleted) {
-              addToActivityLog(`✅ 문서 분석이 완료되었습니다! (성공: ${completedDocs}개, 오류: ${errorDocs}개)`);
+              addToActivityLog(`✅ 모든 문서 분석이 완료되었습니다! (${completedDocs}개)`);
             }
+          } else if (processedDocs === totalDocs && completedDocs < totalDocs && totalDocs > 0) {
+            // 일부 문서는 오류인 경우 (완료는 아니지만 처리는 끝남)
+            const successRate = Math.floor((completedDocs / totalDocs) * 95); // 최대 95%
+            docStage.progress = successRate;
+            docStage.message = `${completedDocs}개 완료, ${errorDocs}개 오류`;
 
-            // 질문 생성 실패 케이스만 여기서 처리
-            if (completedDocs === 0 && !questionGenerationTriggered && questionStage && questionStage.status === 'pending') {
-              console.log('❌ 성공한 문서가 없어서 질문 생성 불가');
-              questionStage.status = 'failed';
-              questionStage.endTime = new Date();
-              questionStage.message = '분석 성공한 문서가 없음';
-              addToActivityLog('❌ 분석 성공한 문서가 없어 질문을 생성할 수 없습니다.');
+            console.log('⚠️ 일부 문서 분석 실패 - 100% 미만 표시:', {
+              completedDocs,
+              errorDocs,
+              progress: successRate
+            });
+
+            if (!analysisCompleted) {
+              addToActivityLog(`⚠️ 문서 분석 완료 (성공: ${completedDocs}개, 오류: ${errorDocs}개)`);
             }
+          }
+
+          // 질문 생성 실패 케이스만 여기서 처리
+          if (completedDocs === 0 && processedDocs === totalDocs && !questionGenerationTriggered && questionStage && questionStage.status === 'pending') {
+            console.log('❌ 성공한 문서가 없어서 질문 생성 불가');
+            questionStage.status = 'failed';
+            questionStage.endTime = new Date();
+            questionStage.message = '분석 성공한 문서가 없음';
+            addToActivityLog('❌ 분석 성공한 문서가 없어 질문을 생성할 수 없습니다.');
           }
         }
 
@@ -608,7 +629,7 @@ export const AnalysisProgress = React.forwardRef<AnalysisProgressRef, AnalysisPr
 
         const response = await preAnalysisService.generateQuestions(sessionId, {
           categories: ['business', 'technical', 'timeline', 'stakeholders', 'risks'],
-          maxQuestions: 15,
+          maxQuestions: 25, // 🔥 15 → 25로 증가 (복잡도에 따라 10-25개 동적 생성)
           includeRequired: true,
           customContext: 'detailed analysis context',
         });
