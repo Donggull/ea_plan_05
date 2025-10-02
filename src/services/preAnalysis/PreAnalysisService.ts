@@ -1374,56 +1374,202 @@ ${content}
     }
   }
 
-  private generateReportPrompt(analyses: any[], questions: any[], answers: any[], options: ReportGenerationOptions): string {
+  private generateReportPrompt(analyses: any[], questions: any[], answers: any[], _options: ReportGenerationOptions): string {
     const analysisContext = analyses.map((analysis, index) =>
-      `분석 ${index + 1}: ${analysis.analysis_result?.summary || '분석 요약 없음'}`
-    ).join('\n');
+      `### 문서 ${index + 1}: ${analysis.file_name || '제목 없음'}
+- 요약: ${analysis.analysis_result?.summary || '분석 요약 없음'}
+- 주요 내용: ${JSON.stringify(analysis.analysis_result?.keyPoints || []).substring(0, 500)}
+- 복잡도: ${analysis.analysis_result?.complexity || 'N/A'}`
+    ).join('\n\n');
 
-    const questionsContext = questions.map((q, index) =>
-      `질문 ${index + 1}: ${q.question}`
-    ).join('\n');
-
-    const answersContext = answers.map((a, index) => {
+    const qaContext = answers.map((a, index) => {
       const question = questions.find(q => q.id === a.question_id);
-      return `답변 ${index + 1}: ${question?.question} → ${a.answer}`;
-    }).join('\n');
+      return `**Q${index + 1}**: ${question?.question || '질문 없음'}
+**A${index + 1}**: ${a.answer || '답변 없음'}
+**확신도**: ${a.confidence || 50}%
+**카테고리**: ${question?.category || 'general'}`;
+    }).join('\n\n');
 
-    return `다음 정보를 바탕으로 종합적인 프로젝트 분석 보고서를 생성해주세요:
+    return `# 🎯 웹에이전시 엘루오씨앤씨 - 프로젝트 사전 분석 보고서 작성
 
-## 문서 분석 결과:
-${analysisContext}
+당신은 **웹에이전시 엘루오씨앤씨**의 수석 프로젝트 분석가입니다.
+다음 프로젝트에 대한 **심층적이고 전문적인 분석 보고서**를 작성해야 합니다.
 
-## 질문과 답변:
-${questionsContext}
+## 📋 수집된 프로젝트 데이터
 
-${answersContext}
+### 1. 업로드된 문서 분석 결과 (${analyses.length}개):
+${analysisContext || '분석된 문서가 없습니다.'}
 
-## 보고서 요구사항:
-- 형식: ${options.format}
-- 포함 섹션: ${options.includeCharts ? '차트 포함' : '텍스트 위주'}
+### 2. 질문-답변 데이터 (${answers.length}/${questions.length}개 답변 완료):
+${qaContext || '질문-답변 데이터가 없습니다.'}
 
-다음 JSON 형식으로 보고서를 작성해주세요:
+---
 
+## 🎨 보고서 작성 지침
+
+### 역할 및 관점:
+- **회사**: 웹에이전시 엘루오씨앤씨
+- **담당**: 웹사이트 기획, UI/UX 디자인, 퍼블리싱, 프론트엔드/백엔드 개발
+- **목표**: 프로젝트의 **수락 여부 결정** 및 **실행 계획 수립**
+
+### 분석 관점 (필수):
+1. **기획 관점**: 요구사항 명확성, 비즈니스 가치, 실행 가능성
+2. **디자인 관점**: UI/UX 복잡도, 디자인 시스템 필요성, 브랜딩 요소
+3. **퍼블리싱 관점**: 브라우저 호환성, 반응형 난이도, 접근성 요구사항
+4. **개발 관점**: 기술적 복잡도, 아키텍처 설계, 보안/성능 고려사항
+
+### 심층 분석 요구사항:
+- **예상 문제점 및 리스크**: 기술적/비즈니스적/일정적/예산적 위험 요소를 **면밀히 분석**
+- **실행 계획**: 단계별 구체적인 작업 계획 및 마일스톤
+- **비용 추정**: 기획/디자인/개발/테스트/배포 단계별 상세 비용
+- **프로젝트 수락/드랍 의견**: 명확한 근거와 함께 최종 의견 제시
+
+---
+
+## 📝 출력 형식 (JSON)
+
+다음 JSON 형식으로 **매우 상세하고 전문적인** 보고서를 작성하세요:
+
+\`\`\`json
 {
-  "summary": "전체 프로젝트에 대한 간결한 요약",
-  "executiveSummary": "경영진용 핵심 요약",
-  "keyInsights": ["주요 인사이트들의 배열"],
+  "summary": "프로젝트 전체에 대한 300자 이상의 종합 요약 (프로젝트명, 목적, 범위, 핵심 특징)",
+  "executiveSummary": "경영진용 핵심 요약 (200자 이상): 비즈니스 가치, 투자 대비 효과, 주요 리스크, 최종 권장사항",
+
+  "keyInsights": [
+    "프로젝트의 핵심 강점 또는 기회 (5개 이상)",
+    "각 인사이트는 구체적이고 실행 가능한 내용으로 작성"
+  ],
+
   "riskAssessment": {
-    "high": ["높은 위험 요소들"],
-    "medium": ["중간 위험 요소들"],
-    "low": ["낮은 위험 요소들"],
+    "high": [
+      {
+        "id": "risk-1",
+        "category": "technical|business|timeline|budget|resource",
+        "title": "위험 제목",
+        "description": "위험에 대한 상세 설명 (100자 이상)",
+        "probability": 0-100,
+        "impact": 0-100,
+        "severity": "high",
+        "mitigation": "구체적인 완화 방안 (50자 이상)"
+      }
+    ],
+    "medium": [],
+    "low": [],
     "overallScore": 0-100
   },
-  "recommendations": ["구체적인 권장사항들"],
+
+  "recommendations": [
+    "구체적이고 실행 가능한 권장사항 (10개 이상)",
+    "기술적/비즈니스적/관리적 측면을 모두 포함"
+  ],
+
+  "agencyPerspective": {
+    "projectDecision": {
+      "recommendation": "accept|conditional_accept|decline",
+      "confidence": 0-100,
+      "reasoning": "수락/조건부수락/거절 결정에 대한 상세한 근거 (200자 이상)",
+      "conditions": ["조건부 수락 시 충족해야 할 구체적인 조건들 (있는 경우)"]
+    },
+
+    "perspectives": {
+      "planning": {
+        "feasibility": 0-100,
+        "estimatedEffort": "예상 공수 (예: 3개월, 500시간 등)",
+        "keyConsiderations": ["기획 시 고려해야 할 핵심 사항 (5개 이상)"],
+        "potentialIssues": ["예상되는 기획 단계 이슈 (3개 이상)"]
+      },
+      "design": {
+        "complexity": "low|medium|high|very_high",
+        "estimatedHours": 예상 디자인 작업 시간 (숫자),
+        "requiredSkills": ["필요한 디자인 스킬 목록"],
+        "designChallenges": ["예상되는 디자인 과제들 (3개 이상)"]
+      },
+      "publishing": {
+        "compatibility": ["지원해야 할 브라우저 목록"],
+        "browserSupport": ["특별히 고려해야 할 브라우저 이슈"],
+        "responsiveComplexity": "low|medium|high",
+        "estimatedHours": 예상 퍼블리싱 시간 (숫자)
+      },
+      "development": {
+        "technicalComplexity": "low|medium|high|very_high",
+        "estimatedManMonths": 예상 개발 인월 (숫자),
+        "criticalTechnologies": ["핵심 기술 스택 목록"],
+        "integrationChallenges": ["예상되는 통합 과제들"],
+        "securityConcerns": ["보안 관련 고려사항들"]
+      }
+    },
+
+    "detailedRisks": [
+      {
+        "category": "technical|business|timeline|budget|resource|quality",
+        "title": "리스크 제목",
+        "description": "리스크에 대한 매우 상세한 설명 (150자 이상)",
+        "probability": 0-100,
+        "impact": 0-100,
+        "severity": "low|medium|high|critical",
+        "mitigation": "구체적이고 실행 가능한 완화 방안 (100자 이상)",
+        "contingencyPlan": "비상 대응 계획 (선택사항)"
+      }
+    ],
+
+    "executionPlan": {
+      "phases": [
+        {
+          "name": "단계명 (예: 요구사항 분석 및 기획)",
+          "duration": 일수 (숫자),
+          "deliverables": ["이 단계의 산출물 목록"],
+          "resources": ["필요한 인력 및 리소스"]
+        }
+      ],
+      "totalEstimatedDays": 전체 예상 일수 (숫자),
+      "criticalPath": ["프로젝트의 크리티컬 패스 항목들"]
+    },
+
+    "costEstimate": {
+      "planning": 기획 비용 (숫자, USD),
+      "design": 디자인 비용 (숫자, USD),
+      "development": 개발 비용 (숫자, USD),
+      "testing": 테스트 비용 (숫자, USD),
+      "deployment": 배포 비용 (숫자, USD),
+      "total": 총 비용 (숫자, USD),
+      "currency": "KRW",
+      "confidence": 0-100
+    }
+  },
+
   "baselineData": {
-    "requirements": ["주요 요구사항들"],
-    "stakeholders": ["이해관계자들"],
-    "constraints": ["제약사항들"],
-    "timeline": ["일정 관련 정보"],
-    "technicalStack": ["기술 스택 정보"],
-    "integrationPoints": ["통합 포인트들"]
+    "requirements": ["주요 기능 요구사항 목록 (10개 이상)"],
+    "stakeholders": ["이해관계자 목록"],
+    "constraints": ["프로젝트 제약사항들"],
+    "timeline": [
+      {
+        "phase": "단계명",
+        "startDate": "YYYY-MM-DD",
+        "endDate": "YYYY-MM-DD",
+        "duration": 일수,
+        "milestones": ["마일스톤 목록"]
+      }
+    ],
+    "budgetEstimates": {
+      "development": 60,
+      "design": 20,
+      "testing": 15,
+      "infrastructure": 5
+    },
+    "technicalStack": ["사용할 기술 스택 목록"],
+    "integrationPoints": ["외부 시스템 통합 포인트들"]
   }
 }
+\`\`\`
+
+**중요**:
+1. 모든 분석은 **구체적인 근거**와 함께 작성하세요
+2. **예상 문제점은 최대한 면밀하게** 식별하고 완화 방안을 제시하세요
+3. **비용과 일정은 현실적으로** 추정하세요
+4. **프로젝트 수락/드랍 의견은 명확한 기준**과 함께 제시하세요
+5. 웹에이전시 관점에서 **실제로 수행 가능한 계획**을 수립하세요
+
+위 JSON 형식을 **정확히 준수**하여 응답해주세요. 추가 설명 없이 JSON만 출력하세요.
 
 정확하고 실행 가능한 분석 결과를 제공해주세요.`;
   }

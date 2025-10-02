@@ -228,6 +228,82 @@ export interface AnalysisReport {
   };
   recommendations: string[];
 
+  // 🔥 웹에이전시 관점 심층 분석
+  agencyPerspective?: {
+    // 프로젝트 수락/드랍 의견
+    projectDecision: {
+      recommendation: 'accept' | 'conditional_accept' | 'decline';
+      confidence: number; // 0-100
+      reasoning: string;
+      conditions?: string[]; // 조건부 수락 시 충족 조건
+    };
+
+    // 관점별 상세 분석
+    perspectives: {
+      planning: {
+        feasibility: number; // 0-100
+        estimatedEffort: string;
+        keyConsiderations: string[];
+        potentialIssues: string[];
+      };
+      design: {
+        complexity: 'low' | 'medium' | 'high' | 'very_high';
+        estimatedHours: number;
+        requiredSkills: string[];
+        designChallenges: string[];
+      };
+      publishing: {
+        compatibility: string[];
+        browserSupport: string[];
+        responsiveComplexity: 'low' | 'medium' | 'high';
+        estimatedHours: number;
+      };
+      development: {
+        technicalComplexity: 'low' | 'medium' | 'high' | 'very_high';
+        estimatedManMonths: number;
+        criticalTechnologies: string[];
+        integrationChallenges: string[];
+        securityConcerns: string[];
+      };
+    };
+
+    // 예상 문제점 및 리스크 (면밀한 분석)
+    detailedRisks: {
+      category: 'technical' | 'business' | 'timeline' | 'budget' | 'resource' | 'quality';
+      title: string;
+      description: string;
+      probability: number; // 0-100
+      impact: number; // 0-100
+      severity: 'low' | 'medium' | 'high' | 'critical';
+      mitigation: string;
+      contingencyPlan?: string;
+    }[];
+
+    // 실행 계획 제안
+    executionPlan: {
+      phases: {
+        name: string;
+        duration: number; // days
+        deliverables: string[];
+        resources: string[];
+      }[];
+      totalEstimatedDays: number;
+      criticalPath: string[];
+    };
+
+    // 비용 및 리소스 추정
+    costEstimate: {
+      planning: number;
+      design: number;
+      development: number;
+      testing: number;
+      deployment: number;
+      total: number;
+      currency: string;
+      confidence: number; // 0-100
+    };
+  };
+
   // 기초 데이터 (이후 단계에서 활용)
   baselineData: {
     requirements: string[];
