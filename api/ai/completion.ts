@@ -218,7 +218,14 @@ async function handleAnthropicRequest(
 
     if (!response.ok) {
       const errorText = await response.text()
-      throw new Error(`Anthropic API 오류: ${response.status} - ${errorText}`)
+      console.error(`❌ [Anthropic API] 오류 응답:`, {
+        status: response.status,
+        statusText: response.statusText,
+        errorBody: errorText,
+        model,
+        promptLength: prompt.length
+      })
+      throw new Error(`Anthropic API ${response.status} 오류: ${errorText}`)
     }
 
     const data = await response.json()
@@ -301,7 +308,14 @@ async function handleOpenAIRequest(
 
     if (!response.ok) {
       const errorText = await response.text()
-      throw new Error(`OpenAI API 오류: ${response.status} - ${errorText}`)
+      console.error(`❌ [OpenAI API] 오류 응답:`, {
+        status: response.status,
+        statusText: response.statusText,
+        errorBody: errorText,
+        model,
+        promptLength: prompt.length
+      })
+      throw new Error(`OpenAI API ${response.status} 오류: ${errorText}`)
     }
 
     const data = await response.json()
@@ -382,7 +396,14 @@ async function handleGoogleAIRequest(
 
     if (!response.ok) {
       const errorText = await response.text()
-      throw new Error(`Google AI API 오류: ${response.status} - ${errorText}`)
+      console.error(`❌ [Google AI API] 오류 응답:`, {
+        status: response.status,
+        statusText: response.statusText,
+        errorBody: errorText,
+        model,
+        promptLength: prompt.length
+      })
+      throw new Error(`Google AI API ${response.status} 오류: ${errorText}`)
     }
 
     const data = await response.json()

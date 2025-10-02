@@ -1651,34 +1651,43 @@ ${answersContext}
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
 
-            console.error(`❌ [통합 API] HTTP ${response.status} 오류:`, {
+            // 🔍 상세한 에러 정보 로깅 (근본 원인 파악용)
+            console.error(`❌ [통합 API] HTTP ${response.status} 오류 - 상세 정보:`, {
               status: response.status,
               statusText: response.statusText,
-              errorData,
               provider,
               model,
-              attempt: attempt + 1
+              attempt: attempt + 1,
+              errorData: JSON.stringify(errorData, null, 2), // 전체 에러 데이터 확인
+              url: apiUrl,
+              timestamp: new Date().toISOString()
             });
 
-            // 504 Gateway Timeout인 경우 재시도
+            // 504 Gateway Timeout인 경우에만 재시도
             if (response.status === 504 && attempt < maxRetries) {
               console.warn(`🔄 [통합 API] 504 Gateway Timeout, ${attempt + 2}차 시도 중...`);
-              await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1))); // 점진적 대기
+              await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
               continue;
             }
 
-            // 500 에러의 경우 더 상세한 메시지 제공
+            // 🚫 500 에러는 재시도하지 않음 (불필요한 중복 호출 방지)
+            // 500은 서버 내부 오류이므로 재시도해도 같은 결과
             if (response.status === 500) {
               const detailedError = errorData.details || errorData.error || '서버 내부 오류';
+              console.error('🔴 [통합 API] 500 에러 - 재시도 없이 즉시 실패 처리:', {
+                provider,
+                model,
+                error: detailedError,
+                fullErrorData: errorData
+              });
+
               throw new Error(
-                `AI 서비스 오류 (${provider}): ${detailedError}\n\n` +
-                `문제가 계속되면 다음을 확인해주세요:\n` +
-                `1. Vercel 환경 변수에 ${provider.toUpperCase()}_API_KEY가 설정되어 있는지 확인\n` +
-                `2. API 키가 올바른 형식인지 확인\n` +
-                `3. AI 서비스 상태 확인 (https://status.anthropic.com 등)`
+                `AI API 서버 오류 (${provider} ${model}):\n${detailedError}\n\n` +
+                `이 오류는 재시도하지 않습니다. 콘솔에서 상세 정보를 확인하세요.`
               );
             }
 
+            // 기타 에러 (400번대 등)
             throw new Error(
               errorData.details ||
               errorData.error ||
