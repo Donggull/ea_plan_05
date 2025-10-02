@@ -613,7 +613,26 @@ export class PreAnalysisService {
         throw new Error('Supabase client not initialized');
       }
 
-      // 🔥 이미 질문이 생성되었는지 확인 (중복 생성 방지)
+      // 🔥 1단계: 세션의 metadata 확인 (질문 생성 진행 중인지)
+      const { data: sessionData } = await supabase
+        .from('pre_analysis_sessions')
+        .select('metadata')
+        .eq('id', sessionId)
+        .single();
+
+      const metadata = sessionData?.metadata as Record<string, any> | null;
+      console.log('🔍 세션 metadata 확인:', metadata);
+
+      // 🔥 질문 생성이 이미 진행 중이면 건너뛰기
+      if (metadata?.['generating_questions'] === true) {
+        console.log('⏳ 질문 생성이 이미 진행 중입니다. 건너뜀');
+        return {
+          success: false,
+          error: '질문 생성이 이미 진행 중입니다. 잠시 후 다시 시도해주세요.',
+        };
+      }
+
+      // 🔥 2단계: 이미 질문이 생성되었는지 확인 (중복 생성 방지)
       const { data: existingQuestions, error: questionCheckError } = await supabase
         .from('ai_questions')
         .select('id')
@@ -634,6 +653,19 @@ export class PreAnalysisService {
           message: '기존에 생성된 질문을 반환합니다.',
         };
       }
+
+      // 🔥 3단계: metadata에 generating_questions 플래그 설정 (락 역할)
+      await supabase
+        .from('pre_analysis_sessions')
+        .update({
+          metadata: {
+            ...(metadata || {}),
+            generating_questions: true
+          } as any
+        })
+        .eq('id', sessionId);
+
+      console.log('🔒 질문 생성 시작 - 락 설정 완료');
 
       // 진행 상황 업데이트
       await this.emitProgressUpdate({
@@ -784,6 +816,17 @@ export class PreAnalysisService {
           }
         }
 
+        // 🔥 AI 실패 시 락 해제
+        await supabase
+          .from('pre_analysis_sessions')
+          .update({
+            metadata: {
+              ...(metadata || {}),
+              generating_questions: false
+            } as any
+          })
+          .eq('id', sessionId);
+
         return {
           success: false,
           error: errorMessage,
@@ -802,6 +845,17 @@ export class PreAnalysisService {
           documentCount: documentContext.length,
           hasProject: !!(project?.name || project?.description)
         });
+
+        // 🔥 질문 없음 시 락 해제
+        await supabase
+          .from('pre_analysis_sessions')
+          .update({
+            metadata: {
+              ...(metadata || {}),
+              generating_questions: false
+            } as any
+          })
+          .eq('id', sessionId);
 
         return {
           success: false,
@@ -839,6 +893,18 @@ export class PreAnalysisService {
 
       if (saveError) {
         console.error('질문 저장 오류:', saveError);
+
+        // 🔥 저장 실패 시 락 해제
+        await supabase
+          .from('pre_analysis_sessions')
+          .update({
+            metadata: {
+              ...(metadata || {}),
+              generating_questions: false
+            } as any
+          })
+          .eq('id', sessionId);
+
         return { success: false, error: saveError.message };
       }
 
@@ -852,6 +918,19 @@ export class PreAnalysisService {
         timestamp: new Date(),
       });
 
+      // 🔥 성공 시 락 해제
+      await supabase
+        .from('pre_analysis_sessions')
+        .update({
+          metadata: {
+            ...(metadata || {}),
+            generating_questions: false
+          } as any
+        })
+        .eq('id', sessionId);
+
+      console.log('🔓 질문 생성 완료 - 락 해제');
+
       return {
         success: true,
         data: savedQuestions.map(this.transformQuestionData),
@@ -859,6 +938,34 @@ export class PreAnalysisService {
       };
     } catch (error) {
       console.error('질문 생성 오류:', error);
+
+      // 🔥 오류 발생 시에도 락 해제
+      try {
+        if (supabase) {
+          const { data: currentSession } = await supabase
+            .from('pre_analysis_sessions')
+            .select('metadata')
+            .eq('id', sessionId)
+            .single();
+
+          const currentMetadata = currentSession?.metadata as Record<string, any> | null;
+
+          await supabase
+            .from('pre_analysis_sessions')
+            .update({
+              metadata: {
+                ...(currentMetadata || {}),
+                generating_questions: false
+              } as any
+            })
+            .eq('id', sessionId);
+
+          console.log('🔓 오류 발생 - 락 해제');
+        }
+      } catch (unlockError) {
+        console.error('락 해제 실패:', unlockError);
+      }
+
       return {
         success: false,
         error: '질문 생성 중 오류가 발생했습니다.',
