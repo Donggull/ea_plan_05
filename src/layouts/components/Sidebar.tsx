@@ -176,16 +176,23 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
         // 🔥 현재 세션 비용 조회 (현재 프로젝트의 활성 세션)
         let sessionCost = 0
         if (currentProject?.id) {
-          const { data: sessionData } = await supabase
-            .from('pre_analysis_sessions')
-            .select('total_cost')
-            .eq('project_id', currentProject.id)
-            .eq('status', 'processing')
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .single()
+          try {
+            const { data: sessionData, error: sessionError } = await supabase
+              .from('pre_analysis_sessions')
+              .select('total_cost')
+              .eq('project_id', currentProject.id)
+              .eq('status', 'processing')
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle() // 🔥 single() → maybeSingle()로 변경 (레코드 없어도 에러 안남)
 
-          sessionCost = Number(sessionData?.total_cost || 0)
+            if (!sessionError && sessionData) {
+              sessionCost = Number(sessionData.total_cost || 0)
+            }
+          } catch (sessionErr) {
+            console.warn('현재 세션 비용 조회 실패:', sessionErr)
+            // 세션 비용 조회 실패해도 다른 비용 정보는 표시
+          }
         }
 
         // 비용 데이터 포맷팅
