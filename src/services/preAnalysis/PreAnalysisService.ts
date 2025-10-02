@@ -521,10 +521,18 @@ export class PreAnalysisService {
         console.log(`⏭️ [문서분석] 이미 존재하는 분석 (ID: ${existingAnalysis.id}, 상태: ${existingAnalysis.status})`);
 
         if (existingAnalysis.status === 'processing') {
-          console.log('⏳ [문서분석] 다른 프로세스가 현재 처리 중입니다. 건너뜀');
+          console.log('⏳ [문서분석] 다른 프로세스가 현재 처리 중입니다. 폴링 대기');
+          // 기존 processing 레코드 조회하여 상태 반환
+          const { data: processingAnalysis } = await supabase
+            .from('document_analyses')
+            .select('*')
+            .eq('id', existingAnalysis.id)
+            .single();
+
           return {
             success: true,
-            message: '이미 다른 프로세스에서 분석 중입니다. 완료를 기다리세요.',
+            data: processingAnalysis ? this.transformAnalysisData(processingAnalysis) : undefined,
+            message: '문서 분석이 진행 중입니다.',
           };
         } else if (existingAnalysis.status === 'completed') {
           console.log('✅ [문서분석] 이미 완료된 분석입니다. 건너뜀');
@@ -571,10 +579,19 @@ export class PreAnalysisService {
       if (insertError) {
         // 🔥 중복 INSERT 에러 (23505: unique_violation)
         if (insertError.code === '23505') {
-          console.warn('⚠️ [문서분석] 동시 INSERT 충돌 감지. 다른 프로세스가 먼저 시작함');
+          console.warn('⚠️ [문서분석] 동시 INSERT 충돌 감지. 기존 레코드 조회');
+          // 다른 프로세스가 생성한 레코드 조회
+          const { data: conflictedRecord } = await supabase
+            .from('document_analyses')
+            .select('*')
+            .eq('session_id', sessionId)
+            .eq('document_id', documentId)
+            .single();
+
           return {
             success: true,
-            message: '다른 프로세스가 이미 분석을 시작했습니다. 완료를 기다리세요.',
+            data: conflictedRecord ? this.transformAnalysisData(conflictedRecord) : undefined,
+            message: '문서 분석이 이미 진행 중입니다.',
           };
         }
 
@@ -794,10 +811,21 @@ export class PreAnalysisService {
 
       // 타임스탬프가 내가 설정한 값과 다르면 → 다른 프로세스가 먼저 획득
       if (verifyTimestamp !== lockTimestamp) {
-        console.warn(`⚠️ [질문생성] 락 경쟁 감지. 다른 프로세스가 먼저 획득했습니다. (내 시각: ${lockTimestamp}, 실제: ${verifyTimestamp})`);
+        console.warn(`⚠️ [질문생성] 락 경쟁 감지. 다른 프로세스가 먼저 획득. 기존 질문 조회 (내 시각: ${lockTimestamp}, 실제: ${verifyTimestamp})`);
+
+        // 다른 프로세스가 생성 중이므로 기존 질문 조회
+        const { data: existingQuestions } = await supabase
+          .from('ai_questions')
+          .select('*')
+          .eq('session_id', sessionId)
+          .order('order_index', { ascending: true });
+
         return {
           success: true,
-          message: '다른 프로세스가 이미 질문을 생성 중입니다. 완료를 기다리세요.',
+          data: existingQuestions?.map(q => this.transformQuestionData(q)) || [],
+          message: existingQuestions && existingQuestions.length > 0
+            ? '이미 생성된 질문을 반환합니다.'
+            : '질문 생성이 진행 중입니다.',
         };
       }
 
