@@ -4,14 +4,6 @@
   "installCommand": "npm install --legacy-peer-deps",
   "framework": "vite",
   "outputDirectory": "dist",
-  "functions": {
-    "pages/api/ai/completion.ts": {
-      "maxDuration": 180
-    },
-    "pages/api/**/*.ts": {
-      "maxDuration": 30
-    }
-  },
   "rewrites": [
     {
       "source": "/((?!api/).*)",
