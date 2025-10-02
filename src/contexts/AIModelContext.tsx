@@ -51,6 +51,12 @@ const initialState: AIModelState = {
   syncInProgress: false
 }
 
+// localStorage 키
+const STORAGE_KEYS = {
+  PROVIDER: 'ai_selected_provider',
+  MODEL: 'ai_selected_model'
+}
+
 // 리듀서
 function aiModelReducer(state: AIModelState, action: AIModelAction): AIModelState {
   switch (action.type) {
@@ -61,14 +67,22 @@ function aiModelReducer(state: AIModelState, action: AIModelAction): AIModelStat
     case 'SET_MODELS':
       return { ...state, availableModels: action.payload, loading: false }
     case 'SELECT_PROVIDER':
+      // localStorage에 프로바이더 저장
+      localStorage.setItem(STORAGE_KEYS.PROVIDER, action.payload)
+      localStorage.removeItem(STORAGE_KEYS.MODEL) // 프로바이더 변경 시 모델 초기화
       return {
         ...state,
         selectedProviderId: action.payload,
         selectedModelId: null // 프로바이더 변경 시 모델 선택 초기화
       }
     case 'SELECT_MODEL':
+      // localStorage에 모델 저장
+      localStorage.setItem(STORAGE_KEYS.MODEL, action.payload)
       return { ...state, selectedModelId: action.payload }
     case 'CLEAR_SELECTION':
+      // localStorage에서 제거
+      localStorage.removeItem(STORAGE_KEYS.PROVIDER)
+      localStorage.removeItem(STORAGE_KEYS.MODEL)
       return { ...state, selectedProviderId: null, selectedModelId: null }
     case 'SET_SYNC_STATUS':
       return {
@@ -125,9 +139,33 @@ export function AIModelProvider({ children }: { children: React.ReactNode }) {
     metadata: latestModel.metadata
   })
 
-  // 기본 모델 선택 함수 (Claude 4 Sonnet 우선)
-  const setDefaultModel = async (models: AIModel[]) => {
+  // 초기 모델 선택 함수 (localStorage 우선, 없으면 기본 모델)
+  const setInitialModel = async (models: AIModel[]) => {
     try {
+      // 1. localStorage에서 저장된 선택 확인
+      const savedProvider = localStorage.getItem(STORAGE_KEYS.PROVIDER)
+      const savedModel = localStorage.getItem(STORAGE_KEYS.MODEL)
+
+      console.log('🔍 저장된 모델 확인:', { savedProvider, savedModel })
+
+      // 2. 저장된 모델이 있고 유효하면 복원
+      if (savedProvider && savedModel) {
+        const savedModelData = models.find(m => m.id === savedModel && m.provider === savedProvider)
+
+        if (savedModelData && savedModelData.available) {
+          console.log('✅ 저장된 모델 복원:', savedModelData.name, '(' + savedModelData.model_id + ')')
+          dispatch({ type: 'SELECT_PROVIDER', payload: savedModelData.provider })
+          dispatch({ type: 'SELECT_MODEL', payload: savedModelData.id })
+          return
+        } else {
+          console.warn('⚠️ 저장된 모델을 찾을 수 없거나 사용 불가능합니다. 기본 모델을 선택합니다.')
+          // 유효하지 않은 저장값 제거
+          localStorage.removeItem(STORAGE_KEYS.PROVIDER)
+          localStorage.removeItem(STORAGE_KEYS.MODEL)
+        }
+      }
+
+      // 3. 저장된 모델이 없거나 유효하지 않으면 기본 모델 선택
       // 1순위: Claude 4 Sonnet (claude-sonnet-4-20250514)
       let defaultModel = models.find(m => m.model_id === 'claude-sonnet-4-20250514')
 
@@ -157,7 +195,7 @@ export function AIModelProvider({ children }: { children: React.ReactNode }) {
         console.warn('⚠️ 사용 가능한 기본 모델을 찾을 수 없습니다.')
       }
     } catch (error) {
-      console.error('기본 모델 선택 중 오류:', error)
+      console.error('초기 모델 선택 중 오류:', error)
     }
   }
 
@@ -206,15 +244,15 @@ export function AIModelProvider({ children }: { children: React.ReactNode }) {
         console.log('✅ 전체 모델 로드 완료:', allModels.length, '개')
         dispatch({ type: 'SET_MODELS', payload: allModels })
 
-        // 4. 기본 모델 선택 (Claude 4 Sonnet 우선)
-        await setDefaultModel(allModels)
+        // 4. 초기 모델 선택 (localStorage 복원 우선, 없으면 기본 모델)
+        await setInitialModel(allModels)
       } catch (error) {
         console.warn('⚠️ 로컬 모델 로드 실패, 최신 모델만 사용:', error)
         // 로컬 모델 로드에 실패해도 최신 모델은 표시
         dispatch({ type: 'SET_MODELS', payload: latestModelsConverted })
 
-        // 기본 모델 선택 (최신 모델만으로)
-        await setDefaultModel(latestModelsConverted)
+        // 초기 모델 선택 (localStorage 복원 우선, 없으면 기본 모델)
+        await setInitialModel(latestModelsConverted)
       }
 
       // 마지막 동기화 시간 업데이트
