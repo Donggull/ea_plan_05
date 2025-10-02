@@ -664,13 +664,32 @@ export class PreAnalysisService {
           outputTokens: questionResponse.usage.outputTokens
         });
 
+        // 🔥 복잡도 계산 및 권장 개수 확인
+        const complexityScore = this.calculateDocumentComplexity(documentContext, analyses || []);
+        const recommendedCount = this.calculateRecommendedQuestions(complexityScore, options.maxQuestions || 15);
+
         // AI 응답을 파싱하여 질문 배열 생성
         generatedQuestions = this.parseQuestionResponse(questionResponse.content);
 
         console.log('🔄 질문 파싱 완료:', {
           questionsCount: generatedQuestions.length,
+          recommendedCount,
           categories: [...new Set(generatedQuestions.map(q => q.category))]
         });
+
+        // 🔥 질문 개수 검증 및 보완
+        if (generatedQuestions.length < recommendedCount) {
+          console.warn(`⚠️ AI가 생성한 질문(${generatedQuestions.length}개)이 권장 개수(${recommendedCount}개)보다 적습니다. 기본 질문으로 보충합니다.`);
+
+          const additionalQuestions = this.generateFallbackQuestions(
+            recommendedCount - generatedQuestions.length,
+            generatedQuestions.map(q => q.category)
+          );
+
+          generatedQuestions = [...generatedQuestions, ...additionalQuestions];
+
+          console.log(`✅ 기본 질문 ${additionalQuestions.length}개 추가 완료. 총 ${generatedQuestions.length}개`);
+        }
 
       } catch (aiError) {
         console.error('❌ AI 질문 생성 실패 상세:', {
@@ -1787,15 +1806,16 @@ ${documentContext.map((doc, index) =>
     });
 
     prompt += `요구사항:
-1. 프로젝트 분석 결과를 기반으로 **${recommendedQuestions}개 내외**의 실질적인 질문을 생성하세요.
+1. 프로젝트 분석 결과를 기반으로 **정확히 ${recommendedQuestions}개의 질문**을 생성하세요.
    - 문서 복잡도: ${complexityScore}/100점
-   - 권장 질문 개수: ${recommendedQuestions}개
-   - 복잡도가 높을수록(상세한 요구사항, 기술스택, 이해관계자가 많을수록) 더 많은 질문 생성
-   - 복잡도가 낮으면 핵심적인 질문만 간결하게 생성
+   - 필수 생성 개수: ${recommendedQuestions}개 (반드시 이 개수를 맞춰야 함)
+   - 복잡도가 높을수록(상세한 요구사항, 기술스택, 이해관계자가 많을수록) 더 심화된 질문 생성
+   - 복잡도가 낮으면 핵심적이고 일반적인 질문 생성
 
-2. 다양한 관점을 포함하세요: 기술적 요구사항, 비즈니스 목표, 일정, 예산, 위험 요소, 이해관계자 등
+2. 다양한 관점을 포함하세요: 기술적 요구사항, 비즈니스 목표, 일정, 예산, 위험 요소, 이해관계자, 디자인 등
 3. 각 질문은 구체적이고 실행 가능한 답변을 유도해야 합니다.
 4. 업로드된 문서가 있다면 해당 내용을 반영한 질문을 포함하세요.
+5. 질문이 부족하면 프로젝트 관리 일반론적인 질문으로 보충하세요.
 
 **중요: category 필드는 반드시 다음 값 중 하나만 사용하세요:**
 - technical: 기술적 요구사항, 기술 스택, 아키텍처 관련
@@ -1826,7 +1846,7 @@ ${documentContext.map((doc, index) =>
   }
 
   /**
-   * 문서 내용 기반 복잡도 계산
+   * 문서 내용 기반 복잡도 계산 (개선됨)
    */
   private calculateDocumentComplexity(
     documentContext: Array<{ name: string; summary?: string; content?: string }>,
@@ -1834,14 +1854,20 @@ ${documentContext.map((doc, index) =>
   ): number {
     let score = 0;
 
+    // 🔥 기본 복잡도 보장 (최소 30점)
+    // 이유: 아무리 간단한 프로젝트도 최소한의 질문은 필요
+    let baseScore = 30;
+
     // 1. 문서 내용 분석 (최대 40점)
     let contentScore = 0;
     documentContext.forEach(doc => {
       const summaryLength = (doc.summary || '').length;
       const contentLength = (doc.content || '').length;
+      const totalLength = summaryLength + contentLength;
 
-      // 내용 길이에 따른 점수 (문서당 최대 10점)
-      const docScore = Math.min(10, (summaryLength + contentLength) / 500);
+      // 🔥 개선: 내용 길이 기준 완화 (200자당 1점 → 더 높은 점수)
+      // 1000자: 5점, 2000자: 10점
+      const docScore = Math.min(10, totalLength / 200);
       contentScore += docScore;
     });
     score += Math.min(40, contentScore);
@@ -1864,34 +1890,36 @@ ${documentContext.map((doc, index) =>
       // 총 요소 개수
       const totalElements = requirements + stakeholders + constraints + risks + opportunities + techStack + timeline;
 
-      // 요소 개수에 따른 점수 (분석당 최대 15점)
-      // 30개 이상 요소가 있으면 만점
-      const elementsScore = Math.min(15, (totalElements / 30) * 15);
+      // 🔥 개선: 요소 개수 기준 완화 (15개당 15점 → 더 높은 점수)
+      // 15개: 15점, 30개 이상: 30점
+      const elementsScore = Math.min(30, (totalElements / 15) * 15);
       analysisScore += elementsScore;
     });
     score += Math.min(60, analysisScore);
+
+    // 🔥 최소 복잡도 보장
+    score = Math.max(baseScore, score);
 
     // 최종 점수를 0-100 범위로 정규화
     return Math.round(Math.min(100, score));
   }
 
   /**
-   * 복잡도 기반 권장 질문 개수 계산
+   * 복잡도 기반 권장 질문 개수 계산 (개선됨)
    */
   private calculateRecommendedQuestions(complexityScore: number, maxQuestions: number): number {
-    // 복잡도에 따른 질문 개수 매핑
-    // 0-20점: 6-8개
-    // 21-40점: 9-12개
+    // 🔥 개선된 복잡도에 따른 질문 개수 매핑
+    // 기본 복잡도 30점 보장으로 인해 최소 10개 이상 보장
+    // 30-40점: 10-12개
     // 41-60점: 13-16개
     // 61-80점: 17-20개
     // 81-100점: 21-25개
 
     let recommended: number;
 
-    if (complexityScore <= 20) {
-      recommended = 6 + Math.floor((complexityScore / 20) * 2); // 6-8개
-    } else if (complexityScore <= 40) {
-      recommended = 9 + Math.floor(((complexityScore - 20) / 20) * 3); // 9-12개
+    if (complexityScore <= 40) {
+      // 최소 10개 보장
+      recommended = 10 + Math.floor(((complexityScore - 30) / 10) * 2); // 10-12개
     } else if (complexityScore <= 60) {
       recommended = 13 + Math.floor(((complexityScore - 40) / 20) * 3); // 13-16개
     } else if (complexityScore <= 80) {
@@ -1899,6 +1927,9 @@ ${documentContext.map((doc, index) =>
     } else {
       recommended = 21 + Math.floor(((complexityScore - 80) / 20) * 4); // 21-25개
     }
+
+    // 🔥 절대 최소값 보장 (10개)
+    recommended = Math.max(10, recommended);
 
     // maxQuestions 제한 적용
     return Math.min(recommended, maxQuestions);
@@ -1982,6 +2013,132 @@ ${documentContext.map((doc, index) =>
 
     // 기본값
     return 'business';
+  }
+
+  /**
+   * 질문 부족 시 기본 질문 생성
+   */
+  private generateFallbackQuestions(count: number, existingCategories: string[]): any[] {
+    const fallbackQuestions = [
+      // Business
+      {
+        category: 'business',
+        question: '이 프로젝트의 핵심 비즈니스 목표는 무엇입니까?',
+        context: '프로젝트를 통해 달성하고자 하는 사업적 성과와 기대 효과를 설명해주세요.',
+        required: true,
+        expectedFormat: 'textarea',
+        confidenceScore: 0.9
+      },
+      {
+        category: 'business',
+        question: '주요 타겟 사용자 또는 고객은 누구입니까?',
+        context: '서비스를 이용할 주요 사용자 그룹과 그들의 특징을 설명해주세요.',
+        required: true,
+        expectedFormat: 'textarea',
+        confidenceScore: 0.9
+      },
+      // Technical
+      {
+        category: 'technical',
+        question: '선호하는 기술 스택이나 플랫폼이 있습니까?',
+        context: '프론트엔드, 백엔드, 데이터베이스 등 사용하고 싶은 기술이나 제약사항을 알려주세요.',
+        required: false,
+        expectedFormat: 'textarea',
+        confidenceScore: 0.8
+      },
+      {
+        category: 'technical',
+        question: '예상되는 사용자 규모와 성능 요구사항은 어떻게 됩니까?',
+        context: '동시 사용자 수, 데이터 처리량, 응답 시간 등 성능 관련 요구사항을 설명해주세요.',
+        required: false,
+        expectedFormat: 'textarea',
+        confidenceScore: 0.8
+      },
+      // Timeline
+      {
+        category: 'timeline',
+        question: '프로젝트의 목표 완료 시기는 언제입니까?',
+        context: '프로젝트 완료 희망 시기와 주요 마일스톤을 알려주세요.',
+        required: true,
+        expectedFormat: 'textarea',
+        confidenceScore: 0.9
+      },
+      {
+        category: 'timeline',
+        question: '단계별 출시 계획이 있습니까?',
+        context: 'MVP(최소 기능 제품) 우선 출시 후 단계적 기능 추가 등의 계획을 설명해주세요.',
+        required: false,
+        expectedFormat: 'textarea',
+        confidenceScore: 0.8
+      },
+      // Budget
+      {
+        category: 'budget',
+        question: '프로젝트 예산 범위는 어떻게 됩니까?',
+        context: '예산 규모와 예산 배분 우선순위를 알려주세요.',
+        required: false,
+        expectedFormat: 'textarea',
+        confidenceScore: 0.7
+      },
+      // Stakeholders
+      {
+        category: 'stakeholders',
+        question: '프로젝트 의사결정 주체는 누구입니까?',
+        context: '주요 의사결정권자와 이해관계자를 알려주세요.',
+        required: true,
+        expectedFormat: 'textarea',
+        confidenceScore: 0.9
+      },
+      {
+        category: 'stakeholders',
+        question: '내부 개발팀이 있습니까, 아니면 외부 개발이 필요합니까?',
+        context: '개발 리소스 현황과 외주 필요 여부를 설명해주세요.',
+        required: false,
+        expectedFormat: 'select',
+        confidenceScore: 0.8
+      },
+      // Risks
+      {
+        category: 'risks',
+        question: '프로젝트의 주요 위험 요소나 우려 사항은 무엇입니까?',
+        context: '기술적, 비즈니스적, 조직적 측면에서 예상되는 리스크를 알려주세요.',
+        required: false,
+        expectedFormat: 'textarea',
+        confidenceScore: 0.8
+      },
+      // Design
+      {
+        category: 'design',
+        question: '디자인 가이드나 브랜드 아이덴티티가 있습니까?',
+        context: '기존 디자인 시스템, 브랜드 컬러, 스타일 가이드 등을 알려주세요.',
+        required: false,
+        expectedFormat: 'textarea',
+        confidenceScore: 0.7
+      },
+      {
+        category: 'design',
+        question: '접근성(Accessibility) 요구사항이 있습니까?',
+        context: 'WCAG 준수, 다국어 지원, 장애인 접근성 등의 요구사항을 설명해주세요.',
+        required: false,
+        expectedFormat: 'textarea',
+        confidenceScore: 0.7
+      }
+    ];
+
+    // 🔥 이미 존재하는 카테고리를 제외하고 다양한 카테고리 우선 선택
+    const categoryCount: Record<string, number> = {};
+    existingCategories.forEach(cat => {
+      categoryCount[cat] = (categoryCount[cat] || 0) + 1;
+    });
+
+    // 카테고리 빈도가 낮은 순서로 정렬
+    const sortedQuestions = [...fallbackQuestions].sort((a, b) => {
+      const aCount = categoryCount[a.category] || 0;
+      const bCount = categoryCount[b.category] || 0;
+      return aCount - bCount;
+    });
+
+    return sortedQuestions.slice(0, count);
   }
 
   /**
