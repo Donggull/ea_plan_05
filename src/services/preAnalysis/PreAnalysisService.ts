@@ -2134,12 +2134,18 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
     console.log('📏 [parseReportResponse] 응답 길이:', response.length);
     console.log('📝 [parseReportResponse] 응답 미리보기:', response.substring(0, 500));
 
+    // 🔥 NEW: 응답 정제 - 제어 문자, 잘못된 이스케이프 시퀀스 제거
+    let cleanedResponse = response
+      .replace(/[\x00-\x1F\x7F-\x9F]/g, '') // 제어 문자 제거
+      .replace(/\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4})/g, '') // 잘못된 이스케이프 제거
+      .trim();
+
     // =====================================================
     // 시도 1: ```json ``` 코드 블록에서 JSON 추출
     // =====================================================
     try {
       console.log('🔎 [parseReportResponse] 시도 1: 코드 블록에서 JSON 추출...');
-      const codeBlockMatch = response.match(/```json\s*([\s\S]*?)\s*```/);
+      const codeBlockMatch = cleanedResponse.match(/```json\s*([\s\S]*?)\s*```/);
 
       if (codeBlockMatch && codeBlockMatch[1]) {
         const jsonString = codeBlockMatch[1].trim();
@@ -2165,23 +2171,38 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
       console.log('🔎 [parseReportResponse] 시도 2: 순수 JSON 객체 추출...');
 
       // 첫 번째 {를 찾고, 중괄호 균형을 맞춰서 JSON 추출
-      const firstBrace = response.indexOf('{');
+      const firstBrace = cleanedResponse.indexOf('{');
       if (firstBrace !== -1) {
         let braceCount = 0;
         let endIndex = -1;
+        let inString = false;
+        let escapeNext = false;
 
-        for (let i = firstBrace; i < response.length; i++) {
-          if (response[i] === '{') braceCount++;
-          if (response[i] === '}') braceCount--;
+        for (let i = firstBrace; i < cleanedResponse.length; i++) {
+          const char = cleanedResponse[i];
 
-          if (braceCount === 0) {
-            endIndex = i + 1;
-            break;
+          // 문자열 내부 여부 추적
+          if (char === '"' && !escapeNext) {
+            inString = !inString;
+          }
+
+          // 이스케이프 문자 처리
+          escapeNext = (char === '\\' && !escapeNext);
+
+          // 문자열 외부에서만 중괄호 카운트
+          if (!inString && !escapeNext) {
+            if (char === '{') braceCount++;
+            if (char === '}') braceCount--;
+
+            if (braceCount === 0) {
+              endIndex = i + 1;
+              break;
+            }
           }
         }
 
         if (endIndex > firstBrace) {
-          const jsonString = response.substring(firstBrace, endIndex);
+          const jsonString = cleanedResponse.substring(firstBrace, endIndex);
           console.log('✅ [parseReportResponse] JSON 객체 발견!');
           console.log('📝 [parseReportResponse] JSON 길이:', jsonString.length);
           console.log('📝 [parseReportResponse] JSON 시작:', jsonString.substring(0, 200));
@@ -2199,13 +2220,31 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
       }
     } catch (error) {
       console.error('❌ [parseReportResponse] 순수 JSON 파싱 실패:', error);
+      console.error('파싱 에러 상세:', {
+        message: (error as Error).message,
+        name: (error as Error).name
+      });
     }
 
     // =====================================================
-    // 시도 3: 텍스트 폴백 - 텍스트에서 정보 추출
+    // 🔥 NEW 시도 3: JSON.parse 직접 시도 (전체 응답)
+    // =====================================================
+    try {
+      console.log('🔎 [parseReportResponse] 시도 3: 전체 응답 직접 파싱...');
+      const parsedReport = JSON.parse(cleanedResponse);
+      console.log('✅ [parseReportResponse] 전체 응답 직접 파싱 성공!');
+      console.log('📊 [parseReportResponse] 파싱된 키:', Object.keys(parsedReport));
+      return parsedReport;
+    } catch (error) {
+      console.error('❌ [parseReportResponse] 전체 응답 직접 파싱 실패:', error);
+    }
+
+    // =====================================================
+    // 시도 4: 텍스트 폴백 - 텍스트에서 정보 추출
     // =====================================================
     console.warn('⚠️ [parseReportResponse] 모든 JSON 파싱 실패, 텍스트 추출 모드로 전환');
-    console.log('📝 [parseReportResponse] 전체 응답:', response);
+    console.log('📝 [parseReportResponse] 전체 응답 (처음 1000자):', cleanedResponse.substring(0, 1000));
+    console.log('📝 [parseReportResponse] 전체 응답 (마지막 1000자):', cleanedResponse.substring(Math.max(0, cleanedResponse.length - 1000)));
 
     return {
       summary: this.extractSectionFromText(response, '요약') ||
@@ -2245,10 +2284,30 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
   private extractSectionFromText(text: string, keyword: string): string | null {
     const lines = text.split('\n');
     for (let i = 0; i < lines.length; i++) {
-      if (lines[i].toLowerCase().includes(keyword.toLowerCase())) {
-        // 다음 몇 줄을 합쳐서 반환
-        const content = lines.slice(i, i + 3).join(' ').trim();
-        return content.length > 10 ? content : null;
+      const line = lines[i].toLowerCase();
+
+      // 키워드를 포함하는 줄 찾기 (섹션 헤더)
+      if (line.includes(keyword.toLowerCase()) ||
+          line.includes(`${keyword}:`) ||
+          line.includes(`**${keyword}`) ||
+          line.includes(`# ${keyword}`)) {
+
+        // 다음 줄부터 빈 줄이 나올 때까지 또는 최대 10줄까지 수집
+        const contentLines: string[] = [];
+        for (let j = i + 1; j < Math.min(i + 11, lines.length); j++) {
+          const contentLine = lines[j].trim();
+
+          // 빈 줄이거나 다른 섹션 시작이면 중단
+          if (!contentLine || contentLine.startsWith('#') || contentLine.startsWith('**')) {
+            break;
+          }
+
+          contentLines.push(contentLine);
+        }
+
+        const content = contentLines.join(' ').trim();
+        // 최소 30자 이상의 의미 있는 내용만 반환
+        return content.length > 30 ? content : null;
       }
     }
     return null;
@@ -2258,13 +2317,40 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
     const lines = text.split('\n');
     const relevant: string[] = [];
 
-    for (const line of lines) {
-      if (line.toLowerCase().includes(keyword.toLowerCase()) && line.includes('-')) {
-        relevant.push(line.replace(/^[-*•]\s*/, '').trim());
+    let inRelevantSection = false;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const lowerLine = line.toLowerCase();
+
+      // 관련 섹션 시작 감지
+      if (lowerLine.includes(keyword.toLowerCase())) {
+        inRelevantSection = true;
+        continue;
+      }
+
+      // 다른 섹션 시작 시 종료
+      if (inRelevantSection && (line.startsWith('#') || line.startsWith('**'))) {
+        break;
+      }
+
+      // 리스트 항목 추출 (-, *, •, 숫자. 등으로 시작)
+      if (inRelevantSection) {
+        const trimmed = line.trim();
+        if (trimmed.match(/^[-*•]\s+/) || trimmed.match(/^\d+\.\s+/)) {
+          const item = trimmed
+            .replace(/^[-*•]\s+/, '')
+            .replace(/^\d+\.\s+/, '')
+            .trim();
+
+          if (item.length > 10) { // 최소 10자 이상
+            relevant.push(item);
+          }
+        }
       }
     }
 
-    return relevant.slice(0, 5); // 최대 5개까지만
+    return relevant.slice(0, 10); // 최대 10개까지 확장
   }
 
   private async completeSession(sessionId: string, totalCost: number): Promise<void> {
