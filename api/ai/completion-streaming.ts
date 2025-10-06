@@ -173,7 +173,32 @@ async function handleAnthropicStreaming(
       const { done, value } = await reader.read()
 
       if (done) {
-        console.log('✅ [Anthropic Stream] 스트림 완료')
+        console.log('✅ [Anthropic Stream] 스트림 완료, 남은 버퍼 처리 중...')
+        // 🔥 스트림 종료 시 버퍼에 남은 데이터 처리
+        if (buffer.trim()) {
+          console.log('📦 [Anthropic Stream] 남은 버퍼:', buffer.substring(0, 200))
+          const remainingLines = buffer.split('\n')
+
+          for (const line of remainingLines) {
+            if (line.trim() && line.startsWith('data:')) {
+              const data = line.slice(5).trim()
+              if (data && data !== '[DONE]') {
+                try {
+                  const event = JSON.parse(data)
+
+                  if (event.type === 'content_block_delta' && event.delta?.text) {
+                    fullContent += event.delta.text
+                  }
+                  if (event.type === 'message_delta' && event.usage) {
+                    outputTokens = event.usage.output_tokens || 0
+                  }
+                } catch (parseError) {
+                  console.warn('⚠️ 남은 버퍼 파싱 오류:', data.substring(0, 100))
+                }
+              }
+            }
+          }
+        }
         break
       }
 
@@ -230,7 +255,7 @@ async function handleAnthropicStreaming(
     const outputCost = (outputTokens * pricing.outputCost) / 1000000
 
     // 최종 완료 이벤트 전송
-    res.write(`data: ${JSON.stringify({
+    const doneEvent = JSON.stringify({
       type: 'done',
       content: fullContent,
       usage: {
@@ -246,7 +271,13 @@ async function handleAnthropicStreaming(
       model,
       finishReason: 'stop',
       responseTime
-    })}\n\n`)
+    })
+
+    console.log('📤 [Anthropic Stream] done 이벤트 전송 중:', doneEvent.substring(0, 200))
+    res.write(`data: ${doneEvent}\n\n`)
+
+    // 🔥 버퍼 플러시를 위한 작은 지연
+    await new Promise(resolve => setTimeout(resolve, 10))
 
     console.log(`✅ [Anthropic Stream] 완료: ${inputTokens + outputTokens} 토큰, ${responseTime}ms`)
     res.end()
@@ -306,7 +337,37 @@ async function handleOpenAIStreaming(
     while (true) {
       const { done, value } = await reader.read()
 
-      if (done) break
+      if (done) {
+        console.log('✅ [OpenAI Stream] 스트림 완료, 남은 버퍼 처리 중...')
+        // 🔥 스트림 종료 시 버퍼에 남은 데이터 처리
+        if (buffer.trim()) {
+          console.log('📦 [OpenAI Stream] 남은 버퍼:', buffer.substring(0, 200))
+          const remainingLines = buffer.split('\n')
+
+          for (const line of remainingLines) {
+            if (line.trim() && line.startsWith('data:')) {
+              const data = line.slice(5).trim()
+              if (data && data !== '[DONE]') {
+                try {
+                  const event = JSON.parse(data)
+                  const content = event.choices?.[0]?.delta?.content
+
+                  if (content) {
+                    fullContent += content
+                  }
+                  if (event.usage) {
+                    inputTokens = event.usage.prompt_tokens
+                    outputTokens = event.usage.completion_tokens
+                  }
+                } catch (parseError) {
+                  console.warn('⚠️ 남은 버퍼 파싱 오류:', data.substring(0, 100))
+                }
+              }
+            }
+          }
+        }
+        break
+      }
 
       buffer += decoder.decode(value, { stream: true })
       const lines = buffer.split('\n')
@@ -354,7 +415,7 @@ async function handleOpenAIStreaming(
     const inputCost = (inputTokens * pricing.inputCost) / 1000000
     const outputCost = (outputTokens * pricing.outputCost) / 1000000
 
-    res.write(`data: ${JSON.stringify({
+    const doneEvent = JSON.stringify({
       type: 'done',
       content: fullContent,
       usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens },
@@ -362,8 +423,15 @@ async function handleOpenAIStreaming(
       model,
       finishReason: 'stop',
       responseTime
-    })}\n\n`)
+    })
 
+    console.log('📤 [OpenAI Stream] done 이벤트 전송 중:', doneEvent.substring(0, 200))
+    res.write(`data: ${doneEvent}\n\n`)
+
+    // 🔥 버퍼 플러시를 위한 작은 지연
+    await new Promise(resolve => setTimeout(resolve, 10))
+
+    console.log(`✅ [OpenAI Stream] 완료: ${inputTokens + outputTokens} 토큰, ${responseTime}ms`)
     res.end()
 
   } catch (error) {
@@ -419,7 +487,33 @@ async function handleGoogleAIStreaming(
     while (true) {
       const { done, value } = await reader.read()
 
-      if (done) break
+      if (done) {
+        console.log('✅ [Google AI Stream] 스트림 완료, 남은 버퍼 처리 중...')
+        // 🔥 스트림 종료 시 버퍼에 남은 데이터 처리
+        if (buffer.trim()) {
+          console.log('📦 [Google AI Stream] 남은 버퍼:', buffer.substring(0, 200))
+          const remainingLines = buffer.split('\n')
+
+          for (const line of remainingLines) {
+            if (line.trim() && line.startsWith('data:')) {
+              const data = line.slice(5).trim()
+              if (data) {
+                try {
+                  const event = JSON.parse(data)
+                  const content = event.candidates?.[0]?.content?.parts?.[0]?.text
+
+                  if (content) {
+                    fullContent += content
+                  }
+                } catch (parseError) {
+                  console.warn('⚠️ 남은 버퍼 파싱 오류:', data.substring(0, 100))
+                }
+              }
+            }
+          }
+        }
+        break
+      }
 
       buffer += decoder.decode(value, { stream: true })
       const lines = buffer.split('\n')
@@ -457,7 +551,7 @@ async function handleGoogleAIStreaming(
     const inputCost = (inputTokens * pricing.inputCost) / 1000000
     const outputCost = (outputTokens * pricing.outputCost) / 1000000
 
-    res.write(`data: ${JSON.stringify({
+    const doneEvent = JSON.stringify({
       type: 'done',
       content: fullContent,
       usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens },
@@ -465,8 +559,15 @@ async function handleGoogleAIStreaming(
       model,
       finishReason: 'stop',
       responseTime
-    })}\n\n`)
+    })
 
+    console.log('📤 [Google AI Stream] done 이벤트 전송 중:', doneEvent.substring(0, 200))
+    res.write(`data: ${doneEvent}\n\n`)
+
+    // 🔥 버퍼 플러시를 위한 작은 지연
+    await new Promise(resolve => setTimeout(resolve, 10))
+
+    console.log(`✅ [Google AI Stream] 완료: ${inputTokens + outputTokens} 토큰, ${responseTime}ms`)
     res.end()
 
   } catch (error) {
