@@ -2295,7 +2295,7 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
     temperature: number = 0.3
   ): Promise<any> {
     const maxRetries = 1; // 🔥 2 → 1로 감소 (총 2회만 시도, 비용 절감)
-    const baseTimeout = 200000; // 200초 (3분 20초) - 서버 타임아웃(180초)보다 길게 설정
+    const baseTimeout = 320000; // 320초 (5분 20초) - 서버 타임아웃(300초)보다 길게 설정
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {

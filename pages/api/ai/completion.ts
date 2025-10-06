@@ -30,9 +30,10 @@ interface CompletionResponse {
 }
 
 // Vercel 서버리스 함수 설정
-// 큰 문서 분석 시 80초 이상 소요될 수 있으므로 타임아웃을 180초로 설정
+// 보고서 생성 시 대용량 데이터 처리로 인해 최대 5분까지 소요될 수 있음
+// 질문 생성: ~60초, 보고서 생성: ~240초
 export const config = {
-  maxDuration: 180, // 3분 (Pro 플랜 기준, Hobby는 60초 제한)
+  maxDuration: 300, // 5분 (Pro/Enterprise 플랜 기준, Hobby는 60초 제한)
 }
 
 export default async function handler(
