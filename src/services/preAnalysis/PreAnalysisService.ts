@@ -2112,53 +2112,123 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
 4. **프로젝트 수락/드랍 의견은 명확한 기준**과 함께 제시하세요
 5. 웹에이전시 관점에서 **실제로 수행 가능한 계획**을 수립하세요
 
-위 JSON 형식을 **정확히 준수**하여 응답해주세요. 추가 설명 없이 JSON만 출력하세요.
+---
 
+## 출력 형식 필수 규칙
+
+**반드시 순수 JSON만 반환하세요:**
+- 설명문 없이
+- 마크다운 코드 블록 없이
+- 추가 텍스트 없이
+- 오직 중괄호로 시작해서 끝나는 순수 JSON 객체만 반환
+
+**정확한 출력 형식 예시**:
+{ "summary": "...", "executiveSummary": "...", ... }
+
+위 JSON 형식을 **정확히 준수**하여 응답해주세요.
 정확하고 실행 가능한 분석 결과를 제공해주세요.`;
   }
 
   private parseReportResponse(response: string, analyses: any[], _answers: any[]): any {
     console.log('🔍 [parseReportResponse] 파싱 시작');
     console.log('📏 [parseReportResponse] 응답 길이:', response.length);
+    console.log('📝 [parseReportResponse] 응답 미리보기:', response.substring(0, 500));
 
-    let jsonMatch: RegExpMatchArray | null = null;
-
+    // =====================================================
+    // 시도 1: ```json ``` 코드 블록에서 JSON 추출
+    // =====================================================
     try {
-      // JSON 응답 파싱 시도
-      console.log('🔎 [parseReportResponse] JSON 패턴 매칭 시도...');
-      jsonMatch = response.match(/\{[\s\S]*\}/);
+      console.log('🔎 [parseReportResponse] 시도 1: 코드 블록에서 JSON 추출...');
+      const codeBlockMatch = response.match(/```json\s*([\s\S]*?)\s*```/);
 
-      if (jsonMatch) {
-        console.log('✅ [parseReportResponse] JSON 패턴 발견, 파싱 시도...');
-        console.log('📝 [parseReportResponse] JSON 문자열 길이:', jsonMatch[0].length);
-        console.log('📝 [parseReportResponse] JSON 미리보기:', jsonMatch[0].substring(0, 300));
+      if (codeBlockMatch && codeBlockMatch[1]) {
+        const jsonString = codeBlockMatch[1].trim();
+        console.log('✅ [parseReportResponse] 코드 블록 발견!');
+        console.log('📝 [parseReportResponse] JSON 길이:', jsonString.length);
+        console.log('📝 [parseReportResponse] JSON 시작:', jsonString.substring(0, 200));
 
-        const parsedReport = JSON.parse(jsonMatch[0]);
-        console.log('✅ [parseReportResponse] JSON 파싱 성공!');
+        const parsedReport = JSON.parse(jsonString);
+        console.log('✅ [parseReportResponse] 코드 블록 JSON 파싱 성공!');
         console.log('📊 [parseReportResponse] 파싱된 키:', Object.keys(parsedReport));
         return parsedReport;
       } else {
-        console.warn('⚠️ [parseReportResponse] JSON 패턴을 찾을 수 없음');
-        console.log('📝 [parseReportResponse] 응답 샘플:', response.substring(0, 500));
+        console.log('ℹ️ [parseReportResponse] 코드 블록 없음, 다음 방법 시도...');
       }
     } catch (error) {
-      console.error('❌ [parseReportResponse] JSON 파싱 실패:', error);
-      console.error('📝 [parseReportResponse] 파싱 시도한 문자열:', jsonMatch ? jsonMatch[0].substring(0, 500) : 'N/A');
+      console.error('❌ [parseReportResponse] 코드 블록 JSON 파싱 실패:', error);
     }
 
-    console.warn('⚠️ [parseReportResponse] JSON 파싱 실패, 텍스트 추출 모드로 전환');
-    // JSON 파싱 실패시 텍스트에서 정보 추출
+    // =====================================================
+    // 시도 2: 순수 JSON 객체 추출 (중괄호로 시작하고 끝나는 부분)
+    // =====================================================
+    try {
+      console.log('🔎 [parseReportResponse] 시도 2: 순수 JSON 객체 추출...');
+
+      // 첫 번째 {를 찾고, 중괄호 균형을 맞춰서 JSON 추출
+      const firstBrace = response.indexOf('{');
+      if (firstBrace !== -1) {
+        let braceCount = 0;
+        let endIndex = -1;
+
+        for (let i = firstBrace; i < response.length; i++) {
+          if (response[i] === '{') braceCount++;
+          if (response[i] === '}') braceCount--;
+
+          if (braceCount === 0) {
+            endIndex = i + 1;
+            break;
+          }
+        }
+
+        if (endIndex > firstBrace) {
+          const jsonString = response.substring(firstBrace, endIndex);
+          console.log('✅ [parseReportResponse] JSON 객체 발견!');
+          console.log('📝 [parseReportResponse] JSON 길이:', jsonString.length);
+          console.log('📝 [parseReportResponse] JSON 시작:', jsonString.substring(0, 200));
+          console.log('📝 [parseReportResponse] JSON 끝:', jsonString.substring(jsonString.length - 200));
+
+          const parsedReport = JSON.parse(jsonString);
+          console.log('✅ [parseReportResponse] 순수 JSON 파싱 성공!');
+          console.log('📊 [parseReportResponse] 파싱된 키:', Object.keys(parsedReport));
+          return parsedReport;
+        } else {
+          console.warn('⚠️ [parseReportResponse] 중괄호 균형이 맞지 않음');
+        }
+      } else {
+        console.warn('⚠️ [parseReportResponse] JSON 객체를 찾을 수 없음');
+      }
+    } catch (error) {
+      console.error('❌ [parseReportResponse] 순수 JSON 파싱 실패:', error);
+    }
+
+    // =====================================================
+    // 시도 3: 텍스트 폴백 - 텍스트에서 정보 추출
+    // =====================================================
+    console.warn('⚠️ [parseReportResponse] 모든 JSON 파싱 실패, 텍스트 추출 모드로 전환');
+    console.log('📝 [parseReportResponse] 전체 응답:', response);
+
     return {
-      summary: this.extractSectionFromText(response, '요약') || '프로젝트 분석이 완료되었습니다.',
-      executiveSummary: this.extractSectionFromText(response, '경영진') || '프로젝트 추진을 위한 핵심 정보가 준비되었습니다.',
-      keyInsights: this.extractListFromTextResponse(response, '인사이트') || ['분석 결과가 정리되었습니다.'],
+      summary: this.extractSectionFromText(response, '요약') ||
+               this.extractSectionFromText(response, 'summary') ||
+               '프로젝트 분석이 완료되었습니다.',
+      executiveSummary: this.extractSectionFromText(response, '경영진') ||
+                        this.extractSectionFromText(response, 'executive') ||
+                        '프로젝트 추진을 위한 핵심 정보가 준비되었습니다.',
+      keyInsights: this.extractListFromTextResponse(response, '인사이트') ||
+                   this.extractListFromTextResponse(response, 'insight') ||
+                   ['분석 결과가 정리되었습니다.'],
       riskAssessment: {
-        high: this.extractListFromTextResponse(response, '높은 위험') || [],
-        medium: this.extractListFromTextResponse(response, '중간 위험') || [],
-        low: this.extractListFromTextResponse(response, '낮은 위험') || [],
+        high: this.extractListFromTextResponse(response, '높은 위험') ||
+              this.extractListFromTextResponse(response, 'high risk') || [],
+        medium: this.extractListFromTextResponse(response, '중간 위험') ||
+                this.extractListFromTextResponse(response, 'medium risk') || [],
+        low: this.extractListFromTextResponse(response, '낮은 위험') ||
+             this.extractListFromTextResponse(response, 'low risk') || [],
         overallScore: 50,
       },
-      recommendations: this.extractListFromTextResponse(response, '권장') || ['상세 검토를 권장합니다.'],
+      recommendations: this.extractListFromTextResponse(response, '권장') ||
+                        this.extractListFromTextResponse(response, 'recommend') ||
+                        ['상세 검토를 권장합니다.'],
       baselineData: {
         requirements: analyses.flatMap(a => a.analysis_result?.keyRequirements || []),
         stakeholders: analyses.flatMap(a => a.analysis_result?.stakeholders || []),
@@ -2168,6 +2238,7 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
         integrationPoints: [],
       },
       visualizationData: {},
+      __parseMethod: 'text_fallback', // 어떤 방법으로 파싱되었는지 표시
     };
   }
 
