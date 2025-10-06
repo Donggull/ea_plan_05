@@ -229,8 +229,8 @@ async function handleAnthropicStreaming(
     const inputCost = (inputTokens * pricing.inputCost) / 1000000
     const outputCost = (outputTokens * pricing.outputCost) / 1000000
 
-    // 최종 완료 이벤트 전송
-    res.write(`data: ${JSON.stringify({
+    // 최종 완료 이벤트 데이터
+    const doneEvent = JSON.stringify({
       type: 'done',
       content: fullContent,
       usage: {
@@ -246,9 +246,18 @@ async function handleAnthropicStreaming(
       model,
       finishReason: 'stop',
       responseTime
-    })}\n\n`)
+    })
+
+    // 🔥 최종 이벤트를 두 번 전송하여 확실히 클라이언트가 받도록 함
+    res.write(`data: ${doneEvent}\n\n`)
+    // 약간의 딜레이 후 다시 전송
+    await new Promise(resolve => setTimeout(resolve, 100))
+    res.write(`data: ${doneEvent}\n\n`)
 
     console.log(`✅ [Anthropic Stream] 완료: ${inputTokens + outputTokens} 토큰, ${responseTime}ms`)
+
+    // 추가 딜레이 후 연결 종료
+    await new Promise(resolve => setTimeout(resolve, 100))
     res.end()
 
   } catch (error) {
@@ -354,7 +363,8 @@ async function handleOpenAIStreaming(
     const inputCost = (inputTokens * pricing.inputCost) / 1000000
     const outputCost = (outputTokens * pricing.outputCost) / 1000000
 
-    res.write(`data: ${JSON.stringify({
+    // 최종 완료 이벤트 데이터
+    const doneEvent = JSON.stringify({
       type: 'done',
       content: fullContent,
       usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens },
@@ -362,8 +372,17 @@ async function handleOpenAIStreaming(
       model,
       finishReason: 'stop',
       responseTime
-    })}\n\n`)
+    })
 
+    // 🔥 최종 이벤트를 두 번 전송하여 확실히 클라이언트가 받도록 함
+    res.write(`data: ${doneEvent}\n\n`)
+    await new Promise(resolve => setTimeout(resolve, 100))
+    res.write(`data: ${doneEvent}\n\n`)
+
+    console.log(`✅ [OpenAI Stream] 완료: ${inputTokens + outputTokens} 토큰, ${responseTime}ms`)
+
+    // 추가 딜레이 후 연결 종료
+    await new Promise(resolve => setTimeout(resolve, 100))
     res.end()
 
   } catch (error) {
@@ -457,7 +476,8 @@ async function handleGoogleAIStreaming(
     const inputCost = (inputTokens * pricing.inputCost) / 1000000
     const outputCost = (outputTokens * pricing.outputCost) / 1000000
 
-    res.write(`data: ${JSON.stringify({
+    // 최종 완료 이벤트 데이터
+    const doneEvent = JSON.stringify({
       type: 'done',
       content: fullContent,
       usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens },
@@ -465,8 +485,17 @@ async function handleGoogleAIStreaming(
       model,
       finishReason: 'stop',
       responseTime
-    })}\n\n`)
+    })
 
+    // 🔥 최종 이벤트를 두 번 전송하여 확실히 클라이언트가 받도록 함
+    res.write(`data: ${doneEvent}\n\n`)
+    await new Promise(resolve => setTimeout(resolve, 100))
+    res.write(`data: ${doneEvent}\n\n`)
+
+    console.log(`✅ [Google AI Stream] 완료: ${inputTokens + outputTokens} 토큰, ${responseTime}ms`)
+
+    // 추가 딜레이 후 연결 종료
+    await new Promise(resolve => setTimeout(resolve, 100))
     res.end()
 
   } catch (error) {
