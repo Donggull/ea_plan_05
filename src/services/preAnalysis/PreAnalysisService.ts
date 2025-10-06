@@ -2665,20 +2665,13 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
                     const event = JSON.parse(data);
                     console.log('🔍 [Streaming] 남은 버퍼 이벤트 타입:', event.type);
 
-                    if (event.type === 'done' && !finalData) {
+                    if (event.type === 'done') {
                       finalData = event;
                       doneEventCount++;
-                      console.log('✅ [Streaming] ★ 최종 데이터 수신 성공 (남은 버퍼) ★', {
-                        receivedAt: new Date().toISOString(),
+                      console.log('📊 [Streaming] 남은 버퍼에서 최종 데이터 발견!', {
                         contentLength: event.content?.length,
                         inputTokens: event.usage?.inputTokens,
                         outputTokens: event.usage?.outputTokens,
-                        doneEventNumber: doneEventCount
-                      });
-                    } else if (event.type === 'done' && finalData) {
-                      doneEventCount++;
-                      console.log('ℹ️ [Streaming] 중복 done 이벤트 무시 (남은 버퍼, 이미 수신함)', {
-                        doneEventNumber: doneEventCount
                       });
                     }
                   } catch (parseError) {
@@ -2725,22 +2718,15 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
                 }
               }
 
-              // 최종 완료 이벤트 (중복 방지: 첫 번째만 처리)
-              if (event.type === 'done' && !finalData) {
+              // 최종 완료 이벤트
+              if (event.type === 'done') {
                 finalData = event;
                 doneEventCount++;
-                console.log('✅ [Streaming] ★ 최종 데이터 수신 성공 (루프 중) ★', {
-                  receivedAt: new Date().toISOString(),
+                console.log('📊 [Streaming] 최종 데이터 수신 (루프 중):', {
                   contentLength: event.content?.length,
                   inputTokens: event.usage?.inputTokens,
                   outputTokens: event.usage?.outputTokens,
-                  totalCost: event.cost?.totalCost,
-                  doneEventNumber: doneEventCount
-                });
-              } else if (event.type === 'done' && finalData) {
-                doneEventCount++;
-                console.log('ℹ️ [Streaming] 중복 done 이벤트 무시 (이미 수신함)', {
-                  doneEventNumber: doneEventCount
+                  totalCost: event.cost?.totalCost
                 });
               }
 
@@ -2756,88 +2742,31 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
         }
       }
 
-      // =====================================================
-      // 최종 데이터 검증 및 폴백 로직
-      // =====================================================
-      console.log('🔍 [Streaming] 최종 데이터 수신 상태 확인:', {
-        hasFinalData: !!finalData,
-        doneEventCount,
-        textEventCount,
-        fullContentLength: fullContent.length
-      });
-
+      // 최종 데이터 검증
       if (!finalData) {
-        console.warn('⚠️ [Streaming] ★ 최종 done 이벤트를 받지 못함 - 폴백 로직 실행 ★', {
+        console.error('❌ [Streaming] 최종 데이터 누락!', {
           textEventCount,
           doneEventCount,
           fullContentLength: fullContent.length,
-          fullContentPreview: fullContent.substring(0, 300),
-          hasFullContent: fullContent.length > 0
+          fullContentPreview: fullContent.substring(0, 200),
+          bufferWasEmpty: !buffer.trim()
         });
-
-        // 🔥 폴백 로직: fullContent가 있으면 토큰 추정하여 응답 생성
-        if (fullContent.length > 0) {
-          console.log('🔄 [Streaming] 폴백 로직으로 응답 생성 시작...');
-
-          // 토큰 추정 (provider별 다름)
-          const estimatedInputTokens = this.estimateTokens(prompt.length, provider);
-          const estimatedOutputTokens = this.estimateTokens(fullContent.length, provider);
-
-          // 비용 추정
-          const pricing = this.getPricing(provider, model);
-          const estimatedInputCost = (estimatedInputTokens * pricing.inputCost) / 1000000;
-          const estimatedOutputCost = (estimatedOutputTokens * pricing.outputCost) / 1000000;
-
-          finalData = {
-            type: 'done',
-            content: fullContent,
-            usage: {
-              inputTokens: estimatedInputTokens,
-              outputTokens: estimatedOutputTokens,
-              totalTokens: estimatedInputTokens + estimatedOutputTokens
-            },
-            cost: {
-              inputCost: estimatedInputCost,
-              outputCost: estimatedOutputCost,
-              totalCost: estimatedInputCost + estimatedOutputCost
-            },
-            model,
-            finishReason: 'stop',
-            responseTime: 0,
-            __fallback: true, // 폴백으로 생성된 데이터임을 표시
-            __fallbackReason: 'done 이벤트를 받지 못했으나 fullContent는 수신됨'
-          };
-
-          console.log('✅ [Streaming] ★ 폴백 로직으로 응답 생성 성공 ★', {
-            contentLength: fullContent.length,
-            estimatedInputTokens,
-            estimatedOutputTokens,
-            estimatedTotalCost: estimatedInputCost + estimatedOutputCost
-          });
-        } else {
-          // fullContent도 없으면 진짜 에러
-          console.error('❌ [Streaming] ★ 콘텐츠를 전혀 수신하지 못함 - 복구 불가 ★');
-          throw new Error('스트리밍이 완료되었지만 데이터를 전혀 받지 못했습니다.');
-        }
+        throw new Error('스트리밍이 완료되었지만 최종 데이터를 받지 못했습니다.');
       }
 
-      // 최종 통계 로깅
-      console.log('🎉 [Streaming] ★ 전체 처리 완료 통계 ★', {
+      console.log('🎉 [Streaming] 전체 통계:', {
         totalChunks: chunkCount,
         totalTextEvents: textEventCount,
         totalDoneEvents: doneEventCount,
         finalContentLength: finalData.content?.length,
-        hasFinalData: !!finalData,
-        isFallback: finalData.__fallback || false,
-        fallbackReason: finalData.__fallbackReason || 'N/A'
+        hasFinalData: !!finalData
       });
 
-      console.log(`✅ [${provider}/${model}] 스트리밍 최종 성공`, {
+      console.log(`✅ [${provider}/${model}] 스트리밍 성공`, {
         inputTokens: finalData.usage?.inputTokens,
         outputTokens: finalData.usage?.outputTokens,
-        totalCost: finalData.cost?.totalCost,
-        responseTime: finalData.responseTime,
-        usedFallback: finalData.__fallback || false
+        cost: finalData.cost?.totalCost,
+        responseTime: finalData.responseTime
       });
 
       return finalData;
@@ -3516,57 +3445,6 @@ ${documentContext.map((doc, index) =>
       console.error('❌ buildDocumentContext 오류:', error);
       return [];
     }
-  }
-
-  /**
-   * 텍스트 길이로 토큰 수 추정 (Provider별)
-   */
-  private estimateTokens(textLength: number, provider: string): number {
-    switch (provider.toLowerCase()) {
-      case 'anthropic':
-        return Math.ceil(textLength / 3.5);
-      case 'openai':
-        return Math.ceil(textLength / 4);
-      case 'google':
-        return Math.ceil(textLength / 4);
-      default:
-        return Math.ceil(textLength / 4);
-    }
-  }
-
-  /**
-   * Provider 및 모델별 가격 정보 반환 ($per 1M tokens)
-   */
-  private getPricing(provider: string, model: string): { inputCost: number; outputCost: number } {
-    const pricingTable: Record<string, Record<string, { inputCost: number; outputCost: number }>> = {
-      anthropic: {
-        'claude-sonnet-4-20250514': { inputCost: 3, outputCost: 15 },
-        'claude-3-5-sonnet-20241022': { inputCost: 3, outputCost: 15 },
-        'claude-3-opus-20240229': { inputCost: 15, outputCost: 75 },
-        'claude-3-haiku-20240307': { inputCost: 0.25, outputCost: 1.25 },
-        'default': { inputCost: 3, outputCost: 15 }
-      },
-      openai: {
-        'gpt-4o': { inputCost: 5, outputCost: 15 },
-        'gpt-4o-mini': { inputCost: 0.15, outputCost: 0.6 },
-        'gpt-4-turbo': { inputCost: 10, outputCost: 30 },
-        'gpt-3.5-turbo': { inputCost: 0.5, outputCost: 1.5 },
-        'default': { inputCost: 5, outputCost: 15 }
-      },
-      google: {
-        'gemini-2.0-flash-exp': { inputCost: 0.075, outputCost: 0.3 },
-        'gemini-1.5-pro': { inputCost: 1.25, outputCost: 5 },
-        'gemini-1.5-flash': { inputCost: 0.075, outputCost: 0.3 },
-        'default': { inputCost: 1.25, outputCost: 5 }
-      }
-    };
-
-    const providerPricing = pricingTable[provider.toLowerCase()];
-    if (!providerPricing) {
-      return { inputCost: 3, outputCost: 15 }; // 기본값
-    }
-
-    return providerPricing[model] || providerPricing['default'];
   }
 }
 
