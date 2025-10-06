@@ -3,6 +3,11 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
+// 🔥 Vercel Serverless Function 최대 실행 시간 설정 (초 단위)
+export const config = {
+  maxDuration: 180, // 3분 (큰 문서 분석을 위한 충분한 시간)
+}
+
 interface CompletionRequest {
   provider: 'openai' | 'anthropic' | 'google'
   model: string
@@ -194,7 +199,7 @@ async function handleAnthropicRequest(
   const startTime = Date.now()
 
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 25000) // 25초 timeout
+  const timeoutId = setTimeout(() => controller.abort(), 120000) // 120초 timeout (큰 문서 처리)
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -268,7 +273,7 @@ async function handleAnthropicRequest(
     })
 
     if (error.name === 'AbortError') {
-      throw new Error(`Anthropic API timeout after 25 seconds`)
+      throw new Error(`Anthropic API timeout after 120 seconds`)
     }
     throw error
   }
@@ -285,7 +290,7 @@ async function handleOpenAIRequest(
   const startTime = Date.now()
 
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 25000) // 25초 timeout
+  const timeoutId = setTimeout(() => controller.abort(), 120000) // 120초 timeout (큰 문서 처리)
 
   try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -353,7 +358,7 @@ async function handleOpenAIRequest(
     })
 
     if (error.name === 'AbortError') {
-      throw new Error(`OpenAI API timeout after 25 seconds`)
+      throw new Error(`OpenAI API timeout after 120 seconds`)
     }
     throw error
   }
@@ -370,7 +375,7 @@ async function handleGoogleAIRequest(
   const startTime = Date.now()
 
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 25000) // 25초 timeout
+  const timeoutId = setTimeout(() => controller.abort(), 120000) // 120초 timeout (큰 문서 처리)
 
   try {
     const response = await fetch(
@@ -444,7 +449,7 @@ async function handleGoogleAIRequest(
     })
 
     if (error.name === 'AbortError') {
-      throw new Error(`Google AI API timeout after 25 seconds`)
+      throw new Error(`Google AI API timeout after 120 seconds`)
     }
     throw error
   }

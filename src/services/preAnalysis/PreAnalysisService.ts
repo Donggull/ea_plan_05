@@ -548,8 +548,20 @@ export class PreAnalysisService {
             data: this.transformAnalysisData(completedAnalysis),
             message: '이미 분석이 완료된 문서입니다.',
           };
+        } else if (existingAnalysis.status === 'failed') {
+          // 🔥 status가 'failed'인 경우 재시도 허용 → 기존 레코드 삭제 후 재생성
+          console.log('♻️ [문서분석] 실패한 분석 레코드 삭제 후 재시도');
+          const { error: deleteError } = await supabase
+            .from('document_analyses')
+            .delete()
+            .eq('id', existingAnalysis.id);
+
+          if (deleteError) {
+            console.error('❌ [문서분석] 실패 레코드 삭제 실패:', deleteError);
+            throw new Error(`실패한 분석 레코드 삭제 실패: ${deleteError.message}`);
+          }
+          console.log('✅ [문서분석] 실패 레코드 삭제 완료. 새 분석 시작');
         }
-        // status가 'failed'인 경우 재시도 허용 → 계속 진행
       }
 
       // 🔥 AI 호출 전 DB에 processing 상태 먼저 INSERT (중복 호출 방지)
