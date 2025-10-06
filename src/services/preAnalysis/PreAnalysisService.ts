@@ -2563,8 +2563,34 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
       while (true) {
         const { done, value } = await reader.read();
 
+        // 🔥 스트림 종료 전 남은 버퍼 처리
         if (done) {
-          console.log('✅ [Streaming] 스트림 완료');
+          console.log('✅ [Streaming] 스트림 완료, 남은 버퍼 처리 중...');
+
+          // 남은 버퍼에 데이터가 있으면 처리
+          if (buffer.trim()) {
+            const remainingLines = buffer.split('\n');
+            for (const line of remainingLines) {
+              if (line.trim() && line.startsWith('data:')) {
+                const data = line.slice(5).trim();
+                if (data && data !== '[DONE]') {
+                  try {
+                    const event = JSON.parse(data);
+                    if (event.type === 'done') {
+                      finalData = event;
+                      console.log('📊 [Streaming] 남은 버퍼에서 최종 데이터 발견!', {
+                        contentLength: event.content?.length,
+                        inputTokens: event.usage?.inputTokens,
+                        outputTokens: event.usage?.outputTokens,
+                      });
+                    }
+                  } catch (parseError) {
+                    console.warn('⚠️ 남은 버퍼 파싱 오류:', data);
+                  }
+                }
+              }
+            }
+          }
           break;
         }
 
