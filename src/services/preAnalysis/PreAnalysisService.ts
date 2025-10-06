@@ -1367,8 +1367,9 @@ export class PreAnalysisService {
       }
 
       console.log('🤖 [ultrathink] AI 보고서 생성 시작...');
-      // AI를 통한 보고서 생성
+      // AI를 통한 보고서 생성 (스트리밍)
       const reportContent = await this.generateAIReport(
+        sessionId, // 스트리밍 진행 상황 전달을 위해 sessionId 추가
         sessionData.data!,
         options
       );
@@ -1812,8 +1813,8 @@ ${content}
     }
   }
 
-  private async generateAIReport(sessionData: any, options: ReportGenerationOptions): Promise<any> {
-    console.log('🤖 [ultrathink] generateAIReport 메서드 시작');
+  private async generateAIReport(sessionId: string, sessionData: any, options: ReportGenerationOptions): Promise<any> {
+    console.log('🤖 [ultrathink] generateAIReport 메서드 시작 (스트리밍)');
     const startTime = Date.now();
 
     try {
@@ -1849,16 +1850,34 @@ ${content}
         throw new Error(errorMsg);
       }
 
-      console.log('🔗 [ultrathink] AI 완성 API 호출 시작...');
-      // API 라우트를 통한 AI 보고서 생성
-      const response = await this.callAICompletionAPI(
+      console.log('🔗 [ultrathink] AI 스트리밍 API 호출 시작...');
+      // API 라우트를 통한 AI 보고서 생성 (스트리밍)
+      const response = await this.callAICompletionAPIStreaming(
         aiProvider,
         aiModel,
         reportPrompt,
         6000,
-        0.2
+        0.2,
+        (_chunk, fullContent) => {
+          // 실시간 진행 상황 전달
+          const charCount = fullContent.length;
+          const estimatedProgress = Math.min(95, 80 + Math.floor(charCount / 500)); // 80~95% 진행률
+
+          console.log(`📊 [Streaming] 진행 중: ${charCount} chars, ${estimatedProgress}%`);
+
+          this.emitProgressUpdate({
+            sessionId,
+            stage: 'report_generation',
+            status: 'processing',
+            progress: estimatedProgress,
+            message: `보고서 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
+            timestamp: new Date(),
+          }).catch(err => {
+            console.warn('⚠️ 진행 상황 업데이트 실패:', err);
+          });
+        }
       );
-      console.log('🔗 [ultrathink] AI API 응답 수신:', {
+      console.log('🔗 [ultrathink] AI 스트리밍 응답 완료:', {
         hasContent: !!response.content,
         contentLength: response.content?.length,
         contentPreview: response.content?.substring(0, 200)
@@ -2450,6 +2469,184 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
     }
 
     throw new Error('예상치 못한 오류가 발생했습니다.');
+  }
+
+  /**
+   * AI 완성 API 호출 - 스트리밍 버전 (보고서 생성 전용)
+   *
+   * @param provider AI 제공자 (anthropic, openai, google)
+   * @param model 모델 이름
+   * @param prompt 프롬프트
+   * @param maxTokens 최대 토큰 수
+   * @param temperature 온도 값
+   * @param onProgress 실시간 진행 콜백 (선택)
+   * @returns AI 응답 데이터
+   */
+  private async callAICompletionAPIStreaming(
+    provider: string,
+    model: string,
+    prompt: string,
+    maxTokens: number = 6000,
+    temperature: number = 0.3,
+    onProgress?: (chunk: string, fullContent: string) => void
+  ): Promise<any> {
+    try {
+      console.log(`🌊 [${provider}/${model}] AI 스트리밍 요청:`, {
+        provider,
+        model,
+        promptLength: prompt.length,
+        maxTokens,
+        temperature
+      });
+
+      // 인증 토큰 추출
+      let authToken: string | undefined
+      try {
+        const session = await supabase?.auth.getSession()
+        authToken = session?.data.session?.access_token
+        console.log(`🔐 [${provider}/${model}] 인증 토큰:`, authToken ? '있음' : '없음')
+      } catch (authError) {
+        console.warn(`🔐 [${provider}/${model}] 인증 토큰 추출 실패:`, authError)
+      }
+
+      // 개발환경에서는 Vercel 프로덕션 API 직접 호출, 프로덕션에서는 상대 경로 사용
+      const apiUrl = import.meta.env.DEV
+        ? 'https://ea-plan-05.vercel.app/api/ai/completion-streaming'
+        : '/api/ai/completion-streaming';
+
+      console.log(`🌐 [${provider}/${model}] 스트리밍 URL:`, apiUrl);
+
+      // 인증 헤더 구성
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`
+      }
+
+      // 스트리밍 요청 시작
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          provider,
+          model,
+          prompt,
+          maxTokens,
+          temperature
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error(`❌ [${provider}/${model}] HTTP ${response.status} 오류:`, errorData);
+        throw new Error(
+          errorData.error ||
+          `API 요청 실패: ${response.status} ${response.statusText}`
+        );
+      }
+
+      // SSE 응답 처리
+      if (!response.body) {
+        throw new Error('응답 본문이 없습니다.');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let fullContent = '';
+      let finalData: any = null;
+
+      console.log('📥 [Streaming] SSE 수신 시작');
+
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) {
+          console.log('✅ [Streaming] 스트림 완료');
+          break;
+        }
+
+        // SSE 데이터 파싱
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+
+        // 마지막 불완전한 라인은 다음 청크로
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data:')) {
+            const data = line.slice(5).trim();
+
+            if (data === '[DONE]') continue;
+
+            try {
+              const event = JSON.parse(data);
+
+              // 실시간 텍스트 조각
+              if (event.type === 'text') {
+                fullContent = event.fullContent || fullContent;
+
+                // 진행 콜백 호출
+                if (onProgress) {
+                  onProgress(event.content, fullContent);
+                }
+              }
+
+              // 최종 완료 이벤트
+              if (event.type === 'done') {
+                finalData = event;
+                console.log('📊 [Streaming] 최종 데이터 수신:', {
+                  contentLength: event.content?.length,
+                  inputTokens: event.usage?.inputTokens,
+                  outputTokens: event.usage?.outputTokens,
+                  totalCost: event.cost?.totalCost
+                });
+              }
+
+              // 에러 이벤트
+              if (event.type === 'error') {
+                throw new Error(event.error || '스트리밍 중 오류가 발생했습니다.');
+              }
+
+            } catch (parseError) {
+              console.warn('⚠️ SSE 파싱 오류:', data);
+            }
+          }
+        }
+      }
+
+      // 최종 데이터 검증
+      if (!finalData) {
+        throw new Error('스트리밍이 완료되었지만 최종 데이터를 받지 못했습니다.');
+      }
+
+      console.log(`✅ [${provider}/${model}] 스트리밍 성공`, {
+        inputTokens: finalData.usage?.inputTokens,
+        outputTokens: finalData.usage?.outputTokens,
+        cost: finalData.cost?.totalCost,
+        responseTime: finalData.responseTime
+      });
+
+      return finalData;
+
+    } catch (error) {
+      console.error(`❌ [${provider}/${model}] 스트리밍 오류:`, error);
+
+      // 타임아웃 관련 에러 메시지 개선
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          throw new Error('스트리밍 요청이 중단되었습니다. 네트워크 연결을 확인해주세요.');
+        } else if (error.message.includes('504')) {
+          throw new Error('AI 서비스에서 처리 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.');
+        } else if (error instanceof TypeError && error.message.includes('fetch')) {
+          throw new Error('네트워크 연결을 확인해주세요. API 서버에 접근할 수 없습니다.');
+        }
+      }
+
+      throw error;
+    }
   }
 
   // 제거됨: callAIDirectly 함수 - 모든 환경에서 API 라우트 사용으로 통합

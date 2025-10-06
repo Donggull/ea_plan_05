@@ -39,10 +39,53 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'summary' | 'insights' | 'risks' | 'recommendations' | 'baseline' | 'agency'>('summary');
+  const [progressMessage, setProgressMessage] = useState<string>('보고서 생성 준비 중...');
+  const [progressPercent, setProgressPercent] = useState<number>(80);
 
   useEffect(() => {
     loadOrGenerateReport();
   }, [sessionId]);
+
+  // 실시간 진행 상황 구독
+  useEffect(() => {
+    if (!isGenerating || !supabase) return;
+
+    console.log('🔔 [AnalysisReport] 진행 상황 실시간 구독 시작');
+
+    // pre_analysis_progress 테이블에서 report_generation 단계만 구독
+    const subscription = supabase
+      .channel(`progress:${sessionId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'pre_analysis_progress',
+          filter: `session_id=eq.${sessionId}`,
+        },
+        (payload) => {
+          const newProgress = payload.new as any;
+
+          // report_generation 단계만 처리
+          if (newProgress?.stage === 'report_generation' && newProgress?.message) {
+            console.log('📊 [AnalysisReport] 진행 상황 업데이트:', {
+              message: newProgress.message,
+              progress: newProgress.progress,
+              status: newProgress.status
+            });
+
+            setProgressMessage(newProgress.message);
+            setProgressPercent(newProgress.progress || 80);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      console.log('🔕 [AnalysisReport] 진행 상황 구독 해제');
+      subscription.unsubscribe();
+    };
+  }, [isGenerating, sessionId]);
 
   const loadOrGenerateReport = async () => {
     setIsLoading(true);
@@ -215,16 +258,38 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="text-center">
+        <div className="text-center max-w-md mx-auto">
           <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
           <p className="text-gray-400">
             {isGenerating ? 'AI가 심층 분석 보고서를 생성하고 있습니다...' : '보고서를 불러오는 중...'}
           </p>
+
           {isGenerating && (
-            <p className="text-gray-500 text-sm mt-2">
-              문서 분석, 질문-답변 데이터를 종합하여<br />
-              웹에이전시 관점의 전문적인 보고서를 작성 중입니다.
-            </p>
+            <div className="mt-4 space-y-3">
+              {/* 진행률 바 */}
+              <div className="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
+                <div
+                  className="h-full bg-blue-500 transition-all duration-500 ease-out"
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+
+              {/* 실시간 진행 메시지 */}
+              <p className="text-blue-400 text-sm font-medium animate-pulse">
+                {progressMessage}
+              </p>
+
+              {/* 안내 메시지 */}
+              <p className="text-gray-500 text-sm mt-3">
+                문서 분석, 질문-답변 데이터를 종합하여<br />
+                웹에이전시 관점의 전문적인 보고서를 작성 중입니다.
+              </p>
+
+              {/* 예상 시간 안내 */}
+              <p className="text-gray-600 text-xs mt-2">
+                ⏱️ 대용량 문서의 경우 3~5분 소요될 수 있습니다
+              </p>
+            </div>
           )}
         </div>
       </div>
