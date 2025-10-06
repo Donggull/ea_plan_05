@@ -2560,24 +2560,43 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
 
       console.log('📥 [Streaming] SSE 수신 시작');
 
+      let chunkCount = 0;
+      let textEventCount = 0;
+      let doneEventCount = 0;
+
       while (true) {
         const { done, value } = await reader.read();
 
+        chunkCount++;
+
         // 🔥 스트림 종료 전 남은 버퍼 처리
         if (done) {
-          console.log('✅ [Streaming] 스트림 완료, 남은 버퍼 처리 중...');
+          console.log('✅ [Streaming] 스트림 완료', {
+            chunkCount,
+            textEventCount,
+            doneEventCount,
+            bufferLength: buffer.length,
+            bufferContent: buffer.substring(0, 200)
+          });
 
           // 남은 버퍼에 데이터가 있으면 처리
           if (buffer.trim()) {
+            console.log('🔍 [Streaming] 남은 버퍼 처리 시작:', buffer.substring(0, 200));
             const remainingLines = buffer.split('\n');
+
             for (const line of remainingLines) {
               if (line.trim() && line.startsWith('data:')) {
                 const data = line.slice(5).trim();
+                console.log('🔍 [Streaming] 남은 버퍼 라인:', data.substring(0, 100));
+
                 if (data && data !== '[DONE]') {
                   try {
                     const event = JSON.parse(data);
+                    console.log('🔍 [Streaming] 남은 버퍼 이벤트 타입:', event.type);
+
                     if (event.type === 'done') {
                       finalData = event;
+                      doneEventCount++;
                       console.log('📊 [Streaming] 남은 버퍼에서 최종 데이터 발견!', {
                         contentLength: event.content?.length,
                         inputTokens: event.usage?.inputTokens,
@@ -2585,11 +2604,13 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
                       });
                     }
                   } catch (parseError) {
-                    console.warn('⚠️ 남은 버퍼 파싱 오류:', data);
+                    console.warn('⚠️ 남은 버퍼 파싱 오류:', data.substring(0, 100), parseError);
                   }
                 }
               }
             }
+          } else {
+            console.warn('⚠️ [Streaming] 남은 버퍼가 비어있습니다!');
           }
           break;
         }
@@ -2612,18 +2633,25 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
 
               // 실시간 텍스트 조각
               if (event.type === 'text') {
+                textEventCount++;
                 fullContent = event.fullContent || fullContent;
 
                 // 진행 콜백 호출
                 if (onProgress) {
                   onProgress(event.content, fullContent);
                 }
+
+                // 첫 이벤트와 마지막 몇 개만 로깅
+                if (textEventCount <= 3 || textEventCount % 50 === 0) {
+                  console.log(`📝 [Streaming] 텍스트 수신 #${textEventCount}:`, fullContent.length, 'chars');
+                }
               }
 
               // 최종 완료 이벤트
               if (event.type === 'done') {
                 finalData = event;
-                console.log('📊 [Streaming] 최종 데이터 수신:', {
+                doneEventCount++;
+                console.log('📊 [Streaming] 최종 데이터 수신 (루프 중):', {
                   contentLength: event.content?.length,
                   inputTokens: event.usage?.inputTokens,
                   outputTokens: event.usage?.outputTokens,
@@ -2645,8 +2673,23 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
 
       // 최종 데이터 검증
       if (!finalData) {
+        console.error('❌ [Streaming] 최종 데이터 누락!', {
+          textEventCount,
+          doneEventCount,
+          fullContentLength: fullContent.length,
+          fullContentPreview: fullContent.substring(0, 200),
+          bufferWasEmpty: !buffer.trim()
+        });
         throw new Error('스트리밍이 완료되었지만 최종 데이터를 받지 못했습니다.');
       }
+
+      console.log('🎉 [Streaming] 전체 통계:', {
+        totalChunks: chunkCount,
+        totalTextEvents: textEventCount,
+        totalDoneEvents: doneEventCount,
+        finalContentLength: finalData.content?.length,
+        hasFinalData: !!finalData
+      });
 
       console.log(`✅ [${provider}/${model}] 스트리밍 성공`, {
         inputTokens: finalData.usage?.inputTokens,
