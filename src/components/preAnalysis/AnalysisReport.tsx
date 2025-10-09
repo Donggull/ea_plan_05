@@ -534,15 +534,15 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
                       <div className="flex-1 bg-gray-700 rounded-full h-2">
                         <div
                           className="bg-blue-500 h-2 rounded-full"
-                          style={{ width: `${report.agencyPerspective.perspectives.planning.feasibility}%` }}
+                          style={{ width: `${report.agencyPerspective?.perspectives?.planning?.feasibility || 0}%` }}
                         />
                       </div>
-                      <span className="text-white font-semibold">{report.agencyPerspective.perspectives.planning.feasibility}%</span>
+                      <span className="text-white font-semibold">{report.agencyPerspective?.perspectives?.planning?.feasibility || 0}%</span>
                     </div>
                   </div>
                   <div>
                     <span className="text-sm text-gray-400">예상 공수:</span>
-                    <p className="text-white font-medium mt-1">{report.agencyPerspective.perspectives.planning.estimatedEffort}</p>
+                    <p className="text-white font-medium mt-1">{report.agencyPerspective?.perspectives?.planning?.estimatedEffort || '-'}</p>
                   </div>
                   <div>
                     <span className="text-sm text-gray-400 block mb-2">핵심 고려사항:</span>
@@ -567,11 +567,11 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
                 <div className="space-y-4">
                   <div>
                     <span className="text-sm text-gray-400">복잡도:</span>
-                    <p className="text-white font-medium mt-1 capitalize">{report.agencyPerspective.perspectives.design.complexity}</p>
+                    <p className="text-white font-medium mt-1 capitalize">{report.agencyPerspective?.perspectives?.design?.complexity || '-'}</p>
                   </div>
                   <div>
                     <span className="text-sm text-gray-400">예상 작업 시간:</span>
-                    <p className="text-white font-medium mt-1">{report.agencyPerspective.perspectives.design.estimatedHours}시간</p>
+                    <p className="text-white font-medium mt-1">{report.agencyPerspective?.perspectives?.design?.estimatedHours || 0}시간</p>
                   </div>
                   <div>
                     <span className="text-sm text-gray-400 block mb-2">필요 스킬:</span>
@@ -595,11 +595,11 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
                 <div className="space-y-4">
                   <div>
                     <span className="text-sm text-gray-400">반응형 복잡도:</span>
-                    <p className="text-white font-medium mt-1 capitalize">{report.agencyPerspective.perspectives.publishing.responsiveComplexity}</p>
+                    <p className="text-white font-medium mt-1 capitalize">{report.agencyPerspective?.perspectives?.publishing?.responsiveComplexity || '-'}</p>
                   </div>
                   <div>
                     <span className="text-sm text-gray-400">예상 작업 시간:</span>
-                    <p className="text-white font-medium mt-1">{report.agencyPerspective.perspectives.publishing.estimatedHours}시간</p>
+                    <p className="text-white font-medium mt-1">{report.agencyPerspective?.perspectives?.publishing?.estimatedHours || 0}시간</p>
                   </div>
                   <div>
                     <span className="text-sm text-gray-400 block mb-2">브라우저 호환성:</span>
@@ -623,11 +623,11 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
                 <div className="space-y-4">
                   <div>
                     <span className="text-sm text-gray-400">기술 복잡도:</span>
-                    <p className="text-white font-medium mt-1 capitalize">{report.agencyPerspective.perspectives.development.technicalComplexity}</p>
+                    <p className="text-white font-medium mt-1 capitalize">{report.agencyPerspective?.perspectives?.development?.technicalComplexity || '-'}</p>
                   </div>
                   <div>
                     <span className="text-sm text-gray-400">예상 개발 인월:</span>
-                    <p className="text-white font-medium mt-1">{report.agencyPerspective.perspectives.development.estimatedManMonths}MM</p>
+                    <p className="text-white font-medium mt-1">{report.agencyPerspective?.perspectives?.development?.estimatedManMonths || 0}MM</p>
                   </div>
                   <div>
                     <span className="text-sm text-gray-400 block mb-2">핵심 기술:</span>

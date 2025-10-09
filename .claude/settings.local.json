@@ -20,7 +20,8 @@
       "Bash(git revert:*)",
       "mcp__supabase__execute_sql",
       "mcp__github-mcp__git-add-all",
-      "mcp__supabase__list_tables"
+      "mcp__supabase__list_tables",
+      "mcp__supabase__apply_migration"
     ],
     "deny": [],
     "ask": []

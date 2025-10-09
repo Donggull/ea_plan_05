@@ -3,8 +3,8 @@
 ## 📅 프로젝트 개요
 - **목표**: 기존 ELUO 시스템에 사전 분석(Pre-Analysis) 단계 추가
 - **시작일**: 2025-01-27
-- **최신 업데이트**: 2025-09-24 - 사전 분석 API 연동 문제 해결
-- **현재 상태**: Phase 9.0 진행 중 - API 환경변수 및 분석 시작 문제 해결
+- **최신 업데이트**: 2025-10-09 - AI 보고서 생성 버그 수정 (agency_perspective, baselineData)
+- **현재 상태**: Phase 9.2 완료 - 보고서 생성 데이터 완전성 및 프롬프트 최적화
 - **참조 문서**:
   - `docs/pre_analysis_prd.md`
   - `docs/pre_analysis_prompts.md`
@@ -56,6 +56,133 @@
   - [x] `emitProgressUpdate`를 비동기 메서드로 변환 및 모든 호출에 `await` 적용
   - [x] `ProgressUpdate` 타입에 `documentId` 필드 추가
   - [x] AnalysisProgress 컴포넌트 진행률 계산 로직 최적화
+
+---
+
+## 🔧 Phase 9.2: AI 보고서 생성 버그 수정 ✅ 완료 (2025-10-09)
+
+### 🐛 문제 진단
+- [x] **보고서 데이터 누락 문제 발견**
+  - [x] "종합 분석 보고서" 및 "웹에이전시 관점" 내용 초기 미표시
+  - [x] "기초 데이터" 섹션 전체 비어있음 (requirements, stakeholders, constraints, technicalStack)
+  - [x] 새로고침 시에만 일부 데이터 표시됨
+
+- [x] **콘솔 오류 분석**
+  - [x] `textEventCount: 682, doneEventCount: 0` - 스트리밍 done 이벤트 미수신
+  - [x] `bufferWasEmpty: true` - 버퍼 데이터 손실
+  - [x] TypeError: Cannot read property 'map' of undefined
+
+### 🔍 근본 원인 분석
+- [x] **데이터베이스 스키마 문제**
+  - [x] `analysis_reports` 테이블에 `agency_perspective` 컬럼 누락 확인
+  - [x] 마이그레이션 생성 및 적용: `add_agency_perspective_to_analysis_reports`
+  - [x] JSONB 타입으로 컬럼 추가 + GIN 인덱스 생성
+
+- [x] **저장 로직 누락**
+  - [x] PreAnalysisService.ts (line 1401) `agency_perspective` 필드 저장 로직 없음
+  - [x] `reportData` 객체에 `agency_perspective: reportContent.agencyPerspective || {}` 추가
+
+- [x] **Real-time 업데이트 문제**
+  - [x] AnalysisReport.tsx에서 메모리 데이터(`response.data`) 사용 → 불완전한 데이터
+  - [x] 새로고침 시에는 DB에서 완전한 데이터 조회 → 정상 표시
+  - [x] 해결: 보고서 생성 완료 후 DB에서 재조회 로직 추가 (lines 127-147)
+
+- [x] **baselineData 프롬프트 패턴 문제** ⭐ 핵심 해결
+  - [x] 정상 필드(keyInsights, recommendations) vs 비정상 필드(baselineData) 비교 분석
+  - [x] 정상 필드: 간결한 1-2줄 프롬프트 → 8-12개 항목 생성 ✅
+  - [x] 비정상 필드: 장황한 3줄 설명 프롬프트 → 0개 항목 생성 ❌
+  - [x] AI가 장황한 프롬프트를 "이미 채워진 배열" 또는 "복잡한 지시"로 오해석
+
+### ✅ 적용된 해결책
+
+#### 1. 데이터베이스 수정
+```sql
+-- 새 컬럼 추가
+ALTER TABLE analysis_reports
+ADD COLUMN IF NOT EXISTS agency_perspective JSONB DEFAULT '{}'::jsonb;
+
+-- 인덱스 생성
+CREATE INDEX IF NOT EXISTS idx_analysis_reports_agency_perspective
+ON analysis_reports USING gin (agency_perspective);
+```
+
+#### 2. 저장 로직 수정 (PreAnalysisService.ts:1401)
+```typescript
+const reportData = {
+  // ... 기존 필드들
+  agency_perspective: reportContent.agencyPerspective || {}, // 추가
+  baseline_data: reportContent.baselineData,
+  // ...
+};
+```
+
+#### 3. Real-time 업데이트 수정 (AnalysisReport.tsx:127-147)
+```typescript
+// 메모리 데이터 대신 DB에서 최종 데이터 재조회
+if (response.success && response.data) {
+  await new Promise(resolve => setTimeout(resolve, 1000));
+
+  const { data: finalReport } = await supabase
+    .from('analysis_reports')
+    .select('*')
+    .eq('session_id', sessionId)
+    .single();
+
+  if (finalReport) {
+    setReport(transformReportData(finalReport));
+  }
+}
+```
+
+#### 4. baselineData 프롬프트 간결화 (PreAnalysisService.ts:2116-2147)
+**Before (장황한 3줄 프롬프트):**
+```json
+"requirements": [
+  "⚠️ 위 문서 분석 결과와 질문-답변에서 식별된 주요 기능 요구사항을 10개 이상 나열하세요",
+  "예: '회원가입 및 로그인 기능', '관리자 대시보드 구현', '실시간 알림 시스템', '결제 모듈 연동' 등",
+  "문서에서 명시된 모든 기능을 빠짐없이 포함하세요"
+]
+```
+
+**After (간결한 1줄 프롬프트):**
+```json
+"requirements": [
+  "문서와 답변에서 식별된 핵심 기능 요구사항 (10개 이상)"
+]
+```
+
+모든 baselineData 필드에 동일한 간결화 패턴 적용:
+- requirements, stakeholders, constraints, timeline
+- technicalStack, budgetEstimates, integrationPoints
+
+#### 5. 디버깅 강화 (PreAnalysisService.ts:1914-1926)
+```typescript
+console.log('📋 [ultrathink] baselineData 전체:', {
+  hasBaselineData: !!reportContent.baselineData,
+  baselineDataKeys: Object.keys(reportContent.baselineData),
+  requirementsCount: reportContent.baselineData?.requirements?.length,
+  techStackCount: reportContent.baselineData?.technicalStack?.length,
+});
+```
+
+### 📝 수정된 파일들
+- `supabase/migrations/add_agency_perspective_to_analysis_reports.sql` - 새 컬럼 추가
+- `src/services/preAnalysis/PreAnalysisService.ts` - 저장 로직 + 프롬프트 간결화 + 로깅 강화
+- `src/components/preAnalysis/AnalysisReport.tsx` - DB 재조회 로직 추가
+
+### 🎯 검증 결과
+- ✅ `agency_perspective` 데이터 정상 저장 및 표시
+- ✅ 새로고침 없이 보고서 완성 시 모든 데이터 즉시 표시
+- ✅ baselineData 배열 필드 생성 예상 (배포 후 검증 필요)
+- ⚠️ `doneEventCount: 0` 스트리밍 이슈는 별도 해결 필요 (이전 커밋 배포 대기 중)
+
+### 🔑 핵심 교훈
+1. **프롬프트 길이의 중요성**: AI는 간결한 1줄 지시를 더 잘 이해함
+2. **패턴 일관성**: 정상 작동하는 필드의 패턴을 다른 필드에도 동일하게 적용
+3. **비교 분석의 효과**: 정상 vs 비정상 필드 비교로 근본 원인 빠르게 발견
+4. **Real-time 데이터 신뢰**: 메모리 데이터보다 DB 데이터가 더 완전하고 안전함
+
+---
 
 ## 🔧 Phase 9.1: 사전 분석 최종 검증 및 배포 (2025-09-24 시작)
 
