@@ -2039,6 +2039,44 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
     "기술적/비즈니스적/관리적 측면을 모두 포함"
   ],
 
+  "baselineData": {
+    "requirements": [
+      "문서와 답변에서 식별된 핵심 기능 요구사항 (10개 이상)",
+      "각 요구사항은 구체적이고 명확하게 작성"
+    ],
+    "stakeholders": [
+      "프로젝트 관련 이해관계자 목록 (문서에서 추출)",
+      "각 이해관계자의 역할과 관심사 포함"
+    ],
+    "constraints": [
+      "프로젝트 제약사항 (일정, 예산, 기술, 규제 등, 5개 이상)",
+      "각 제약사항은 구체적이고 측정 가능하게 작성"
+    ],
+    "timeline": [
+      {
+        "phase": "단계명",
+        "startDate": "YYYY-MM-DD",
+        "endDate": "YYYY-MM-DD",
+        "duration": 일수,
+        "milestones": ["마일스톤"]
+      }
+    ],
+    "budgetEstimates": {
+      "development": 60,
+      "design": 20,
+      "testing": 15,
+      "infrastructure": 5
+    },
+    "technicalStack": [
+      "문서와 답변 기반 기술 스택 (5개 이상, 없으면 추천)",
+      "프론트엔드, 백엔드, 데이터베이스, 인프라 등 모두 포함"
+    ],
+    "integrationPoints": [
+      "외부 시스템 통합 포인트 (문서에서 추출, 3개 이상)",
+      "각 통합 포인트의 목적과 데이터 흐름 포함"
+    ]
+  },
+
   "agencyPerspective": {
     "projectDecision": {
       "recommendation": "accept|conditional_accept|decline",
@@ -2111,44 +2149,6 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
       "currency": "KRW",
       "confidence": 0-100
     }
-  },
-
-  "baselineData": {
-    "requirements": [
-      "문서와 답변에서 식별된 핵심 기능 요구사항 (10개 이상)",
-      "각 요구사항은 구체적이고 명확하게 작성"
-    ],
-    "stakeholders": [
-      "프로젝트 관련 이해관계자 목록 (문서에서 추출)",
-      "각 이해관계자의 역할과 관심사 포함"
-    ],
-    "constraints": [
-      "프로젝트 제약사항 (일정, 예산, 기술, 규제 등, 5개 이상)",
-      "각 제약사항은 구체적이고 측정 가능하게 작성"
-    ],
-    "timeline": [
-      {
-        "phase": "단계명",
-        "startDate": "YYYY-MM-DD",
-        "endDate": "YYYY-MM-DD",
-        "duration": 일수,
-        "milestones": ["마일스톤"]
-      }
-    ],
-    "budgetEstimates": {
-      "development": 60,
-      "design": 20,
-      "testing": 15,
-      "infrastructure": 5
-    },
-    "technicalStack": [
-      "문서와 답변 기반 기술 스택 (5개 이상, 없으면 추천)",
-      "프론트엔드, 백엔드, 데이터베이스, 인프라 등 모두 포함"
-    ],
-    "integrationPoints": [
-      "외부 시스템 통합 포인트 (문서에서 추출, 3개 이상)",
-      "각 통합 포인트의 목적과 데이터 흐름 포함"
-    ]
   }
 }
 \`\`\`
@@ -2189,7 +2189,7 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
 - agencyPerspective.costEstimate (모든 비용 항목)
 
 **정확한 출력 형식**:
-{ "summary": "...", "executiveSummary": "...", "keyInsights": [...], "riskAssessment": {...}, "recommendations": [...], "agencyPerspective": {...}, "baselineData": {...} }
+{ "summary": "...", "executiveSummary": "...", "keyInsights": [...], "riskAssessment": {...}, "recommendations": [...], "baselineData": {...}, "agencyPerspective": {...} }
 
 위 JSON 형식을 **정확히 준수**하여 **모든 필드를 완전히 작성**해주세요.`;
   }
