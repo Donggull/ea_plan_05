@@ -1398,6 +1398,7 @@ export class PreAnalysisService {
         risk_assessment: reportContent.riskAssessment,
         recommendations: reportContent.recommendations,
         baseline_data: reportContent.baselineData,
+        agency_perspective: reportContent.agencyPerspective || {}, // 🔥 웹에이전시 관점 추가
         visualization_data: reportContent.visualizationData,
         ai_model: sessionData.data!.session.ai_model,
         ai_provider: sessionData.data!.session.ai_provider,
@@ -1896,7 +1897,17 @@ ${content}
       });
 
       console.log('🔍 [ultrathink] AI 응답 파싱 시작...');
-      console.log('📝 [ultrathink] 전체 AI 응답:', response.content);
+      console.log('📝 [ultrathink] 전체 AI 응답 길이:', response.content?.length);
+      console.log('📝 [ultrathink] AI 응답 시작 500자:', response.content?.substring(0, 500));
+      console.log('📝 [ultrathink] AI 응답 끝 500자:', response.content?.substring(Math.max(0, (response.content?.length || 0) - 500)));
+
+      // 🔥 baselineData와 agencyPerspective 포함 여부 사전 체크
+      const hasBaselineDataKeyword = response.content?.includes('baselineData') || response.content?.includes('baseline_data');
+      const hasAgencyPerspectiveKeyword = response.content?.includes('agencyPerspective') || response.content?.includes('agency_perspective');
+      console.log('🔍 [ultrathink] 핵심 필드 키워드 존재 여부:', {
+        hasBaselineData: hasBaselineDataKeyword,
+        hasAgencyPerspective: hasAgencyPerspectiveKeyword,
+      });
 
       // 응답 파싱
       const reportContent = this.parseReportResponse(response.content, analyses, answers);
@@ -1982,6 +1993,8 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
 ---
 
 ## 📝 출력 형식 (JSON)
+
+**⚠️ 중요: 아래 모든 필드는 필수입니다. 특히 baselineData와 agencyPerspective는 반드시 완전히 작성해야 합니다.**
 
 다음 JSON 형식으로 **매우 상세하고 전문적인** 보고서를 작성하세요:
 
@@ -2117,7 +2130,15 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
 }
 \`\`\`
 
-**중요**:
+**⚠️ 필수 작성 필드 (빠짐없이 모두 작성)**:
+1. ✅ **baselineData** - requirements (10개 이상), stakeholders, constraints, technicalStack (5개 이상) 반드시 포함
+2. ✅ **agencyPerspective** - projectDecision, perspectives (planning/design/publishing/development 모두 포함), executionPlan, costEstimate 완전 작성
+3. ✅ **summary** - 300자 이상 상세 요약
+4. ✅ **keyInsights** - 5개 이상
+5. ✅ **recommendations** - 10개 이상
+6. ✅ **riskAssessment** - high/medium/low 리스크 상세 분석
+
+**중요 지침**:
 1. 모든 분석은 **구체적인 근거**와 함께 작성하세요
 2. **예상 문제점은 최대한 면밀하게** 식별하고 완화 방안을 제시하세요
 3. **비용과 일정은 현실적으로** 추정하세요
@@ -2128,17 +2149,26 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
 
 ## 출력 형식 필수 규칙
 
-**반드시 순수 JSON만 반환하세요:**
-- 설명문 없이
-- 마크다운 코드 블록 없이
-- 추가 텍스트 없이
-- 오직 중괄호로 시작해서 끝나는 순수 JSON 객체만 반환
+**⚠️ 반드시 순수 JSON만 반환하세요:**
+- ❌ 설명문 없이
+- ❌ 마크다운 코드 블록 없이
+- ❌ 추가 텍스트 없이
+- ✅ 오직 중괄호 { 로 시작해서 } 로 끝나는 순수 JSON 객체만 반환
 
-**정확한 출력 형식 예시**:
-{ "summary": "...", "executiveSummary": "...", ... }
+**⚠️ 필수 필드 누락 시 보고서가 저장되지 않습니다!**
+특히 다음 필드들은 **절대** 빈 배열이나 빈 객체로 남기지 마세요:
+- baselineData.requirements (최소 10개)
+- baselineData.technicalStack (최소 5개)
+- baselineData.stakeholders (최소 3개)
+- baselineData.constraints (최소 3개)
+- agencyPerspective.perspectives (planning, design, publishing, development 모두 포함)
+- agencyPerspective.executionPlan.phases (최소 5개)
+- agencyPerspective.costEstimate (모든 비용 항목)
 
-위 JSON 형식을 **정확히 준수**하여 응답해주세요.
-정확하고 실행 가능한 분석 결과를 제공해주세요.`;
+**정확한 출력 형식**:
+{ "summary": "...", "executiveSummary": "...", "keyInsights": [...], "riskAssessment": {...}, "recommendations": [...], "agencyPerspective": {...}, "baselineData": {...} }
+
+위 JSON 형식을 **정확히 준수**하여 **모든 필드를 완전히 작성**해주세요.`;
   }
 
   private parseReportResponse(response: string, analyses: any[], _answers: any[]): any {
@@ -2168,6 +2198,21 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
         const parsedReport = JSON.parse(jsonString);
         console.log('✅ [parseReportResponse] 코드 블록 JSON 파싱 성공!');
         console.log('📊 [parseReportResponse] 파싱된 키:', Object.keys(parsedReport));
+
+        // 🔥 baselineData 내용 상세 로깅
+        console.log('📋 [parseReportResponse] baselineData 상세:', {
+          exists: !!parsedReport.baselineData,
+          requirementsCount: parsedReport.baselineData?.requirements?.length || 0,
+          stakeholdersCount: parsedReport.baselineData?.stakeholders?.length || 0,
+          constraintsCount: parsedReport.baselineData?.constraints?.length || 0,
+          techStackCount: parsedReport.baselineData?.technicalStack?.length || 0,
+        });
+        console.log('🏢 [parseReportResponse] agencyPerspective 상세:', {
+          exists: !!parsedReport.agencyPerspective,
+          hasProjectDecision: !!parsedReport.agencyPerspective?.projectDecision,
+          hasPerspectives: !!parsedReport.agencyPerspective?.perspectives,
+        });
+
         return parsedReport;
       } else {
         console.log('ℹ️ [parseReportResponse] 코드 블록 없음, 다음 방법 시도...');
@@ -2223,6 +2268,21 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
           const parsedReport = JSON.parse(jsonString);
           console.log('✅ [parseReportResponse] 순수 JSON 파싱 성공!');
           console.log('📊 [parseReportResponse] 파싱된 키:', Object.keys(parsedReport));
+
+          // 🔥 baselineData 내용 상세 로깅
+          console.log('📋 [parseReportResponse] baselineData 상세:', {
+            exists: !!parsedReport.baselineData,
+            requirementsCount: parsedReport.baselineData?.requirements?.length || 0,
+            stakeholdersCount: parsedReport.baselineData?.stakeholders?.length || 0,
+            constraintsCount: parsedReport.baselineData?.constraints?.length || 0,
+            techStackCount: parsedReport.baselineData?.technicalStack?.length || 0,
+          });
+          console.log('🏢 [parseReportResponse] agencyPerspective 상세:', {
+            exists: !!parsedReport.agencyPerspective,
+            hasProjectDecision: !!parsedReport.agencyPerspective?.projectDecision,
+            hasPerspectives: !!parsedReport.agencyPerspective?.perspectives,
+          });
+
           return parsedReport;
         } else {
           console.warn('⚠️ [parseReportResponse] 중괄호 균형이 맞지 않음');
@@ -2316,6 +2376,15 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
           parsedReport._recovered = true;
           parsedReport._recoveryNote = '응답이 중간에 끊겨서 일부 내용이 누락되었습니다.';
 
+          // 🔥 baselineData 내용 상세 로깅
+          console.log('📋 [parseReportResponse] baselineData 상세 (복구됨):', {
+            exists: !!parsedReport.baselineData,
+            requirementsCount: parsedReport.baselineData?.requirements?.length || 0,
+            stakeholdersCount: parsedReport.baselineData?.stakeholders?.length || 0,
+            constraintsCount: parsedReport.baselineData?.constraints?.length || 0,
+            techStackCount: parsedReport.baselineData?.technicalStack?.length || 0,
+          });
+
           return parsedReport;
         } else {
           console.warn('⚠️ [parseReportResponse] 완전한 요소를 찾을 수 없음');
@@ -2333,6 +2402,16 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
       const parsedReport = JSON.parse(cleanedResponse);
       console.log('✅ [parseReportResponse] 전체 응답 직접 파싱 성공!');
       console.log('📊 [parseReportResponse] 파싱된 키:', Object.keys(parsedReport));
+
+      // 🔥 baselineData 내용 상세 로깅
+      console.log('📋 [parseReportResponse] baselineData 상세:', {
+        exists: !!parsedReport.baselineData,
+        requirementsCount: parsedReport.baselineData?.requirements?.length || 0,
+        stakeholdersCount: parsedReport.baselineData?.stakeholders?.length || 0,
+        constraintsCount: parsedReport.baselineData?.constraints?.length || 0,
+        techStackCount: parsedReport.baselineData?.technicalStack?.length || 0,
+      });
+
       return parsedReport;
     } catch (error) {
       console.error('❌ [parseReportResponse] 전체 응답 직접 파싱 실패:', error);
