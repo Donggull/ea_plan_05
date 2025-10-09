@@ -2016,6 +2016,66 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
     "각 인사이트는 구체적이고 실행 가능한 내용으로 작성"
   ],
 
+  "agencyPerspective": {
+    "projectDecision": {
+      "recommendation": "accept|conditional_accept|decline",
+      "confidence": 0-100,
+      "reasoning": "프로젝트 수락/조건부수락/거절 결정 근거 (100자 이상)",
+      "conditions": ["조건부 수락 시 필요한 조건 (2개 이상, 없으면 빈 배열)"]
+    },
+
+    "perspectives": {
+      "planning": {
+        "feasibility": 0-100,
+        "estimatedEffort": "예상 공수 (예: 2주, 3개월)",
+        "challenges": [
+          "기획 단계에서 예상되는 구체적인 어려움 3개",
+          "각 어려움은 웹에이전시 입장에서 실제 직면할 문제 중심"
+        ],
+        "risks": [
+          "기획 관련 리스크 2개",
+          "각 리스크는 프로젝트 실패 가능성과 관련"
+        ]
+      },
+      "design": {
+        "complexity": "low|medium|high|very_high",
+        "estimatedHours": 예상 시간,
+        "challenges": [
+          "디자인 단계 예상 어려움 3개",
+          "UI/UX 복잡도, 디자인 시스템 구축 난이도 등"
+        ],
+        "risks": [
+          "디자인 리스크 2개",
+          "고객 요구 변경, 디자인 피드백 반복 등"
+        ]
+      },
+      "publishing": {
+        "responsiveComplexity": "low|medium|high",
+        "estimatedHours": 예상 시간,
+        "challenges": [
+          "퍼블리싱 어려움 3개",
+          "크로스브라우징, 반응형 구현 복잡도 등"
+        ],
+        "risks": [
+          "퍼블리싱 리스크 2개",
+          "브라우저 호환성 문제, 디바이스 대응 이슈 등"
+        ]
+      },
+      "development": {
+        "technicalComplexity": "low|medium|high|very_high",
+        "estimatedManMonths": 예상 인월,
+        "challenges": [
+          "개발 어려움 3개 (개발이 없으면 '개발 불필요 - 우리가 처리할 영역 아님')",
+          "기술 스택 난이도, 외부 API 연동, 보안 요구사항 등"
+        ],
+        "risks": [
+          "개발 리스크 2개 (개발이 없으면 '해당없음')",
+          "기술적 불확실성, 일정 지연 가능성 등"
+        ]
+      }
+    }
+  },
+
   "riskAssessment": {
     "high": [
       {
@@ -2075,92 +2135,6 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
       "외부 시스템 통합 포인트 (문서에서 추출, 3개 이상)",
       "각 통합 포인트의 목적과 데이터 흐름 포함"
     ]
-  },
-
-  "agencyPerspective": {
-    "projectDecision": {
-      "recommendation": "accept|conditional_accept|decline",
-      "confidence": 0-100,
-      "reasoning": "프로젝트 수락/조건부수락/거절 결정 근거 (100자 이상)",
-      "conditions": ["조건부 수락 시 필요한 조건 (2개 이상, 없으면 빈 배열)"]
-    },
-
-    "perspectives": {
-      "planning": {
-        "feasibility": 0-100,
-        "estimatedEffort": "예상 공수 (예: 2주, 3개월)",
-        "challenges": [
-          "기획 단계에서 예상되는 구체적인 어려움 3개",
-          "각 어려움은 웹에이전시 입장에서 실제 직면할 문제 중심"
-        ],
-        "risks": [
-          "기획 관련 리스크 2개",
-          "각 리스크는 프로젝트 실패 가능성과 관련"
-        ]
-      },
-      "design": {
-        "complexity": "low|medium|high|very_high",
-        "estimatedHours": 예상 시간,
-        "challenges": [
-          "디자인 단계 예상 어려움 3개",
-          "UI/UX 복잡도, 디자인 시스템 구축 난이도 등"
-        ],
-        "risks": [
-          "디자인 리스크 2개",
-          "고객 요구 변경, 디자인 피드백 반복 등"
-        ]
-      },
-      "publishing": {
-        "responsiveComplexity": "low|medium|high",
-        "estimatedHours": 예상 시간,
-        "challenges": [
-          "퍼블리싱 어려움 3개",
-          "크로스브라우징, 반응형 구현 복잡도 등"
-        ],
-        "risks": [
-          "퍼블리싱 리스크 2개",
-          "브라우저 호환성 문제, 디바이스 대응 이슈 등"
-        ]
-      },
-      "development": {
-        "technicalComplexity": "low|medium|high|very_high",
-        "estimatedManMonths": 예상 인월,
-        "challenges": [
-          "개발 어려움 3개 (개발이 없으면 '개발 불필요 - 우리가 처리할 영역 아님')",
-          "기술 스택 난이도, 외부 API 연동, 보안 요구사항 등"
-        ],
-        "risks": [
-          "개발 리스크 2개 (개발이 없으면 '해당없음')",
-          "기술적 불확실성, 일정 지연 가능성 등"
-        ]
-      }
-    },
-
-    "detailedRisks": [
-      {
-        "title": "주요 리스크 제목",
-        "description": "리스크 설명 (50자 이상)",
-        "severity": "low|medium|high|critical",
-        "mitigation": "완화 방안"
-      }
-    ],
-
-    "executionPlan": {
-      "phases": [
-        {
-          "name": "단계명",
-          "duration": 일수,
-          "deliverables": ["산출물"]
-        }
-      ],
-      "totalEstimatedDays": 전체 일수
-    },
-
-    "costEstimate": {
-      "total": 총비용,
-      "currency": "KRW",
-      "confidence": 0-100
-    }
   }
 }
 \`\`\`
@@ -2169,10 +2143,12 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
 1. ✅ **summary** - 프로젝트 종합 요약 (200자 이상)
 2. ✅ **executiveSummary** - 경영진용 요약 (150자 이상)
 3. ✅ **keyInsights** - 핵심 인사이트 (5개 이상)
-4. ✅ **riskAssessment** - 위험 평가 (high/medium/low)
-5. ✅ **recommendations** - 권장사항 (10개 이상)
-6. ✅ **baselineData** - requirements (10개), stakeholders (3개), constraints (5개), technicalStack (5개) 반드시 포함
-7. ✅ **agencyPerspective** - projectDecision, perspectives (4가지 모두), detailedRisks (3개), executionPlan, costEstimate 포함
+4. ✅ **agencyPerspective** - projectDecision (recommendation, confidence, reasoning 필수), perspectives (4가지 모두 포함: planning, design, publishing, development)
+   * 각 관점마다 challenges (3개), risks (2개) 필수
+   * development에 개발이 없으면 challenges에 "개발 불필요 - 우리가 처리할 영역 아님" 명시
+5. ✅ **riskAssessment** - 위험 평가 (high/medium/low 각각 최소 1개)
+6. ✅ **recommendations** - 권장사항 (10개 이상)
+7. ✅ **baselineData** - requirements (10개), stakeholders (3개), constraints (5개), technicalStack (5개) 반드시 포함
 
 ---
 
@@ -2188,21 +2164,19 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
 다음 필드들은 **절대** 빈 배열이나 빈 객체로 남기지 마세요:
 - summary, executiveSummary (각 150자 이상)
 - keyInsights (최소 5개)
-- recommendations (최소 10개)
-- baselineData.requirements (최소 10개)
-- baselineData.technicalStack (최소 5개)
-- baselineData.stakeholders (최소 3개)
-- baselineData.constraints (최소 5개)
 - agencyPerspective.projectDecision (recommendation, confidence, reasoning 필수)
 - agencyPerspective.perspectives (planning, design, publishing, development 모두 포함)
   * 각 관점마다 challenges (3개), risks (2개) 필수
   * development에 개발이 없으면 challenges에 "개발 불필요 - 우리가 처리할 영역 아님" 명시
-- agencyPerspective.detailedRisks (최소 3개)
-- agencyPerspective.executionPlan (phases 최소 3개, totalEstimatedDays 필수)
-- agencyPerspective.costEstimate (total, currency, confidence 필수)
+- riskAssessment (high, medium, low 각각 최소 1개)
+- recommendations (최소 10개)
+- baselineData.requirements (최소 10개)
+- baselineData.stakeholders (최소 3개)
+- baselineData.constraints (최소 5개)
+- baselineData.technicalStack (최소 5개)
 
 **정확한 출력 형식**:
-{ "summary": "...", "executiveSummary": "...", "keyInsights": [...], "riskAssessment": {...}, "recommendations": [...], "baselineData": {...}, "agencyPerspective": {...} }
+{ "summary": "...", "executiveSummary": "...", "keyInsights": [...], "agencyPerspective": {...}, "riskAssessment": {...}, "recommendations": [...], "baselineData": {...} }
 
 위 JSON 형식을 **정확히 준수**하여 **모든 필드를 완전히 작성**해주세요.`;
   }
@@ -2857,7 +2831,7 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
     provider: string,
     model: string,
     prompt: string,
-    maxTokens: number = 6000,
+    maxTokens: number = 16000, // 🔥 6000 → 16000: 복잡한 JSON 보고서를 위한 충분한 토큰 할당 (Claude는 8192까지 지원)
     temperature: number = 0.3,
     onProgress?: (chunk: string, fullContent: string) => void
   ): Promise<any> {
