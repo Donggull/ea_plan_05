@@ -1826,129 +1826,163 @@ ${content}
     }
   }
 
-  private async generateAIReport(sessionId: string, sessionData: any, options: ReportGenerationOptions): Promise<any> {
-    console.log('🤖 [ultrathink] generateAIReport 메서드 시작 (스트리밍)');
+  // 🔥 NEW: 2단계 생성 방식으로 완전히 재작성
+  private async generateAIReport(sessionId: string, sessionData: any, _options: ReportGenerationOptions): Promise<any> {
+    console.log('🤖 [2-Phase Generation] generateAIReport 메서드 시작');
     const startTime = Date.now();
 
     try {
-      console.log('📋 [ultrathink] 세션 데이터 구조화 중...');
-      // 세션 데이터 구조화
+      console.log('📋 [Phase Setup] 세션 데이터 구조화...');
       const analyses = sessionData.analyses || [];
       const questions = sessionData.questions || [];
       const answers = sessionData.answers || [];
-      console.log('📋 [ultrathink] 데이터 구조:', { analysesCount: analyses.length, questionsCount: questions.length, answersCount: answers.length });
+      console.log('📋 [Phase Setup] 데이터:', { analyses: analyses.length, questions: questions.length, answers: answers.length });
 
-      console.log('📝 [ultrathink] 보고서 프롬프트 생성 중...');
-      // 보고서 생성 프롬프트
-      const reportPrompt = this.generateReportPrompt(analyses, questions, answers, options);
-      console.log('📝 [ultrathink] 프롬프트 생성 완료, 길이:', reportPrompt.length);
-
-      console.log('⚙️ [ultrathink] AI 설정 확인 중...');
-      // AI 설정 가져오기 - DB 세션 데이터에서 직접 추출
+      console.log('⚙️ [Phase Setup] AI 설정 확인...');
       const aiProvider = sessionData.session?.ai_provider;
       const aiModel = sessionData.session?.ai_model;
 
-      console.log('⚙️ [ultrathink] DB에서 읽어온 AI 설정:', {
-        aiProvider,
-        aiModel,
-        sessionId: sessionData.session?.id,
-        hasProvider: !!aiProvider,
-        hasModel: !!aiModel
-      });
-
-      // DB에 AI 모델 정보가 없으면 명확한 오류 발생
       if (!aiProvider || !aiModel) {
-        const errorMsg = `AI 모델 정보가 세션에 저장되지 않았습니다. Left 사이드바에서 AI 모델을 선택한 후 다시 시작해주세요. (Provider: ${aiProvider || '없음'}, Model: ${aiModel || '없음'})`;
-        console.error('❌ [ultrathink] AI 모델 정보 누락:', errorMsg);
-        throw new Error(errorMsg);
+        throw new Error(`AI 모델 정보가 세션에 저장되지 않았습니다. Left 사이드바에서 AI 모델을 선택한 후 다시 시작해주세요.`);
       }
 
-      console.log('🔗 [ultrathink] AI 스트리밍 API 호출 시작...');
-      // API 라우트를 통한 AI 보고서 생성 (스트리밍)
-      const response = await this.callAICompletionAPIStreaming(
+      // ========================================
+      // Phase 1: 핵심 비즈니스 분석 생성
+      // ========================================
+      console.log('🚀 [Phase 1] 핵심 비즈니스 분석 시작...');
+      const phase1Prompt = this.generateReportPhase1Prompt(analyses, questions, answers);
+      console.log('📝 [Phase 1] 프롬프트 길이:', phase1Prompt.length);
+
+      this.emitProgressUpdate({
+        sessionId,
+        stage: 'report_generation',
+        status: 'processing',
+        progress: 40,
+        message: 'Phase 1: 핵심 비즈니스 분석 생성 중...',
+        timestamp: new Date(),
+      }).catch(() => {});
+
+      const phase1Response = await this.callAICompletionAPIStreaming(
         aiProvider,
         aiModel,
-        reportPrompt,
-        16000, // 🔥 8000→16000으로 증가: 배열/객체 포함 완전한 보고서 생성
+        phase1Prompt,
+        8000, // Phase 1: 핵심 분석만 생성 (충분한 공간)
         0.2,
         (_chunk, fullContent) => {
-          // 실시간 진행 상황 전달
           const charCount = fullContent.length;
-          const estimatedProgress = Math.min(95, 80 + Math.floor(charCount / 500)); // 80~95% 진행률
-
-          console.log(`📊 [Streaming] 진행 중: ${charCount} chars, ${estimatedProgress}%`);
+          const progress = Math.min(70, 40 + Math.floor(charCount / 300));
+          console.log(`📊 [Phase 1 Streaming] ${charCount} chars, ${progress}%`);
 
           this.emitProgressUpdate({
             sessionId,
             stage: 'report_generation',
             status: 'processing',
-            progress: estimatedProgress,
-            message: `보고서 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
+            progress,
+            message: `Phase 1 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
             timestamp: new Date(),
-          }).catch(err => {
-            console.warn('⚠️ 진행 상황 업데이트 실패:', err);
-          });
+          }).catch(() => {});
         }
       );
-      console.log('🔗 [ultrathink] AI 스트리밍 응답 완료:', {
-        hasContent: !!response.content,
-        contentLength: response.content?.length,
-        contentPreview: response.content?.substring(0, 200)
+
+      console.log('✅ [Phase 1] 응답 완료:', { length: phase1Response.content?.length });
+      const phase1Content = this.parseReportResponse(phase1Response.content, analyses, answers);
+      console.log('✅ [Phase 1] 파싱 완료:', {
+        hasSummary: !!phase1Content.summary,
+        hasAgencyPerspective: !!phase1Content.agencyPerspective,
+        keyInsightsCount: phase1Content.keyInsights?.length,
+        recommendationsCount: phase1Content.recommendations?.length
       });
 
-      console.log('🔍 [ultrathink] AI 응답 파싱 시작...');
-      console.log('📝 [ultrathink] 전체 AI 응답 길이:', response.content?.length);
-      console.log('📝 [ultrathink] AI 응답 시작 500자:', response.content?.substring(0, 500));
-      console.log('📝 [ultrathink] AI 응답 끝 500자:', response.content?.substring(Math.max(0, (response.content?.length || 0) - 500)));
+      // ========================================
+      // Phase 2: 기초 데이터 생성
+      // ========================================
+      console.log('🚀 [Phase 2] 기초 데이터 구조화 시작...');
+      const phase2Prompt = this.generateReportPhase2Prompt(analyses, questions, answers, phase1Content);
+      console.log('📝 [Phase 2] 프롬프트 길이:', phase2Prompt.length);
 
-      // 🔥 baselineData와 agencyPerspective 포함 여부 사전 체크
-      const hasBaselineDataKeyword = response.content?.includes('baselineData') || response.content?.includes('baseline_data');
-      const hasAgencyPerspectiveKeyword = response.content?.includes('agencyPerspective') || response.content?.includes('agency_perspective');
-      console.log('🔍 [ultrathink] 핵심 필드 키워드 존재 여부:', {
-        hasBaselineData: hasBaselineDataKeyword,
-        hasAgencyPerspective: hasAgencyPerspectiveKeyword,
+      this.emitProgressUpdate({
+        sessionId,
+        stage: 'report_generation',
+        status: 'processing',
+        progress: 70,
+        message: 'Phase 2: 기초 데이터 구조화 중...',
+        timestamp: new Date(),
+      }).catch(() => {});
+
+      const phase2Response = await this.callAICompletionAPIStreaming(
+        aiProvider,
+        aiModel,
+        phase2Prompt,
+        4000, // Phase 2: 기초 데이터만 생성 (더 적은 토큰)
+        0.2,
+        (_chunk, fullContent) => {
+          const charCount = fullContent.length;
+          const progress = Math.min(95, 70 + Math.floor(charCount / 200));
+          console.log(`📊 [Phase 2 Streaming] ${charCount} chars, ${progress}%`);
+
+          this.emitProgressUpdate({
+            sessionId,
+            stage: 'report_generation',
+            status: 'processing',
+            progress,
+            message: `Phase 2 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
+            timestamp: new Date(),
+          }).catch(() => {});
+        }
+      );
+
+      console.log('✅ [Phase 2] 응답 완료:', { length: phase2Response.content?.length });
+      const phase2Content = this.parseReportResponse(phase2Response.content, analyses, answers);
+      console.log('✅ [Phase 2] 파싱 완료:', {
+        hasBaselineData: !!phase2Content.baselineData,
+        requirementsCount: phase2Content.baselineData?.requirements?.length || 0,
+        stakeholdersCount: phase2Content.baselineData?.stakeholders?.length || 0,
+        constraintsCount: phase2Content.baselineData?.constraints?.length || 0,
+        techStackCount: phase2Content.baselineData?.technicalStack?.length || 0
       });
 
-      // 응답 파싱
-      const reportContent = this.parseReportResponse(response.content, analyses, answers);
-      console.log('🔍 [ultrathink] 응답 파싱 완료:', {
-        hasSummary: !!reportContent.summary,
-        summaryLength: reportContent.summary?.length,
-        keyInsightsCount: reportContent.keyInsights?.length,
-        // 🔥 baselineData 상세 로깅 추가
-        hasBaselineData: !!reportContent.baselineData,
-        baselineDataKeys: reportContent.baselineData ? Object.keys(reportContent.baselineData) : [],
-        requirementsCount: reportContent.baselineData?.requirements?.length || 0,
-        techStackCount: reportContent.baselineData?.technicalStack?.length || reportContent.baselineData?.technical_stack?.length || 0,
-      });
+      // ========================================
+      // 두 Phase 결과 병합
+      // ========================================
+      console.log('🔗 [Merge] Phase 1 + Phase 2 병합 중...');
+      const mergedReport = {
+        ...phase1Content,
+        baselineData: phase2Content.baselineData || phase1Content.baselineData || {},
+      };
 
-      // 🔥 baselineData 전체 구조 출력 (디버깅)
-      console.log('📋 [ultrathink] baselineData 전체:', JSON.stringify(reportContent.baselineData, null, 2));
+      console.log('✅ [Merge] 병합 완료:', {
+        hasSummary: !!mergedReport.summary,
+        hasAgencyPerspective: !!mergedReport.agencyPerspective,
+        hasBaselineData: !!mergedReport.baselineData,
+        keyInsightsCount: mergedReport.keyInsights?.length,
+        recommendationsCount: mergedReport.recommendations?.length,
+        requirementsCount: mergedReport.baselineData?.requirements?.length || 0
+      });
 
       const processingTime = Date.now() - startTime;
-      console.log('⏱️ [ultrathink] 처리 시간:', processingTime, 'ms');
+      const totalCost = phase1Response.cost.totalCost + phase2Response.cost.totalCost;
+      const totalInputTokens = phase1Response.usage.inputTokens + phase2Response.usage.inputTokens;
+      const totalOutputTokens = phase1Response.usage.outputTokens + phase2Response.usage.outputTokens;
 
-      const result = {
-        ...reportContent,
+      console.log('⏱️ [Complete] 총 처리 시간:', processingTime, 'ms');
+      console.log('💰 [Complete] 총 비용:', totalCost);
+      console.log('🎯 [Complete] 토큰 사용:', { input: totalInputTokens, output: totalOutputTokens });
+
+      return {
+        ...mergedReport,
         totalProcessingTime: processingTime,
-        totalCost: response.cost.totalCost,
-        inputTokens: response.usage.inputTokens,
-        outputTokens: response.usage.outputTokens,
+        totalCost,
+        inputTokens: totalInputTokens,
+        outputTokens: totalOutputTokens,
       };
-      console.log('🎯 [ultrathink] generateAIReport 성공 완료');
-      return result;
     } catch (error) {
-      console.error('❌ [ultrathink] AI 보고서 생성 오류 상세:', error);
-      console.error('❌ [ultrathink] 오류 타입:', error instanceof Error ? error.constructor.name : typeof error);
-      console.error('❌ [ultrathink] 오류 메시지:', error instanceof Error ? error.message : String(error));
-      console.error('❌ [ultrathink] 오류 스택:', error instanceof Error ? error.stack : 'No stack trace');
-
-      // 🔥 오류를 throw하여 상위에서 처리하도록 함
+      console.error('❌ [2-Phase Generation] 오류 발생:', error);
       throw error;
     }
   }
 
-  private generateReportPrompt(analyses: any[], questions: any[], answers: any[], _options: ReportGenerationOptions): string {
+  // 🔥 NEW: Phase 1 프롬프트 생성 - 핵심 비즈니스 분석
+  private generateReportPhase1Prompt(analyses: any[], questions: any[], answers: any[]): string {
     const analysisContext = analyses.map((analysis, index) =>
       `### 문서 ${index + 1}: ${analysis.file_name || '제목 없음'}
 - 요약: ${analysis.analysis_result?.summary || '분석 요약 없음'}
@@ -1964,10 +1998,10 @@ ${content}
 **카테고리**: ${question?.category || 'general'}`;
     }).join('\n\n');
 
-    return `# 🎯 웹에이전시 엘루오씨앤씨 - 프로젝트 사전 분석 보고서 작성
+    return `# 🎯 웹에이전시 엘루오씨앤씨 - 프로젝트 핵심 분석 (Phase 1)
 
 당신은 **웹에이전시 엘루오씨앤씨**의 수석 프로젝트 분석가입니다.
-다음 프로젝트에 대한 **심층적이고 전문적인 분석 보고서**를 작성해야 합니다.
+이 단계에서는 **핵심 비즈니스 분석**을 수행합니다.
 
 ## 📋 수집된 프로젝트 데이터
 
@@ -1979,12 +2013,12 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
 
 ---
 
-## 🎨 보고서 작성 지침
+## 🎨 Phase 1 작성 지침
 
 ### 역할 및 관점:
 - **회사**: 웹에이전시 엘루오씨앤씨
 - **담당**: 웹사이트 기획, UI/UX 디자인, 퍼블리싱, 프론트엔드/백엔드 개발
-- **목표**: 프로젝트의 **수락 여부 결정** 및 **실행 계획 수립**
+- **목표**: 프로젝트의 **수락 여부 결정** 및 **핵심 분석**
 
 ### 분석 관점 (필수):
 1. **기획 관점**: 요구사항 명확성, 비즈니스 가치, 실행 가능성
@@ -1992,19 +2026,13 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
 3. **퍼블리싱 관점**: 브라우저 호환성, 반응형 난이도, 접근성 요구사항
 4. **개발 관점**: 기술적 복잡도, 아키텍처 설계, 보안/성능 고려사항
 
-### 심층 분석 요구사항:
-- **예상 문제점 및 리스크**: 기술적/비즈니스적/일정적/예산적 위험 요소를 **면밀히 분석**
-- **실행 계획**: 단계별 구체적인 작업 계획 및 마일스톤
-- **비용 추정**: 기획/디자인/개발/테스트/배포 단계별 상세 비용
-- **프로젝트 수락/드랍 의견**: 명확한 근거와 함께 최종 의견 제시
-
 ---
 
-## 📝 출력 형식 (JSON)
+## 📝 Phase 1 출력 형식 (JSON)
 
-**⚠️ 중요: 아래 모든 필드는 필수입니다. 특히 baselineData와 agencyPerspective는 반드시 완전히 작성해야 합니다.**
+**⚠️ 이 단계에서는 핵심 분석 정보만 생성합니다.**
 
-다음 JSON 형식으로 **매우 상세하고 전문적인** 보고서를 작성하세요:
+다음 JSON 형식으로 **핵심 비즈니스 분석**을 작성하세요:
 
 \`\`\`json
 {
@@ -2097,8 +2125,80 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
   "recommendations": [
     "구체적이고 실행 가능한 권장사항 (10개 이상)",
     "기술적/비즈니스적/관리적 측면을 모두 포함"
-  ],
+  ]
+}
+\`\`\`
 
+**⚠️ Phase 1 필수 작성 필드**:
+1. ✅ **summary** - 프로젝트 종합 요약 (300자 이상)
+2. ✅ **executiveSummary** - 경영진용 요약 (200자 이상)
+3. ✅ **keyInsights** - 핵심 인사이트 (5개 이상)
+4. ✅ **agencyPerspective** - projectDecision + perspectives (4가지 관점 모두 포함)
+   * 각 관점마다 challenges (3개), risks (2개) 필수
+5. ✅ **riskAssessment** - 위험 평가 (high/medium/low 각각 최소 1개)
+6. ✅ **recommendations** - 권장사항 (10개 이상)
+
+**출력 형식 규칙**:
+- ❌ 설명문 없이
+- ❌ 마크다운 코드 블록 없이
+- ✅ 오직 순수 JSON 객체만 반환 ({ 로 시작, } 로 끝)
+
+위 JSON 형식을 **정확히 준수**하여 **Phase 1 핵심 분석**을 완성해주세요.`;
+  }
+
+  // 🔥 NEW: Phase 2 프롬프트 생성 - 기초 데이터 구조화
+  private generateReportPhase2Prompt(analyses: any[], questions: any[], answers: any[], phase1Result: any): string {
+    const analysisContext = analyses.map((analysis, index) =>
+      `### 문서 ${index + 1}: ${analysis.file_name || '제목 없음'}
+- 요약: ${analysis.analysis_result?.summary || '분석 요약 없음'}
+- 주요 내용: ${JSON.stringify(analysis.analysis_result?.keyPoints || []).substring(0, 500)}
+- 복잡도: ${analysis.analysis_result?.complexity || 'N/A'}`
+    ).join('\n\n');
+
+    const qaContext = answers.map((a, index) => {
+      const question = questions.find(q => q.id === a.question_id);
+      return `**Q${index + 1}**: ${question?.question || '질문 없음'}
+**A${index + 1}**: ${a.answer || '답변 없음'}
+**확신도**: ${a.confidence || 50}%
+**카테고리**: ${question?.category || 'general'}`;
+    }).join('\n\n');
+
+    return `# 🎯 웹에이전시 엘루오씨앤씨 - 프로젝트 기초 데이터 (Phase 2)
+
+당신은 **웹에이전시 엘루오씨앤씨**의 수석 프로젝트 분석가입니다.
+이 단계에서는 **기초 데이터 구조화**를 수행합니다.
+
+## 📋 수집된 프로젝트 데이터
+
+### 1. 업로드된 문서 분석 결과 (${analyses.length}개):
+${analysisContext || '분석된 문서가 없습니다.'}
+
+### 2. 질문-답변 데이터 (${answers.length}/${questions.length}개 답변 완료):
+${qaContext || '질문-답변 데이터가 없습니다.'}
+
+### 3. Phase 1 분석 결과 (참고용):
+- 프로젝트명: ${phase1Result.summary?.substring(0, 100) || 'N/A'}
+- 수락 결정: ${phase1Result.agencyPerspective?.projectDecision?.recommendation || 'N/A'}
+- 핵심 인사이트 수: ${phase1Result.keyInsights?.length || 0}개
+
+---
+
+## 🎨 Phase 2 작성 지침
+
+### 목표:
+- 문서와 답변에서 **구체적이고 측정 가능한 데이터** 추출
+- 프로젝트 실행에 필요한 **기초 정보 구조화**
+
+---
+
+## 📝 Phase 2 출력 형식 (JSON)
+
+**⚠️ 이 단계에서는 기초 데이터(baselineData)만 생성합니다.**
+
+다음 JSON 형식으로 **기초 데이터**를 작성하세요:
+
+\`\`\`json
+{
   "baselineData": {
     "requirements": [
       "문서와 답변에서 식별된 핵심 기능 요구사항 (10개 이상)",
@@ -2139,47 +2239,25 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
 }
 \`\`\`
 
-**⚠️ 필수 작성 필드 (빠짐없이 모두 작성)**:
-1. ✅ **summary** - 프로젝트 종합 요약 (200자 이상)
-2. ✅ **executiveSummary** - 경영진용 요약 (150자 이상)
-3. ✅ **keyInsights** - 핵심 인사이트 (5개 이상)
-4. ✅ **agencyPerspective** - projectDecision (recommendation, confidence, reasoning 필수), perspectives (4가지 모두 포함: planning, design, publishing, development)
-   * 각 관점마다 challenges (3개), risks (2개) 필수
-   * development에 개발이 없으면 challenges에 "개발 불필요 - 우리가 처리할 영역 아님" 명시
-5. ✅ **riskAssessment** - 위험 평가 (high/medium/low 각각 최소 1개)
-6. ✅ **recommendations** - 권장사항 (10개 이상)
-7. ✅ **baselineData** - requirements (10개), stakeholders (3개), constraints (5개), technicalStack (5개) 반드시 포함
+**⚠️ Phase 2 필수 작성 필드**:
+1. ✅ **baselineData.requirements** - 핵심 기능 요구사항 (10개 이상)
+2. ✅ **baselineData.stakeholders** - 이해관계자 목록 (3개 이상)
+3. ✅ **baselineData.constraints** - 제약사항 (5개 이상)
+4. ✅ **baselineData.timeline** - 일정 계획 (최소 3단계)
+5. ✅ **baselineData.budgetEstimates** - 예산 배분 (development, design, testing, infrastructure)
+6. ✅ **baselineData.technicalStack** - 기술 스택 (5개 이상)
+7. ✅ **baselineData.integrationPoints** - 통합 포인트 (3개 이상)
 
----
-
-## 출력 형식 필수 규칙
-
-**⚠️ 반드시 순수 JSON만 반환하세요:**
+**출력 형식 규칙**:
 - ❌ 설명문 없이
 - ❌ 마크다운 코드 블록 없이
-- ❌ 추가 텍스트 없이
-- ✅ 오직 중괄호 { 로 시작해서 } 로 끝나는 순수 JSON 객체만 반환
+- ✅ 오직 순수 JSON 객체만 반환 ({ 로 시작, } 로 끝)
 
-**⚠️ 필수 필드 누락 시 보고서가 저장되지 않습니다!**
-다음 필드들은 **절대** 빈 배열이나 빈 객체로 남기지 마세요:
-- summary, executiveSummary (각 150자 이상)
-- keyInsights (최소 5개)
-- agencyPerspective.projectDecision (recommendation, confidence, reasoning 필수)
-- agencyPerspective.perspectives (planning, design, publishing, development 모두 포함)
-  * 각 관점마다 challenges (3개), risks (2개) 필수
-  * development에 개발이 없으면 challenges에 "개발 불필요 - 우리가 처리할 영역 아님" 명시
-- riskAssessment (high, medium, low 각각 최소 1개)
-- recommendations (최소 10개)
-- baselineData.requirements (최소 10개)
-- baselineData.stakeholders (최소 3개)
-- baselineData.constraints (최소 5개)
-- baselineData.technicalStack (최소 5개)
-
-**정확한 출력 형식**:
-{ "summary": "...", "executiveSummary": "...", "keyInsights": [...], "agencyPerspective": {...}, "riskAssessment": {...}, "recommendations": [...], "baselineData": {...} }
-
-위 JSON 형식을 **정확히 준수**하여 **모든 필드를 완전히 작성**해주세요.`;
+위 JSON 형식을 **정확히 준수**하여 **Phase 2 기초 데이터**를 완성해주세요.`;
   }
+
+  // 🔥 DEPRECATED: 기존 generateReportPrompt 메서드는 제거됨 (2단계 생성 방식으로 대체)
+  // Phase 1과 Phase 2를 각각 호출하는 방식으로 변경되었습니다.
 
   private parseReportResponse(response: string, analyses: any[], _answers: any[]): any {
     console.log('🔍 [parseReportResponse] 파싱 시작');
