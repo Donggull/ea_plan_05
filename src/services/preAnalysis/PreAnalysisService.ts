@@ -1914,8 +1914,16 @@ ${content}
       console.log('🔍 [ultrathink] 응답 파싱 완료:', {
         hasSummary: !!reportContent.summary,
         summaryLength: reportContent.summary?.length,
-        keyInsightsCount: reportContent.keyInsights?.length
+        keyInsightsCount: reportContent.keyInsights?.length,
+        // 🔥 baselineData 상세 로깅 추가
+        hasBaselineData: !!reportContent.baselineData,
+        baselineDataKeys: reportContent.baselineData ? Object.keys(reportContent.baselineData) : [],
+        requirementsCount: reportContent.baselineData?.requirements?.length || 0,
+        techStackCount: reportContent.baselineData?.technicalStack?.length || reportContent.baselineData?.technical_stack?.length || 0,
       });
+
+      // 🔥 baselineData 전체 구조 출력 (디버깅)
+      console.log('📋 [ultrathink] baselineData 전체:', JSON.stringify(reportContent.baselineData, null, 2));
 
       const processingTime = Date.now() - startTime;
       console.log('⏱️ [ultrathink] 처리 시간:', processingTime, 'ms');
@@ -2107,25 +2115,21 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
 
   "baselineData": {
     "requirements": [
-      "⚠️ 위 문서 분석 결과와 질문-답변에서 식별된 주요 기능 요구사항을 10개 이상 나열하세요",
-      "예: '회원가입 및 로그인 기능', '관리자 대시보드 구현', '실시간 알림 시스템', '결제 모듈 연동' 등",
-      "문서에서 명시된 모든 기능을 빠짐없이 포함하세요"
+      "문서와 답변에서 식별된 핵심 기능 요구사항 (10개 이상)"
     ],
     "stakeholders": [
-      "⚠️ 프로젝트 관련 이해관계자를 문서와 답변에서 추출하여 나열하세요",
-      "예: '프로젝트 오너: KT', '최종 사용자: 일반 소비자', '개발팀: 엘루오씨앤씨', '디자인 협력사' 등"
+      "프로젝트 관련 이해관계자 목록 (문서에서 추출)"
     ],
     "constraints": [
-      "⚠️ 문서와 답변에서 언급된 제약사항을 모두 추출하세요",
-      "예: '개발 기간: 2개월 이내', '예산: 1억원 이내', '브라우저 호환: IE11 지원 필수', '반응형 필수' 등"
+      "프로젝트 제약사항 (일정, 예산, 기술, 규제 등)"
     ],
     "timeline": [
       {
-        "phase": "문서에서 언급된 단계명 (예: 기획 단계, 디자인 단계, 개발 단계)",
-        "startDate": "답변에서 언급된 날짜 또는 현실적 추정",
-        "endDate": "답변에서 언급된 날짜 또는 현실적 추정",
-        "duration": 해당_단계_일수,
-        "milestones": ["해당 단계의 마일스톤 목록"]
+        "phase": "단계명",
+        "startDate": "YYYY-MM-DD",
+        "endDate": "YYYY-MM-DD",
+        "duration": 일수,
+        "milestones": ["마일스톤"]
       }
     ],
     "budgetEstimates": {
@@ -2135,13 +2139,10 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
       "infrastructure": 5
     },
     "technicalStack": [
-      "⚠️ 문서와 답변에서 언급된 기술 스택을 5개 이상 추출하세요",
-      "예: 'React', 'Next.js', 'TypeScript', 'Node.js', 'PostgreSQL', 'AWS', 'Docker' 등",
-      "언급되지 않았다면 요구사항 기반으로 추천하는 기술 스택을 제시하세요"
+      "문서와 답변 기반 기술 스택 (5개 이상, 없으면 추천)"
     ],
     "integrationPoints": [
-      "⚠️ 문서에서 언급된 외부 시스템 연동 포인트를 추출하세요",
-      "예: 'KT 인증 API', '결제 PG사 연동', 'SMS 발송 서비스', '외부 AI API' 등"
+      "외부 시스템 통합 포인트 (문서에서 추출)"
     ]
   }
 }
