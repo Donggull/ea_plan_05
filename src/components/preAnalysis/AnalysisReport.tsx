@@ -125,8 +125,26 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
       });
 
       if (response.success && response.data) {
-        console.log('✅ AI 보고서 생성 완료');
-        setReport(response.data);
+        console.log('✅ AI 보고서 생성 완료, DB에서 최종 데이터 재조회 중...');
+
+        // 🔥 DB에 저장된 최종 데이터를 다시 가져옵니다 (완전한 데이터 보장)
+        await new Promise(resolve => setTimeout(resolve, 1000)); // 1초 대기 (DB 저장 완료 대기)
+
+        const { data: finalReport } = await supabase
+          .from('analysis_reports')
+          .select('*')
+          .eq('session_id', sessionId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (finalReport) {
+          console.log('✅ DB에서 최종 보고서 조회 완료');
+          setReport(transformReportData(finalReport));
+        } else {
+          console.warn('⚠️ DB 조회 실패, 메모리 데이터 사용');
+          setReport(response.data);
+        }
       } else {
         throw new Error(response.error || '보고서 생성에 실패했습니다.');
       }
