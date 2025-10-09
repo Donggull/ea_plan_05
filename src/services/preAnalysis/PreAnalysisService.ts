@@ -2081,71 +2081,55 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
     "projectDecision": {
       "recommendation": "accept|conditional_accept|decline",
       "confidence": 0-100,
-      "reasoning": "수락/조건부수락/거절 결정에 대한 상세한 근거 (200자 이상)",
-      "conditions": ["조건부 수락 시 충족해야 할 구체적인 조건들 (있는 경우)"]
+      "reasoning": "프로젝트 수락/조건부수락/거절 결정 근거 (100자 이상)",
+      "conditions": ["조건부 수락 시 필요한 조건 (2개 이상, 없으면 빈 배열)"]
     },
 
     "perspectives": {
       "planning": {
         "feasibility": 0-100,
-        "estimatedEffort": "예상 공수 (예: 3개월, 500시간 등)",
-        "keyConsiderations": ["기획 시 고려해야 할 핵심 사항 (5개 이상)"],
-        "potentialIssues": ["예상되는 기획 단계 이슈 (3개 이상)"]
+        "estimatedEffort": "예상 공수",
+        "keyConsiderations": ["핵심 고려사항 3개"]
       },
       "design": {
         "complexity": "low|medium|high|very_high",
-        "estimatedHours": 예상 디자인 작업 시간 (숫자),
-        "requiredSkills": ["필요한 디자인 스킬 목록"],
-        "designChallenges": ["예상되는 디자인 과제들 (3개 이상)"]
+        "estimatedHours": 예상 시간,
+        "requiredSkills": ["필요 스킬 2-3개"]
       },
       "publishing": {
-        "compatibility": ["지원해야 할 브라우저 목록"],
-        "browserSupport": ["특별히 고려해야 할 브라우저 이슈"],
         "responsiveComplexity": "low|medium|high",
-        "estimatedHours": 예상 퍼블리싱 시간 (숫자)
+        "estimatedHours": 예상 시간,
+        "compatibility": ["브라우저 목록 2-3개"]
       },
       "development": {
         "technicalComplexity": "low|medium|high|very_high",
-        "estimatedManMonths": 예상 개발 인월 (숫자),
-        "criticalTechnologies": ["핵심 기술 스택 목록"],
-        "integrationChallenges": ["예상되는 통합 과제들"],
-        "securityConcerns": ["보안 관련 고려사항들"]
+        "estimatedManMonths": 예상 인월,
+        "criticalTechnologies": ["핵심 기술 3개"]
       }
     },
 
     "detailedRisks": [
       {
-        "category": "technical|business|timeline|budget|resource|quality",
-        "title": "리스크 제목",
-        "description": "리스크에 대한 매우 상세한 설명 (150자 이상)",
-        "probability": 0-100,
-        "impact": 0-100,
+        "title": "주요 리스크 제목",
+        "description": "리스크 설명 (50자 이상)",
         "severity": "low|medium|high|critical",
-        "mitigation": "구체적이고 실행 가능한 완화 방안 (100자 이상)",
-        "contingencyPlan": "비상 대응 계획 (선택사항)"
+        "mitigation": "완화 방안"
       }
     ],
 
     "executionPlan": {
       "phases": [
         {
-          "name": "단계명 (예: 요구사항 분석 및 기획)",
-          "duration": 일수 (숫자),
-          "deliverables": ["이 단계의 산출물 목록"],
-          "resources": ["필요한 인력 및 리소스"]
+          "name": "단계명",
+          "duration": 일수,
+          "deliverables": ["산출물"]
         }
       ],
-      "totalEstimatedDays": 전체 예상 일수 (숫자),
-      "criticalPath": ["프로젝트의 크리티컬 패스 항목들"]
+      "totalEstimatedDays": 전체 일수
     },
 
     "costEstimate": {
-      "planning": 기획 비용 (숫자, USD),
-      "design": 디자인 비용 (숫자, USD),
-      "development": 개발 비용 (숫자, USD),
-      "testing": 테스트 비용 (숫자, USD),
-      "deployment": 배포 비용 (숫자, USD),
-      "total": 총 비용 (숫자, USD),
+      "total": 총비용,
       "currency": "KRW",
       "confidence": 0-100
     }
@@ -2154,19 +2138,13 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
 \`\`\`
 
 **⚠️ 필수 작성 필드 (빠짐없이 모두 작성)**:
-1. ✅ **baselineData** - requirements (10개 이상), stakeholders, constraints, technicalStack (5개 이상) 반드시 포함
-2. ✅ **agencyPerspective** - projectDecision, perspectives (planning/design/publishing/development 모두 포함), executionPlan, costEstimate 완전 작성
-3. ✅ **summary** - 300자 이상 상세 요약
-4. ✅ **keyInsights** - 5개 이상
-5. ✅ **recommendations** - 10개 이상
-6. ✅ **riskAssessment** - high/medium/low 리스크 상세 분석
-
-**중요 지침**:
-1. 모든 분석은 **구체적인 근거**와 함께 작성하세요
-2. **예상 문제점은 최대한 면밀하게** 식별하고 완화 방안을 제시하세요
-3. **비용과 일정은 현실적으로** 추정하세요
-4. **프로젝트 수락/드랍 의견은 명확한 기준**과 함께 제시하세요
-5. 웹에이전시 관점에서 **실제로 수행 가능한 계획**을 수립하세요
+1. ✅ **summary** - 프로젝트 종합 요약 (200자 이상)
+2. ✅ **executiveSummary** - 경영진용 요약 (150자 이상)
+3. ✅ **keyInsights** - 핵심 인사이트 (5개 이상)
+4. ✅ **riskAssessment** - 위험 평가 (high/medium/low)
+5. ✅ **recommendations** - 권장사항 (10개 이상)
+6. ✅ **baselineData** - requirements (10개), stakeholders (3개), constraints (5개), technicalStack (5개) 반드시 포함
+7. ✅ **agencyPerspective** - projectDecision, perspectives (4가지 모두), detailedRisks (3개), executionPlan, costEstimate 포함
 
 ---
 
@@ -2179,14 +2157,19 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
 - ✅ 오직 중괄호 { 로 시작해서 } 로 끝나는 순수 JSON 객체만 반환
 
 **⚠️ 필수 필드 누락 시 보고서가 저장되지 않습니다!**
-특히 다음 필드들은 **절대** 빈 배열이나 빈 객체로 남기지 마세요:
+다음 필드들은 **절대** 빈 배열이나 빈 객체로 남기지 마세요:
+- summary, executiveSummary (각 150자 이상)
+- keyInsights (최소 5개)
+- recommendations (최소 10개)
 - baselineData.requirements (최소 10개)
 - baselineData.technicalStack (최소 5개)
 - baselineData.stakeholders (최소 3개)
-- baselineData.constraints (최소 3개)
+- baselineData.constraints (최소 5개)
+- agencyPerspective.projectDecision (recommendation, confidence, reasoning 필수)
 - agencyPerspective.perspectives (planning, design, publishing, development 모두 포함)
-- agencyPerspective.executionPlan.phases (최소 5개)
-- agencyPerspective.costEstimate (모든 비용 항목)
+- agencyPerspective.detailedRisks (최소 3개)
+- agencyPerspective.executionPlan (phases 최소 3개, totalEstimatedDays 필수)
+- agencyPerspective.costEstimate (total, currency, confidence 필수)
 
 **정확한 출력 형식**:
 { "summary": "...", "executiveSummary": "...", "keyInsights": [...], "riskAssessment": {...}, "recommendations": [...], "baselineData": {...}, "agencyPerspective": {...} }
