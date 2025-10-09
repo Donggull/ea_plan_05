@@ -1868,7 +1868,7 @@ ${content}
         aiProvider,
         aiModel,
         reportPrompt,
-        8000, // 🔥 6000→8000으로 증가: 긴 보고서 생성을 위한 충분한 토큰
+        16000, // 🔥 8000→16000으로 증가: 배열/객체 포함 완전한 보고서 생성
         0.2,
         (_chunk, fullContent) => {
           // 실시간 진행 상황 전달
@@ -2239,30 +2239,63 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
     }
 
     // =====================================================
-    // 🔥 NEW 시도 2.5: 불완전한 JSON 복구 시도
+    // 🔥 NEW 시도 2.5: 불완전한 JSON 복구 시도 (배열/객체 처리 강화)
     // =====================================================
     try {
-      console.log('🔎 [parseReportResponse] 시도 2.5: 불완전한 JSON 복구...');
+      console.log('🔎 [parseReportResponse] 시도 2.5: 불완전한 JSON 복구 (배열/객체)...');
 
-      // Unterminated string 에러인지 확인
       const firstBrace = cleanedResponse.indexOf('{');
       if (firstBrace !== -1) {
         let jsonString = cleanedResponse.substring(firstBrace);
 
-        // 마지막 완전한 필드를 찾기
-        // 전략: 마지막 닫힌 따옴표와 그 이후의 콤마를 찾음
-        const lastCompleteMatch = jsonString.lastIndexOf('",');
+        // 🔥 여러 패턴으로 마지막 완전한 요소 찾기
+        const patterns = [
+          { pattern: /",\s*$/g, desc: '객체 필드 끝' },           // "value",
+          { pattern: /"\s*\]/g, desc: '배열 문자열 끝' },         // "value"]
+          { pattern: /},\s*$/g, desc: '배열 내 객체 끝' },        // {...},
+          { pattern: /\}\s*\]/g, desc: '배열 내 마지막 객체' },   // {...}]
+        ];
 
-        if (lastCompleteMatch > 0) {
-          // 마지막 완전한 필드 이후를 잘라냄
-          let truncatedJson = jsonString.substring(0, lastCompleteMatch + 1);
+        let bestMatch = -1;
+        let bestPattern = null;
 
-          // 닫히지 않은 중괄호 개수 계산
+        // 모든 패턴에서 가장 마지막 위치 찾기
+        for (const { pattern, desc } of patterns) {
+          const matches = [...jsonString.matchAll(pattern)];
+          if (matches.length > 0) {
+            const lastMatch = matches[matches.length - 1];
+            const matchEnd = lastMatch.index! + lastMatch[0].length;
+            if (matchEnd > bestMatch) {
+              bestMatch = matchEnd;
+              bestPattern = desc;
+            }
+          }
+        }
+
+        console.log('🔍 [parseReportResponse] 마지막 완전한 요소:', {
+          위치: bestMatch,
+          패턴: bestPattern,
+          원본길이: jsonString.length
+        });
+
+        if (bestMatch > 0) {
+          // 마지막 완전한 요소까지 잘라냄
+          let truncatedJson = jsonString.substring(0, bestMatch);
+
+          // 🔥 닫히지 않은 배열과 객체 닫기
+          const openBrackets = (truncatedJson.match(/\[/g) || []).length;
+          const closeBrackets = (truncatedJson.match(/\]/g) || []).length;
           const openBraces = (truncatedJson.match(/\{/g) || []).length;
           const closeBraces = (truncatedJson.match(/\}/g) || []).length;
+
+          const missingBrackets = openBrackets - closeBrackets;
           const missingBraces = openBraces - closeBraces;
 
-          // 필요한 만큼 중괄호 닫기
+          // 배열 먼저 닫기
+          for (let i = 0; i < missingBrackets; i++) {
+            truncatedJson += '\n]';
+          }
+          // 객체 닫기
           for (let i = 0; i < missingBraces; i++) {
             truncatedJson += '\n}';
           }
@@ -2270,8 +2303,9 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
           console.log('🔧 [parseReportResponse] JSON 복구 시도:', {
             원본길이: jsonString.length,
             복구길이: truncatedJson.length,
-            추가된중괄호: missingBraces,
-            미리보기: truncatedJson.substring(truncatedJson.length - 200)
+            추가된배열닫기: missingBrackets,
+            추가된객체닫기: missingBraces,
+            미리보기: truncatedJson.substring(Math.max(0, truncatedJson.length - 300))
           });
 
           const parsedReport = JSON.parse(truncatedJson);
@@ -2283,6 +2317,8 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
           parsedReport._recoveryNote = '응답이 중간에 끊겨서 일부 내용이 누락되었습니다.';
 
           return parsedReport;
+        } else {
+          console.warn('⚠️ [parseReportResponse] 완전한 요소를 찾을 수 없음');
         }
       }
     } catch (error) {
