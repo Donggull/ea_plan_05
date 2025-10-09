@@ -274,10 +274,17 @@ async function handleAnthropicStreaming(
     })
 
     console.log('📤 [Anthropic Stream] done 이벤트 전송 중:', doneEvent.substring(0, 200))
+
+    // 🔥 done 이벤트를 두 번 전송하여 확실히 전달 보장
+    res.write(`data: ${doneEvent}\n\n`)
     res.write(`data: ${doneEvent}\n\n`)
 
-    // 🔥 버퍼 플러시를 위한 작은 지연
-    await new Promise(resolve => setTimeout(resolve, 10))
+    // 🔥 SSE 표준 종료 마커 전송
+    res.write('data: [DONE]\n\n')
+
+    // 🔥 버퍼 플러시를 위한 충분한 지연 (Vercel 환경에서 안정적)
+    // 10ms → 100ms로 증가하여 네트워크 버퍼 완전 플러시 보장
+    await new Promise(resolve => setTimeout(resolve, 100))
 
     console.log(`✅ [Anthropic Stream] 완료: ${inputTokens + outputTokens} 토큰, ${responseTime}ms`)
     res.end()
@@ -426,10 +433,17 @@ async function handleOpenAIStreaming(
     })
 
     console.log('📤 [OpenAI Stream] done 이벤트 전송 중:', doneEvent.substring(0, 200))
+
+    // 🔥 done 이벤트를 두 번 전송하여 확실히 전달 보장
+    res.write(`data: ${doneEvent}\n\n`)
     res.write(`data: ${doneEvent}\n\n`)
 
-    // 🔥 버퍼 플러시를 위한 작은 지연
-    await new Promise(resolve => setTimeout(resolve, 10))
+    // 🔥 SSE 표준 종료 마커 전송
+    res.write('data: [DONE]\n\n')
+
+    // 🔥 버퍼 플러시를 위한 충분한 지연 (Vercel 환경에서 안정적)
+    // 10ms → 100ms로 증가하여 네트워크 버퍼 완전 플러시 보장
+    await new Promise(resolve => setTimeout(resolve, 100))
 
     console.log(`✅ [OpenAI Stream] 완료: ${inputTokens + outputTokens} 토큰, ${responseTime}ms`)
     res.end()
@@ -562,10 +576,17 @@ async function handleGoogleAIStreaming(
     })
 
     console.log('📤 [Google AI Stream] done 이벤트 전송 중:', doneEvent.substring(0, 200))
+
+    // 🔥 done 이벤트를 두 번 전송하여 확실히 전달 보장
+    res.write(`data: ${doneEvent}\n\n`)
     res.write(`data: ${doneEvent}\n\n`)
 
-    // 🔥 버퍼 플러시를 위한 작은 지연
-    await new Promise(resolve => setTimeout(resolve, 10))
+    // 🔥 SSE 표준 종료 마커 전송
+    res.write('data: [DONE]\n\n')
+
+    // 🔥 버퍼 플러시를 위한 충분한 지연 (Vercel 환경에서 안정적)
+    // 10ms → 100ms로 증가하여 네트워크 버퍼 완전 플러시 보장
+    await new Promise(resolve => setTimeout(resolve, 100))
 
     console.log(`✅ [Google AI Stream] 완료: ${inputTokens + outputTokens} 토큰, ${responseTime}ms`)
     res.end()

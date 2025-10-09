@@ -2764,13 +2764,17 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
                     console.log('🔍 [Streaming] 남은 버퍼 이벤트 타입:', event.type);
 
                     if (event.type === 'done') {
-                      finalData = event;
                       doneEventCount++;
-                      console.log('📊 [Streaming] 남은 버퍼에서 최종 데이터 발견!', {
-                        contentLength: event.content?.length,
-                        inputTokens: event.usage?.inputTokens,
-                        outputTokens: event.usage?.outputTokens,
-                      });
+                      if (!finalData) {
+                        finalData = event;
+                        console.log('✅ [Streaming] 남은 버퍼에서 최종 데이터 발견!', {
+                          contentLength: event.content?.length,
+                          inputTokens: event.usage?.inputTokens,
+                          outputTokens: event.usage?.outputTokens,
+                        });
+                      } else {
+                        console.log('ℹ️ [Streaming] 남은 버퍼의 중복 done 이벤트 무시');
+                      }
                     }
                   } catch (parseError) {
                     console.warn('⚠️ 남은 버퍼 파싱 오류:', data.substring(0, 100), parseError);
@@ -2816,16 +2820,20 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
                 }
               }
 
-              // 최종 완료 이벤트
+              // 최종 완료 이벤트 (중복 방지: 첫 번째만 처리)
               if (event.type === 'done') {
-                finalData = event;
                 doneEventCount++;
-                console.log('📊 [Streaming] 최종 데이터 수신 (루프 중):', {
-                  contentLength: event.content?.length,
-                  inputTokens: event.usage?.inputTokens,
-                  outputTokens: event.usage?.outputTokens,
-                  totalCost: event.cost?.totalCost
-                });
+                if (!finalData) {
+                  finalData = event;
+                  console.log('✅ [Streaming] 최종 데이터 수신 (루프 중):', {
+                    contentLength: event.content?.length,
+                    inputTokens: event.usage?.inputTokens,
+                    outputTokens: event.usage?.outputTokens,
+                    totalCost: event.cost?.totalCost
+                  });
+                } else {
+                  console.log('ℹ️ [Streaming] 중복 done 이벤트 무시 (이미 수신함)');
+                }
               }
 
               // 에러 이벤트
