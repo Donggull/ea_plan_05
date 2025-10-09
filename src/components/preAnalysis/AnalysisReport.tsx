@@ -529,7 +529,7 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
                   <div>
                     <span className="text-sm text-gray-400 block mb-2">핵심 고려사항:</span>
                     <ul className="space-y-1">
-                      {report.agencyPerspective.perspectives.planning.keyConsiderations.map((item, index) => (
+                      {(report.agencyPerspective?.perspectives?.planning?.keyConsiderations || []).map((item, index) => (
                         <li key={index} className="text-sm text-gray-300 flex items-start gap-2">
                           <span className="text-blue-400 mt-1">•</span>
                           <span>{item}</span>
@@ -558,7 +558,7 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
                   <div>
                     <span className="text-sm text-gray-400 block mb-2">필요 스킬:</span>
                     <div className="flex flex-wrap gap-2">
-                      {report.agencyPerspective.perspectives.design.requiredSkills.map((skill, index) => (
+                      {(report.agencyPerspective?.perspectives?.design?.requiredSkills || []).map((skill, index) => (
                         <span key={index} className="px-2 py-1 bg-purple-900/30 text-purple-300 rounded text-xs border border-purple-700">
                           {skill}
                         </span>
@@ -586,7 +586,7 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
                   <div>
                     <span className="text-sm text-gray-400 block mb-2">브라우저 호환성:</span>
                     <div className="flex flex-wrap gap-2">
-                      {report.agencyPerspective.perspectives.publishing.compatibility.map((browser, index) => (
+                      {(report.agencyPerspective?.perspectives?.publishing?.compatibility || []).map((browser, index) => (
                         <span key={index} className="px-2 py-1 bg-green-900/30 text-green-300 rounded text-xs border border-green-700">
                           {browser}
                         </span>
@@ -614,7 +614,7 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
                   <div>
                     <span className="text-sm text-gray-400 block mb-2">핵심 기술:</span>
                     <div className="flex flex-wrap gap-2">
-                      {report.agencyPerspective.perspectives.development.criticalTechnologies.map((tech, index) => (
+                      {(report.agencyPerspective?.perspectives?.development?.criticalTechnologies || []).map((tech, index) => (
                         <span key={index} className="px-2 py-1 bg-orange-900/30 text-orange-300 rounded text-xs border border-orange-700">
                           {tech}
                         </span>
@@ -626,11 +626,11 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
             </div>
 
             {/* 상세 리스크 분석 */}
-            {report.agencyPerspective.detailedRisks && report.agencyPerspective.detailedRisks.length > 0 && (
+            {report.agencyPerspective?.detailedRisks && report.agencyPerspective.detailedRisks.length > 0 && (
               <div className="p-6 bg-gray-800 rounded-lg border border-gray-700">
                 <h4 className="text-lg font-semibold text-white mb-4">상세 리스크 분석</h4>
                 <div className="space-y-4">
-                  {report.agencyPerspective.detailedRisks.map((risk, index) => (
+                  {(report.agencyPerspective.detailedRisks || []).map((risk, index) => (
                     <div key={index} className={`p-4 rounded-lg border ${getRiskColor(risk.severity)}`}>
                       <div className="flex items-start justify-between mb-2">
                         <h5 className="font-medium">{risk.title}</h5>
@@ -662,7 +662,7 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
             )}
 
             {/* 실행 계획 */}
-            {report.agencyPerspective.executionPlan && (
+            {report.agencyPerspective?.executionPlan && (
               <div className="p-6 bg-gray-800 rounded-lg border border-gray-700">
                 <h4 className="text-lg font-semibold text-white mb-4">실행 계획</h4>
                 <div className="mb-4">
@@ -670,7 +670,7 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
                   <p className="text-white font-medium text-lg">{report.agencyPerspective.executionPlan.totalEstimatedDays}일</p>
                 </div>
                 <div className="space-y-4">
-                  {report.agencyPerspective.executionPlan.phases.map((phase, index) => (
+                  {(report.agencyPerspective.executionPlan?.phases || []).map((phase, index) => (
                     <div key={index} className="p-4 bg-gray-900/50 rounded border border-gray-700">
                       <div className="flex items-center justify-between mb-2">
                         <h5 className="font-medium text-white">{phase.name}</h5>
@@ -683,7 +683,7 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
                         <div>
                           <span className="text-gray-400 block mb-1">산출물:</span>
                           <ul className="space-y-1">
-                            {phase.deliverables.map((item, i) => (
+                            {(phase.deliverables || []).map((item, i) => (
                               <li key={i} className="text-gray-300">• {item}</li>
                             ))}
                           </ul>
@@ -691,7 +691,7 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
                         <div>
                           <span className="text-gray-400 block mb-1">필요 리소스:</span>
                           <ul className="space-y-1">
-                            {phase.resources.map((item, i) => (
+                            {(phase.resources || []).map((item, i) => (
                               <li key={i} className="text-gray-300">• {item}</li>
                             ))}
                           </ul>
@@ -838,12 +838,16 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
             <div className="p-6 bg-gray-800 rounded-lg border border-gray-700">
               <h4 className="text-lg font-semibold text-white mb-4">핵심 요구사항</h4>
               <div className="space-y-2">
-                {report.baselineData.requirements.map((req, index) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-blue-400 rounded-full" />
-                    <span className="text-gray-300">{req}</span>
-                  </div>
-                ))}
+                {(report.baselineData?.requirements || []).length > 0 ? (
+                  (report.baselineData.requirements || []).map((req, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-blue-400 rounded-full" />
+                      <span className="text-gray-300">{req}</span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-gray-500 text-sm">데이터가 없습니다</p>
+                )}
               </div>
             </div>
 
@@ -851,12 +855,16 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
             <div className="p-6 bg-gray-800 rounded-lg border border-gray-700">
               <h4 className="text-lg font-semibold text-white mb-4">이해관계자</h4>
               <div className="space-y-2">
-                {report.baselineData.stakeholders.map((stakeholder, index) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <Users className="w-4 h-4 text-purple-400" />
-                    <span className="text-gray-300">{stakeholder}</span>
-                  </div>
-                ))}
+                {(report.baselineData?.stakeholders || []).length > 0 ? (
+                  (report.baselineData.stakeholders || []).map((stakeholder, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <Users className="w-4 h-4 text-purple-400" />
+                      <span className="text-gray-300">{stakeholder}</span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-gray-500 text-sm">데이터가 없습니다</p>
+                )}
               </div>
             </div>
 
@@ -864,12 +872,16 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
             <div className="p-6 bg-gray-800 rounded-lg border border-gray-700">
               <h4 className="text-lg font-semibold text-white mb-4">제약사항</h4>
               <div className="space-y-2">
-                {report.baselineData.constraints.map((constraint, index) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-red-400 rounded-full" />
-                    <span className="text-gray-300">{constraint}</span>
-                  </div>
-                ))}
+                {(report.baselineData?.constraints || []).length > 0 ? (
+                  (report.baselineData.constraints || []).map((constraint, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-red-400 rounded-full" />
+                      <span className="text-gray-300">{constraint}</span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-gray-500 text-sm">데이터가 없습니다</p>
+                )}
               </div>
             </div>
 
@@ -877,14 +889,18 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
             <div className="p-6 bg-gray-800 rounded-lg border border-gray-700">
               <h4 className="text-lg font-semibold text-white mb-4">기술 스택</h4>
               <div className="flex flex-wrap gap-2">
-                {report.baselineData.technicalStack.map((tech, index) => (
-                  <span
-                    key={index}
-                    className="px-3 py-1 bg-green-900/30 text-green-300 rounded-full text-sm border border-green-700"
-                  >
-                    {tech}
-                  </span>
-                ))}
+                {(report.baselineData?.technicalStack || []).length > 0 ? (
+                  (report.baselineData.technicalStack || []).map((tech, index) => (
+                    <span
+                      key={index}
+                      className="px-3 py-1 bg-green-900/30 text-green-300 rounded-full text-sm border border-green-700"
+                    >
+                      {tech}
+                    </span>
+                  ))
+                ) : (
+                  <p className="text-gray-500 text-sm">데이터가 없습니다</p>
+                )}
               </div>
             </div>
           </div>
