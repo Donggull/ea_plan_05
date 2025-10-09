@@ -2726,6 +2726,7 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
       let buffer = '';
       let fullContent = '';
       let finalData: any = null;
+      const startTime = Date.now(); // 🔥 응답 시간 측정용
 
       console.log('📥 [Streaming] SSE 수신 시작');
 
@@ -2857,7 +2858,80 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
           fullContentPreview: fullContent.substring(0, 200),
           bufferWasEmpty: !buffer.trim()
         });
-        throw new Error('스트리밍이 완료되었지만 최종 데이터를 받지 못했습니다.');
+
+        // 🔥 Fallback: fullContent가 있으면 done 이벤트 없이도 처리
+        if (fullContent && fullContent.length > 100) {
+          console.warn('⚠️ [Streaming] Fallback 모드: fullContent로 최종 데이터 생성 (done 이벤트 누락)');
+
+          // 토큰 추정 함수
+          const estimateTokens = (text: string): number => {
+            switch (provider) {
+              case 'anthropic': return Math.ceil(text.length / 3.5)
+              case 'openai': return Math.ceil(text.length / 4)
+              case 'google': return Math.ceil(text.length / 4)
+              default: return Math.ceil(text.length / 4)
+            }
+          }
+
+          const inputTokens = estimateTokens(prompt)
+          const outputTokens = estimateTokens(fullContent)
+
+          // 모델별 가격 정보
+          const getPricing = (): { inputCost: number; outputCost: number } => {
+            if (provider === 'anthropic') {
+              const pricing: Record<string, { inputCost: number; outputCost: number }> = {
+                'claude-sonnet-4-20250514': { inputCost: 3, outputCost: 15 },
+                'claude-3-5-sonnet-20241022': { inputCost: 3, outputCost: 15 },
+                'claude-3-haiku-20240307': { inputCost: 0.25, outputCost: 1.25 }
+              }
+              return pricing[model] || { inputCost: 3, outputCost: 15 }
+            } else if (provider === 'openai') {
+              const pricing: Record<string, { inputCost: number; outputCost: number }> = {
+                'gpt-4o': { inputCost: 5, outputCost: 15 },
+                'gpt-4o-mini': { inputCost: 0.15, outputCost: 0.6 }
+              }
+              return pricing[model] || { inputCost: 5, outputCost: 15 }
+            } else {
+              const pricing: Record<string, { inputCost: number; outputCost: number }> = {
+                'gemini-2.0-flash-exp': { inputCost: 0.075, outputCost: 0.3 },
+                'gemini-1.5-pro': { inputCost: 1.25, outputCost: 5 }
+              }
+              return pricing[model] || { inputCost: 1.25, outputCost: 5 }
+            }
+          }
+
+          const pricing = getPricing()
+          const inputCost = (inputTokens * pricing.inputCost) / 1000000
+          const outputCost = (outputTokens * pricing.outputCost) / 1000000
+
+          finalData = {
+            type: 'done',
+            content: fullContent,
+            usage: {
+              inputTokens,
+              outputTokens,
+              totalTokens: inputTokens + outputTokens
+            },
+            cost: {
+              inputCost,
+              outputCost,
+              totalCost: inputCost + outputCost
+            },
+            model,
+            finishReason: 'stop',
+            responseTime: Date.now() - startTime
+          }
+
+          console.log('✅ [Streaming] Fallback 데이터 생성 완료:', {
+            contentLength: fullContent.length,
+            inputTokens,
+            outputTokens,
+            totalCost: finalData.cost.totalCost,
+            responseTime: finalData.responseTime
+          });
+        } else {
+          throw new Error('스트리밍이 완료되었지만 최종 데이터를 받지 못했습니다.');
+        }
       }
 
       console.log('🎉 [Streaming] 전체 통계:', {
