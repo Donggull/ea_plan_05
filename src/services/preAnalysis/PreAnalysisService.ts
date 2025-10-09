@@ -1868,7 +1868,7 @@ ${content}
         aiProvider,
         aiModel,
         reportPrompt,
-        6000,
+        8000, // 🔥 6000→8000으로 증가: 긴 보고서 생성을 위한 충분한 토큰
         0.2,
         (_chunk, fullContent) => {
           // 실시간 진행 상황 전달
@@ -2236,6 +2236,57 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
         message: (error as Error).message,
         name: (error as Error).name
       });
+    }
+
+    // =====================================================
+    // 🔥 NEW 시도 2.5: 불완전한 JSON 복구 시도
+    // =====================================================
+    try {
+      console.log('🔎 [parseReportResponse] 시도 2.5: 불완전한 JSON 복구...');
+
+      // Unterminated string 에러인지 확인
+      const firstBrace = cleanedResponse.indexOf('{');
+      if (firstBrace !== -1) {
+        let jsonString = cleanedResponse.substring(firstBrace);
+
+        // 마지막 완전한 필드를 찾기
+        // 전략: 마지막 닫힌 따옴표와 그 이후의 콤마를 찾음
+        const lastCompleteMatch = jsonString.lastIndexOf('",');
+
+        if (lastCompleteMatch > 0) {
+          // 마지막 완전한 필드 이후를 잘라냄
+          let truncatedJson = jsonString.substring(0, lastCompleteMatch + 1);
+
+          // 닫히지 않은 중괄호 개수 계산
+          const openBraces = (truncatedJson.match(/\{/g) || []).length;
+          const closeBraces = (truncatedJson.match(/\}/g) || []).length;
+          const missingBraces = openBraces - closeBraces;
+
+          // 필요한 만큼 중괄호 닫기
+          for (let i = 0; i < missingBraces; i++) {
+            truncatedJson += '\n}';
+          }
+
+          console.log('🔧 [parseReportResponse] JSON 복구 시도:', {
+            원본길이: jsonString.length,
+            복구길이: truncatedJson.length,
+            추가된중괄호: missingBraces,
+            미리보기: truncatedJson.substring(truncatedJson.length - 200)
+          });
+
+          const parsedReport = JSON.parse(truncatedJson);
+          console.warn('✅ [parseReportResponse] 불완전한 JSON 복구 성공!');
+          console.log('📊 [parseReportResponse] 복구된 키:', Object.keys(parsedReport));
+
+          // 복구된 데이터임을 표시
+          parsedReport._recovered = true;
+          parsedReport._recoveryNote = '응답이 중간에 끊겨서 일부 내용이 누락되었습니다.';
+
+          return parsedReport;
+        }
+      }
+    } catch (error) {
+      console.error('❌ [parseReportResponse] JSON 복구 실패:', error);
     }
 
     // =====================================================
