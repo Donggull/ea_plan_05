@@ -921,12 +921,19 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
               <h4 className="text-lg font-semibold text-white mb-4">이해관계자</h4>
               <div className="space-y-2">
                 {(report.baselineData?.stakeholders || []).length > 0 ? (
-                  (report.baselineData.stakeholders || []).map((stakeholder, index) => (
-                    <div key={index} className="flex items-center gap-2">
-                      <Users className="w-4 h-4 text-purple-400" />
-                      <span className="text-gray-300">{stakeholder}</span>
-                    </div>
-                  ))
+                  (report.baselineData.stakeholders || []).map((stakeholder: any, index) => {
+                    // 🔥 객체 또는 문자열 모두 처리 가능
+                    const displayText = typeof stakeholder === 'string'
+                      ? stakeholder
+                      : stakeholder?.name || JSON.stringify(stakeholder);
+
+                    return (
+                      <div key={index} className="flex items-center gap-2">
+                        <Users className="w-4 h-4 text-purple-400" />
+                        <span className="text-gray-300">{displayText}</span>
+                      </div>
+                    );
+                  })
                 ) : (
                   <p className="text-gray-500 text-sm">데이터가 없습니다</p>
                 )}
