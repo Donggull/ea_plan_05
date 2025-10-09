@@ -2088,23 +2088,51 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
     "perspectives": {
       "planning": {
         "feasibility": 0-100,
-        "estimatedEffort": "예상 공수",
-        "keyConsiderations": ["핵심 고려사항 3개"]
+        "estimatedEffort": "예상 공수 (예: 2주, 3개월)",
+        "challenges": [
+          "기획 단계에서 예상되는 구체적인 어려움 3개",
+          "각 어려움은 웹에이전시 입장에서 실제 직면할 문제 중심"
+        ],
+        "risks": [
+          "기획 관련 리스크 2개",
+          "각 리스크는 프로젝트 실패 가능성과 관련"
+        ]
       },
       "design": {
         "complexity": "low|medium|high|very_high",
         "estimatedHours": 예상 시간,
-        "requiredSkills": ["필요 스킬 2-3개"]
+        "challenges": [
+          "디자인 단계 예상 어려움 3개",
+          "UI/UX 복잡도, 디자인 시스템 구축 난이도 등"
+        ],
+        "risks": [
+          "디자인 리스크 2개",
+          "고객 요구 변경, 디자인 피드백 반복 등"
+        ]
       },
       "publishing": {
         "responsiveComplexity": "low|medium|high",
         "estimatedHours": 예상 시간,
-        "compatibility": ["브라우저 목록 2-3개"]
+        "challenges": [
+          "퍼블리싱 어려움 3개",
+          "크로스브라우징, 반응형 구현 복잡도 등"
+        ],
+        "risks": [
+          "퍼블리싱 리스크 2개",
+          "브라우저 호환성 문제, 디바이스 대응 이슈 등"
+        ]
       },
       "development": {
         "technicalComplexity": "low|medium|high|very_high",
         "estimatedManMonths": 예상 인월,
-        "criticalTechnologies": ["핵심 기술 3개"]
+        "challenges": [
+          "개발 어려움 3개 (개발이 없으면 '개발 불필요 - 우리가 처리할 영역 아님')",
+          "기술 스택 난이도, 외부 API 연동, 보안 요구사항 등"
+        ],
+        "risks": [
+          "개발 리스크 2개 (개발이 없으면 '해당없음')",
+          "기술적 불확실성, 일정 지연 가능성 등"
+        ]
       }
     },
 
@@ -2167,6 +2195,8 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
 - baselineData.constraints (최소 5개)
 - agencyPerspective.projectDecision (recommendation, confidence, reasoning 필수)
 - agencyPerspective.perspectives (planning, design, publishing, development 모두 포함)
+  * 각 관점마다 challenges (3개), risks (2개) 필수
+  * development에 개발이 없으면 challenges에 "개발 불필요 - 우리가 처리할 영역 아님" 명시
 - agencyPerspective.detailedRisks (최소 3개)
 - agencyPerspective.executionPlan (phases 최소 3개, totalEstimatedDays 필수)
 - agencyPerspective.costEstimate (total, currency, confidence 필수)

@@ -545,11 +545,22 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
                     <p className="text-white font-medium mt-1">{report.agencyPerspective?.perspectives?.planning?.estimatedEffort || '-'}</p>
                   </div>
                   <div>
-                    <span className="text-sm text-gray-400 block mb-2">핵심 고려사항:</span>
+                    <span className="text-sm text-gray-400 block mb-2">예상 어려움:</span>
                     <ul className="space-y-1">
-                      {(report.agencyPerspective?.perspectives?.planning?.keyConsiderations || []).map((item, index) => (
+                      {(report.agencyPerspective?.perspectives?.planning?.challenges || []).map((item, index) => (
                         <li key={index} className="text-sm text-gray-300 flex items-start gap-2">
-                          <span className="text-blue-400 mt-1">•</span>
+                          <span className="text-yellow-400 mt-1">⚠</span>
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <span className="text-sm text-gray-400 block mb-2">리스크:</span>
+                    <ul className="space-y-1">
+                      {(report.agencyPerspective?.perspectives?.planning?.risks || []).map((item, index) => (
+                        <li key={index} className="text-sm text-red-300 flex items-start gap-2">
+                          <span className="text-red-400 mt-1">⚡</span>
                           <span>{item}</span>
                         </li>
                       ))}
@@ -574,14 +585,26 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
                     <p className="text-white font-medium mt-1">{report.agencyPerspective?.perspectives?.design?.estimatedHours || 0}시간</p>
                   </div>
                   <div>
-                    <span className="text-sm text-gray-400 block mb-2">필요 스킬:</span>
-                    <div className="flex flex-wrap gap-2">
-                      {(report.agencyPerspective?.perspectives?.design?.requiredSkills || []).map((skill, index) => (
-                        <span key={index} className="px-2 py-1 bg-purple-900/30 text-purple-300 rounded text-xs border border-purple-700">
-                          {skill}
-                        </span>
+                    <span className="text-sm text-gray-400 block mb-2">예상 어려움:</span>
+                    <ul className="space-y-1">
+                      {(report.agencyPerspective?.perspectives?.design?.challenges || []).map((item, index) => (
+                        <li key={index} className="text-sm text-gray-300 flex items-start gap-2">
+                          <span className="text-yellow-400 mt-1">⚠</span>
+                          <span>{item}</span>
+                        </li>
                       ))}
-                    </div>
+                    </ul>
+                  </div>
+                  <div>
+                    <span className="text-sm text-gray-400 block mb-2">리스크:</span>
+                    <ul className="space-y-1">
+                      {(report.agencyPerspective?.perspectives?.design?.risks || []).map((item, index) => (
+                        <li key={index} className="text-sm text-red-300 flex items-start gap-2">
+                          <span className="text-red-400 mt-1">⚡</span>
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 </div>
               </div>
@@ -602,14 +625,26 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
                     <p className="text-white font-medium mt-1">{report.agencyPerspective?.perspectives?.publishing?.estimatedHours || 0}시간</p>
                   </div>
                   <div>
-                    <span className="text-sm text-gray-400 block mb-2">브라우저 호환성:</span>
-                    <div className="flex flex-wrap gap-2">
-                      {(report.agencyPerspective?.perspectives?.publishing?.compatibility || []).map((browser, index) => (
-                        <span key={index} className="px-2 py-1 bg-green-900/30 text-green-300 rounded text-xs border border-green-700">
-                          {browser}
-                        </span>
+                    <span className="text-sm text-gray-400 block mb-2">예상 어려움:</span>
+                    <ul className="space-y-1">
+                      {(report.agencyPerspective?.perspectives?.publishing?.challenges || []).map((item, index) => (
+                        <li key={index} className="text-sm text-gray-300 flex items-start gap-2">
+                          <span className="text-yellow-400 mt-1">⚠</span>
+                          <span>{item}</span>
+                        </li>
                       ))}
-                    </div>
+                    </ul>
+                  </div>
+                  <div>
+                    <span className="text-sm text-gray-400 block mb-2">리스크:</span>
+                    <ul className="space-y-1">
+                      {(report.agencyPerspective?.perspectives?.publishing?.risks || []).map((item, index) => (
+                        <li key={index} className="text-sm text-red-300 flex items-start gap-2">
+                          <span className="text-red-400 mt-1">⚡</span>
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 </div>
               </div>
@@ -630,14 +665,26 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
                     <p className="text-white font-medium mt-1">{report.agencyPerspective?.perspectives?.development?.estimatedManMonths || 0}MM</p>
                   </div>
                   <div>
-                    <span className="text-sm text-gray-400 block mb-2">핵심 기술:</span>
-                    <div className="flex flex-wrap gap-2">
-                      {(report.agencyPerspective?.perspectives?.development?.criticalTechnologies || []).map((tech, index) => (
-                        <span key={index} className="px-2 py-1 bg-orange-900/30 text-orange-300 rounded text-xs border border-orange-700">
-                          {tech}
-                        </span>
+                    <span className="text-sm text-gray-400 block mb-2">예상 어려움:</span>
+                    <ul className="space-y-1">
+                      {(report.agencyPerspective?.perspectives?.development?.challenges || []).map((item, index) => (
+                        <li key={index} className="text-sm text-gray-300 flex items-start gap-2">
+                          <span className="text-yellow-400 mt-1">⚠</span>
+                          <span>{item}</span>
+                        </li>
                       ))}
-                    </div>
+                    </ul>
+                  </div>
+                  <div>
+                    <span className="text-sm text-gray-400 block mb-2">리스크:</span>
+                    <ul className="space-y-1">
+                      {(report.agencyPerspective?.perspectives?.development?.risks || []).map((item, index) => (
+                        <li key={index} className="text-sm text-red-300 flex items-start gap-2">
+                          <span className="text-red-400 mt-1">⚡</span>
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 </div>
               </div>

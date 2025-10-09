@@ -238,32 +238,31 @@ export interface AnalysisReport {
       conditions?: string[]; // 조건부 수락 시 충족 조건
     };
 
-    // 관점별 상세 분석
+    // 관점별 상세 분석 (실제 구축 시 예상되는 어려움과 리스크 중심)
     perspectives: {
       planning: {
         feasibility: number; // 0-100
         estimatedEffort: string;
-        keyConsiderations: string[];
-        potentialIssues: string[];
+        challenges: string[]; // 기획 단계에서 예상되는 구체적인 어려움
+        risks: string[]; // 기획 관련 리스크
       };
       design: {
         complexity: 'low' | 'medium' | 'high' | 'very_high';
         estimatedHours: number;
-        requiredSkills: string[];
-        designChallenges: string[];
+        challenges: string[]; // 디자인 단계 예상 어려움
+        risks: string[]; // 디자인 리스크
       };
       publishing: {
-        compatibility: string[];
-        browserSupport: string[];
         responsiveComplexity: 'low' | 'medium' | 'high';
         estimatedHours: number;
+        challenges: string[]; // 퍼블리싱 어려움
+        risks: string[]; // 퍼블리싱 리스크
       };
       development: {
         technicalComplexity: 'low' | 'medium' | 'high' | 'very_high';
         estimatedManMonths: number;
-        criticalTechnologies: string[];
-        integrationChallenges: string[];
-        securityConcerns: string[];
+        challenges: string[]; // 개발 어려움 (개발 없으면 "개발 불필요 - 우리가 처리할 영역 아님")
+        risks: string[]; // 개발 리스크
       };
     };
 
