@@ -348,6 +348,7 @@ export class AIQuestionGenerator {
         // 시장 조사의 경우 사전 분석 데이터 포함
         preAnalysisData: step === 'market_research' && context.preAnalysisData?.hasPreAnalysis
           ? {
+              hasPreAnalysis: context.preAnalysisData.hasPreAnalysis,
               report: context.preAnalysisData.report,
               documentAnalyses: context.preAnalysisData.documentAnalyses,
               summary: context.preAnalysisData.summary

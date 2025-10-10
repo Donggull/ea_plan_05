@@ -255,7 +255,20 @@ function buildQuestionPrompt(request: QuestionRequest): string {
 - 산업 분야: ${projectInfo?.industry || '미정'}
 `
 
-    if (preAnalysisData?.hasPreAnalysis) {
+    // 사전 분석 데이터 존재 여부를 report 또는 documentAnalyses로 확인
+    const hasPreAnalysisData = preAnalysisData && (
+      (preAnalysisData.report && Object.keys(preAnalysisData.report).length > 0) ||
+      (preAnalysisData.documentAnalyses && preAnalysisData.documentAnalyses.length > 0)
+    )
+
+    console.log('🔍 [buildQuestionPrompt] 사전 분석 데이터 체크:', {
+      hasPreAnalysisData,
+      hasReport: !!preAnalysisData?.report,
+      reportKeys: preAnalysisData?.report ? Object.keys(preAnalysisData.report).length : 0,
+      documentAnalysesCount: preAnalysisData?.documentAnalyses?.length || 0
+    })
+
+    if (hasPreAnalysisData) {
       prompt += `\n=== 사전 분석 보고서 인사이트 ===\n`
 
       if (preAnalysisData.report) {
@@ -268,6 +281,14 @@ function buildQuestionPrompt(request: QuestionRequest): string {
         if (preAnalysisData.report.recommendations && preAnalysisData.report.recommendations.length > 0) {
           prompt += `권장사항:\n${preAnalysisData.report.recommendations.map((r: string) => `- ${r}`).join('\n')}\n\n`
         }
+
+        if (preAnalysisData.report.technical_insights && preAnalysisData.report.technical_insights.length > 0) {
+          prompt += `기술적 인사이트:\n${preAnalysisData.report.technical_insights.map((t: string) => `- ${t}`).join('\n')}\n\n`
+        }
+
+        if (preAnalysisData.report.market_insights && preAnalysisData.report.market_insights.length > 0) {
+          prompt += `시장 인사이트:\n${preAnalysisData.report.market_insights.map((m: string) => `- ${m}`).join('\n')}\n\n`
+        }
       }
 
       if (preAnalysisData.documentAnalyses && preAnalysisData.documentAnalyses.length > 0) {
@@ -278,11 +299,17 @@ function buildQuestionPrompt(request: QuestionRequest): string {
           if (analysis.key_points && analysis.key_points.length > 0) {
             prompt += `   핵심 포인트: ${analysis.key_points.join(', ')}\n`
           }
+          if (analysis.technical_details && analysis.technical_details.length > 0) {
+            prompt += `   기술 세부사항: ${analysis.technical_details.join(', ')}\n`
+          }
           prompt += `\n`
         })
       }
+
+      console.log('✅ [buildQuestionPrompt] 사전 분석 데이터를 프롬프트에 포함했습니다.')
     } else {
       prompt += `\n(참고: 이 프로젝트에는 사전 분석 데이터가 없습니다.)\n`
+      console.warn('⚠️ [buildQuestionPrompt] 사전 분석 데이터가 없어 일반적인 질문을 생성합니다.')
     }
 
     if (documents && documents.length > 0) {
@@ -292,16 +319,18 @@ ${documents.map((doc, index) => `${index + 1}. ${doc.name}`).join('\n')}
     }
 
     prompt += `\n시장 조사를 위한 질문 생성 요구사항:
-1. 사전 분석에서 도출된 인사이트를 바탕으로 6-10개의 심층적인 시장 조사 질문을 생성하세요.
-2. 다음 카테고리를 포함하세요:
-   - 시장 규모 및 성장성
-   - 경쟁 환경 분석
-   - 타겟 고객 및 시장 세그먼트
-   - 시장 진입 전략
-   - 가격 전략
-   - 시장 트렌드 및 기회 요인
-3. 각 질문은 사전 분석의 발견사항을 검증하고 확장하는 방향이어야 합니다.
-4. 답변을 통해 구체적이고 실행 가능한 시장 인사이트를 얻을 수 있어야 합니다.
+1. **반드시** 위에 제공된 사전 분석 인사이트를 기반으로 6-10개의 맞춤형 질문을 생성하세요.
+2. 다음 카테고리를 포함하되, 각 질문은 사전 분석에서 발견된 내용을 직접 참조해야 합니다:
+   - 시장 규모 및 성장성: 사전 분석에서 언급된 시장 데이터를 구체화
+   - 경쟁 환경 분석: 사전 분석에서 발견된 경쟁사나 시장 상황을 심화
+   - 타겟 고객: 문서에서 언급된 고객 정보를 확장
+   - 시장 진입 전략: 권장사항과 발견사항을 실행 전략으로 전환
+   - 기술적 요구사항: 기술 인사이트를 구체적 요구사항으로 변환
+3. **중요**: 일반적인 질문 대신, 프로젝트 고유의 맥락을 반영한 구체적 질문을 생성하세요.
+   - 나쁜 예: "국내 AI 서비스 시장의 현재 규모는?"
+   - 좋은 예: "${projectInfo?.name || '이 프로젝트'}의 주요 목표 시장에서 경쟁 우위를 확보하기 위한 핵심 차별화 요소는?"
+4. 각 질문의 helpText에는 사전 분석에서 발견된 관련 내용을 간단히 언급하세요.
+5. 답변을 통해 즉시 실행 가능한 인사이트를 얻을 수 있어야 합니다.
 
 출력 형식 (JSON):
 {
