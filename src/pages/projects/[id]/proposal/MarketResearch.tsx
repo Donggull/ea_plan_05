@@ -330,40 +330,65 @@ export function MarketResearchPage() {
 
   // 현재 카테고리의 답변 저장 (카테고리 이동 시 자동 저장용)
   const saveCurrentCategoryAnswers = async () => {
-    if (!id || !user?.id || !currentCategoryData) return
+    if (!id || !user?.id || !currentCategoryData) {
+      console.log('❌ 저장 조건 미충족:', { hasId: !!id, hasUserId: !!user?.id, hasCategoryData: !!currentCategoryData })
+      return
+    }
 
     try {
       // 현재 카테고리의 질문들에 대한 답변만 저장
-      const savePromises = currentCategoryData.questions
-        .map(question => {
+      const saveTasks = currentCategoryData.questions
+        .filter(question => {
+          const answer = formData[question.question_id]
+          return answer !== undefined && answer !== ''
+        })
+        .map(async (question) => {
           const answer = formData[question.question_id]
 
-          // 답변이 없거나 빈 값이면 저장하지 않음
-          if (answer === undefined || answer === '') return null
+          // 🔥 중요: question.id를 사용해야 함 (question.question_id는 문자열 ID, question.id는 DB의 PK)
+          console.log(`💾 저장 시도:`, {
+            dbId: question.id, // DB의 실제 PK (UUID)
+            questionId: question.question_id, // 논리적 ID (문자열)
+            answerType: typeof answer,
+            answerLength: typeof answer === 'string' ? answer.length : Array.isArray(answer) ? answer.length : 'N/A',
+            projectId: id,
+            userId: user.id,
+            workflowStep: 'market_research'
+          })
 
-          console.log(`💾 저장 시도 - 질문 ID: ${question.question_id}, 답변:`, answer)
-
-          return ProposalDataManager.saveResponse(
-            id,
-            question.question_id,
-            'market_research',
-            {
-              answer,
-              confidence: undefined,
-              notes: undefined
-            },
-            true, // 자동 저장은 항상 임시 저장
-            user.id
-          )
+          try {
+            const result = await ProposalDataManager.saveResponse(
+              id,
+              question.id, // 🔥 수정: question.question_id → question.id (DB PK 사용)
+              'market_research',
+              {
+                answer,
+                confidence: undefined,
+                notes: undefined
+              },
+              true, // 자동 저장은 항상 임시 저장
+              user.id
+            )
+            console.log(`✅ 저장 성공:`, question.id)
+            return result
+          } catch (saveError) {
+            console.error(`❌ 개별 저장 실패 (${question.id}):`, saveError)
+            throw saveError
+          }
         })
-        .filter(Boolean)
 
-      if (savePromises.length > 0) {
-        await Promise.all(savePromises)
-        console.log(`✅ 카테고리 "${currentCategoryData.name}" 답변 ${savePromises.length}개 자동 저장 완료`)
+      if (saveTasks.length > 0) {
+        await Promise.all(saveTasks)
+        console.log(`✅ 카테고리 "${currentCategoryData.name}" 답변 ${saveTasks.length}개 자동 저장 완료`)
+      } else {
+        console.log(`ℹ️ 저장할 답변 없음 (카테고리: "${currentCategoryData.name}")`)
       }
     } catch (err) {
       console.error('❌ 카테고리 답변 자동 저장 실패:', err)
+      console.error('❌ 에러 상세:', {
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined
+      })
       // 저장 실패해도 카테고리 이동은 허용 (사용자 경험 우선)
     }
   }
