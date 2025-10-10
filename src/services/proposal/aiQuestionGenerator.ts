@@ -365,8 +365,28 @@ export class AIQuestionGenerator {
         model: requestPayload.model,
         projectId: requestPayload.projectId,
         documentsCount: requestPayload.documents.length,
-        hasProjectInfo: !!requestPayload.projectInfo
+        hasProjectInfo: !!requestPayload.projectInfo,
+        hasPreAnalysisData: !!requestPayload.preAnalysisData,
+        preAnalysisDataDetails: requestPayload.preAnalysisData ? {
+          hasReport: !!requestPayload.preAnalysisData.report,
+          documentAnalysesCount: requestPayload.preAnalysisData.documentAnalyses?.length || 0,
+          summaryLength: requestPayload.preAnalysisData.summary?.length || 0
+        } : null
       });
+
+      // 사전 분석 데이터 상세 로깅
+      if (requestPayload.preAnalysisData) {
+        console.log('📊 사전 분석 데이터 상세:');
+        console.log('  - 보고서 존재:', !!requestPayload.preAnalysisData.report);
+        if (requestPayload.preAnalysisData.report) {
+          console.log('  - 보고서 요약:', requestPayload.preAnalysisData.report.summary?.substring(0, 100));
+          console.log('  - 핵심 발견사항 수:', requestPayload.preAnalysisData.report.key_findings?.length || 0);
+          console.log('  - 권장사항 수:', requestPayload.preAnalysisData.report.recommendations?.length || 0);
+        }
+        console.log('  - 문서 분석 수:', requestPayload.preAnalysisData.documentAnalyses?.length || 0);
+      } else {
+        console.warn('⚠️ 사전 분석 데이터가 API 요청에 포함되지 않았습니다!');
+      }
 
       // 인증 토큰 추출
       let authToken: string | undefined

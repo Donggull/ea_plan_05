@@ -114,12 +114,33 @@ export function MarketResearchPage() {
           const projectDocuments = await ProposalDataManager.getProjectDocuments(id)
           console.log(`📄 프로젝트 문서 ${projectDocuments.length}개 조회`)
 
-          console.log('📊 사전 분석 데이터:', {
+          console.log('📊 사전 분석 데이터 상세:', {
             hasPreAnalysis: preAnalysisData.hasPreAnalysis,
             reportExists: !!preAnalysisData.report,
             documentCount: preAnalysisData.documentAnalyses.length,
             summary: preAnalysisData.summary.substring(0, 100) + '...'
           })
+
+          // 사전 분석 보고서 상세 내용 로깅
+          if (preAnalysisData.report) {
+            console.log('📄 사전 분석 보고서 내용:');
+            console.log('  - summary:', preAnalysisData.report.summary?.substring(0, 200));
+            console.log('  - key_findings:', preAnalysisData.report.key_findings);
+            console.log('  - recommendations:', preAnalysisData.report.recommendations);
+          } else {
+            console.warn('⚠️ 사전 분석 보고서가 없습니다!');
+          }
+
+          // 문서 분석 상세 내용 로깅
+          if (preAnalysisData.documentAnalyses.length > 0) {
+            console.log('📚 문서 분석 결과:', preAnalysisData.documentAnalyses.map(doc => ({
+              name: doc.document_name,
+              hasSummary: !!doc.summary,
+              keyPointsCount: doc.key_points?.length || 0
+            })));
+          } else {
+            console.warn('⚠️ 문서 분석 결과가 없습니다!');
+          }
 
           // AI 질문 생성
           const aiQuestions = await AIQuestionGenerator.generateAIQuestions(
