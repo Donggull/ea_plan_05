@@ -341,11 +341,17 @@ export function MarketResearchPage() {
           // 답변이 없거나 빈 값이면 저장하지 않음
           if (answer === undefined || answer === '') return null
 
+          console.log(`💾 저장 시도 - 질문 ID: ${question.question_id}, 답변:`, answer)
+
           return ProposalDataManager.saveResponse(
             id,
             question.question_id,
             'market_research',
-            { answer },
+            {
+              answer,
+              confidence: undefined,
+              notes: undefined
+            },
             true, // 자동 저장은 항상 임시 저장
             user.id
           )
@@ -357,7 +363,7 @@ export function MarketResearchPage() {
         console.log(`✅ 카테고리 "${currentCategoryData.name}" 답변 ${savePromises.length}개 자동 저장 완료`)
       }
     } catch (err) {
-      console.error('카테고리 답변 자동 저장 실패:', err)
+      console.error('❌ 카테고리 답변 자동 저장 실패:', err)
       // 저장 실패해도 카테고리 이동은 허용 (사용자 경험 우선)
     }
   }
