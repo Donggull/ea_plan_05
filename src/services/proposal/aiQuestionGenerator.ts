@@ -304,6 +304,12 @@ export class AIQuestionGenerator {
       industry?: string
       documents?: Array<{ name: string; content?: string }>
       existingAnswers?: QuestionResponse[]
+      preAnalysisData?: {
+        hasPreAnalysis: boolean
+        report: any | null
+        documentAnalyses: any[]
+        summary: string
+      }
     },
     userId?: string
   ): Promise<Question[]> {
@@ -311,10 +317,9 @@ export class AIQuestionGenerator {
       console.log('🤖 AIQuestionGenerator.generateAIQuestions 시작 (새로운 API)');
       console.log('📊 입력 파라미터:', { step, projectId, userId, context });
 
-      // 사전 분석이 아닌 경우 기본 질문과 AI 질문을 결합
-      if (step !== 'pre_analysis' && step !== 'questions') {
+      // 사전 분석이 아닌 경우 AND 시장 조사가 아닌 경우 기본 질문만 반환
+      if (step !== 'pre_analysis' && step !== 'questions' && step !== 'market_research') {
         const baseQuestions = this.generateQuestions(step, projectId)
-        // AI 질문은 선택사항이므로 기본 질문만 반환
         return baseQuestions
       }
 
@@ -340,10 +345,18 @@ export class AIQuestionGenerator {
           summary: doc.content ? doc.content.substring(0, 200) : undefined,
           content: doc.content
         })) || [],
+        // 시장 조사의 경우 사전 분석 데이터 포함
+        preAnalysisData: step === 'market_research' && context.preAnalysisData?.hasPreAnalysis
+          ? {
+              report: context.preAnalysisData.report,
+              documentAnalyses: context.preAnalysisData.documentAnalyses,
+              summary: context.preAnalysisData.summary
+            }
+          : undefined,
         context: {
           userId,
           sessionId: `${projectId}_${Date.now()}`,
-          requestType: 'pre_analysis_questions'
+          requestType: step === 'market_research' ? 'market_research_questions' : 'pre_analysis_questions'
         }
       };
 

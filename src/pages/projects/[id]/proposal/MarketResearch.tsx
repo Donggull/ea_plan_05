@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { ProposalDataManager, ProposalWorkflowQuestion } from '../../../../services/proposal/dataManager'
 import { ProposalAnalysisService } from '../../../../services/proposal/proposalAnalysisService'
+import { AIQuestionGenerator } from '../../../../services/proposal/aiQuestionGenerator'
 import { useAuth } from '../../../../contexts/AuthContext'
 import { PageContainer, PageHeader, PageContent, Card, Button, Badge, ProgressBar } from '../../../../components/LinearComponents'
 
@@ -61,52 +62,115 @@ export function MarketResearchPage() {
       let existingQuestions = await ProposalDataManager.getQuestions(id, 'market_research')
 
       if (existingQuestions.length === 0) {
-        // AI 모델이 구현되기 전까지 기본 질문들 사용
-        const defaultQuestions = [
-          {
-            id: 'mkt_target_market',
-            category: '목표 시장',
-            text: '주요 목표 시장은 어디인가요?',
-            type: 'textarea' as const,
-            required: true,
-            order: 1,
-            helpText: '지역, 인구 통계, 시장 규모 등을 포함하여 설명해주세요',
-            priority: 'high' as const,
-            confidence: 0.9,
-            aiGenerated: false
-          },
-          {
-            id: 'mkt_competitors',
-            category: '경쟁 분석',
-            text: '주요 경쟁사들은 어떤 회사들인가요?',
-            type: 'textarea' as const,
-            required: true,
-            order: 2,
-            helpText: '직접 경쟁사와 간접 경쟁사를 모두 포함해주세요',
-            priority: 'high' as const,
-            confidence: 0.9,
-            aiGenerated: false
-          },
-          {
-            id: 'mkt_market_size',
-            category: '시장 규모',
-            text: '예상 시장 규모는 얼마나 되나요?',
-            type: 'text' as const,
-            required: false,
-            order: 3,
-            helpText: '금액이나 사용자 수 등으로 표현해주세요',
-            priority: 'medium' as const,
-            confidence: 0.8,
-            aiGenerated: false
-          }
-        ]
+        // 사전 분석 데이터를 활용하여 AI 질문 생성
+        try {
+          console.log('🔍 사전 분석 데이터를 조회하여 AI 질문을 생성합니다...')
 
-        // 질문 저장
-        existingQuestions = await ProposalDataManager.saveQuestions(
-          id,
-          'market_research',
-          defaultQuestions
-        )
+          // 프로젝트 정보 조회
+          const project = await ProposalDataManager.getProjectDocuments(id)
+          const projectInfo = project.length > 0
+            ? { name: project[0]?.file_name || 'Unknown', description: '' }
+            : { name: 'Unknown', description: '' }
+
+          // 사전 분석 데이터 조회
+          const preAnalysisData = await ProposalDataManager.getPreAnalysisData(id)
+
+          console.log('📊 사전 분석 데이터:', {
+            hasPreAnalysis: preAnalysisData.hasPreAnalysis,
+            reportExists: !!preAnalysisData.report,
+            documentCount: preAnalysisData.documentAnalyses.length
+          })
+
+          // AI 질문 생성
+          const aiQuestions = await AIQuestionGenerator.generateAIQuestions(
+            'market_research',
+            id,
+            {
+              projectName: projectInfo.name,
+              projectDescription: projectInfo.description,
+              documents: project.map(doc => ({
+                name: doc.file_name,
+                content: doc.document_content?.[0]?.processed_text || doc.document_content?.[0]?.raw_text
+              })),
+              preAnalysisData
+            },
+            user?.id
+          )
+
+          console.log(`✅ AI 질문 ${aiQuestions.length}개 생성 완료`)
+
+          // 질문을 데이터베이스에 저장
+          const questionsToSave = aiQuestions.map(q => ({
+            id: q.id,
+            category: q.category,
+            text: q.text,
+            type: q.type,
+            options: q.options || [],
+            required: q.required,
+            order: q.order,
+            helpText: q.helpText,
+            priority: q.priority,
+            confidence: q.confidence,
+            aiGenerated: q.aiGenerated
+          }))
+
+          existingQuestions = await ProposalDataManager.saveQuestions(
+            id,
+            'market_research',
+            questionsToSave
+          )
+
+          console.log('💾 질문 저장 완료')
+        } catch (aiError) {
+          console.error('❌ AI 질문 생성 실패:', aiError)
+          setError('AI 질문 생성에 실패했습니다. 기본 질문을 사용합니다.')
+
+          // AI 질문 생성 실패 시 기본 질문 사용
+          const defaultQuestions = [
+            {
+              id: 'mkt_target_market',
+              category: '목표 시장',
+              text: '주요 목표 시장은 어디인가요?',
+              type: 'textarea' as const,
+              required: true,
+              order: 1,
+              helpText: '지역, 인구 통계, 시장 규모 등을 포함하여 설명해주세요',
+              priority: 'high' as const,
+              confidence: 0.9,
+              aiGenerated: false
+            },
+            {
+              id: 'mkt_competitors',
+              category: '경쟁 분석',
+              text: '주요 경쟁사들은 어떤 회사들인가요?',
+              type: 'textarea' as const,
+              required: true,
+              order: 2,
+              helpText: '직접 경쟁사와 간접 경쟁사를 모두 포함해주세요',
+              priority: 'high' as const,
+              confidence: 0.9,
+              aiGenerated: false
+            },
+            {
+              id: 'mkt_market_size',
+              category: '시장 규모',
+              text: '예상 시장 규모는 얼마나 되나요?',
+              type: 'text' as const,
+              required: false,
+              order: 3,
+              helpText: '금액이나 사용자 수 등으로 표현해주세요',
+              priority: 'medium' as const,
+              confidence: 0.8,
+              aiGenerated: false
+            }
+          ]
+
+          existingQuestions = await ProposalDataManager.saveQuestions(
+            id,
+            'market_research',
+            defaultQuestions
+          )
+        }
       }
 
       setQuestions(existingQuestions)

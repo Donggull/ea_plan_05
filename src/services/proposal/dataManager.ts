@@ -500,4 +500,131 @@ export class ProposalDataManager {
       throw error
     }
   }
+
+  /**
+   * 사전 분석 보고서 조회 (시장 조사 등에서 활용)
+   */
+  static async getPreAnalysisReport(projectId: string): Promise<any | null> {
+    try {
+      // 최신 완료된 사전 분석 세션 조회
+      const { data: session, error: sessionError } = await supabase!
+        .from('pre_analysis_sessions')
+        .select('id, status')
+        .eq('project_id', projectId)
+        .eq('status', 'completed')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
+
+      if (sessionError || !session) {
+        console.log('No completed pre-analysis session found for project:', projectId)
+        return null
+      }
+
+      // 보고서 조회
+      const { data: report, error: reportError } = await supabase!
+        .from('analysis_reports')
+        .select('*')
+        .eq('session_id', session.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
+
+      if (reportError || !report) {
+        console.log('No analysis report found for session:', session.id)
+        return null
+      }
+
+      return report
+    } catch (error) {
+      console.error('Failed to get pre-analysis report:', error)
+      return null
+    }
+  }
+
+  /**
+   * 사전 분석 문서 분석 결과 조회
+   */
+  static async getPreAnalysisDocuments(projectId: string): Promise<any[]> {
+    try {
+      // 최신 완료된 사전 분석 세션 조회
+      const { data: session, error: sessionError } = await supabase!
+        .from('pre_analysis_sessions')
+        .select('id, status')
+        .eq('project_id', projectId)
+        .eq('status', 'completed')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
+
+      if (sessionError || !session) {
+        console.log('No completed pre-analysis session found for project:', projectId)
+        return []
+      }
+
+      // 문서 분석 결과 조회
+      const { data: analyses, error: analysesError } = await supabase!
+        .from('document_analyses')
+        .select('*')
+        .eq('session_id', session.id)
+        .eq('status', 'completed')
+
+      if (analysesError) {
+        console.error('Failed to get document analyses:', analysesError)
+        return []
+      }
+
+      return analyses || []
+    } catch (error) {
+      console.error('Failed to get pre-analysis documents:', error)
+      return []
+    }
+  }
+
+  /**
+   * 사전 분석 데이터 종합 조회 (보고서 + 문서 분석)
+   */
+  static async getPreAnalysisData(projectId: string): Promise<{
+    hasPreAnalysis: boolean
+    report: any | null
+    documentAnalyses: any[]
+    summary: string
+  }> {
+    try {
+      const [report, documentAnalyses] = await Promise.all([
+        this.getPreAnalysisReport(projectId),
+        this.getPreAnalysisDocuments(projectId)
+      ])
+
+      const hasPreAnalysis = report !== null || documentAnalyses.length > 0
+
+      // 요약 생성
+      let summary = ''
+      if (report) {
+        summary += `사전 분석 보고서: ${report.summary || '요약 없음'}\n\n`
+        if (report.key_insights) {
+          summary += `주요 인사이트:\n${JSON.stringify(report.key_insights, null, 2)}\n\n`
+        }
+      }
+
+      if (documentAnalyses.length > 0) {
+        summary += `문서 분석 ${documentAnalyses.length}건 완료\n`
+      }
+
+      return {
+        hasPreAnalysis,
+        report,
+        documentAnalyses,
+        summary: summary || '사전 분석 데이터가 없습니다.'
+      }
+    } catch (error) {
+      console.error('Failed to get pre-analysis data:', error)
+      return {
+        hasPreAnalysis: false,
+        report: null,
+        documentAnalyses: [],
+        summary: '사전 분석 데이터 조회 중 오류가 발생했습니다.'
+      }
+    }
+  }
 }
