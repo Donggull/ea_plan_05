@@ -24,6 +24,11 @@ import {
 import { AnalysisReport as AnalysisReportType } from '../../types/preAnalysis';
 import { supabase } from '../../lib/supabase';
 import { preAnalysisService } from '../../services/preAnalysis/PreAnalysisService';
+import {
+  downloadReportAsDocx,
+  downloadReportAsMarkdown,
+  downloadReportAsJson,
+} from '../../utils/reportExport';
 
 interface AnalysisReportProps {
   sessionId: string;
@@ -191,19 +196,25 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
     };
   };
 
-  const handleDownload = (format: 'pdf' | 'json' | 'markdown') => {
+  const handleDownload = async (format: 'docx' | 'json' | 'markdown') => {
     if (!report) return;
 
-    const data = format === 'json' ? JSON.stringify(report, null, 2) : '보고서 내용';
-    const blob = new Blob([data], { type: format === 'json' ? 'application/json' : 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `analysis-report-${sessionId}.${format}`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    try {
+      switch (format) {
+        case 'docx':
+          await downloadReportAsDocx(report, sessionId);
+          break;
+        case 'markdown':
+          downloadReportAsMarkdown(report, sessionId);
+          break;
+        case 'json':
+          downloadReportAsJson(report, sessionId);
+          break;
+      }
+    } catch (error) {
+      console.error('다운로드 오류:', error);
+      alert('파일 다운로드 중 오류가 발생했습니다.');
+    }
   };
 
   const handleShare = () => {
@@ -371,22 +382,22 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
             </button>
             <div className="absolute right-0 top-full mt-2 w-32 bg-gray-800 border border-gray-700 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
               <button
-                onClick={() => handleDownload('pdf')}
+                onClick={() => handleDownload('docx')}
                 className="block w-full px-4 py-2 text-left text-gray-300 hover:bg-gray-700 rounded-t-lg"
               >
-                PDF
-              </button>
-              <button
-                onClick={() => handleDownload('json')}
-                className="block w-full px-4 py-2 text-left text-gray-300 hover:bg-gray-700"
-              >
-                JSON
+                DOCX
               </button>
               <button
                 onClick={() => handleDownload('markdown')}
-                className="block w-full px-4 py-2 text-left text-gray-300 hover:bg-gray-700 rounded-b-lg"
+                className="block w-full px-4 py-2 text-left text-gray-300 hover:bg-gray-700"
               >
                 Markdown
+              </button>
+              <button
+                onClick={() => handleDownload('json')}
+                className="block w-full px-4 py-2 text-left text-gray-300 hover:bg-gray-700 rounded-b-lg"
+              >
+                JSON
               </button>
             </div>
           </div>

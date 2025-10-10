@@ -3,8 +3,8 @@
 ## 📅 프로젝트 개요
 - **목표**: 기존 ELUO 시스템에 사전 분석(Pre-Analysis) 단계 추가
 - **시작일**: 2025-01-27
-- **최신 업데이트**: 2025-10-09 - AI 보고서 생성 버그 수정 (agency_perspective, baselineData)
-- **현재 상태**: Phase 9.2 완료 - 보고서 생성 데이터 완전성 및 프롬프트 최적화
+- **최신 업데이트**: 2025-10-10 - 보고서 다운로드 기능 구현 (DOCX, MD, JSON)
+- **현재 상태**: Phase 9.3 완료 - 보고서 다운로드 기능 및 실제 데이터 표시
 - **참조 문서**:
   - `docs/pre_analysis_prd.md`
   - `docs/pre_analysis_prompts.md`
@@ -26,6 +26,74 @@
 ### ⏳ 대기 중인 작업
 - [ ] Supabase 테이블 스키마 검토
 - [ ] 필요한 환경변수 확인
+
+---
+
+## 🎉 Phase 9.3: 보고서 다운로드 기능 및 실제 데이터 표시 ✅ 완료 (2025-10-10)
+
+### 📥 보고서 다운로드 기능 구현
+- [x] **필요한 라이브러리 설치**
+  - [x] `docx` 패키지 설치 (DOCX 파일 생성용)
+  - [x] `file-saver` 패키지 설치 (파일 다운로드용)
+  - [x] `@types/file-saver` 타입 정의 설치
+
+- [x] **보고서 내보내기 유틸리티 작성** (`src/utils/reportExport.ts`)
+  - [x] `convertReportToMarkdown`: Markdown 형식 변환 함수
+  - [x] `downloadReportAsDocx`: DOCX 파일 생성 및 다운로드
+  - [x] `downloadReportAsMarkdown`: MD 파일 다운로드
+  - [x] `downloadReportAsJson`: JSON 파일 다운로드
+
+- [x] **AnalysisReport.tsx에 다운로드 기능 통합**
+  - [x] 유틸리티 함수 import 추가
+  - [x] `handleDownload` 함수 수정 (async/await 처리)
+  - [x] 다운로드 버튼 메뉴 업데이트 (PDF → DOCX, MD, JSON)
+
+### 📊 실제 데이터 연동 확인
+- [x] **데이터 흐름 분석**
+  - [x] PreAnalysisService의 `generateAIReport` 메서드 확인
+  - [x] AI API 응답에서 토큰 사용량 및 비용 정확히 계산됨 확인
+  - [x] `analysis_reports` 테이블에 실제 데이터 저장됨 확인
+  - [x] AnalysisReport 컴포넌트에서 데이터 정상 표시됨 확인
+
+- [x] **보고서 메타 정보 실제 데이터 표시**
+  - 전체 위험도: `report.riskAssessment.overallScore`
+  - 분석 비용: `report.totalCost` (AI API 실제 비용)
+  - 처리 시간: `report.totalProcessingTime` (실제 처리 시간)
+  - 토큰 사용량: `report.inputTokens + report.outputTokens` (실제 토큰 사용량)
+
+### ✅ 타입 체크 및 테스트
+- [x] TypeScript 타입 오류 수정
+  - [x] `docx` 라이브러리의 TextRun에 bold/italics 속성 사용
+  - [x] Table 헤더 셀에 TextRun 사용하여 bold 처리
+- [x] `npm run typecheck` 성공적으로 통과
+
+### 📄 다운로드 기능 세부 사항
+
+**Markdown (.md) 형식:**
+- 전체 보고서 내용을 마크다운 테이블과 리스트로 변환
+- 프로젝트 결정, 요약, 인사이트, 위험 분석, 권장사항 포함
+- 웹에이전시 관점 4가지 분석 (기획, 디자인, 퍼블리싱, 개발)
+- 비용 추정 및 기초 데이터 포함
+
+**DOCX (.docx) 형식:**
+- `docx` 라이브러리를 사용한 전문적인 문서 생성
+- 제목, 헤딩, 테이블, 텍스트 스타일링 적용
+- 메타 정보 테이블 (위험도, 비용, 처리 시간, 토큰 사용량)
+- 구조화된 위험 분석 및 권장사항
+
+**JSON (.json) 형식:**
+- 전체 AnalysisReport 객체를 JSON 형식으로 내보내기
+- 프로그래밍 방식 활용 가능
+- 데이터 백업 및 재처리 용도
+
+### 🔧 구현된 파일
+- ✅ `src/utils/reportExport.ts` (새로 생성)
+- ✅ `src/components/preAnalysis/AnalysisReport.tsx` (다운로드 기능 통합)
+
+### 📝 추가 개선 사항 (향후)
+- [ ] PDF 다운로드 기능 추가 (html2pdf 또는 jsPDF 사용)
+- [ ] 보고서 템플릿 커스터마이징 옵션
+- [ ] 이메일 전송 기능 추가
 
 ---
 
