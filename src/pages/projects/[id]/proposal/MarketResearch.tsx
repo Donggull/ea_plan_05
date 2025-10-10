@@ -285,8 +285,18 @@ export function MarketResearchPage() {
       const existingResponses = await ProposalDataManager.getResponses(id, 'market_research')
       const responseData: QuestionFormData = {}
 
+      // 🔥 수정: UUID(question_id)를 question.question_id(문자열 ID)로 매핑
       existingResponses.forEach(response => {
-        responseData[response.question_id] = response.answer_data.answer
+        // response.question_id는 UUID, 이를 question.question_id (문자열)로 변환
+        const question = existingQuestions.find(q => q.id === response.question_id)
+        if (question) {
+          responseData[question.question_id] = response.answer_data.answer
+          console.log(`📥 답변 로딩:`, {
+            uuid: response.question_id,
+            questionId: question.question_id,
+            hasAnswer: !!response.answer_data.answer
+          })
+        }
       })
 
       setFormData(responseData)
@@ -400,17 +410,55 @@ export function MarketResearchPage() {
     // 현재 카테고리의 답변 저장
     await saveCurrentCategoryAnswers()
 
+    // 🔥 추가: 카테고리 완료 상태 즉시 업데이트
+    const updatedCategories = categories.map(category => {
+      const completed = category.questions.filter(q =>
+        formData[q.question_id] !== undefined && formData[q.question_id] !== ''
+      ).length
+
+      return {
+        ...category,
+        completed
+      }
+    })
+    setCategories(updatedCategories)
+
+    console.log(`🔄 카테고리 변경: ${categories[currentCategory]?.name} → ${categories[newCategoryIndex]?.name}`)
+    console.log(`📊 업데이트된 카테고리 상태:`, updatedCategories.map(c => ({
+      name: c.name,
+      completed: c.completed,
+      total: c.total
+    })))
+
     // 카테고리 변경
     setCurrentCategory(newCategoryIndex)
   }
 
   // 답변 변경 처리
   const handleAnswerChange = (questionId: string, value: string | string[] | number) => {
-    setFormData(prev => ({
-      ...prev,
-      [questionId]: value
-    }))
-    // 🔥 자동 저장 제거 - 카테고리 이동 시에만 저장
+    setFormData(prev => {
+      const updated = {
+        ...prev,
+        [questionId]: value
+      }
+
+      // 🔥 추가: 답변 변경 시 카테고리 완료 상태 즉시 업데이트
+      setTimeout(() => {
+        const updatedCategories = categories.map(category => {
+          const completed = category.questions.filter(q =>
+            updated[q.question_id] !== undefined && updated[q.question_id] !== ''
+          ).length
+
+          return {
+            ...category,
+            completed
+          }
+        })
+        setCategories(updatedCategories)
+      }, 0)
+
+      return updated
+    })
   }
 
   // 임시 저장
@@ -425,9 +473,16 @@ export function MarketResearchPage() {
       const savePromises = Object.entries(formData).map(([questionId, answer]) => {
         if (answer === undefined || answer === '') return null
 
+        // 🔥 수정: question.question_id (문자열)를 question.id (UUID)로 변환
+        const question = questions.find(q => q.question_id === questionId)
+        if (!question) {
+          console.warn(`⚠️ 질문을 찾을 수 없음: ${questionId}`)
+          return null
+        }
+
         return ProposalDataManager.saveResponse(
           id,
-          questionId,
+          question.id, // UUID 사용
           'market_research',
           { answer },
           isTemporary,
