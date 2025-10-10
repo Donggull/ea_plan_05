@@ -354,8 +354,52 @@ export function ProjectDetailPage() {
         </Card>
       </div>
 
-      {/* 사전 분석 요약 + 프로젝트 정보 */}
+      {/* 프로젝트 정보 + 사전 분석 요약 (위치 변경) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* 프로젝트 정보 */}
+        <Card>
+          <div className="flex items-center space-x-3 mb-4">
+            <div className="p-2 bg-indigo-500/10 rounded-lg">
+              <FileText className="w-5 h-5 text-indigo-500" />
+            </div>
+            <h3 className="text-lg font-semibold text-text-primary">프로젝트 정보</h3>
+          </div>
+          <div className="space-y-3 text-sm">
+            <div className="flex justify-between py-2 border-b border-border-primary/30">
+              <span className="text-text-secondary font-medium">상태</span>
+              <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(project.status)}`}>
+                {getStatusLabel(project.status)}
+              </span>
+            </div>
+            <div className="flex justify-between py-2 border-b border-border-primary/30">
+              <span className="text-text-secondary font-medium">생성일</span>
+              <span className="text-text-primary">
+                {project.created_at ? new Date(project.created_at).toLocaleDateString('ko-KR') : '-'}
+              </span>
+            </div>
+            <div className="flex justify-between py-2 border-b border-border-primary/30">
+              <span className="text-text-secondary font-medium">소유자</span>
+              <span className="text-text-primary">{project.owner_name || '알 수 없음'}</span>
+            </div>
+            <div className="flex justify-between py-2 border-b border-border-primary/30">
+              <span className="text-text-secondary font-medium">멤버 수</span>
+              <span className="text-text-primary">{projectMembers.length}명</span>
+            </div>
+            <div className="flex justify-between py-2">
+              <span className="text-text-secondary font-medium">문서 수</span>
+              <span className="text-text-primary">{documentCount}개</span>
+            </div>
+            {project.description && (
+              <div className="pt-3 mt-2 border-t border-border-primary/30">
+                <div className="text-text-secondary font-medium mb-2">설명</div>
+                <p className="text-text-secondary text-xs leading-relaxed bg-bg-tertiary p-3 rounded-lg">
+                  {project.description}
+                </p>
+              </div>
+            )}
+          </div>
+        </Card>
+
         {/* 사전 분석 요약 */}
         <Card>
           <div className="flex items-center justify-between mb-4">
@@ -426,7 +470,7 @@ export function ProjectDetailPage() {
                 ) : (
                   <button
                     onClick={() => navigate(`/projects/${id}/pre-analysis`)}
-                    className="w-full flex items-center justify-center space-x-2 px-3 py-2.5 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors text-sm font-medium"
+                    className="w-auto inline-flex items-center justify-center space-x-2 px-4 py-2.5 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors text-sm font-medium"
                     disabled={analysisStatus.status === 'processing'}
                   >
                     {analysisStatus.status === 'processing' ? (
@@ -446,50 +490,6 @@ export function ProjectDetailPage() {
             </div>
           )}
         </Card>
-
-        {/* 프로젝트 정보 */}
-        <Card>
-          <div className="flex items-center space-x-3 mb-4">
-            <div className="p-2 bg-indigo-500/10 rounded-lg">
-              <FileText className="w-5 h-5 text-indigo-500" />
-            </div>
-            <h3 className="text-lg font-semibold text-text-primary">프로젝트 정보</h3>
-          </div>
-          <div className="space-y-3 text-sm">
-            <div className="flex justify-between py-2 border-b border-border-primary/30">
-              <span className="text-text-secondary font-medium">상태</span>
-              <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(project.status)}`}>
-                {getStatusLabel(project.status)}
-              </span>
-            </div>
-            <div className="flex justify-between py-2 border-b border-border-primary/30">
-              <span className="text-text-secondary font-medium">생성일</span>
-              <span className="text-text-primary">
-                {project.created_at ? new Date(project.created_at).toLocaleDateString('ko-KR') : '-'}
-              </span>
-            </div>
-            <div className="flex justify-between py-2 border-b border-border-primary/30">
-              <span className="text-text-secondary font-medium">소유자</span>
-              <span className="text-text-primary">{project.owner_name || '알 수 없음'}</span>
-            </div>
-            <div className="flex justify-between py-2 border-b border-border-primary/30">
-              <span className="text-text-secondary font-medium">멤버 수</span>
-              <span className="text-text-primary">{projectMembers.length}명</span>
-            </div>
-            <div className="flex justify-between py-2">
-              <span className="text-text-secondary font-medium">문서 수</span>
-              <span className="text-text-primary">{documentCount}개</span>
-            </div>
-            {project.description && (
-              <div className="pt-3 mt-2 border-t border-border-primary/30">
-                <div className="text-text-secondary font-medium mb-2">설명</div>
-                <p className="text-text-secondary text-xs leading-relaxed bg-bg-tertiary p-3 rounded-lg">
-                  {project.description}
-                </p>
-              </div>
-            )}
-          </div>
-        </Card>
       </div>
 
       {/* 실시간 협업 */}
@@ -506,24 +506,8 @@ export function ProjectDetailPage() {
         <CollaborativeWorkspace projectId={id!} />
       </Card>
 
-      {/* 프로젝트 문서 + 팀 멤버 */}
+      {/* 팀 멤버 + 프로젝트 문서 (위치 변경) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* 프로젝트 문서 */}
-        <Card>
-          <div className="flex items-center space-x-3 mb-4">
-            <div className="p-2 bg-cyan-500/10 rounded-lg">
-              <FileText className="w-5 h-5 text-cyan-500" />
-            </div>
-            <h2 className="text-lg font-semibold text-text-primary">프로젝트 문서</h2>
-          </div>
-          <DocumentManager
-            projectId={id!}
-            showUploader={true}
-            viewMode="list"
-            onDocumentChange={handleDocumentChange}
-          />
-        </Card>
-
         {/* 팀 멤버 */}
         <Card>
           <div className="flex items-center justify-between mb-4">
@@ -541,6 +525,22 @@ export function ProjectDetailPage() {
             </button>
           </div>
           <MemberList projectId={id!} />
+        </Card>
+
+        {/* 프로젝트 문서 */}
+        <Card>
+          <div className="flex items-center space-x-3 mb-4">
+            <div className="p-2 bg-cyan-500/10 rounded-lg">
+              <FileText className="w-5 h-5 text-cyan-500" />
+            </div>
+            <h2 className="text-lg font-semibold text-text-primary">프로젝트 문서</h2>
+          </div>
+          <DocumentManager
+            projectId={id!}
+            showUploader={true}
+            viewMode="list"
+            onDocumentChange={handleDocumentChange}
+          />
         </Card>
       </div>
     </div>
