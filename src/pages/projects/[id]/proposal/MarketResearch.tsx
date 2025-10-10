@@ -41,6 +41,14 @@ export function MarketResearchPage() {
   const [regenerating, setRegenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // 🔥 추가: 답변이 유효한지 확인하는 헬퍼 함수
+  const isValidAnswer = (answer: string | string[] | number | undefined): boolean => {
+    if (answer === undefined || answer === null) return false
+    if (answer === '') return false
+    if (Array.isArray(answer) && answer.length === 0) return false
+    return true
+  }
+
   const [questions, setQuestions] = useState<ProposalWorkflowQuestion[]>([])
   const [formData, setFormData] = useState<QuestionFormData>({})
   const [categories, setCategories] = useState<QuestionCategory[]>([])
@@ -313,7 +321,7 @@ export function MarketResearchPage() {
 
       const categoryList: QuestionCategory[] = Object.entries(categorizedQuestions).map(([name, categoryQuestions]) => {
         const completed = categoryQuestions.filter(q =>
-          responseData[q.question_id] !== undefined && responseData[q.question_id] !== ''
+          isValidAnswer(responseData[q.question_id])
         ).length
 
         return {
@@ -350,7 +358,7 @@ export function MarketResearchPage() {
       const saveTasks = currentCategoryData.questions
         .filter(question => {
           const answer = formData[question.question_id]
-          return answer !== undefined && answer !== ''
+          return isValidAnswer(answer) // 🔥 수정: 배열 빈 값 체크 포함
         })
         .map(async (question) => {
           const answer = formData[question.question_id]
@@ -413,7 +421,7 @@ export function MarketResearchPage() {
     // 🔥 추가: 카테고리 완료 상태 즉시 업데이트
     const updatedCategories = categories.map(category => {
       const completed = category.questions.filter(q =>
-        formData[q.question_id] !== undefined && formData[q.question_id] !== ''
+        isValidAnswer(formData[q.question_id])
       ).length
 
       return {
@@ -446,7 +454,7 @@ export function MarketResearchPage() {
       setTimeout(() => {
         const updatedCategories = categories.map(category => {
           const completed = category.questions.filter(q =>
-            updated[q.question_id] !== undefined && updated[q.question_id] !== ''
+            isValidAnswer(updated[q.question_id])
           ).length
 
           return {
@@ -471,7 +479,7 @@ export function MarketResearchPage() {
 
       // 모든 답변 저장
       const savePromises = Object.entries(formData).map(([questionId, answer]) => {
-        if (answer === undefined || answer === '') return null
+        if (!isValidAnswer(answer)) return null // 🔥 수정: 배열 빈 값 체크 포함
 
         // 🔥 수정: question.question_id (문자열)를 question.id (UUID)로 변환
         const question = questions.find(q => q.question_id === questionId)
@@ -499,7 +507,7 @@ export function MarketResearchPage() {
       // 카테고리 완료 상태 업데이트
       const updatedCategories = categories.map(category => {
         const completed = category.questions.filter(q =>
-          formData[q.question_id] !== undefined && formData[q.question_id] !== ''
+          isValidAnswer(formData[q.question_id])
         ).length
 
         return {
@@ -528,7 +536,7 @@ export function MarketResearchPage() {
       // 필수 질문 검증
       const requiredQuestions = questions.filter(q => q.is_required)
       const missingRequired = requiredQuestions.filter(q =>
-        !formData[q.question_id] || formData[q.question_id] === ''
+        !isValidAnswer(formData[q.question_id]) // 🔥 수정: 배열 빈 값 체크 포함
       )
 
       if (missingRequired.length > 0) {
@@ -870,7 +878,7 @@ export function MarketResearchPage() {
 
                 <div className="space-y-6">
                   {currentCategoryData.questions.map((question, index) => {
-                    const isAnswered = formData[question.question_id] !== undefined && formData[question.question_id] !== ''
+                    const isAnswered = isValidAnswer(formData[question.question_id]) // 🔥 수정: 배열 빈 값 체크 포함
 
                     return (
                       <div
