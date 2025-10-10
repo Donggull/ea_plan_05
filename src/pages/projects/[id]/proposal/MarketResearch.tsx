@@ -59,10 +59,36 @@ export function MarketResearchPage() {
       setLoading(true)
       setError(null)
 
+      console.log('🔍 시장 조사 질문 로딩 시작...')
+
+      // 사전 분석 데이터 먼저 조회 (중요!)
+      const preAnalysisData = await ProposalDataManager.getPreAnalysisData(id)
+
+      console.log('📊 사전 분석 상태 확인:', {
+        hasPreAnalysis: preAnalysisData.hasPreAnalysis,
+        reportExists: !!preAnalysisData.report,
+        documentCount: preAnalysisData.documentAnalyses.length
+      })
+
       // 기존 질문이 있는지 확인
       let existingQuestions = await ProposalDataManager.getQuestions(id, 'market_research')
 
-      if (existingQuestions.length === 0) {
+      console.log('💾 기존 질문 상태:', {
+        count: existingQuestions.length,
+        hasAIGenerated: existingQuestions.some(q => q.question_id.includes('_ai_'))
+      })
+
+      // 질문 재생성 조건:
+      // 1. 기존 질문이 없거나
+      // 2. 사전 분석 데이터가 있으면서 기존 질문이 AI 생성이 아닌 경우 (기본 질문)
+      // AI 생성 질문은 ID에 '_ai_'가 포함됨
+      const shouldRegenerateQuestions =
+        existingQuestions.length === 0 ||
+        (preAnalysisData.hasPreAnalysis && existingQuestions.every(q => !q.question_id.includes('_ai_')))
+
+      if (shouldRegenerateQuestions) {
+        console.log('🤖 질문 재생성 조건 충족! AI 질문을 새로 생성합니다.')
+
         // 사전 분석 데이터를 활용하여 AI 질문 생성
         try {
           console.log('🔍 사전 분석 데이터를 조회하여 AI 질문을 생성합니다...')
@@ -87,9 +113,6 @@ export function MarketResearchPage() {
           // 프로젝트 문서 조회
           const projectDocuments = await ProposalDataManager.getProjectDocuments(id)
           console.log(`📄 프로젝트 문서 ${projectDocuments.length}개 조회`)
-
-          // 사전 분석 데이터 조회
-          const preAnalysisData = await ProposalDataManager.getPreAnalysisData(id)
 
           console.log('📊 사전 분석 데이터:', {
             hasPreAnalysis: preAnalysisData.hasPreAnalysis,
