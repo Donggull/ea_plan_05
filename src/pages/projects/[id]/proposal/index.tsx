@@ -143,9 +143,8 @@ export function ProposalWorkflowPage() {
                    step === 'proposal' ? 'proposal-writer' :
                    step // personas, budget은 그대로
 
-    // 질문 재생성을 위한 파라미터 추가
-    // 사용자가 "질문 시작"을 클릭하면 항상 새로운 질문 생성
-    navigate(`/projects/${id}/proposal/${urlPath}?regenerate=true`)
+    // 기존 질문과 답변이 있으면 불러오고, 없으면 새로 생성
+    navigate(`/projects/${id}/proposal/${urlPath}`)
   }
 
   // AI 분석 실행
