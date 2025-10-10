@@ -4,8 +4,6 @@ import { ArrowLeft, Edit } from 'lucide-react'
 import { ProjectForm } from '../../../components/projects/ProjectForm'
 import { useProject } from '../../../contexts/ProjectContext'
 import { ProjectService } from '../../../services/projectService'
-import { ProjectTypeService } from '../../../services/projectTypeService'
-import { ProjectStageSelection } from '../../../types/project'
 import { PageContainer, PageHeader, PageContent } from '../../../components/LinearComponents'
 
 export function EditProjectPage() {
@@ -13,8 +11,6 @@ export function EditProjectPage() {
   const navigate = useNavigate()
   const { updateProject } = useProject()
   const [project, setProject] = useState<any>(null)
-  const [projectStageSelection, setProjectStageSelection] = useState<ProjectStageSelection | null>(null)
-  const [protectedSteps, setProtectedSteps] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -27,24 +23,10 @@ export function EditProjectPage() {
         setLoading(true)
         setError(null)
 
-        const [projectData, projectConfig, stepStatus] = await Promise.all([
-          ProjectService.getProject(id),
-          ProjectTypeService.getProjectTypes(id),
-          ProjectTypeService.getCompletedSteps(id)
-        ])
+        const projectData = await ProjectService.getProject(id)
 
         if (projectData) {
           setProject(projectData)
-
-          // 프로젝트의 기존 단계 설정 로드
-          setProjectStageSelection({
-            selectedTypes: projectConfig.projectTypes,
-            selectedSteps: projectConfig.workflowSteps,
-            enableConnectedMode: projectConfig.enableConnectedMode
-          })
-
-          // 보호된 단계 설정 (완료된 단계 + 진행 중인 단계)
-          setProtectedSteps(stepStatus.protectedSteps)
         } else {
           setError('프로젝트를 찾을 수 없습니다.')
         }
@@ -63,18 +45,13 @@ export function EditProjectPage() {
     if (!id) return
 
     try {
-      // 기본 프로젝트 정보 업데이트
+      // 기본 프로젝트 정보만 업데이트
       await updateProject(id, {
         name: projectData.name,
         description: projectData.description,
         status: projectData.status,
         updated_at: new Date().toISOString()
       })
-
-      // 프로젝트 단계 설정 업데이트 (변경된 경우)
-      if (projectData.stageSelection) {
-        await ProjectTypeService.updateProjectTypes(id, projectData.stageSelection)
-      }
 
       // 성공 시 프로젝트 상세 페이지로 이동
       navigate(`/projects/${id}`)
@@ -117,7 +94,7 @@ export function EditProjectPage() {
       <PageHeader
         title="프로젝트 편집"
         subtitle={`${project.name} 프로젝트의 정보를 수정합니다`}
-        description="프로젝트 정보와 워크플로우 설정을 변경할 수 있습니다"
+        description="프로젝트의 기본 정보와 상태를 변경할 수 있습니다"
         actions={
           <button
             onClick={() => navigate(`/projects/${id}`)}
@@ -138,23 +115,14 @@ export function EditProjectPage() {
             <div>
               <h2 className="text-lg font-semibold text-text-primary">프로젝트 정보 수정</h2>
               <p className="text-text-secondary text-sm">
-                프로젝트 정보를 업데이트하고 워크플로우를 변경하세요
-                {protectedSteps.length > 0 && (
-                  <span className="text-yellow-500 ml-2">
-                    (진행 중인 단계: {protectedSteps.length}개 보호됨)
-                  </span>
-                )}
+                프로젝트의 이름, 설명, 상태를 업데이트할 수 있습니다
               </p>
             </div>
           </div>
 
           <ProjectForm
             mode="edit"
-            initialData={{
-              ...project,
-              stageSelection: projectStageSelection,
-              protectedSteps: protectedSteps
-            }}
+            initialData={project}
             onSubmit={handleUpdateProject}
             onCancel={() => navigate(`/projects/${id}`)}
           />
