@@ -142,7 +142,10 @@ export function ProposalWorkflowPage() {
     const urlPath = step === 'market_research' ? 'market-research' :
                    step === 'proposal' ? 'proposal-writer' :
                    step // personas, budget은 그대로
-    navigate(`/projects/${id}/proposal/${urlPath}`)
+
+    // 질문 재생성을 위한 파라미터 추가
+    // 사용자가 "질문 시작"을 클릭하면 항상 새로운 질문 생성
+    navigate(`/projects/${id}/proposal/${urlPath}?regenerate=true`)
   }
 
   // AI 분석 실행

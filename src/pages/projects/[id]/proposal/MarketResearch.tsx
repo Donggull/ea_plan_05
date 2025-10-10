@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import {
   ArrowLeft,
   Save,
@@ -8,7 +8,8 @@ import {
   AlertCircle,
   TrendingUp,
   HelpCircle,
-  Loader2
+  Loader2,
+  RefreshCw
 } from 'lucide-react'
 import { ProposalDataManager, ProposalWorkflowQuestion } from '../../../../services/proposal/dataManager'
 import { ProposalAnalysisService } from '../../../../services/proposal/proposalAnalysisService'
@@ -31,11 +32,13 @@ interface QuestionCategory {
 export function MarketResearchPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const { user } = useAuth()
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
+  const [regenerating, setRegenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const [questions, setQuestions] = useState<ProposalWorkflowQuestion[]>([])
@@ -52,7 +55,7 @@ export function MarketResearchPage() {
   })
 
   // 질문 및 기존 답변 로드
-  const loadQuestionsAndResponses = async () => {
+  const loadQuestionsAndResponses = async (forceRegenerate: boolean = false) => {
     if (!id) return
 
     try {
@@ -60,6 +63,16 @@ export function MarketResearchPage() {
       setError(null)
 
       console.log('🔍 시장 조사 질문 로딩 시작...')
+
+      // URL 파라미터에서 regenerate 확인
+      const searchParams = new URLSearchParams(location.search)
+      const shouldForceRegenerate = forceRegenerate || searchParams.get('regenerate') === 'true'
+
+      if (shouldForceRegenerate) {
+        console.log('🔄 질문 재생성 요청됨')
+        // URL에서 파라미터 제거 (한 번만 실행되도록)
+        navigate(location.pathname, { replace: true })
+      }
 
       // 사전 분석 데이터 먼저 조회 (중요!)
       const preAnalysisData = await ProposalDataManager.getPreAnalysisData(id)
@@ -79,15 +92,46 @@ export function MarketResearchPage() {
       })
 
       // 질문 재생성 조건:
-      // 1. 기존 질문이 없거나
-      // 2. 사전 분석 데이터가 있으면서 기존 질문이 AI 생성이 아닌 경우 (기본 질문)
+      // 1. 강제 재생성 요청이 있거나
+      // 2. 기존 질문이 없거나
+      // 3. 사전 분석 데이터가 있으면서 기존 질문이 AI 생성이 아닌 경우 (기본 질문)
       // AI 생성 질문은 ID에 '_ai_'가 포함됨
       const shouldRegenerateQuestions =
+        shouldForceRegenerate ||
         existingQuestions.length === 0 ||
         (preAnalysisData.hasPreAnalysis && existingQuestions.every(q => !q.question_id.includes('_ai_')))
 
       if (shouldRegenerateQuestions) {
         console.log('🤖 질문 재생성 조건 충족! AI 질문을 새로 생성합니다.')
+
+        // 강제 재생성인 경우 기존 질문과 답변 삭제
+        if (shouldForceRegenerate && existingQuestions.length > 0) {
+          console.log('🗑️ 기존 질문 및 답변 삭제 중...')
+
+          // 기존 답변 삭제
+          const { error: deleteResponsesError } = await supabase!
+            .from('proposal_workflow_responses')
+            .delete()
+            .eq('project_id', id)
+            .eq('workflow_step', 'market_research')
+
+          if (deleteResponsesError) {
+            console.error('답변 삭제 오류:', deleteResponsesError)
+          }
+
+          // 기존 질문 삭제
+          const { error: deleteQuestionsError } = await supabase!
+            .from('proposal_workflow_questions')
+            .delete()
+            .eq('project_id', id)
+            .eq('workflow_step', 'market_research')
+
+          if (deleteQuestionsError) {
+            console.error('질문 삭제 오류:', deleteQuestionsError)
+          }
+
+          console.log('✅ 기존 질문 및 답변 삭제 완료')
+        }
 
         // 사전 분석 데이터를 활용하여 AI 질문 생성
         try {
@@ -386,6 +430,45 @@ export function MarketResearchPage() {
     }
   }
 
+  // 질문 재생성
+  const handleRegenerateQuestions = async () => {
+    if (!id) return
+
+    // 확인 없이 바로 재생성하지 않고, 사용자 확인 필요
+    const hasAnswers = Object.keys(formData).length > 0
+
+    if (hasAnswers) {
+      const confirmed = window.confirm(
+        '질문을 재생성하면 현재 작성한 모든 답변이 삭제됩니다.\n계속하시겠습니까?'
+      )
+
+      if (!confirmed) {
+        return
+      }
+    }
+
+    try {
+      setRegenerating(true)
+      setError(null)
+
+      console.log('🔄 질문 재생성 시작...')
+
+      // 폼 데이터 초기화
+      setFormData({})
+
+      // 질문 재생성
+      await loadQuestionsAndResponses(true)
+
+      console.log('✅ 질문 재생성 완료')
+
+    } catch (err) {
+      console.error('Failed to regenerate questions:', err)
+      setError('질문 재생성에 실패했습니다.')
+    } finally {
+      setRegenerating(false)
+    }
+  }
+
   // 질문 입력 컴포넌트 렌더링
   const renderQuestionInput = (question: ProposalWorkflowQuestion) => {
     const value = formData[question.question_id] || ''
@@ -521,6 +604,20 @@ export function MarketResearchPage() {
               <TrendingUp className="w-3 h-3 mr-1" />
               {Math.round(completionStatus.completionRate)}% 완료
             </Badge>
+
+            <button
+              onClick={handleRegenerateQuestions}
+              disabled={regenerating || loading}
+              className="flex items-center space-x-2 px-3 py-2 text-text-secondary hover:text-text-primary border border-border-primary rounded-lg hover:bg-bg-tertiary transition-colors disabled:opacity-50"
+              title="사전 분석 데이터를 기반으로 질문을 다시 생성합니다"
+            >
+              {regenerating ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4" />
+              )}
+              <span>질문 재생성</span>
+            </button>
 
             <button
               onClick={() => handleSave(true)}
