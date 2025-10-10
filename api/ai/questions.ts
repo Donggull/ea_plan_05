@@ -18,6 +18,12 @@ interface QuestionRequest {
     summary?: string
     content?: string
   }>
+  preAnalysisData?: {
+    hasPreAnalysis: boolean
+    report: any | null
+    documentAnalyses: any[]
+    summary: string
+  }
   context?: {
     userId?: string
     sessionId?: string
@@ -237,8 +243,88 @@ export default async function handler(
 }
 
 function buildQuestionPrompt(request: QuestionRequest): string {
-  const { projectInfo, documents } = request
+  const { projectInfo, documents, context, preAnalysisData } = request
 
+  // 시장 조사 질문 생성 (사전 분석 데이터 활용)
+  if (context?.requestType === 'market_research_questions') {
+    let prompt = `당신은 경험이 풍부한 시장 조사 전문가입니다. 사전 분석 단계에서 도출된 인사이트를 바탕으로 시장 조사를 위한 핵심 질문들을 생성해주세요.
+
+프로젝트 정보:
+- 이름: ${projectInfo?.name || '미정'}
+- 설명: ${projectInfo?.description || '미정'}
+- 산업 분야: ${projectInfo?.industry || '미정'}
+`
+
+    if (preAnalysisData?.hasPreAnalysis) {
+      prompt += `\n=== 사전 분석 보고서 인사이트 ===\n`
+
+      if (preAnalysisData.report) {
+        prompt += `분석 요약: ${preAnalysisData.report.summary || '없음'}\n\n`
+
+        if (preAnalysisData.report.key_findings && preAnalysisData.report.key_findings.length > 0) {
+          prompt += `핵심 발견사항:\n${preAnalysisData.report.key_findings.map((f: string) => `- ${f}`).join('\n')}\n\n`
+        }
+
+        if (preAnalysisData.report.recommendations && preAnalysisData.report.recommendations.length > 0) {
+          prompt += `권장사항:\n${preAnalysisData.report.recommendations.map((r: string) => `- ${r}`).join('\n')}\n\n`
+        }
+      }
+
+      if (preAnalysisData.documentAnalyses && preAnalysisData.documentAnalyses.length > 0) {
+        prompt += `=== 문서 분석 결과 ===\n`
+        preAnalysisData.documentAnalyses.forEach((analysis: any, index: number) => {
+          prompt += `${index + 1}. ${analysis.document_name || '문서'}\n`
+          prompt += `   요약: ${analysis.summary || '없음'}\n`
+          if (analysis.key_points && analysis.key_points.length > 0) {
+            prompt += `   핵심 포인트: ${analysis.key_points.join(', ')}\n`
+          }
+          prompt += `\n`
+        })
+      }
+    } else {
+      prompt += `\n(참고: 이 프로젝트에는 사전 분석 데이터가 없습니다.)\n`
+    }
+
+    if (documents && documents.length > 0) {
+      prompt += `\n업로드된 문서들:
+${documents.map((doc, index) => `${index + 1}. ${doc.name}`).join('\n')}
+`
+    }
+
+    prompt += `\n시장 조사를 위한 질문 생성 요구사항:
+1. 사전 분석에서 도출된 인사이트를 바탕으로 6-10개의 심층적인 시장 조사 질문을 생성하세요.
+2. 다음 카테고리를 포함하세요:
+   - 시장 규모 및 성장성
+   - 경쟁 환경 분석
+   - 타겟 고객 및 시장 세그먼트
+   - 시장 진입 전략
+   - 가격 전략
+   - 시장 트렌드 및 기회 요인
+3. 각 질문은 사전 분석의 발견사항을 검증하고 확장하는 방향이어야 합니다.
+4. 답변을 통해 구체적이고 실행 가능한 시장 인사이트를 얻을 수 있어야 합니다.
+
+출력 형식 (JSON):
+{
+  "questions": [
+    {
+      "category": "카테고리명 (예: 시장 규모, 경쟁 분석, 타겟 고객)",
+      "text": "질문 내용",
+      "type": "text|select|multiselect|number|textarea",
+      "options": ["옵션1", "옵션2"] (select/multiselect인 경우만),
+      "required": true|false,
+      "helpText": "질문에 대한 구체적인 도움말",
+      "priority": "high|medium|low",
+      "confidence": 0.0-1.0
+    }
+  ]
+}
+
+정확한 JSON 형식만 반환하고 다른 텍스트는 포함하지 마세요.`
+
+    return prompt
+  }
+
+  // 사전 분석 질문 생성 (기존 로직)
   let prompt = `당신은 전문 프로젝트 컨설턴트입니다. 사전 분석 단계에서 필요한 핵심 질문들을 생성해주세요.
 
 프로젝트 정보:

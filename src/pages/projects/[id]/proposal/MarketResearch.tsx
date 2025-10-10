@@ -14,6 +14,7 @@ import { ProposalDataManager, ProposalWorkflowQuestion } from '../../../../servi
 import { ProposalAnalysisService } from '../../../../services/proposal/proposalAnalysisService'
 import { AIQuestionGenerator } from '../../../../services/proposal/aiQuestionGenerator'
 import { useAuth } from '../../../../contexts/AuthContext'
+import { supabase } from '../../../../lib/supabase'
 import { PageContainer, PageHeader, PageContent, Card, Button, Badge, ProgressBar } from '../../../../components/LinearComponents'
 
 interface QuestionFormData {
@@ -66,11 +67,26 @@ export function MarketResearchPage() {
         try {
           console.log('🔍 사전 분석 데이터를 조회하여 AI 질문을 생성합니다...')
 
-          // 프로젝트 정보 조회
-          const project = await ProposalDataManager.getProjectDocuments(id)
-          const projectInfo = project.length > 0
-            ? { name: project[0]?.file_name || 'Unknown', description: '' }
-            : { name: 'Unknown', description: '' }
+          // 프로젝트 정보 조회 (projects 테이블에서 직접 조회)
+          const { data: projectData, error: projectError } = await supabase!
+            .from('projects')
+            .select('name, description, project_types, client_info')
+            .eq('id', id)
+            .single()
+
+          if (projectError) {
+            console.error('❌ 프로젝트 정보 조회 실패:', projectError)
+            throw new Error('프로젝트 정보를 조회할 수 없습니다.')
+          }
+
+          console.log('✅ 프로젝트 정보 조회 완료:', {
+            name: projectData.name,
+            hasDescription: !!projectData.description
+          })
+
+          // 프로젝트 문서 조회
+          const projectDocuments = await ProposalDataManager.getProjectDocuments(id)
+          console.log(`📄 프로젝트 문서 ${projectDocuments.length}개 조회`)
 
           // 사전 분석 데이터 조회
           const preAnalysisData = await ProposalDataManager.getPreAnalysisData(id)
@@ -78,7 +94,8 @@ export function MarketResearchPage() {
           console.log('📊 사전 분석 데이터:', {
             hasPreAnalysis: preAnalysisData.hasPreAnalysis,
             reportExists: !!preAnalysisData.report,
-            documentCount: preAnalysisData.documentAnalyses.length
+            documentCount: preAnalysisData.documentAnalyses.length,
+            summary: preAnalysisData.summary.substring(0, 100) + '...'
           })
 
           // AI 질문 생성
@@ -86,9 +103,10 @@ export function MarketResearchPage() {
             'market_research',
             id,
             {
-              projectName: projectInfo.name,
-              projectDescription: projectInfo.description,
-              documents: project.map(doc => ({
+              projectName: projectData.name,
+              projectDescription: projectData.description || '',
+              industry: (projectData.client_info as any)?.industry || '',
+              documents: projectDocuments.map(doc => ({
                 name: doc.file_name,
                 content: doc.document_content?.[0]?.processed_text || doc.document_content?.[0]?.raw_text
               })),
