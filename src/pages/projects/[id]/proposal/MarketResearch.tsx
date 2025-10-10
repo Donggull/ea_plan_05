@@ -328,12 +328,58 @@ export function MarketResearchPage() {
     }
   }
 
+  // 현재 카테고리의 답변 저장 (카테고리 이동 시 자동 저장용)
+  const saveCurrentCategoryAnswers = async () => {
+    if (!id || !user?.id || !currentCategoryData) return
+
+    try {
+      // 현재 카테고리의 질문들에 대한 답변만 저장
+      const savePromises = currentCategoryData.questions
+        .map(question => {
+          const answer = formData[question.question_id]
+
+          // 답변이 없거나 빈 값이면 저장하지 않음
+          if (answer === undefined || answer === '') return null
+
+          return ProposalDataManager.saveResponse(
+            id,
+            question.question_id,
+            'market_research',
+            { answer },
+            true, // 자동 저장은 항상 임시 저장
+            user.id
+          )
+        })
+        .filter(Boolean)
+
+      if (savePromises.length > 0) {
+        await Promise.all(savePromises)
+        console.log(`✅ 카테고리 "${currentCategoryData.name}" 답변 ${savePromises.length}개 자동 저장 완료`)
+      }
+    } catch (err) {
+      console.error('카테고리 답변 자동 저장 실패:', err)
+      // 저장 실패해도 카테고리 이동은 허용 (사용자 경험 우선)
+    }
+  }
+
+  // 카테고리 변경 처리 (이전 카테고리 답변 자동 저장)
+  const handleCategoryChange = async (newCategoryIndex: number) => {
+    if (newCategoryIndex === currentCategory) return
+
+    // 현재 카테고리의 답변 저장
+    await saveCurrentCategoryAnswers()
+
+    // 카테고리 변경
+    setCurrentCategory(newCategoryIndex)
+  }
+
   // 답변 변경 처리
   const handleAnswerChange = (questionId: string, value: string | string[] | number) => {
     setFormData(prev => ({
       ...prev,
       [questionId]: value
     }))
+    // 🔥 자동 저장 제거 - 카테고리 이동 시에만 저장
   }
 
   // 임시 저장
@@ -671,7 +717,7 @@ export function MarketResearchPage() {
                 {categories.map((category, index) => (
                   <button
                     key={index}
-                    onClick={() => setCurrentCategory(index)}
+                    onClick={() => handleCategoryChange(index)}
                     className={`w-full text-left p-3 rounded-lg transition-colors ${
                       index === currentCategory
                         ? 'bg-blue-500/10 border border-blue-500/30 text-blue-500'
@@ -784,7 +830,7 @@ export function MarketResearchPage() {
                 {/* 카테고리 네비게이션 */}
                 <div className="flex justify-between mt-8 pt-6 border-t border-border-primary">
                   <button
-                    onClick={() => setCurrentCategory(Math.max(0, currentCategory - 1))}
+                    onClick={() => handleCategoryChange(Math.max(0, currentCategory - 1))}
                     disabled={currentCategory === 0}
                     className="flex items-center space-x-2 px-4 py-2 text-text-secondary hover:text-text-primary border border-border-primary rounded-lg hover:bg-bg-tertiary transition-colors disabled:opacity-50"
                   >
@@ -793,7 +839,7 @@ export function MarketResearchPage() {
                   </button>
 
                   <button
-                    onClick={() => setCurrentCategory(Math.min(categories.length - 1, currentCategory + 1))}
+                    onClick={() => handleCategoryChange(Math.min(categories.length - 1, currentCategory + 1))}
                     disabled={currentCategory === categories.length - 1}
                     className="flex items-center space-x-2 px-4 py-2 text-text-secondary hover:text-text-primary border border-border-primary rounded-lg hover:bg-bg-tertiary transition-colors disabled:opacity-50"
                   >
