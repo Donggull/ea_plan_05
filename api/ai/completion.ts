@@ -236,9 +236,27 @@ async function handleAnthropicRequest(
     const data = await response.json()
     const responseTime = Date.now() - startTime
 
-    // 토큰 사용량 추정 (Anthropic API는 사용량을 반환하지 않을 수 있음)
-    const inputTokens = estimateTokens(prompt, 'anthropic')
-    const outputTokens = estimateTokens(data.content[0].text, 'anthropic')
+    // 🔥 Anthropic API 응답 구조 검증
+    if (!data.content || !Array.isArray(data.content) || data.content.length === 0) {
+      console.error('❌ [Anthropic API] 잘못된 응답 구조:', data)
+      throw new Error('Anthropic API 응답 형식이 올바르지 않습니다.')
+    }
+
+    if (!data.content[0].text) {
+      console.error('❌ [Anthropic API] 응답 텍스트 없음:', data.content[0])
+      throw new Error('Anthropic API 응답에 텍스트가 없습니다.')
+    }
+
+    // 🔥 실제 토큰 사용량 우선 사용 (API 응답에 있으면)
+    const inputTokens = data.usage?.input_tokens || estimateTokens(prompt, 'anthropic')
+    const outputTokens = data.usage?.output_tokens || estimateTokens(data.content[0].text, 'anthropic')
+
+    console.log('📊 [Anthropic] 토큰 사용량:', {
+      inputTokens,
+      outputTokens,
+      totalTokens: inputTokens + outputTokens,
+      source: data.usage ? 'API' : 'estimated'
+    })
 
     // 모델별 비용 계산
     const pricing = getAnthropicPricing(model)

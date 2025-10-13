@@ -733,15 +733,49 @@ export class ProposalAnalysisService {
         throw new Error('Supabase client not initialized')
       }
 
-      const { data: modelData, error: modelError } = await supabase
+      // 🔥 수정: modelId로 직접 조회 시도, 실패하면 에러 메시지에 상세 정보 포함
+      let modelData: { provider: string; model_id: string; name: string } | null = null
+      let modelError: any = null
+
+      // 1차 시도: UUID로 조회
+      const uuidQuery = await supabase
         .from('ai_models')
         .select('provider, model_id, name')
         .eq('id', modelId)
-        .single()
+        .maybeSingle()
+
+      modelData = uuidQuery.data
+      modelError = uuidQuery.error
+
+      // 🔥 2차 시도: UUID 조회 실패 시, modelId가 실제로는 model_id 문자열일 수 있으므로 조회
+      if (!modelData && !modelError) {
+        console.warn(`⚠️ UUID로 모델을 찾을 수 없음: ${modelId}. model_id로 재시도...`)
+
+        const modelIdQuery = await supabase
+          .from('ai_models')
+          .select('provider, model_id, name')
+          .eq('model_id', modelId)
+          .eq('status', 'available')
+          .maybeSingle()
+
+        modelData = modelIdQuery.data
+        modelError = modelIdQuery.error
+
+        if (modelData) {
+          console.log('✅ model_id로 모델 발견:', modelData)
+        }
+      }
 
       if (modelError || !modelData) {
-        console.error('❌ 모델 조회 실패:', modelError)
-        throw new Error(`Model not found: ${modelId}`)
+        console.error('❌ 모델 조회 실패:', {
+          providedId: modelId,
+          error: modelError,
+          message: '제공된 ID로 ai_models 테이블에서 모델을 찾을 수 없습니다.'
+        })
+        throw new Error(
+          `AI 모델을 찾을 수 없습니다 (ID: ${modelId}). ` +
+          `Left 사이드바에서 AI 모델을 선택했는지 확인해주세요.`
+        )
       }
 
       console.log('✅ 모델 정보 조회 완료:', modelData)
@@ -903,15 +937,46 @@ export class ProposalAnalysisService {
         throw new Error('Supabase client not initialized')
       }
 
-      const { data: modelData, error: modelError } = await supabase
+      // 🔥 수정: executeAIAnalysis와 동일한 로직 적용
+      let modelData: { provider: string; model_id: string; name: string } | null = null
+      let modelError: any = null
+
+      // 1차 시도: UUID로 조회
+      const uuidQuery = await supabase
         .from('ai_models')
         .select('provider, model_id, name')
         .eq('id', modelId)
-        .single()
+        .maybeSingle()
+
+      modelData = uuidQuery.data
+      modelError = uuidQuery.error
+
+      // 🔥 2차 시도: UUID 조회 실패 시, modelId가 실제로는 model_id 문자열일 수 있으므로 조회
+      if (!modelData && !modelError) {
+        console.warn(`⚠️ UUID로 모델을 찾을 수 없음: ${modelId}. model_id로 재시도...`)
+
+        const modelIdQuery = await supabase
+          .from('ai_models')
+          .select('provider, model_id, name')
+          .eq('model_id', modelId)
+          .eq('status', 'available')
+          .maybeSingle()
+
+        modelData = modelIdQuery.data
+        modelError = modelIdQuery.error
+
+        if (modelData) {
+          console.log('✅ model_id로 모델 발견:', modelData)
+        }
+      }
 
       if (modelError || !modelData) {
-        console.error('❌ 모델 조회 실패:', modelError)
-        throw new Error(`Model not found: ${modelId}`)
+        console.error('❌ 모델 조회 실패:', {
+          providedId: modelId,
+          error: modelError,
+          message: '제공된 ID로 ai_models 테이블에서 모델을 찾을 수 없습니다.'
+        })
+        throw new Error(`AI 모델을 찾을 수 없습니다 (ID: ${modelId})`)
       }
 
       console.log('✅ 모델 정보 조회 완료:', modelData)
