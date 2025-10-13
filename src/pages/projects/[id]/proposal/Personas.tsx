@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import {
   ArrowLeft,
   Save,
@@ -12,11 +12,15 @@ import {
   User,
   Target,
   TrendingUp,
-  MessageCircle
+  MessageCircle,
+  RefreshCw
 } from 'lucide-react'
 import { ProposalDataManager, ProposalWorkflowQuestion } from '../../../../services/proposal/dataManager'
 import { ProposalAnalysisService } from '../../../../services/proposal/proposalAnalysisService'
+import { AIQuestionGenerator } from '../../../../services/proposal/aiQuestionGenerator'
 import { useAuth } from '../../../../contexts/AuthContext'
+import { useAIModel } from '../../../../contexts/AIModelContext'
+import { supabase } from '../../../../lib/supabase'
 import { PageContainer, PageHeader, PageContent, Card, Button, Badge, ProgressBar } from '../../../../components/LinearComponents'
 
 interface QuestionFormData {
@@ -33,12 +37,23 @@ interface QuestionCategory {
 export function PersonasPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const { user } = useAuth()
+  const { getSelectedModel } = useAIModel()
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
+  const [regenerating, setRegenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // 답변이 유효한지 확인하는 헬퍼 함수
+  const isValidAnswer = (answer: string | string[] | number | undefined): boolean => {
+    if (answer === undefined || answer === null) return false
+    if (answer === '') return false
+    if (Array.isArray(answer) && answer.length === 0) return false
+    return true
+  }
 
   const [questions, setQuestions] = useState<ProposalWorkflowQuestion[]>([])
   const [formData, setFormData] = useState<QuestionFormData>({})
@@ -53,254 +68,397 @@ export function PersonasPage() {
     completionRate: 0
   })
 
-  // 임시 기본 질문 데이터 (AI 통합 전)
-  const defaultQuestions = [
-    {
-      id: 'persona_primary_target',
-      category: '주요 타겟',
-      text: '주요 고객층은 누구인가요?',
-      type: 'textarea' as const,
-      required: true,
-      order: 1,
-      helpText: '연령대, 직업, 관심사 등을 포함하여 설명해주세요'
-    },
-    {
-      id: 'persona_demographics',
-      category: '주요 타겟',
-      text: '타겟 고객의 인구통계학적 특성은 어떻게 되나요?',
-      type: 'textarea' as const,
-      required: true,
-      order: 2,
-      helpText: '나이, 성별, 소득수준, 거주지역, 교육수준 등'
-    },
-    {
-      id: 'persona_psychographics',
-      category: '행동 패턴',
-      text: '타겟 고객의 라이프스타일과 가치관은 무엇인가요?',
-      type: 'textarea' as const,
-      required: true,
-      order: 3,
-      helpText: '취미, 관심사, 가치관, 성격 특성 등'
-    },
-    {
-      id: 'persona_pain_points',
-      category: '행동 패턴',
-      text: '타겟 고객이 겪고 있는 주요 문제점이나 불편함은 무엇인가요?',
-      type: 'textarea' as const,
-      required: true,
-      order: 4,
-      helpText: '현재 해결되지 않은 니즈나 어려움'
-    },
-    {
-      id: 'persona_goals',
-      category: '목표 및 동기',
-      text: '타겟 고객의 주요 목표와 동기는 무엇인가요?',
-      type: 'textarea' as const,
-      required: true,
-      order: 5,
-      helpText: '달성하고자 하는 목표나 욕구'
-    },
-    {
-      id: 'persona_behavior',
-      category: '목표 및 동기',
-      text: '타겟 고객의 구매/사용 행동 패턴은 어떠한가요?',
-      type: 'textarea' as const,
-      required: true,
-      order: 6,
-      helpText: '의사결정 과정, 정보 수집 방법, 구매 빈도 등'
-    },
-    {
-      id: 'persona_channels',
-      category: '커뮤니케이션',
-      text: '타겟 고객이 주로 사용하는 커뮤니케이션 채널은 무엇인가요?',
-      type: 'textarea' as const,
-      required: false,
-      order: 7,
-      helpText: 'SNS, 블로그, 커뮤니티, 오프라인 매체 등'
-    },
-    {
-      id: 'persona_influencers',
-      category: '커뮤니케이션',
-      text: '타겟 고객의 의사결정에 영향을 미치는 요소는 무엇인가요?',
-      type: 'textarea' as const,
-      required: false,
-      order: 8,
-      helpText: '가족, 친구, 전문가, 리뷰, 브랜드 등'
-    }
-  ]
-
-  // 질문과 응답 로드
-  const loadQuestionsAndResponses = async () => {
+  // 질문 및 기존 답변 로드 (AI 생성)
+  const loadQuestionsAndResponses = async (forceRegenerate: boolean = false) => {
     if (!id) return
 
     try {
       setLoading(true)
       setError(null)
 
-      // 기존 질문 조회 시도
-      let loadedQuestions = await ProposalDataManager.getQuestions(id, 'personas')
+      console.log('🔍 페르소나 분석 질문 로딩 시작...')
 
-      // 질문이 없으면 기본 질문 생성 및 저장
-      if (loadedQuestions.length === 0) {
-        console.log('No questions found, creating default questions')
+      // URL 파라미터에서 regenerate 확인
+      const searchParams = new URLSearchParams(location.search)
+      const shouldForceRegenerate = forceRegenerate || searchParams.get('regenerate') === 'true'
 
-        const questionObjects = defaultQuestions.map(q => ({
-          id: q.id,
-          category: q.category,
-          text: q.text,
-          type: q.type,
-          required: q.required,
-          order: q.order,
-          helpText: q.helpText,
-          options: [],
-          validation: {},
-          priority: 'medium' as const,
-          confidence: 0.8,
-          aiGenerated: false
-        }))
+      if (shouldForceRegenerate) {
+        console.log('🔄 질문 재생성 요청됨')
+        navigate(location.pathname, { replace: true })
+      }
 
+      // 사전 분석 데이터 조회
+      const preAnalysisData = await ProposalDataManager.getPreAnalysisData(id)
+
+      console.log('📊 사전 분석 상태 확인:', {
+        hasPreAnalysis: preAnalysisData.hasPreAnalysis,
+        reportExists: !!preAnalysisData.report,
+        documentCount: preAnalysisData.documentAnalyses.length
+      })
+
+      // 시장 조사 완료 여부 확인 (페르소나는 시장 조사 결과도 포함)
+      let marketResearchData: any = null
+      try {
+        const { data: marketResearchAnalysis } = await supabase!
+          .from('proposal_workflow_analysis')
+          .select('*')
+          .eq('project_id', id)
+          .eq('workflow_step', 'market_research')
+          .eq('status', 'completed')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single()
+
+        marketResearchData = marketResearchAnalysis
+        console.log('📊 시장 조사 분석 결과:', { exists: !!marketResearchData })
+      } catch (err) {
+        console.log('ℹ️ 시장 조사 분석 결과 없음')
+      }
+
+      // 기존 질문 확인
+      let existingQuestions = await ProposalDataManager.getQuestions(id, 'personas')
+
+      console.log('💾 기존 질문 상태:', {
+        count: existingQuestions.length,
+        hasAIGenerated: existingQuestions.some(q => q.question_id.includes('_ai_'))
+      })
+
+      // 질문 재생성 조건
+      const shouldRegenerateQuestions =
+        shouldForceRegenerate ||
+        existingQuestions.length === 0 ||
+        (preAnalysisData.hasPreAnalysis && existingQuestions.every(q => !q.question_id.includes('_ai_')))
+
+      if (shouldRegenerateQuestions) {
+        console.log('🤖 페르소나 질문 재생성 조건 충족! AI 질문을 새로 생성합니다.')
+
+        // 강제 재생성인 경우 기존 질문과 답변 삭제
+        if (shouldForceRegenerate && existingQuestions.length > 0) {
+          console.log('🗑️ 기존 질문 및 답변 삭제 중...')
+
+          await supabase!
+            .from('proposal_workflow_responses')
+            .delete()
+            .eq('project_id', id)
+            .eq('workflow_step', 'personas')
+
+          await supabase!
+            .from('proposal_workflow_questions')
+            .delete()
+            .eq('project_id', id)
+            .eq('workflow_step', 'personas')
+
+          console.log('✅ 기존 질문 및 답변 삭제 완료')
+        }
+
+        // AI 질문 생성 (사전 분석 + 시장 조사 데이터 포함)
         try {
-          await ProposalDataManager.saveQuestions(id, 'personas', questionObjects)
-          loadedQuestions = await ProposalDataManager.getQuestions(id, 'personas')
-        } catch (saveError) {
-          console.warn('Failed to save default questions, using local questions:', saveError)
-          // 저장 실패 시 임시로 로컬 데이터 사용
-          loadedQuestions = defaultQuestions.map((q, index) => ({
-            id: `temp_${index}`,
-            project_id: id,
-            workflow_step: 'personas' as const,
-            question_id: q.id,
+          console.log('🔍 사전 분석 및 시장 조사 데이터를 조회하여 AI 질문을 생성합니다...')
+
+          // 프로젝트 정보 조회
+          const { data: projectData, error: projectError } = await supabase!
+            .from('projects')
+            .select('name, description, project_types, client_info')
+            .eq('id', id)
+            .single()
+
+          if (projectError) {
+            console.error('❌ 프로젝트 정보 조회 실패:', projectError)
+            throw new Error('프로젝트 정보를 조회할 수 없습니다.')
+          }
+
+          console.log('✅ 프로젝트 정보 조회 완료:', {
+            name: projectData.name,
+            hasDescription: !!projectData.description
+          })
+
+          // 프로젝트 문서 조회
+          const projectDocuments = await ProposalDataManager.getProjectDocuments(id)
+          console.log(`📄 프로젝트 문서 ${projectDocuments.length}개 조회`)
+
+          // Left 사이드바에서 선택된 AI 모델 가져오기
+          const selectedModelForQuestions = getSelectedModel()
+
+          // ai_models 테이블에서 실제 UUID 조회
+          let questionModelId: string | undefined = undefined
+
+          if (selectedModelForQuestions) {
+            try {
+              const { data: dbModel, error: dbError } = await supabase!
+                .from('ai_models')
+                .select('id')
+                .eq('provider', selectedModelForQuestions.provider)
+                .eq('model_id', selectedModelForQuestions.model_id)
+                .eq('status', 'available')
+                .single()
+
+              if (!dbError && dbModel) {
+                questionModelId = dbModel.id
+                console.log('✅ 질문 생성용 모델 UUID 조회:', questionModelId)
+              } else {
+                console.warn('⚠️ 질문 생성용 모델을 DB에서 찾을 수 없음:', dbError)
+              }
+            } catch (dbQueryError) {
+              console.error('❌ 질문 생성용 모델 조회 실패:', dbQueryError)
+            }
+          }
+
+          // AI 질문 생성 (사전 분석 + 시장 조사 데이터 포함)
+          const aiQuestions = await AIQuestionGenerator.generateAIQuestions(
+            'personas',
+            id,
+            {
+              projectName: projectData.name,
+              projectDescription: projectData.description || '',
+              industry: (projectData.client_info as any)?.industry || '',
+              documents: projectDocuments.map(doc => ({
+                name: doc.file_name,
+                content: doc.document_content?.[0]?.processed_text || doc.document_content?.[0]?.raw_text
+              })),
+              preAnalysisData,
+              marketResearchData  // 시장 조사 데이터 추가
+            },
+            user?.id,
+            questionModelId
+          )
+
+          console.log(`✅ AI 질문 ${aiQuestions.length}개 생성 완료`)
+
+          // 질문을 데이터베이스에 저장
+          const questionsToSave = aiQuestions.map(q => ({
+            id: q.id,
             category: q.category,
-            question_text: q.text,
-            question_type: q.type,
-            options: [],
-            is_required: q.required,
-            display_order: q.order,
-            help_text: q.helpText,
-            validation_rules: {},
-            is_dynamic: false,
-            created_at: new Date().toISOString(),
-            metadata: {}
+            text: q.text,
+            type: q.type,
+            options: q.options || [],
+            required: q.required,
+            order: q.order,
+            helpText: q.helpText,
+            priority: q.priority,
+            confidence: q.confidence,
+            aiGenerated: q.aiGenerated
           }))
+
+          existingQuestions = await ProposalDataManager.saveQuestions(
+            id,
+            'personas',
+            questionsToSave
+          )
+
+          console.log('💾 질문 저장 완료')
+        } catch (aiError) {
+          console.error('❌ AI 질문 생성 실패:', aiError)
+          setError('AI 질문 생성에 실패했습니다.')
+          setLoading(false)
+          return
         }
       }
 
-      setQuestions(loadedQuestions)
+      setQuestions(existingQuestions)
 
-      // 기존 응답 로드
-      const responses = await ProposalDataManager.getResponses(id, 'personas')
+      // 기존 답변 로드 (UUID to question_id 매핑)
+      const existingResponses = await ProposalDataManager.getResponses(id, 'personas')
       const responseData: QuestionFormData = {}
-      responses.forEach(response => {
-        if (response.answer_data?.answer) {
-          responseData[response.question_id] = response.answer_data.answer
+
+      existingResponses.forEach(response => {
+        const question = existingQuestions.find(q => q.id === response.question_id)
+        if (question) {
+          responseData[question.question_id] = response.answer_data.answer
         }
       })
+
       setFormData(responseData)
 
-      // 카테고리별로 질문 그룹화
-      const categoryMap: { [key: string]: ProposalWorkflowQuestion[] } = {}
-      loadedQuestions.forEach(question => {
-        if (!categoryMap[question.category]) {
-          categoryMap[question.category] = []
+      // 카테고리별 분류
+      const categorizedQuestions = existingQuestions.reduce((acc, question) => {
+        const category = question.category || '기타'
+        if (!acc[category]) {
+          acc[category] = []
         }
-        categoryMap[question.category].push(question)
-      })
+        acc[category].push(question)
+        return acc
+      }, {} as Record<string, ProposalWorkflowQuestion[]>)
 
-      const categoryList = Object.entries(categoryMap).map(([name, questions]) => ({
-        name,
-        questions: questions.sort((a, b) => a.display_order - b.display_order),
-        completed: questions.filter(q => responseData[q.question_id] !== undefined && responseData[q.question_id] !== '').length,
-        total: questions.length
-      }))
+      const categoryList: QuestionCategory[] = Object.entries(categorizedQuestions).map(([name, categoryQuestions]) => {
+        const completed = categoryQuestions.filter(q =>
+          isValidAnswer(responseData[q.question_id])
+        ).length
+
+        return {
+          name,
+          questions: categoryQuestions,
+          completed,
+          total: categoryQuestions.length
+        }
+      })
 
       setCategories(categoryList)
 
       // 완료 상태 업데이트
-      updateCompletionStatus(loadedQuestions, responseData)
+      const status = await ProposalDataManager.getStepCompletionStatus(id, 'personas')
+      setCompletionStatus(status)
 
     } catch (err) {
-      console.error('Failed to load questions and responses:', err)
+      console.error('Failed to load questions:', err)
       setError('질문을 불러오는데 실패했습니다.')
     } finally {
       setLoading(false)
     }
   }
 
-  // 완료 상태 업데이트
-  const updateCompletionStatus = (questions: ProposalWorkflowQuestion[], formData: QuestionFormData) => {
-    const totalQuestions = questions.length
-    const requiredQuestions = questions.filter(q => q.is_required).length
-    const answeredQuestions = questions.filter(q =>
-      formData[q.question_id] !== undefined && formData[q.question_id] !== ''
-    ).length
-    const answeredRequiredQuestions = questions.filter(q =>
-      q.is_required && formData[q.question_id] !== undefined && formData[q.question_id] !== ''
-    ).length
+  // 현재 카테고리의 답변 저장 (카테고리 이동 시 자동 저장용)
+  const saveCurrentCategoryAnswers = async () => {
+    if (!id || !user?.id || !currentCategoryData) {
+      return
+    }
 
-    const isCompleted = requiredQuestions > 0 ? answeredRequiredQuestions === requiredQuestions : answeredQuestions === totalQuestions
-    const completionRate = totalQuestions > 0 ? (answeredQuestions / totalQuestions) * 100 : 0
+    try {
+      const saveTasks = currentCategoryData.questions
+        .filter(question => {
+          const answer = formData[question.question_id]
+          return isValidAnswer(answer)
+        })
+        .map(async (question) => {
+          const answer = formData[question.question_id]
 
-    setCompletionStatus({
-      totalQuestions,
-      answeredQuestions,
-      requiredQuestions,
-      answeredRequiredQuestions,
-      isCompleted,
-      completionRate
+          try {
+            const result = await ProposalDataManager.saveResponse(
+              id,
+              question.id, // DB PK (UUID) 사용
+              'personas',
+              {
+                answer,
+                confidence: undefined,
+                notes: undefined
+              },
+              true, // 자동 저장은 항상 임시 저장
+              user.id
+            )
+            return result
+          } catch (saveError) {
+            console.error(`❌ 개별 저장 실패 (${question.id}):`, saveError)
+            throw saveError
+          }
+        })
+
+      if (saveTasks.length > 0) {
+        await Promise.all(saveTasks)
+        console.log(`✅ 카테고리 "${currentCategoryData.name}" 답변 ${saveTasks.length}개 자동 저장 완료`)
+      }
+    } catch (err) {
+      console.error('❌ 카테고리 답변 자동 저장 실패:', err)
+      // 저장 실패해도 카테고리 이동은 허용 (사용자 경험 우선)
+    }
+  }
+
+  // 카테고리 변경 처리 (이전 카테고리 답변 자동 저장)
+  const handleCategoryChange = async (newCategoryIndex: number) => {
+    if (newCategoryIndex === currentCategory) return
+
+    // 현재 카테고리의 답변 저장
+    await saveCurrentCategoryAnswers()
+
+    // 카테고리 완료 상태 즉시 업데이트
+    const updatedCategories = categories.map(category => {
+      const completed = category.questions.filter(q =>
+        isValidAnswer(formData[q.question_id])
+      ).length
+
+      return {
+        ...category,
+        completed
+      }
     })
+    setCategories(updatedCategories)
+
+    // 카테고리 변경
+    setCurrentCategory(newCategoryIndex)
   }
 
   // 답변 변경 처리
   const handleAnswerChange = (questionId: string, value: string | string[] | number) => {
-    const newFormData = { ...formData, [questionId]: value }
-    setFormData(newFormData)
-    updateCompletionStatus(questions, newFormData)
+    setFormData(prev => {
+      const updated = {
+        ...prev,
+        [questionId]: value
+      }
 
-    // 카테고리별 완료 상태 업데이트
-    const updatedCategories = categories.map(category => ({
-      ...category,
-      completed: category.questions.filter(q =>
-        newFormData[q.question_id] !== undefined && newFormData[q.question_id] !== ''
-      ).length
-    }))
-    setCategories(updatedCategories)
+      // 답변 변경 시 카테고리 완료 상태 즉시 업데이트
+      setTimeout(() => {
+        const updatedCategories = categories.map(category => {
+          const completed = category.questions.filter(q =>
+            isValidAnswer(updated[q.question_id])
+          ).length
+
+          return {
+            ...category,
+            completed
+          }
+        })
+        setCategories(updatedCategories)
+      }, 0)
+
+      return updated
+    })
   }
 
-  // 저장 처리
-  const handleSave = async (isTemporary: boolean = false) => {
+  // 임시 저장
+  const handleSave = async (isTemporary: boolean = true) => {
     if (!id || !user?.id) return
 
     try {
       setSaving(true)
       setError(null)
 
+      // 모든 답변 저장 (UUID 변환)
       const savePromises = Object.entries(formData).map(([questionId, answer]) => {
+        if (!isValidAnswer(answer)) return null
+
+        // question.question_id (문자열)를 question.id (UUID)로 변환
+        const question = questions.find(q => q.question_id === questionId)
+        if (!question) {
+          console.warn(`⚠️ 질문을 찾을 수 없음: ${questionId}`)
+          return null
+        }
+
         return ProposalDataManager.saveResponse(
           id,
-          questionId,
+          question.id, // UUID 사용
           'personas',
           { answer },
           isTemporary,
-          user.id
+          user!.id
         )
-      })
+      }).filter(Boolean)
 
       await Promise.all(savePromises)
 
-      if (!isTemporary) {
-        // 정식 저장 시 임시 응답들을 정식으로 변환
-        await ProposalDataManager.commitTemporaryResponses(id, 'personas', user.id)
-      }
+      // 상태 업데이트
+      const status = await ProposalDataManager.getStepCompletionStatus(id, 'personas')
+      setCompletionStatus(status)
+
+      // 카테고리 완료 상태 업데이트
+      const updatedCategories = categories.map(category => {
+        const completed = category.questions.filter(q =>
+          isValidAnswer(formData[q.question_id])
+        ).length
+
+        return {
+          ...category,
+          completed
+        }
+      })
+      setCategories(updatedCategories)
 
     } catch (err) {
       console.error('Failed to save responses:', err)
-      setError('저장에 실패했습니다.')
+      setError('답변 저장에 실패했습니다.')
     } finally {
       setSaving(false)
     }
   }
 
-  // 제출 및 AI 분석
+  // 최종 제출 및 AI 분석
   const handleSubmitAndAnalyze = async () => {
     if (!id || !user?.id) return
 
@@ -308,24 +466,118 @@ export function PersonasPage() {
       setAnalyzing(true)
       setError(null)
 
-      // 먼저 답변 저장
+      // 필수 질문 검증
+      const requiredQuestions = questions.filter(q => q.is_required)
+      const missingRequired = requiredQuestions.filter(q =>
+        !isValidAnswer(formData[q.question_id])
+      )
+
+      if (missingRequired.length > 0) {
+        setError(`필수 질문 ${missingRequired.length}개가 답변되지 않았습니다.`)
+        return
+      }
+
+      // 현재 카테고리의 답변을 먼저 저장 (마지막 카테고리 답변 누락 방지)
+      console.log('💾 현재 카테고리 답변 저장 중...')
+      await saveCurrentCategoryAnswers()
+
+      // 최종 저장 (임시 저장 해제)
+      console.log('💾 전체 답변 최종 저장 중...')
       await handleSave(false)
 
-      // AI 분석 실행 (아직 구현되지 않음)
+      // AI 분석 실행 (Left 사이드바 선택 모델 사용)
+      console.log('🤖 AI 분석 시작...')
+
+      // Left 사이드바에서 선택된 AI 모델 가져오기
+      const selectedModel = getSelectedModel()
+
+      console.log('📊 선택된 AI 모델:', {
+        localId: selectedModel?.id,
+        modelName: selectedModel?.name,
+        provider: selectedModel?.provider,
+        model_id: selectedModel?.model_id
+      })
+
+      // provider와 model_id 직접 전달 (UUID 조회 불필요)
+      const aiProvider = selectedModel?.provider
+      const aiModel = selectedModel?.model_id
+
+      if (!aiProvider || !aiModel) {
+        console.warn('⚠️ Left 사이드바에서 모델이 선택되지 않았습니다. 기본 모델을 사용합니다.')
+      } else {
+        console.log('✅ 사용할 모델:', { aiProvider, aiModel })
+      }
+
       try {
-        await ProposalAnalysisService.analyzeStep(id, 'personas', user.id, 'gpt-4o')
+        await ProposalAnalysisService.analyzeStep(
+          id,
+          'personas',
+          user.id,
+          aiProvider,  // provider 직접 전달
+          aiModel      // model_id 직접 전달
+        )
+        console.log('✅ AI 분석 완료')
       } catch (analysisError) {
-        console.warn('AI analysis not implemented, proceeding to results')
+        // AI 분석 실패 시 에러 메시지 표시하되, 결과 페이지로 이동은 허용
+        console.error('❌ AI 분석 실패:', analysisError)
+        const errorMessage = analysisError instanceof Error ? analysisError.message : 'AI 분석에 실패했습니다.'
+        setError(`AI 분석 중 오류가 발생했습니다: ${errorMessage}. 답변은 저장되었으며, 나중에 다시 분석할 수 있습니다.`)
+
+        // 3초 후 결과 페이지로 이동 (사용자가 에러 메시지를 볼 수 있도록)
+        setTimeout(() => {
+          navigate(`/projects/${id}/proposal/personas/results`)
+        }, 3000)
+        return
       }
 
       // 성공 시 결과 페이지로 이동
+      console.log('📄 결과 페이지로 이동...')
       navigate(`/projects/${id}/proposal/personas/results`)
 
     } catch (err) {
-      console.error('Failed to analyze:', err)
-      setError('AI 분석에 실패했습니다.')
+      console.error('❌ 최종 제출 실패:', err)
+      const errorMessage = err instanceof Error ? err.message : '처리 중 오류가 발생했습니다.'
+      setError(`처리 중 오류가 발생했습니다: ${errorMessage}`)
     } finally {
       setAnalyzing(false)
+    }
+  }
+
+  // 질문 재생성
+  const handleRegenerateQuestions = async () => {
+    if (!id) return
+
+    const hasAnswers = Object.keys(formData).length > 0
+
+    if (hasAnswers) {
+      const confirmed = window.confirm(
+        '질문을 재생성하면 현재 작성한 모든 답변이 삭제됩니다.\n계속하시겠습니까?'
+      )
+
+      if (!confirmed) {
+        return
+      }
+    }
+
+    try {
+      setRegenerating(true)
+      setError(null)
+
+      console.log('🔄 질문 재생성 시작...')
+
+      // 폼 데이터 초기화
+      setFormData({})
+
+      // 질문 재생성
+      await loadQuestionsAndResponses(true)
+
+      console.log('✅ 질문 재생성 완료')
+
+    } catch (err) {
+      console.error('Failed to regenerate questions:', err)
+      setError('질문 재생성에 실패했습니다.')
+    } finally {
+      setRegenerating(false)
     }
   }
 
@@ -437,6 +689,20 @@ export function PersonasPage() {
             </Badge>
 
             <button
+              onClick={handleRegenerateQuestions}
+              disabled={regenerating || loading}
+              className="flex items-center space-x-2 px-3 py-2 text-text-secondary hover:text-text-primary border border-border-primary rounded-lg hover:bg-bg-tertiary transition-colors disabled:opacity-50"
+              title="사전 분석 및 시장 조사 데이터를 기반으로 질문을 다시 생성합니다"
+            >
+              {regenerating ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4" />
+              )}
+              <span>질문 재생성</span>
+            </button>
+
+            <button
               onClick={() => handleSave(true)}
               disabled={saving}
               className="flex items-center space-x-2 px-3 py-2 text-text-secondary hover:text-text-primary border border-border-primary rounded-lg hover:bg-bg-tertiary transition-colors disabled:opacity-50"
@@ -488,7 +754,7 @@ export function PersonasPage() {
                 {categories.map((category, index) => (
                   <button
                     key={index}
-                    onClick={() => setCurrentCategory(index)}
+                    onClick={() => handleCategoryChange(index)}
                     className={`w-full text-left p-3 rounded-lg transition-colors ${
                       index === currentCategory
                         ? 'bg-green-500/10 border border-green-500/30 text-green-500'
@@ -563,7 +829,7 @@ export function PersonasPage() {
 
                 <div className="space-y-6">
                   {currentCategoryData.questions.map((question, index) => {
-                    const isAnswered = formData[question.question_id] !== undefined && formData[question.question_id] !== ''
+                    const isAnswered = isValidAnswer(formData[question.question_id])
 
                     return (
                       <div
@@ -607,9 +873,9 @@ export function PersonasPage() {
                 </div>
 
                 {/* 카테고리 네비게이션 */}
-                <div className="flex justify-between items-center mt-8 pt-6 border-t border-border-primary">
+                <div className="flex justify-between mt-8 pt-6 border-t border-border-primary">
                   <button
-                    onClick={() => setCurrentCategory(Math.max(0, currentCategory - 1))}
+                    onClick={() => handleCategoryChange(Math.max(0, currentCategory - 1))}
                     disabled={currentCategory === 0}
                     className="flex items-center space-x-2 px-4 py-2 text-text-secondary hover:text-text-primary border border-border-primary rounded-lg hover:bg-bg-tertiary transition-colors disabled:opacity-50"
                   >
@@ -617,12 +883,8 @@ export function PersonasPage() {
                     <span>이전 카테고리</span>
                   </button>
 
-                  <div className="text-sm text-text-secondary">
-                    {currentCategory + 1} / {categories.length}
-                  </div>
-
                   <button
-                    onClick={() => setCurrentCategory(Math.min(categories.length - 1, currentCategory + 1))}
+                    onClick={() => handleCategoryChange(Math.min(categories.length - 1, currentCategory + 1))}
                     disabled={currentCategory === categories.length - 1}
                     className="flex items-center space-x-2 px-4 py-2 text-text-secondary hover:text-text-primary border border-border-primary rounded-lg hover:bg-bg-tertiary transition-colors disabled:opacity-50"
                   >

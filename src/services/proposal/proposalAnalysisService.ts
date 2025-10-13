@@ -120,15 +120,26 @@ const ANALYSIS_PROMPTS = {
   },
 
   personas: {
-    system: `당신은 UX 리서치 및 고객 페르소나 전문가입니다. 제공된 시장 분석 결과와 질문-답변을 바탕으로 상세한 고객 페르소나를 생성해주세요.
+    system: `당신은 경험이 풍부한 UX 리서치 및 고객 페르소나 전문가이며, 특히 웹에이전시 관점에서 디지털 사용자 분석을 수행합니다. 제공된 사전 분석 보고서, 시장 조사 결과, 그리고 질문-답변을 바탕으로 상세한 고객 페르소나를 생성해주세요.
+
+**웹에이전시 관점의 페르소나 분석 핵심 사항:**
+- 디지털 채널 및 웹 사용 행동 패턴
+- 웹사이트/앱 사용 경험 및 선호도
+- 온라인 의사결정 과정 및 고객 여정
+- 디지털 터치포인트별 상호작용 패턴
+- 웹 기반 니즈와 온라인 페인 포인트
+- 디지털 환경에서의 기술 숙련도
 
 페르소나 생성 시 고려사항:
-- 인구통계학적 특성 (연령, 직업, 소득 등)
-- 행동 패턴과 라이프스타일
-- 니즈와 동기, 목표
-- 기술 친화도와 디지털 습관
-- 구매 의사결정 과정
-- 페인 포인트와 해결책
+- 사전 분석 보고서에서 도출된 타겟 고객 인사이트
+- 시장 조사에서 파악된 고객 세그먼트 특성
+- 인구통계학적 특성 (연령, 직업, 소득, 거주지역 등)
+- 웹/앱 사용 행동 패턴과 디지털 라이프스타일
+- 온라인 니즈와 동기, 디지털 목표
+- 기술 친화도와 디지털 플랫폼 선호도
+- 온라인 구매 의사결정 과정 및 고객 여정
+- 웹 경험 관련 페인 포인트와 해결책
+- 사전 분석 및 시장 조사 결과와의 일관성
 
 결과는 다음 JSON 형식으로 제공해주세요:
 {
@@ -174,16 +185,22 @@ const ANALYSIS_PROMPTS = {
     user: `프로젝트명: {projectName}
 프로젝트 설명: {projectDescription}
 
-=== 시장 분석 결과 ===
-{previousAnalysis}
+=== 사전 분석 보고서 ===
+{preAnalysisReport}
+
+=== 사전 분석 문서 분석 결과 ===
+{preAnalysisDocuments}
+
+=== 시장 조사 분석 결과 ===
+{marketResearchAnalysis}
 
 === 페르소나 관련 질문-답변 ===
 {questionResponses}
 
-=== 관련 문서 내용 ===
+=== 업로드된 문서 내용 ===
 {documentContents}
 
-위 정보를 종합하여 상세한 고객 페르소나를 생성해주세요.`
+위 모든 정보를 종합하여 상세한 고객 페르소나를 생성해주세요. 특히 사전 분석 보고서와 시장 조사 결과에서 도출된 타겟 고객 인사이트를 페르소나에 반영하고, 웹/디지털 환경에서의 고객 행동 패턴을 중점적으로 분석해주세요.`
   },
 
   proposal: {
@@ -608,8 +625,41 @@ export class ProposalAnalysisService {
       }
     }
 
+    // 페르소나 단계: 사전 분석 데이터 조회
+    if (workflowStep === 'personas') {
+      const preAnalysisData = await ProposalDataManager.getPreAnalysisData(context.projectId)
+
+      if (preAnalysisData.hasPreAnalysis) {
+        // 사전 분석 보고서
+        if (preAnalysisData.report) {
+          preAnalysisReport = `분석 요약: ${preAnalysisData.report.summary || '요약 없음'}\n\n` +
+            `핵심 발견사항:\n${preAnalysisData.report.key_findings?.join('\n- ') || '없음'}\n\n` +
+            `권장사항:\n${preAnalysisData.report.recommendations?.join('\n- ') || '없음'}\n\n` +
+            `구조화된 데이터:\n${JSON.stringify(preAnalysisData.report.structured_data, null, 2) || '{}'}`
+        } else {
+          preAnalysisReport = '사전 분석 보고서가 아직 생성되지 않았습니다.'
+        }
+
+        // 사전 분석 문서 분석 결과
+        if (preAnalysisData.documentAnalyses && preAnalysisData.documentAnalyses.length > 0) {
+          preAnalysisDocuments = preAnalysisData.documentAnalyses.map((analysis: any) => {
+            return `[문서: ${analysis.document_name || '알 수 없음'}]\n` +
+              `분석 요약: ${analysis.summary || '요약 없음'}\n` +
+              `핵심 포인트:\n- ${analysis.key_points?.join('\n- ') || '없음'}\n` +
+              `카테고리: ${analysis.categories?.join(', ') || '없음'}`
+          }).join('\n\n---\n\n')
+        } else {
+          preAnalysisDocuments = '사전 분석된 문서가 없습니다.'
+        }
+      } else {
+        preAnalysisReport = '이 프로젝트에는 사전 분석 단계가 수행되지 않았습니다.'
+        preAnalysisDocuments = '사전 분석된 문서가 없습니다.'
+      }
+    }
+
     // 이전 단계 분석 결과 조회 (페르소나, 제안서, 비용 산정에서 사용)
     let previousAnalysisContext = ''
+    let marketResearchAnalysis = ''
     if (workflowStep !== 'market_research') {
       const previousSteps = this.getPreviousSteps(workflowStep)
       for (const step of previousSteps) {
@@ -617,6 +667,11 @@ export class ProposalAnalysisService {
         if (previousAnalysis.length > 0) {
           const result = previousAnalysis[0]
           previousAnalysisContext += `\n=== ${step.toUpperCase()} 분석 결과 ===\n${result.analysis_result}\n`
+
+          // 페르소나 단계에서는 시장 조사 결과를 별도 변수에 저장
+          if (step === 'market_research' && workflowStep === 'personas') {
+            marketResearchAnalysis = result.analysis_result
+          }
         }
       }
     }
@@ -634,7 +689,10 @@ export class ProposalAnalysisService {
         .replace('{preAnalysisReport}', preAnalysisReport)
         .replace('{preAnalysisDocuments}', preAnalysisDocuments)
     } else if (workflowStep === 'personas') {
-      userPrompt = userPrompt.replace('{previousAnalysis}', previousAnalysisContext)
+      userPrompt = userPrompt
+        .replace('{preAnalysisReport}', preAnalysisReport)
+        .replace('{preAnalysisDocuments}', preAnalysisDocuments)
+        .replace('{marketResearchAnalysis}', marketResearchAnalysis || '시장 조사 결과 없음')
     } else if (workflowStep === 'proposal') {
       userPrompt = userPrompt.replace('{marketAnalysis}', previousAnalysisContext.includes('MARKET_RESEARCH') ? 'Market analysis data...' : '시장 분석 결과 없음')
       userPrompt = userPrompt.replace('{personaAnalysis}', previousAnalysisContext.includes('PERSONAS') ? 'Persona analysis data...' : '페르소나 분석 결과 없음')

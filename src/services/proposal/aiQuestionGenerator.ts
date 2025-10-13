@@ -311,6 +311,7 @@ export class AIQuestionGenerator {
         documentAnalyses: any[]
         summary: string
       }
+      marketResearchData?: any  // 시장 조사 분석 결과 (페르소나 단계용)
     },
     userId?: string,
     selectedModelId?: string
@@ -319,8 +320,8 @@ export class AIQuestionGenerator {
       console.log('🤖 AIQuestionGenerator.generateAIQuestions 시작 (새로운 API)');
       console.log('📊 입력 파라미터:', { step, projectId, userId, context });
 
-      // 사전 분석이 아닌 경우 AND 시장 조사가 아닌 경우 기본 질문만 반환
-      if (step !== 'pre_analysis' && step !== 'questions' && step !== 'market_research') {
+      // 사전 분석이 아닌 경우 AND 시장 조사가 아닌 경우 AND 페르소나가 아닌 경우 기본 질문만 반환
+      if (step !== 'pre_analysis' && step !== 'questions' && step !== 'market_research' && step !== 'personas') {
         const baseQuestions = this.generateQuestions(step, projectId)
         return baseQuestions
       }
@@ -375,7 +376,7 @@ export class AIQuestionGenerator {
           content: doc.content
         })) || [],
         // 시장 조사의 경우 사전 분석 데이터 포함
-        preAnalysisData: step === 'market_research' && context.preAnalysisData?.hasPreAnalysis
+        preAnalysisData: (step === 'market_research' || step === 'personas') && context.preAnalysisData?.hasPreAnalysis
           ? {
               hasPreAnalysis: context.preAnalysisData.hasPreAnalysis,
               report: context.preAnalysisData.report,
@@ -383,10 +384,16 @@ export class AIQuestionGenerator {
               summary: context.preAnalysisData.summary
             }
           : undefined,
+        // 페르소나 분석의 경우 시장 조사 데이터 포함
+        marketResearchData: step === 'personas' && context.marketResearchData
+          ? context.marketResearchData
+          : undefined,
         context: {
           userId,
           sessionId: `${projectId}_${Date.now()}`,
-          requestType: step === 'market_research' ? 'market_research_questions' : 'pre_analysis_questions'
+          requestType: step === 'market_research' ? 'market_research_questions' :
+                       step === 'personas' ? 'personas_questions' :
+                       'pre_analysis_questions'
         }
       };
 
