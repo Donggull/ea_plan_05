@@ -99,7 +99,7 @@ export function PersonasPage() {
       // 시장 조사 완료 여부 확인 (페르소나는 시장 조사 결과도 포함)
       let marketResearchData: any = null
       try {
-        const { data: marketResearchAnalysis } = await supabase!
+        const { data: marketResearchAnalysis, error: marketResearchError } = await supabase!
           .from('proposal_workflow_analysis')
           .select('*')
           .eq('project_id', id)
@@ -107,12 +107,16 @@ export function PersonasPage() {
           .eq('status', 'completed')
           .order('created_at', { ascending: false })
           .limit(1)
-          .single()
+          .maybeSingle()
 
-        marketResearchData = marketResearchAnalysis
-        console.log('📊 시장 조사 분석 결과:', { exists: !!marketResearchData })
+        if (!marketResearchError && marketResearchAnalysis) {
+          marketResearchData = marketResearchAnalysis
+          console.log('📊 시장 조사 분석 결과:', { exists: !!marketResearchData })
+        } else {
+          console.log('ℹ️ 시장 조사 분석 결과 없음')
+        }
       } catch (err) {
-        console.log('ℹ️ 시장 조사 분석 결과 없음')
+        console.log('ℹ️ 시장 조사 분석 결과 조회 실패:', err)
       }
 
       // 기존 질문 확인
@@ -190,7 +194,7 @@ export function PersonasPage() {
                 .eq('provider', selectedModelForQuestions.provider)
                 .eq('model_id', selectedModelForQuestions.model_id)
                 .eq('status', 'available')
-                .single()
+                .maybeSingle()
 
               if (!dbError && dbModel) {
                 questionModelId = dbModel.id
