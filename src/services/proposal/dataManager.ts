@@ -259,10 +259,11 @@ export class ProposalDataManager {
       const responses = await this.getResponses(projectId, workflowStep)
       const answeredQuestions = responses.filter(r => !r.is_temporary).length
 
-      // 필수 질문 답변 확인
+      // 🔥 수정: 필수 질문 답변 확인 시 UUID(id)를 사용해야 함
+      // questions.id (UUID)와 responses.question_id (UUID)를 매칭
       const requiredQuestionIds = questions
         .filter(q => q.is_required)
-        .map(q => q.question_id) // question_id 사용 (id가 아님)
+        .map(q => q.id) // 🔥 수정: question_id가 아니라 id (UUID) 사용
 
       const answeredRequiredQuestions = responses.filter(r =>
         !r.is_temporary && requiredQuestionIds.includes(r.question_id)
