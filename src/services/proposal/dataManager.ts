@@ -161,13 +161,18 @@ export class ProposalDataManager {
         metadata: {}
       }
 
-      // 기존 답변이 있는지 확인
-      const { data: existing } = await supabase!
+      // 기존 답변이 있는지 확인 (.maybeSingle()로 변경하여 406 에러 방지)
+      const { data: existing, error: existingError } = await supabase!
         .from('proposal_workflow_responses' as any)
         .select('id')
         .eq('project_id', projectId)
         .eq('question_id', questionId)
-        .single()
+        .maybeSingle()
+
+      // PGRST116(레코드 없음) 에러는 무시
+      if (existingError && existingError.code !== 'PGRST116') {
+        throw existingError
+      }
 
       let result
       if (existing && 'id' in existing) {
@@ -177,7 +182,7 @@ export class ProposalDataManager {
           .update({ ...responseData, updated_at: new Date().toISOString() })
           .eq('id', (existing as any).id)
           .select()
-          .single()
+          .maybeSingle()
 
         if (error) throw error
         result = data as unknown as ProposalWorkflowResponse
