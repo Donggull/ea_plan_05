@@ -353,6 +353,144 @@ ${documents.map((doc, index) => `${index + 1}. ${doc.name}`).join('\n')}
     return prompt
   }
 
+  // 페르소나 분석 질문 생성 (시장 조사 결과 활용)
+  if (context?.requestType === 'personas_questions') {
+    let prompt = `당신은 경험이 풍부한 사용자 경험(UX) 전문가이자 페르소나 분석가입니다. 타겟 고객 페르소나를 정의하기 위한 핵심 질문들을 생성해주세요.
+
+프로젝트 정보:
+- 이름: ${projectInfo?.name || '미정'}
+- 설명: ${projectInfo?.description || '미정'}
+- 산업 분야: ${projectInfo?.industry || '미정'}
+`
+
+    // 사전 분석 데이터 확인
+    const hasPreAnalysisData = preAnalysisData && (
+      (preAnalysisData.report && Object.keys(preAnalysisData.report).length > 0) ||
+      (preAnalysisData.documentAnalyses && preAnalysisData.documentAnalyses.length > 0)
+    )
+
+    if (hasPreAnalysisData) {
+      prompt += `\n=== 사전 분석 보고서 인사이트 ===\n`
+
+      if (preAnalysisData.report) {
+        prompt += `분석 요약: ${preAnalysisData.report.summary || '없음'}\n\n`
+
+        if (preAnalysisData.report.key_findings && preAnalysisData.report.key_findings.length > 0) {
+          prompt += `핵심 발견사항:\n${preAnalysisData.report.key_findings.map((f: string) => `- ${f}`).join('\n')}\n\n`
+        }
+
+        if (preAnalysisData.report.recommendations && preAnalysisData.report.recommendations.length > 0) {
+          prompt += `권장사항:\n${preAnalysisData.report.recommendations.map((r: string) => `- ${r}`).join('\n')}\n\n`
+        }
+      }
+
+      if (preAnalysisData.documentAnalyses && preAnalysisData.documentAnalyses.length > 0) {
+        prompt += `=== 문서 분석 결과 ===\n`
+        preAnalysisData.documentAnalyses.forEach((analysis: any, index: number) => {
+          prompt += `${index + 1}. ${analysis.document_name || '문서'}\n`
+          prompt += `   요약: ${analysis.summary || '없음'}\n`
+          if (analysis.key_points && analysis.key_points.length > 0) {
+            prompt += `   핵심 포인트: ${analysis.key_points.join(', ')}\n`
+          }
+          prompt += `\n`
+        })
+      }
+    }
+
+    // 시장 조사 데이터 확인 (request.marketResearchData 추가 필요)
+    const marketResearchData = (request as any).marketResearchData
+    if (marketResearchData && marketResearchData.analysis_data) {
+      prompt += `\n=== 시장 조사 분석 결과 ===\n`
+      const analysisData = marketResearchData.analysis_data
+
+      if (analysisData.market_insights) {
+        prompt += `시장 인사이트:\n${analysisData.market_insights}\n\n`
+      }
+
+      if (analysisData.target_customers) {
+        prompt += `타겟 고객:\n${analysisData.target_customers}\n\n`
+      }
+
+      if (analysisData.competition_analysis) {
+        prompt += `경쟁 분석:\n${analysisData.competition_analysis}\n\n`
+      }
+    }
+
+    if (documents && documents.length > 0) {
+      prompt += `\n업로드된 문서들:
+${documents.map((doc, index) => `${index + 1}. ${doc.name}`).join('\n')}
+`
+    }
+
+    prompt += `\n페르소나 분석 질문 생성 요구사항:
+
+**페르소나란?** 제품/서비스의 타겟 고객을 대표하는 가상의 인물상입니다. 다음 영역을 포함해야 합니다:
+
+1. **인구통계학적 정보** (Demographics):
+   - 연령대, 성별, 지역, 직업, 소득 수준, 교육 수준 등
+   - 예시 질문: "주요 타겟 고객의 연령대는?" (multiselect: 20대, 30대, 40대 등)
+
+2. **심리적 특성** (Psychographics):
+   - 가치관, 라이프스타일, 관심사, 태도 등
+   - 예시 질문: "타겟 고객의 주요 관심사와 가치관은?" (textarea)
+
+3. **행동 패턴** (Behavioral):
+   - 구매 패턴, 제품 사용 빈도, 정보 탐색 방식, 의사결정 과정 등
+   - 예시 질문: "구매 의사결정 시 가장 중요하게 고려하는 요인은?" (multiselect)
+
+4. **목표와 동기** (Goals & Motivations):
+   - 달성하고자 하는 목표, 제품/서비스를 찾는 이유
+   - 예시 질문: "고객이 이 제품/서비스를 통해 해결하려는 핵심 문제는?" (textarea)
+
+5. **Pain Points (고충점)**:
+   - 현재 겪고 있는 문제점, 불편함, 불만 사항
+   - 예시 질문: "기존 솔루션 사용 시 가장 큰 불편 사항은?" (textarea)
+
+6. **채널 및 접점** (Channels & Touchpoints):
+   - 정보 획득 경로, 선호하는 소통 채널, 미디어 소비 습관
+   - 예시 질문: "타겟 고객이 가장 자주 사용하는 소통 채널은?" (multiselect: 이메일, SNS, 블로그 등)
+
+**중요한 원칙:**
+- 6-10개의 질문을 생성하세요
+- 각 질문은 위 6가지 영역 중 하나 이상을 다뤄야 합니다
+- **절대로** 프로젝트 일정, 예산, 기술 스택, 보안 정책 등 프로젝트 관리 질문을 생성하지 마세요
+- 모든 질문은 "타겟 고객"에 대한 것이어야 합니다 (프로젝트 자체가 아님)
+- 사전 분석 및 시장 조사에서 발견된 타겟 고객 관련 인사이트를 반영하세요
+- type은 text, select, multiselect, number, textarea 중 선택하세요
+
+**나쁜 예시 (절대 안 됨):**
+❌ "프로젝트 예산 범위는?" - 이건 프로젝트 질문이지 페르소나 질문이 아님
+❌ "주요 마일스톤은?" - 이건 일정 질문이지 고객 페르소나 질문이 아님
+❌ "필요한 AI 기술은?" - 이건 기술 요구사항이지 고객 특성이 아님
+
+**좋은 예시:**
+✅ "주요 타겟 고객의 연령대는?" (인구통계)
+✅ "고객이 제품/서비스를 사용하는 주요 목적은?" (목표와 동기)
+✅ "고객의 기술 숙련도는?" (행동 패턴)
+✅ "구매 의사결정에 영향을 주는 주요 요인은?" (행동 패턴)
+✅ "타겟 고객이 현재 겪고 있는 가장 큰 불편은?" (Pain Points)
+
+출력 형식 (JSON):
+{
+  "questions": [
+    {
+      "category": "카테고리명 (인구통계, 심리특성, 행동패턴, 목표/동기, Pain Points, 소통채널 중 하나)",
+      "text": "질문 내용",
+      "type": "text|select|multiselect|number|textarea",
+      "options": ["옵션1", "옵션2"] (select/multiselect인 경우만),
+      "required": true|false,
+      "helpText": "질문에 대한 구체적인 도움말",
+      "priority": "high|medium|low",
+      "confidence": 0.0-1.0
+    }
+  ]
+}
+
+정확한 JSON 형식만 반환하고 다른 텍스트는 포함하지 마세요.`
+
+    return prompt
+  }
+
   // 사전 분석 질문 생성 (기존 로직)
   let prompt = `당신은 전문 프로젝트 컨설턴트입니다. 사전 분석 단계에서 필요한 핵심 질문들을 생성해주세요.
 

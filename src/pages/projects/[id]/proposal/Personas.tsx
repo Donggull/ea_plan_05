@@ -639,10 +639,63 @@ export function PersonasPage() {
           </select>
         )
 
+      case 'multiselect':
+        const selectedValues = Array.isArray(value) ? value : []
+        return (
+          <div className="space-y-2">
+            {question.options.map((option, index) => (
+              <label
+                key={index}
+                className="flex items-center space-x-3 p-2 rounded-lg hover:bg-bg-tertiary cursor-pointer transition-colors"
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedValues.includes(option)}
+                  onChange={(e) => {
+                    const newValues = e.target.checked
+                      ? [...selectedValues, option]
+                      : selectedValues.filter(v => v !== option)
+                    handleAnswerChange(question.question_id, newValues)
+                  }}
+                  className="w-4 h-4 rounded border-border-primary text-green-500 focus:ring-2 focus:ring-green-500"
+                />
+                <span className="text-text-primary">{option}</span>
+              </label>
+            ))}
+          </div>
+        )
+
+      case 'file':
+        return (
+          <div className="p-4 border-2 border-dashed border-border-primary rounded-lg bg-bg-tertiary text-center">
+            <input
+              type="file"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) {
+                  handleAnswerChange(question.question_id, file.name)
+                }
+              }}
+              className="hidden"
+              id={`file-${question.question_id}`}
+            />
+            <label
+              htmlFor={`file-${question.question_id}`}
+              className="cursor-pointer text-text-secondary hover:text-text-primary"
+            >
+              {value ? (
+                <span className="text-text-primary">{value as string}</span>
+              ) : (
+                <span>파일을 선택하거나 드래그하세요</span>
+              )}
+            </label>
+          </div>
+        )
+
       default:
         return (
           <div className="p-3 bg-bg-tertiary rounded-lg text-text-muted text-center">
-            지원되지 않는 질문 유형입니다.
+            지원되지 않는 질문 유형입니다: {question.question_type}
           </div>
         )
     }
