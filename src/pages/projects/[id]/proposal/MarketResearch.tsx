@@ -544,27 +544,44 @@ export function MarketResearchPage() {
         return
       }
 
+      // 🔥 수정: 현재 카테고리의 답변을 먼저 저장 (마지막 카테고리 답변 누락 방지)
+      console.log('💾 현재 카테고리 답변 저장 중...')
+      await saveCurrentCategoryAnswers()
+
       // 최종 저장 (임시 저장 해제)
+      console.log('💾 전체 답변 최종 저장 중...')
       await handleSave(false)
 
-      // AI 분석 실행 (임시로 성공으로 처리)
+      // 🔥 수정: AI 분석 실행
+      console.log('🤖 AI 분석 시작...')
       try {
         await ProposalAnalysisService.analyzeStep(
           id,
           'market_research',
           user.id
         )
-      } catch (error) {
-        // AI 모델이 구현되지 않은 경우 임시 성공 처리
-        console.warn('AI analysis not implemented, proceeding to results')
+        console.log('✅ AI 분석 완료')
+      } catch (analysisError) {
+        // AI 분석 실패 시 에러 메시지 표시하되, 결과 페이지로 이동은 허용
+        console.error('❌ AI 분석 실패:', analysisError)
+        const errorMessage = analysisError instanceof Error ? analysisError.message : 'AI 분석에 실패했습니다.'
+        setError(`AI 분석 중 오류가 발생했습니다: ${errorMessage}. 답변은 저장되었으며, 나중에 다시 분석할 수 있습니다.`)
+
+        // 3초 후 결과 페이지로 이동 (사용자가 에러 메시지를 볼 수 있도록)
+        setTimeout(() => {
+          navigate(`/projects/${id}/proposal/market_research/results`)
+        }, 3000)
+        return
       }
 
       // 성공 시 결과 페이지로 이동
+      console.log('📄 결과 페이지로 이동...')
       navigate(`/projects/${id}/proposal/market_research/results`)
 
     } catch (err) {
-      console.error('Failed to analyze:', err)
-      setError('AI 분석에 실패했습니다.')
+      console.error('❌ 최종 제출 실패:', err)
+      const errorMessage = err instanceof Error ? err.message : '처리 중 오류가 발생했습니다.'
+      setError(`처리 중 오류가 발생했습니다: ${errorMessage}`)
     } finally {
       setAnalyzing(false)
     }
