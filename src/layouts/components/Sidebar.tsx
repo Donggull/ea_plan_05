@@ -259,6 +259,26 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
     setCollapsed(isCollapsed)
   }, [isCollapsed])
 
+  // URL 파라미터에서 프로젝트 ID를 추출하여 현재 프로젝트 자동 선택
+  useEffect(() => {
+    // URL 패턴: /projects/{projectId}/* 에서 projectId 추출
+    const projectIdMatch = location.pathname.match(/^\/projects\/([a-f0-9-]+)/)
+
+    if (projectIdMatch && projectIdMatch[1]) {
+      const urlProjectId = projectIdMatch[1]
+
+      // 현재 선택된 프로젝트와 URL의 프로젝트가 다른 경우에만 업데이트
+      if (currentProject?.id !== urlProjectId && userProjects.length > 0) {
+        const projectFromUrl = userProjects.find(p => p.id === urlProjectId)
+
+        if (projectFromUrl) {
+          console.log('📍 URL 기반 프로젝트 자동 선택:', projectFromUrl.name)
+          selectProject(projectFromUrl)
+        }
+      }
+    }
+  }, [location.pathname, userProjects, currentProject?.id, selectProject])
+
   const handleToggleCollapse = () => {
     const newCollapsed = !collapsed
     setCollapsed(newCollapsed)
