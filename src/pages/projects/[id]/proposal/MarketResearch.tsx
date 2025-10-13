@@ -595,28 +595,14 @@ export function MarketResearchPage() {
         model_id: selectedModel?.model_id
       })
 
-      // ai_models 테이블에서 실제 UUID 조회
-      let dbModelId: string | undefined = undefined
+      // ✅ PreAnalysisService 패턴 적용: provider와 model_id 직접 전달 (UUID 조회 불필요)
+      const aiProvider = selectedModel?.provider
+      const aiModel = selectedModel?.model_id
 
-      if (selectedModel) {
-        try {
-          const { data: dbModel, error: dbError } = await supabase!
-            .from('ai_models')
-            .select('id')
-            .eq('provider', selectedModel.provider)
-            .eq('model_id', selectedModel.model_id)
-            .eq('status', 'available')
-            .single()
-
-          if (!dbError && dbModel) {
-            dbModelId = dbModel.id
-            console.log('✅ DB에서 모델 UUID 조회 완료:', dbModelId)
-          } else {
-            console.warn('⚠️ DB에서 모델을 찾을 수 없음:', dbError)
-          }
-        } catch (dbQueryError) {
-          console.error('❌ DB 모델 조회 실패:', dbQueryError)
-        }
+      if (!aiProvider || !aiModel) {
+        console.warn('⚠️ Left 사이드바에서 모델이 선택되지 않았습니다. 기본 모델을 사용합니다.')
+      } else {
+        console.log('✅ 사용할 모델:', { aiProvider, aiModel })
       }
 
       try {
@@ -624,7 +610,8 @@ export function MarketResearchPage() {
           id,
           'market_research',
           user.id,
-          dbModelId  // DB에서 조회한 UUID 전달
+          aiProvider,  // provider 직접 전달
+          aiModel      // model_id 직접 전달
         )
         console.log('✅ AI 분석 완료')
       } catch (analysisError) {

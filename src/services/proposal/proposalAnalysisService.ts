@@ -428,28 +428,32 @@ export class ProposalAnalysisService {
     projectId: string,
     workflowStep: WorkflowStep,
     userId: string,
-    modelId?: string
+    aiProvider?: string,
+    aiModel?: string
   ): Promise<AnalysisResult> {
     try {
       // 분석 컨텍스트 준비
       const context = await this.prepareAnalysisContext(projectId, workflowStep)
 
-      // AI 모델 결정
-      const selectedModel = await this.selectAIModel(projectId, userId, modelId)
+      // AI 모델 결정 (provider와 model_id 직접 사용)
+      const { provider, model_id } = await this.selectAIModel(projectId, userId, aiProvider, aiModel)
+
+      console.log('✅ 선택된 AI 모델:', { provider, model_id })
 
       // 분석 프롬프트 생성
       const prompt = await this.generateAnalysisPrompt(context)
 
-      // AI 분석 실행
-      const aiResponse = await this.executeAIAnalysis(selectedModel, prompt, userId)
+      // AI 분석 실행 (provider와 model_id 직접 전달)
+      const aiResponse = await this.executeAIAnalysis(provider, model_id, prompt, userId)
 
       // 결과 파싱 및 검증
       const analysisResult = this.parseAnalysisResult(aiResponse.content)
 
-      // 분석 결과 저장
+      // 분석 결과 저장 (provider와 model_id 저장)
       await this.saveAnalysisResult(
         context,
-        selectedModel,
+        provider,
+        model_id,
         prompt,
         aiResponse,
         analysisResult,
@@ -513,91 +517,30 @@ export class ProposalAnalysisService {
   }
 
   /**
-   * AI 모델 선택
+   * AI 모델 선택 (PreAnalysisService 패턴 적용)
    */
   private static async selectAIModel(
-    projectId: string,
-    userId: string,
-    preferredModelId?: string
-  ): Promise<string> {
+    _projectId: string,
+    _userId: string,
+    preferredProvider?: string,
+    preferredModel?: string
+  ): Promise<{ provider: string; model_id: string }> {
     try {
-      // 1. 명시적으로 지정된 모델 사용
-      if (preferredModelId) {
-        return preferredModelId
-      }
-
-      // 2. 프로젝트별 설정 확인
-      const { data: projectSettings } = await supabase!
-        .from('project_ai_settings')
-        .select('default_model_id, workflow_model_mappings')
-        .eq('project_id', projectId)
-        .single()
-
-      if (projectSettings?.workflow_model_mappings &&
-          typeof projectSettings.workflow_model_mappings === 'object' &&
-          'proposal' in projectSettings.workflow_model_mappings) {
-        return (projectSettings.workflow_model_mappings as any).proposal
-      }
-
-      if (projectSettings?.default_model_id) {
-        return projectSettings.default_model_id
-      }
-
-      // 3. 사용자별 설정 확인
-      const { data: userSettings } = await supabase!
-        .from('user_ai_settings')
-        .select('preferred_model_id')
-        .eq('user_id', userId)
-        .single()
-
-      if (userSettings?.preferred_model_id) {
-        return userSettings.preferred_model_id
-      }
-
-      // 4. 기본 모델 사용: ai_models 테이블에서 Claude 4 Sonnet UUID 조회
-      console.log('⚠️ 모델이 선택되지 않음, 기본 모델 조회 중...')
-      const { data: defaultModel, error: defaultModelError } = await supabase!
-        .from('ai_models')
-        .select('id, name, model_id')
-        .eq('provider', 'anthropic')
-        .eq('model_id', 'claude-3-5-sonnet-20241022')
-        .eq('status', 'available')
-        .single()
-
-      if (defaultModelError || !defaultModel) {
-        console.error('❌ 기본 모델 조회 실패, GPT-4o로 대체:', defaultModelError)
-        // Claude 조회 실패 시 GPT-4o 조회
-        const { data: gptModel } = await supabase!
-          .from('ai_models')
-          .select('id, name, model_id')
-          .eq('provider', 'openai')
-          .eq('model_id', 'gpt-4o')
-          .eq('status', 'available')
-          .single()
-
-        if (gptModel) {
-          console.log('✅ 대체 모델 사용:', gptModel.name)
-          return gptModel.id
+      // 1. 명시적으로 지정된 모델 사용 (Left 사이드바에서 선택된 경우)
+      if (preferredProvider && preferredModel) {
+        console.log('✅ Left 사이드바에서 선택된 모델 사용:', { preferredProvider, preferredModel })
+        return {
+          provider: preferredProvider,
+          model_id: preferredModel
         }
-
-        // 둘 다 실패하면 사용 가능한 첫 번째 모델 사용
-        const { data: anyModel } = await supabase!
-          .from('ai_models')
-          .select('id, name, model_id')
-          .eq('status', 'available')
-          .limit(1)
-          .single()
-
-        if (anyModel) {
-          console.log('✅ 사용 가능한 모델 사용:', anyModel.name)
-          return anyModel.id
-        }
-
-        throw new Error('사용 가능한 AI 모델을 찾을 수 없습니다.')
       }
 
-      console.log('✅ 기본 모델 사용:', defaultModel.name)
-      return defaultModel.id
+      // 2. 기본 모델 사용: Claude 4 Sonnet
+      console.log('⚠️ 모델이 선택되지 않음, 기본 모델 사용')
+      return {
+        provider: 'anthropic',
+        model_id: 'claude-sonnet-4-20250514'
+      }
 
     } catch (error) {
       console.error('❌ Failed to select AI model:', error)
@@ -717,70 +660,19 @@ export class ProposalAnalysisService {
   }
 
   /**
-   * AI 분석 실행 (Vercel API 서버사이드 호출)
+   * AI 분석 실행 (PreAnalysisService 패턴 적용 - provider와 model_id 직접 사용)
    */
   private static async executeAIAnalysis(
-    modelId: string,
+    provider: string,
+    model_id: string,
     messages: AIMessage[],
     userId: string
   ): Promise<AIResponse> {
     try {
       console.log('🚀 [executeAIAnalysis] AI 분석 실행 시작')
-      console.log('📊 입력 파라미터:', { modelId, userId, messagesCount: messages.length })
+      console.log('📊 입력 파라미터:', { provider, model_id, userId, messagesCount: messages.length })
 
-      // 1. modelId로 ai_models 테이블에서 provider와 model_id 조회
-      if (!supabase) {
-        throw new Error('Supabase client not initialized')
-      }
-
-      // 🔥 수정: modelId로 직접 조회 시도, 실패하면 에러 메시지에 상세 정보 포함
-      let modelData: { provider: string; model_id: string; name: string } | null = null
-      let modelError: any = null
-
-      // 1차 시도: UUID로 조회
-      const uuidQuery = await supabase
-        .from('ai_models')
-        .select('provider, model_id, name')
-        .eq('id', modelId)
-        .maybeSingle()
-
-      modelData = uuidQuery.data
-      modelError = uuidQuery.error
-
-      // 🔥 2차 시도: UUID 조회 실패 시, modelId가 실제로는 model_id 문자열일 수 있으므로 조회
-      if (!modelData && !modelError) {
-        console.warn(`⚠️ UUID로 모델을 찾을 수 없음: ${modelId}. model_id로 재시도...`)
-
-        const modelIdQuery = await supabase
-          .from('ai_models')
-          .select('provider, model_id, name')
-          .eq('model_id', modelId)
-          .eq('status', 'available')
-          .maybeSingle()
-
-        modelData = modelIdQuery.data
-        modelError = modelIdQuery.error
-
-        if (modelData) {
-          console.log('✅ model_id로 모델 발견:', modelData)
-        }
-      }
-
-      if (modelError || !modelData) {
-        console.error('❌ 모델 조회 실패:', {
-          providedId: modelId,
-          error: modelError,
-          message: '제공된 ID로 ai_models 테이블에서 모델을 찾을 수 없습니다.'
-        })
-        throw new Error(
-          `AI 모델을 찾을 수 없습니다 (ID: ${modelId}). ` +
-          `Left 사이드바에서 AI 모델을 선택했는지 확인해주세요.`
-        )
-      }
-
-      console.log('✅ 모델 정보 조회 완료:', modelData)
-
-      // 2. messages를 단일 프롬프트 문자열로 변환
+      // 1. messages를 단일 프롬프트 문자열로 변환
       const systemMessage = messages.find(m => m.role === 'system')?.content || ''
       const userMessage = messages.find(m => m.role === 'user')?.content || ''
 
@@ -793,7 +685,7 @@ export class ProposalAnalysisService {
         totalLength: fullPrompt.length
       })
 
-      // 3. Vercel API 호출
+      // 2. Vercel API 호출
       const apiUrl = import.meta.env.DEV
         ? 'https://ea-plan-05.vercel.app/api/ai/completion'
         : '/api/ai/completion'
@@ -803,6 +695,9 @@ export class ProposalAnalysisService {
       // 인증 토큰 추출
       let authToken: string | undefined
       try {
+        if (!supabase) {
+          throw new Error('Supabase client not initialized')
+        }
         const session = await supabase.auth.getSession()
         authToken = session?.data.session?.access_token
         console.log('🔐 인증 토큰:', authToken ? '있음' : '없음')
@@ -811,8 +706,8 @@ export class ProposalAnalysisService {
       }
 
       const requestPayload = {
-        provider: modelData.provider,
-        model: modelData.model_id,
+        provider,
+        model: model_id,
         prompt: fullPrompt,
         maxTokens: 4000,
         temperature: 0.3
@@ -859,7 +754,7 @@ export class ProposalAnalysisService {
         responseTime: data.responseTime
       })
 
-      // 4. 응답을 AIResponse 형식으로 반환
+      // 3. 응답을 AIResponse 형식으로 반환
       return {
         content: data.content,
         usage: {
@@ -919,11 +814,12 @@ export class ProposalAnalysisService {
   }
 
   /**
-   * 분석 결과 저장
+   * 분석 결과 저장 (PreAnalysisService 패턴 적용 - provider와 model_id 직접 사용)
    */
   private static async saveAnalysisResult(
     context: AnalysisContext,
-    modelId: string,
+    provider: string,
+    model_id: string,
     prompt: AIMessage[],
     aiResponse: AIResponse,
     analysisResult: AnalysisResult,
@@ -931,55 +827,7 @@ export class ProposalAnalysisService {
   ): Promise<void> {
     try {
       console.log('💾 [saveAnalysisResult] 분석 결과 저장 시작')
-
-      // modelId로 ai_models 테이블에서 provider 조회
-      if (!supabase) {
-        throw new Error('Supabase client not initialized')
-      }
-
-      // 🔥 수정: executeAIAnalysis와 동일한 로직 적용
-      let modelData: { provider: string; model_id: string; name: string } | null = null
-      let modelError: any = null
-
-      // 1차 시도: UUID로 조회
-      const uuidQuery = await supabase
-        .from('ai_models')
-        .select('provider, model_id, name')
-        .eq('id', modelId)
-        .maybeSingle()
-
-      modelData = uuidQuery.data
-      modelError = uuidQuery.error
-
-      // 🔥 2차 시도: UUID 조회 실패 시, modelId가 실제로는 model_id 문자열일 수 있으므로 조회
-      if (!modelData && !modelError) {
-        console.warn(`⚠️ UUID로 모델을 찾을 수 없음: ${modelId}. model_id로 재시도...`)
-
-        const modelIdQuery = await supabase
-          .from('ai_models')
-          .select('provider, model_id, name')
-          .eq('model_id', modelId)
-          .eq('status', 'available')
-          .maybeSingle()
-
-        modelData = modelIdQuery.data
-        modelError = modelIdQuery.error
-
-        if (modelData) {
-          console.log('✅ model_id로 모델 발견:', modelData)
-        }
-      }
-
-      if (modelError || !modelData) {
-        console.error('❌ 모델 조회 실패:', {
-          providedId: modelId,
-          error: modelError,
-          message: '제공된 ID로 ai_models 테이블에서 모델을 찾을 수 없습니다.'
-        })
-        throw new Error(`AI 모델을 찾을 수 없습니다 (ID: ${modelId})`)
-      }
-
-      console.log('✅ 모델 정보 조회 완료:', modelData)
+      console.log('📊 저장할 모델 정보:', { provider, model_id })
 
       await ProposalDataManager.saveAnalysis({
         project_id: context.projectId,
@@ -987,8 +835,8 @@ export class ProposalAnalysisService {
         analysis_type: 'integrated_analysis',
         input_documents: context.documents.map(d => d.id),
         input_responses: context.responses.map(r => r.id),
-        ai_provider: modelData.provider,
-        ai_model: modelId,
+        ai_provider: provider,          // ✅ provider 직접 저장
+        ai_model: model_id,              // ✅ model_id 직접 저장 (UUID 아님!)
         prompt_template: JSON.stringify(prompt[0]),
         analysis_prompt: JSON.stringify(prompt),
         analysis_result: JSON.stringify(analysisResult),
@@ -1005,8 +853,8 @@ export class ProposalAnalysisService {
         metadata: {
           documentCount: context.documents.length,
           responseCount: context.responses.length,
-          aiModel: modelData.model_id,
-          aiModelName: modelData.name,
+          aiModel: model_id,
+          aiProvider: provider,
           timestamp: new Date().toISOString()
         }
       })
