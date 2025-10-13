@@ -15,6 +15,7 @@ import { ProposalDataManager, ProposalWorkflowQuestion } from '../../../../servi
 import { ProposalAnalysisService } from '../../../../services/proposal/proposalAnalysisService'
 import { AIQuestionGenerator } from '../../../../services/proposal/aiQuestionGenerator'
 import { useAuth } from '../../../../contexts/AuthContext'
+import { useAIModel } from '../../../../contexts/AIModelContext'
 import { supabase } from '../../../../lib/supabase'
 import { PageContainer, PageHeader, PageContent, Card, Button, Badge, ProgressBar } from '../../../../components/LinearComponents'
 
@@ -34,6 +35,7 @@ export function MarketResearchPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const { user } = useAuth()
+  const { getSelectedModel } = useAIModel()
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -552,13 +554,25 @@ export function MarketResearchPage() {
       console.log('💾 전체 답변 최종 저장 중...')
       await handleSave(false)
 
-      // 🔥 수정: AI 분석 실행
+      // 🔥 수정: AI 분석 실행 (Left 사이드바 선택 모델 사용)
       console.log('🤖 AI 분석 시작...')
+
+      // Left 사이드바에서 선택된 AI 모델 가져오기
+      const selectedModel = getSelectedModel()
+      const selectedModelId = selectedModel?.id || undefined
+
+      console.log('📊 선택된 AI 모델:', {
+        modelId: selectedModelId,
+        modelName: selectedModel?.name,
+        provider: selectedModel?.provider
+      })
+
       try {
         await ProposalAnalysisService.analyzeStep(
           id,
           'market_research',
-          user.id
+          user.id,
+          selectedModelId  // Left 사이드바 선택 모델 전달
         )
         console.log('✅ AI 분석 완료')
       } catch (analysisError) {

@@ -554,12 +554,54 @@ export class ProposalAnalysisService {
         return userSettings.preferred_model_id
       }
 
-      // 4. 기본 모델 사용
-      return 'gpt-4o'
+      // 4. 기본 모델 사용: ai_models 테이블에서 Claude 4 Sonnet UUID 조회
+      console.log('⚠️ 모델이 선택되지 않음, 기본 모델 조회 중...')
+      const { data: defaultModel, error: defaultModelError } = await supabase!
+        .from('ai_models')
+        .select('id, name, model_id')
+        .eq('provider', 'anthropic')
+        .eq('model_id', 'claude-3-5-sonnet-20241022')
+        .eq('status', 'available')
+        .single()
+
+      if (defaultModelError || !defaultModel) {
+        console.error('❌ 기본 모델 조회 실패, GPT-4o로 대체:', defaultModelError)
+        // Claude 조회 실패 시 GPT-4o 조회
+        const { data: gptModel } = await supabase!
+          .from('ai_models')
+          .select('id, name, model_id')
+          .eq('provider', 'openai')
+          .eq('model_id', 'gpt-4o')
+          .eq('status', 'available')
+          .single()
+
+        if (gptModel) {
+          console.log('✅ 대체 모델 사용:', gptModel.name)
+          return gptModel.id
+        }
+
+        // 둘 다 실패하면 사용 가능한 첫 번째 모델 사용
+        const { data: anyModel } = await supabase!
+          .from('ai_models')
+          .select('id, name, model_id')
+          .eq('status', 'available')
+          .limit(1)
+          .single()
+
+        if (anyModel) {
+          console.log('✅ 사용 가능한 모델 사용:', anyModel.name)
+          return anyModel.id
+        }
+
+        throw new Error('사용 가능한 AI 모델을 찾을 수 없습니다.')
+      }
+
+      console.log('✅ 기본 모델 사용:', defaultModel.name)
+      return defaultModel.id
 
     } catch (error) {
-      console.warn('Failed to select AI model, using default:', error)
-      return 'gpt-4o'
+      console.error('❌ Failed to select AI model:', error)
+      throw new Error('AI 모델 선택에 실패했습니다. Left 사이드바에서 AI 모델을 선택해주세요.')
     }
   }
 
