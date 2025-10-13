@@ -18,6 +18,8 @@ import {
   FileCode,
   File
 } from 'lucide-react'
+import { Document, Paragraph, TextRun, HeadingLevel, AlignmentType, Packer } from 'docx'
+import { saveAs } from 'file-saver'
 import { ProposalDataManager } from '../../../../services/proposal/dataManager'
 import { PageContainer, PageHeader, PageContent, Card, Badge, Button, ProgressBar } from '../../../../components/LinearComponents'
 
@@ -313,74 +315,265 @@ ${analysis.warnings.map(warning => `⚠️ ${warning}`).join('\n')}
     setShowDownloadMenu(false)
   }
 
-  // DOCX 다운로드 함수 (간단한 XML 형식)
-  const downloadAsDocx = () => {
+  // DOCX 다운로드 함수
+  const downloadAsDocx = async () => {
     if (!analysis) return
 
-    // DOCX는 실제로 ZIP 파일 형식이지만, 여기서는 간단한 RTF 형식으로 대체
-    const docContent = `{\\rtf1\\ansi\\deff0
-{\\fonttbl{\\f0 Malgun Gothic;}}
-{\\colortbl;\\red46\\green62\\blue80;\\red52\\green152\\blue219;}
-\\f0\\fs24
+    try {
+      const confidencePercent = Math.round(analysis.confidence * 100)
 
-{\\fs36\\b 시장 조사 분석 결과\\par}
-\\par
+      // 문서 섹션 구성
+      const sections: Paragraph[] = []
 
-{\\fs28\\b 분석 신뢰도\\par}
-{\\fs48\\b ${Math.round(analysis.confidence * 100)}%\\par}
-\\par
+      // 제목
+      sections.push(
+        new Paragraph({
+          text: '시장 조사 분석 결과',
+          heading: HeadingLevel.HEADING_1,
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 400 }
+        })
+      )
 
-{\\fs28\\b 분석 요약\\par}
-${analysis.summary.replace(/\n/g, '\\par ')}\\par
-\\par
+      // 분석 신뢰도
+      sections.push(
+        new Paragraph({
+          text: '분석 신뢰도',
+          heading: HeadingLevel.HEADING_2,
+          spacing: { before: 300, after: 200 }
+        }),
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: `${confidencePercent}%`,
+              bold: true,
+              size: 48
+            })
+          ],
+          spacing: { after: 300 }
+        })
+      )
 
-{\\fs28\\b 주요 발견사항 (${analysis.keyFindings.length}개)\\par}
-${analysis.keyFindings.map((finding, i) => `${i + 1}. ${finding}\\par `).join('')}
-\\par
+      // 분석 요약
+      sections.push(
+        new Paragraph({
+          text: '분석 요약',
+          heading: HeadingLevel.HEADING_2,
+          spacing: { before: 300, after: 200 }
+        }),
+        new Paragraph({
+          text: analysis.summary,
+          spacing: { after: 300 }
+        })
+      )
 
-${analysis.structuredData.marketSize || analysis.structuredData.growthRate ? `{\\fs28\\b 시장 정보\\par}
-${analysis.structuredData.marketSize ? `시장 규모: ${analysis.structuredData.marketSize}\\par ` : ''}
-${analysis.structuredData.growthRate ? `성장률: ${analysis.structuredData.growthRate}\\par ` : ''}
-${analysis.structuredData.competitiveAdvantage ? `경쟁 우위: ${analysis.structuredData.competitiveAdvantage}\\par ` : ''}
-\\par` : ''}
+      // 주요 발견사항
+      sections.push(
+        new Paragraph({
+          text: `주요 발견사항 (${analysis.keyFindings.length}개)`,
+          heading: HeadingLevel.HEADING_2,
+          spacing: { before: 300, after: 200 }
+        })
+      )
+      analysis.keyFindings.forEach((finding, index) => {
+        sections.push(
+          new Paragraph({
+            text: `${index + 1}. ${finding}`,
+            spacing: { after: 100 }
+          })
+        )
+      })
 
-${analysis.structuredData.targetSegments && analysis.structuredData.targetSegments.length > 0 ? `{\\fs28\\b 타겟 세그먼트\\par}
-${analysis.structuredData.targetSegments.map(segment => `• ${segment}\\par `).join('')}
-\\par` : ''}
+      // 시장 정보
+      if (analysis.structuredData.marketSize || analysis.structuredData.growthRate || analysis.structuredData.competitiveAdvantage) {
+        sections.push(
+          new Paragraph({
+            text: '시장 정보',
+            heading: HeadingLevel.HEADING_2,
+            spacing: { before: 300, after: 200 }
+          })
+        )
 
-${analysis.structuredData.opportunities && analysis.structuredData.opportunities.length > 0 ? `{\\fs28\\b 기회 요인\\par}
-${analysis.structuredData.opportunities.map(opp => `• ${opp}\\par `).join('')}
-\\par` : ''}
+        if (analysis.structuredData.marketSize) {
+          sections.push(
+            new Paragraph({
+              children: [
+                new TextRun({ text: '시장 규모: ', bold: true }),
+                new TextRun({ text: analysis.structuredData.marketSize })
+              ],
+              spacing: { after: 100 }
+            })
+          )
+        }
 
-${analysis.structuredData.threats && analysis.structuredData.threats.length > 0 ? `{\\fs28\\b 위협 요인\\par}
-${analysis.structuredData.threats.map(threat => `• ${threat}\\par `).join('')}
-\\par` : ''}
+        if (analysis.structuredData.growthRate) {
+          sections.push(
+            new Paragraph({
+              children: [
+                new TextRun({ text: '성장률: ', bold: true }),
+                new TextRun({ text: analysis.structuredData.growthRate })
+              ],
+              spacing: { after: 100 }
+            })
+          )
+        }
 
-{\\fs28\\b 권장사항 (${analysis.recommendations.length}개)\\par}
-${analysis.recommendations.map((rec, i) => `${i + 1}. ${rec}\\par `).join('')}
-\\par
+        if (analysis.structuredData.competitiveAdvantage) {
+          sections.push(
+            new Paragraph({
+              children: [
+                new TextRun({ text: '경쟁 우위: ', bold: true }),
+                new TextRun({ text: analysis.structuredData.competitiveAdvantage })
+              ],
+              spacing: { after: 200 }
+            })
+          )
+        }
+      }
 
-{\\fs28\\b 다음 단계\\par}
-${analysis.nextSteps.map(step => `• ${step}\\par `).join('')}
-\\par
+      // 타겟 세그먼트
+      if (analysis.structuredData.targetSegments && analysis.structuredData.targetSegments.length > 0) {
+        sections.push(
+          new Paragraph({
+            text: '타겟 세그먼트',
+            heading: HeadingLevel.HEADING_2,
+            spacing: { before: 300, after: 200 }
+          })
+        )
+        analysis.structuredData.targetSegments.forEach(segment => {
+          sections.push(
+            new Paragraph({
+              text: `• ${segment}`,
+              spacing: { after: 100 }
+            })
+          )
+        })
+      }
 
-${analysis.warnings && analysis.warnings.length > 0 ? `{\\fs28\\b 주의사항\\par}
-${analysis.warnings.map(warning => `⚠ ${warning}\\par `).join('')}
-\\par` : ''}
+      // 기회 요인
+      if (analysis.structuredData.opportunities && analysis.structuredData.opportunities.length > 0) {
+        sections.push(
+          new Paragraph({
+            text: '기회 요인',
+            heading: HeadingLevel.HEADING_2,
+            spacing: { before: 300, after: 200 }
+          })
+        )
+        analysis.structuredData.opportunities.forEach(opp => {
+          sections.push(
+            new Paragraph({
+              text: `• ${opp}`,
+              spacing: { after: 100 }
+            })
+          )
+        })
+      }
 
-생성일: ${new Date().toLocaleDateString('ko-KR')}
-}`
+      // 위협 요인
+      if (analysis.structuredData.threats && analysis.structuredData.threats.length > 0) {
+        sections.push(
+          new Paragraph({
+            text: '위협 요인',
+            heading: HeadingLevel.HEADING_2,
+            spacing: { before: 300, after: 200 }
+          })
+        )
+        analysis.structuredData.threats.forEach(threat => {
+          sections.push(
+            new Paragraph({
+              text: `• ${threat}`,
+              spacing: { after: 100 }
+            })
+          )
+        })
+      }
 
-    const blob = new Blob([docContent], { type: 'application/rtf;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `시장조사_분석결과_${new Date().toISOString().split('T')[0]}.rtf`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
-    setShowDownloadMenu(false)
+      // 권장사항
+      sections.push(
+        new Paragraph({
+          text: `권장사항 (${analysis.recommendations.length}개)`,
+          heading: HeadingLevel.HEADING_2,
+          spacing: { before: 300, after: 200 }
+        })
+      )
+      analysis.recommendations.forEach((rec, index) => {
+        sections.push(
+          new Paragraph({
+            text: `${index + 1}. ${rec}`,
+            spacing: { after: 100 }
+          })
+        )
+      })
+
+      // 다음 단계
+      sections.push(
+        new Paragraph({
+          text: '다음 단계',
+          heading: HeadingLevel.HEADING_2,
+          spacing: { before: 300, after: 200 }
+        })
+      )
+      analysis.nextSteps.forEach(step => {
+        sections.push(
+          new Paragraph({
+            text: `• ${step}`,
+            spacing: { after: 100 }
+          })
+        )
+      })
+
+      // 주의사항
+      if (analysis.warnings && analysis.warnings.length > 0) {
+        sections.push(
+          new Paragraph({
+            text: '주의사항',
+            heading: HeadingLevel.HEADING_2,
+            spacing: { before: 300, after: 200 }
+          })
+        )
+        analysis.warnings.forEach(warning => {
+          sections.push(
+            new Paragraph({
+              text: `⚠ ${warning}`,
+              spacing: { after: 100 }
+            })
+          )
+        })
+      }
+
+      // 생성일
+      sections.push(
+        new Paragraph({
+          text: '',
+          spacing: { before: 400 }
+        }),
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: `생성일: ${new Date().toLocaleDateString('ko-KR')}`,
+              italics: true
+            })
+          ],
+          alignment: AlignmentType.RIGHT
+        })
+      )
+
+      // 문서 생성
+      const doc = new Document({
+        sections: [{
+          properties: {},
+          children: sections
+        }]
+      })
+
+      // DOCX 파일로 변환 및 다운로드
+      const blob = await Packer.toBlob(doc)
+      saveAs(blob, `시장조사_분석결과_${new Date().toISOString().split('T')[0]}.docx`)
+      setShowDownloadMenu(false)
+    } catch (error) {
+      console.error('DOCX 다운로드 실패:', error)
+      alert('DOCX 파일 생성에 실패했습니다. 다시 시도해주세요.')
+    }
   }
 
   if (loading) {
@@ -469,7 +662,7 @@ ${analysis.warnings.map(warning => `⚠ ${warning}\\par `).join('')}
                     style={{ color: '#b4b8c5' }}
                   >
                     <File className="w-4 h-4" />
-                    <span>문서 파일 (RTF)</span>
+                    <span>문서 파일 (DOCX)</span>
                   </button>
                 </div>
               )}
