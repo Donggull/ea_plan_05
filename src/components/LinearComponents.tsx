@@ -31,6 +31,10 @@ const Button = {
         fontSize: linearTheme.typography.fontSize.regular,
         fontWeight: linearTheme.typography.fontWeight.medium,
         transition: `all ${linearTheme.animation.duration.fast}`,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '8px',
       }}
     >
       {loading ? <Spinner /> : children}
@@ -49,6 +53,10 @@ const Button = {
         borderRadius: linearTheme.borderRadius.lg,
         fontSize: linearTheme.typography.fontSize.regular,
         transition: `all ${linearTheme.animation.duration.fast}`,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '8px',
       }}
     >
       {children}
@@ -66,6 +74,10 @@ const Button = {
         borderRadius: linearTheme.borderRadius.lg,
         fontSize: linearTheme.typography.fontSize.regular,
         transition: `all ${linearTheme.animation.duration.fast}`,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '8px',
       }}
     >
       {children}
