@@ -257,17 +257,32 @@ export class ProposalDataManager {
 
       // 답변 조회
       const responses = await this.getResponses(projectId, workflowStep)
-      const answeredQuestions = responses.filter(r => !r.is_temporary).length
 
-      // 🔥 수정: 필수 질문 답변 확인 시 UUID(id)를 사용해야 함
-      // questions.id (UUID)와 responses.question_id (UUID)를 매칭
+      // 🔥 수정: 임시 저장 답변도 유효한 답변으로 카운트
+      // 사용자가 답변을 입력하면 자동 저장되므로, is_temporary 여부와 관계없이 답변이 있으면 완료로 처리
+      // 답변 데이터가 유효한지만 확인 (빈 문자열, 빈 배열 제외)
+      const answeredQuestions = responses.filter(r => {
+        const answer = r.answer_data?.answer
+        if (answer === undefined || answer === null || answer === '') return false
+        if (Array.isArray(answer) && answer.length === 0) return false
+        return true
+      }).length
+
+      // 🔥 수정: 필수 질문 답변 확인 시 UUID(id)를 사용하고, 임시 저장 답변도 포함
       const requiredQuestionIds = questions
         .filter(q => q.is_required)
-        .map(q => q.id) // 🔥 수정: question_id가 아니라 id (UUID) 사용
+        .map(q => q.id) // UUID 사용
 
-      const answeredRequiredQuestions = responses.filter(r =>
-        !r.is_temporary && requiredQuestionIds.includes(r.question_id)
-      ).length
+      const answeredRequiredQuestions = responses.filter(r => {
+        // 필수 질문에 대한 답변이고
+        if (!requiredQuestionIds.includes(r.question_id)) return false
+
+        // 유효한 답변이 있으면 카운트
+        const answer = r.answer_data?.answer
+        if (answer === undefined || answer === null || answer === '') return false
+        if (Array.isArray(answer) && answer.length === 0) return false
+        return true
+      }).length
 
       const isCompleted = requiredQuestions > 0 ? answeredRequiredQuestions === requiredQuestions : answeredQuestions === totalQuestions
       const completionRate = totalQuestions > 0 ? (answeredQuestions / totalQuestions) * 100 : 0
