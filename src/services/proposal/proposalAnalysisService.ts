@@ -1,7 +1,30 @@
 import { supabase } from '../../lib/supabase'
-import { AIProviderFactory, AIMessage, AIResponse } from '../ai/providerFactory'
 import { ProposalDataManager, ProposalWorkflowResponse, ProposalWorkflowQuestion } from './dataManager'
 import { WorkflowStep } from './aiQuestionGenerator'
+
+// AI 메시지 타입 (Vercel API 호출용)
+export interface AIMessage {
+  role: 'system' | 'user' | 'assistant'
+  content: string
+}
+
+// AI 응답 타입 (Vercel API 응답)
+export interface AIResponse {
+  content: string
+  usage: {
+    inputTokens: number
+    outputTokens: number
+    totalTokens: number
+  }
+  cost: {
+    inputCost: number
+    outputCost: number
+    totalCost: number
+  }
+  model: string
+  finishReason: string
+  responseTime: number
+}
 
 export interface AnalysisContext {
   projectId: string
@@ -35,15 +58,23 @@ export interface AnalysisResult {
 // 단계별 분석 프롬프트 템플릿
 const ANALYSIS_PROMPTS = {
   market_research: {
-    system: `당신은 경험이 풍부한 시장 조사 전문가입니다. 제공된 사전 분석 보고서, 프로젝트 문서, 그리고 질문-답변을 바탕으로 시장 분석을 수행해주세요.
+    system: `당신은 경험이 풍부한 시장 조사 전문가이며, 특히 웹에이전시 관점에서 프로젝트를 분석합니다. 제공된 사전 분석 보고서, 프로젝트 문서, 그리고 질문-답변을 바탕으로 시장 분석을 수행해주세요.
+
+**웹에이전시 관점의 핵심 분석 사항:**
+- 웹 프로젝트 구현 가능성 및 기술적 복잡도
+- 웹 개발 리소스 및 전문성 요구사항
+- 디지털 마케팅 및 온라인 채널 전략
+- 웹 기반 경쟁사 분석 및 벤치마킹
+- 사용자 경험(UX/UI) 최적화 방안
+- 웹 기술 트렌드 및 플랫폼 선택 전략
 
 분석 시 다음 사항들을 고려해주세요:
 - 사전 분석 보고서에서 도출된 핵심 인사이트와 요구사항
-- 시장 규모와 성장 가능성
-- 경쟁사 분석 및 시장 포지셔닝
-- 타겟 고객의 니즈와 행동 패턴
-- 시장 진입 전략과 차별화 방안
-- 위험 요소와 기회 요인
+- 시장 규모와 성장 가능성 (특히 디지털/온라인 시장)
+- 경쟁사 분석 및 시장 포지셔닝 (웹사이트, 플랫폼 분석 포함)
+- 타겟 고객의 니즈와 행동 패턴 (온라인 행동, 디지털 채널 선호도)
+- 시장 진입 전략과 차별화 방안 (웹 기술 및 디지털 경험 중심)
+- 위험 요소와 기회 요인 (기술적 위험, 디지털 트렌드 기회)
 - 사전 분석 결과와 시장 조사 결과의 일관성 및 시너지
 
 결과는 다음 JSON 형식으로 제공해주세요:
@@ -644,7 +675,7 @@ export class ProposalAnalysisService {
   }
 
   /**
-   * AI 분석 실행
+   * AI 분석 실행 (Vercel API 서버사이드 호출)
    */
   private static async executeAIAnalysis(
     modelId: string,
@@ -652,16 +683,125 @@ export class ProposalAnalysisService {
     userId: string
   ): Promise<AIResponse> {
     try {
-      const response = await AIProviderFactory.generateCompletion(modelId, {
-        messages,
-        max_tokens: 4000,
-        temperature: 0.3,
-        user_id: userId
+      console.log('🚀 [executeAIAnalysis] AI 분석 실행 시작')
+      console.log('📊 입력 파라미터:', { modelId, userId, messagesCount: messages.length })
+
+      // 1. modelId로 ai_models 테이블에서 provider와 model_id 조회
+      if (!supabase) {
+        throw new Error('Supabase client not initialized')
+      }
+
+      const { data: modelData, error: modelError } = await supabase
+        .from('ai_models')
+        .select('provider, model_id, name')
+        .eq('id', modelId)
+        .single()
+
+      if (modelError || !modelData) {
+        console.error('❌ 모델 조회 실패:', modelError)
+        throw new Error(`Model not found: ${modelId}`)
+      }
+
+      console.log('✅ 모델 정보 조회 완료:', modelData)
+
+      // 2. messages를 단일 프롬프트 문자열로 변환
+      const systemMessage = messages.find(m => m.role === 'system')?.content || ''
+      const userMessage = messages.find(m => m.role === 'user')?.content || ''
+
+      // 시스템 메시지와 사용자 메시지를 결합
+      const fullPrompt = systemMessage ? `${systemMessage}\n\n${userMessage}` : userMessage
+
+      console.log('📝 프롬프트 생성 완료:', {
+        systemMessageLength: systemMessage.length,
+        userMessageLength: userMessage.length,
+        totalLength: fullPrompt.length
       })
 
-      return response
+      // 3. Vercel API 호출
+      const apiUrl = import.meta.env.DEV
+        ? 'https://ea-plan-05.vercel.app/api/ai/completion'
+        : '/api/ai/completion'
+
+      console.log('🌐 Vercel API 호출:', apiUrl)
+
+      // 인증 토큰 추출
+      let authToken: string | undefined
+      try {
+        const session = await supabase.auth.getSession()
+        authToken = session?.data.session?.access_token
+        console.log('🔐 인증 토큰:', authToken ? '있음' : '없음')
+      } catch (authError) {
+        console.warn('🔐 인증 토큰 추출 실패:', authError)
+      }
+
+      const requestPayload = {
+        provider: modelData.provider,
+        model: modelData.model_id,
+        prompt: fullPrompt,
+        maxTokens: 4000,
+        temperature: 0.3
+      }
+
+      console.log('📤 API 요청 페이로드:', {
+        provider: requestPayload.provider,
+        model: requestPayload.model,
+        promptLength: requestPayload.prompt.length,
+        maxTokens: requestPayload.maxTokens,
+        temperature: requestPayload.temperature
+      })
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+      }
+
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`
+      }
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestPayload)
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        console.error('❌ Vercel API 호출 실패:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData
+        })
+        throw new Error(`AI API 호출 실패: ${response.status} - ${errorData.error || response.statusText}`)
+      }
+
+      const data = await response.json()
+
+      console.log('✅ Vercel API 응답 수신:', {
+        contentLength: data.content?.length || 0,
+        usage: data.usage,
+        cost: data.cost,
+        responseTime: data.responseTime
+      })
+
+      // 4. 응답을 AIResponse 형식으로 반환
+      return {
+        content: data.content,
+        usage: {
+          inputTokens: data.usage.inputTokens,
+          outputTokens: data.usage.outputTokens,
+          totalTokens: data.usage.totalTokens
+        },
+        cost: {
+          inputCost: data.cost.inputCost,
+          outputCost: data.cost.outputCost,
+          totalCost: data.cost.totalCost
+        },
+        model: data.model,
+        finishReason: data.finishReason,
+        responseTime: data.responseTime
+      }
     } catch (error) {
-      console.error('AI analysis execution failed:', error)
+      console.error('❌ AI analysis execution failed:', error)
       throw error
     }
   }
@@ -714,8 +854,25 @@ export class ProposalAnalysisService {
     userId: string
   ): Promise<void> {
     try {
-      const model = AIProviderFactory.getModel(modelId)
-      if (!model) throw new Error(`Model not found: ${modelId}`)
+      console.log('💾 [saveAnalysisResult] 분석 결과 저장 시작')
+
+      // modelId로 ai_models 테이블에서 provider 조회
+      if (!supabase) {
+        throw new Error('Supabase client not initialized')
+      }
+
+      const { data: modelData, error: modelError } = await supabase
+        .from('ai_models')
+        .select('provider, model_id, name')
+        .eq('id', modelId)
+        .single()
+
+      if (modelError || !modelData) {
+        console.error('❌ 모델 조회 실패:', modelError)
+        throw new Error(`Model not found: ${modelId}`)
+      }
+
+      console.log('✅ 모델 정보 조회 완료:', modelData)
 
       await ProposalDataManager.saveAnalysis({
         project_id: context.projectId,
@@ -723,7 +880,7 @@ export class ProposalAnalysisService {
         analysis_type: 'integrated_analysis',
         input_documents: context.documents.map(d => d.id),
         input_responses: context.responses.map(r => r.id),
-        ai_provider: model.provider,
+        ai_provider: modelData.provider,
         ai_model: modelId,
         prompt_template: JSON.stringify(prompt[0]),
         analysis_prompt: JSON.stringify(prompt),
@@ -732,21 +889,24 @@ export class ProposalAnalysisService {
         recommendations: analysisResult.recommendations,
         next_questions: [],
         confidence_score: analysisResult.confidence,
-        processing_time: Math.round(aiResponse.response_time / 1000),
-        input_tokens: aiResponse.usage.input_tokens,
-        output_tokens: aiResponse.usage.output_tokens,
-        cost: aiResponse.cost,
+        processing_time: Math.round(aiResponse.responseTime / 1000),
+        input_tokens: aiResponse.usage.inputTokens,
+        output_tokens: aiResponse.usage.outputTokens,
+        cost: aiResponse.cost.totalCost,
         status: 'completed',
         created_by: userId,
         metadata: {
           documentCount: context.documents.length,
           responseCount: context.responses.length,
-          aiModel: modelId,
+          aiModel: modelData.model_id,
+          aiModelName: modelData.name,
           timestamp: new Date().toISOString()
         }
       })
+
+      console.log('✅ 분석 결과 저장 완료')
     } catch (error) {
-      console.error('Failed to save analysis result:', error)
+      console.error('❌ Failed to save analysis result:', error)
       throw error
     }
   }

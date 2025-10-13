@@ -294,6 +294,7 @@ export class AIQuestionGenerator {
 
   /**
    * AI 기반 맞춤형 질문 생성 (새로운 API 엔드포인트 사용)
+   * @param selectedModelId - Left 사이드바에서 선택된 AI 모델 UUID (옵션)
    */
   static async generateAIQuestions(
     step: WorkflowStep,
@@ -311,7 +312,8 @@ export class AIQuestionGenerator {
         summary: string
       }
     },
-    userId?: string
+    userId?: string,
+    selectedModelId?: string
   ): Promise<Question[]> {
     try {
       console.log('🤖 AIQuestionGenerator.generateAIQuestions 시작 (새로운 API)');
@@ -325,6 +327,33 @@ export class AIQuestionGenerator {
 
       console.log('🔌 전용 AI 질문 생성 API 엔드포인트 사용');
 
+      // AI 모델 선택: selectedModelId가 있으면 사용, 없으면 기본값
+      let selectedProvider = 'anthropic';
+      let selectedModel = 'claude-3-5-sonnet-20241022';
+
+      if (selectedModelId) {
+        console.log('🎯 Left 사이드바 선택 모델 사용:', selectedModelId);
+
+        // ai_models 테이블에서 모델 정보 조회
+        if (supabase) {
+          const { data: modelData, error: modelError } = await supabase
+            .from('ai_models')
+            .select('provider, model_id, name')
+            .eq('id', selectedModelId)
+            .single();
+
+          if (!modelError && modelData) {
+            selectedProvider = modelData.provider;
+            selectedModel = modelData.model_id;
+            console.log('✅ 선택된 모델 정보:', { provider: selectedProvider, model: selectedModel, name: modelData.name });
+          } else {
+            console.warn('⚠️ 선택된 모델 조회 실패, 기본 모델 사용:', modelError);
+          }
+        }
+      } else {
+        console.log('📌 기본 모델 사용:', { provider: selectedProvider, model: selectedModel });
+      }
+
       // 개발환경에서는 Vercel 프로덕션 API 직접 호출, 프로덕션에서는 상대 경로 사용
       const apiUrl = import.meta.env.DEV
         ? 'https://ea-plan-05.vercel.app/api/ai/questions'
@@ -332,8 +361,8 @@ export class AIQuestionGenerator {
       console.log('🌐 API 호출 URL:', apiUrl);
 
       const requestPayload = {
-        provider: 'anthropic',
-        model: 'claude-3-5-sonnet-20241022', // 적절한 모델 사용
+        provider: selectedProvider,
+        model: selectedModel,
         projectId,
         projectInfo: {
           name: context.projectName,
