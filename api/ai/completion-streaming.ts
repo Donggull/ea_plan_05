@@ -165,6 +165,7 @@ async function handleAnthropicStreaming(
   let inputTokens = 0
   let outputTokens = 0
   let buffer = ''
+  let stopEventReceived = false  // 🔥 message_stop 플래그
 
   console.log('📥 [Anthropic Stream] 스트림 수신 시작')
 
@@ -241,9 +242,9 @@ async function handleAnthropicStreaming(
             }
 
             // 🔥 message_stop: Anthropic 스트리밍 완료 시그널
-            // 이 시점에서 즉시 done 이벤트를 전송해야 함!
             if (event.type === 'message_stop') {
-              console.log('🛑 [Anthropic Stream] message_stop 이벤트 수신! 즉시 done 이벤트 전송')
+              console.log('🛑 [Anthropic Stream] message_stop 이벤트 수신! done 이벤트 전송')
+              stopEventReceived = true
 
               const responseTime = Date.now() - startTime
               const pricing = getAnthropicPricing(model)
@@ -268,27 +269,21 @@ async function handleAnthropicStreaming(
                 responseTime
               })
 
-              console.log('📤 [Anthropic Stream] done 이벤트 즉시 전송:', doneEvent.substring(0, 200))
+              console.log('📤 [Anthropic Stream] done 이벤트 전송:', doneEvent.substring(0, 200))
 
-              // 🔥 done 이벤트를 두 번 전송하여 확실히 전달 보장
+              // 🔥 done 이벤트를 세 번 전송하여 확실히 전달 보장
+              res.write(`data: ${doneEvent}\n\n`)
               res.write(`data: ${doneEvent}\n\n`)
               res.write(`data: ${doneEvent}\n\n`)
 
               // 🔥 SSE 표준 종료 마커 전송
-              res.write('data: [DONE]\n\n')
+              res.write('data: [DONE]\n\n`)
 
-              console.log(`✅ [Anthropic Stream] 완료: ${inputTokens + outputTokens} 토큰, ${responseTime}ms`)
+              console.log(`✅ [Anthropic Stream] done 이벤트 전송 완료: ${inputTokens + outputTokens} 토큰, ${responseTime}ms`)
 
-              // 🔥 버퍼 플러시를 위한 충분한 지연 (Vercel 환경에서 안정적)
-              // 100ms → 200ms로 증가하여 네트워크 버퍼 완전 플러시 보장
-              await new Promise(resolve => setTimeout(resolve, 200))
-
-              console.log('💤 [Anthropic Stream] 200ms 플러시 대기 완료, 연결 종료')
-
-              // 🔥 연결 종료 (더 이상 스트림을 읽지 않음)
-              reader.cancel()
-              res.end()
-              return
+              // ✅ reader.cancel() 제거 - 스트림이 자연스럽게 종료되도록 함
+              // ✅ res.end() 제거 - 루프가 끝날 때까지 기다림
+              // ✅ return 제거 - 루프 계속 (곧 done: true를 받음)
             }
 
           } catch (parseError) {
@@ -298,46 +293,48 @@ async function handleAnthropicStreaming(
       }
     }
 
-    const responseTime = Date.now() - startTime
+    // 🔥 message_stop 이벤트를 받지 못한 경우에만 fallback done 이벤트 전송
+    if (!stopEventReceived) {
+      console.log('⚠️ [Anthropic Stream] message_stop 미수신! fallback done 이벤트 전송')
 
-    // 🔥 모델별 비용 계산
-    const pricing = getAnthropicPricing(model)
-    const inputCost = (inputTokens * pricing.inputCost) / 1000000
-    const outputCost = (outputTokens * pricing.outputCost) / 1000000
+      const responseTime = Date.now() - startTime
+      const pricing = getAnthropicPricing(model)
+      const inputCost = (inputTokens * pricing.inputCost) / 1000000
+      const outputCost = (outputTokens * pricing.outputCost) / 1000000
 
-    // 최종 완료 이벤트 전송
-    const doneEvent = JSON.stringify({
-      type: 'done',
-      content: fullContent,
-      usage: {
-        inputTokens,
-        outputTokens,
-        totalTokens: inputTokens + outputTokens
-      },
-      cost: {
-        inputCost,
-        outputCost,
-        totalCost: inputCost + outputCost
-      },
-      model,
-      finishReason: 'stop',
-      responseTime
-    })
+      const doneEvent = JSON.stringify({
+        type: 'done',
+        content: fullContent,
+        usage: {
+          inputTokens,
+          outputTokens,
+          totalTokens: inputTokens + outputTokens
+        },
+        cost: {
+          inputCost,
+          outputCost,
+          totalCost: inputCost + outputCost
+        },
+        model,
+        finishReason: 'stop',
+        responseTime
+      })
 
-    console.log('📤 [Anthropic Stream] done 이벤트 전송 중:', doneEvent.substring(0, 200))
+      console.log('📤 [Anthropic Stream] fallback done 이벤트 전송:', doneEvent.substring(0, 200))
 
-    // 🔥 done 이벤트를 두 번 전송하여 확실히 전달 보장
-    res.write(`data: ${doneEvent}\n\n`)
-    res.write(`data: ${doneEvent}\n\n`)
+      // 🔥 done 이벤트를 세 번 전송하여 확실히 전달 보장
+      res.write(`data: ${doneEvent}\n\n`)
+      res.write(`data: ${doneEvent}\n\n`)
+      res.write(`data: ${doneEvent}\n\n`)
 
-    // 🔥 SSE 표준 종료 마커 전송
-    res.write('data: [DONE]\n\n')
+      // 🔥 SSE 표준 종료 마커 전송
+      res.write('data: [DONE]\n\n`)
+    }
 
     // 🔥 버퍼 플러시를 위한 충분한 지연 (Vercel 환경에서 안정적)
-    // 10ms → 100ms로 증가하여 네트워크 버퍼 완전 플러시 보장
-    await new Promise(resolve => setTimeout(resolve, 100))
+    await new Promise(resolve => setTimeout(resolve, 500))
 
-    console.log(`✅ [Anthropic Stream] 완료: ${inputTokens + outputTokens} 토큰, ${responseTime}ms`)
+    console.log(`✅ [Anthropic Stream] 스트림 종료 완료`)
     res.end()
 
   } catch (error) {
@@ -390,6 +387,7 @@ async function handleOpenAIStreaming(
   let inputTokens = 0
   let outputTokens = 0
   let buffer = ''
+  let stopEventReceived = false  // 🔥 finish_reason 플래그
 
   try {
     while (true) {
@@ -459,9 +457,9 @@ async function handleOpenAIStreaming(
             }
 
             // 🔥 finish_reason: OpenAI 스트리밍 완료 시그널
-            // finishReason이 있으면 즉시 done 이벤트 전송
             if (finishReason) {
-              console.log(`🛑 [OpenAI Stream] finish_reason 수신: ${finishReason}! 즉시 done 이벤트 전송`)
+              console.log(`🛑 [OpenAI Stream] finish_reason 수신: ${finishReason}! done 이벤트 전송`)
+              stopEventReceived = true
 
               // 토큰이 없으면 추정
               if (!inputTokens) inputTokens = estimateTokens(prompt, 'openai')
@@ -482,26 +480,21 @@ async function handleOpenAIStreaming(
                 responseTime
               })
 
-              console.log('📤 [OpenAI Stream] done 이벤트 즉시 전송:', doneEvent.substring(0, 200))
+              console.log('📤 [OpenAI Stream] done 이벤트 전송:', doneEvent.substring(0, 200))
 
-              // 🔥 done 이벤트를 두 번 전송하여 확실히 전달 보장
+              // 🔥 done 이벤트를 세 번 전송하여 확실히 전달 보장
+              res.write(`data: ${doneEvent}\n\n`)
               res.write(`data: ${doneEvent}\n\n`)
               res.write(`data: ${doneEvent}\n\n`)
 
               // 🔥 SSE 표준 종료 마커 전송
-              res.write('data: [DONE]\n\n')
+              res.write('data: [DONE]\n\n`)
 
-              console.log(`✅ [OpenAI Stream] 완료: ${inputTokens + outputTokens} 토큰, ${responseTime}ms`)
+              console.log(`✅ [OpenAI Stream] done 이벤트 전송 완료: ${inputTokens + outputTokens} 토큰, ${responseTime}ms`)
 
-              // 🔥 버퍼 플러시를 위한 충분한 지연 (Vercel 환경에서 안정적)
-              await new Promise(resolve => setTimeout(resolve, 200))
-
-              console.log('💤 [OpenAI Stream] 200ms 플러시 대기 완료, 연결 종료')
-
-              // 🔥 연결 종료 (더 이상 스트림을 읽지 않음)
-              reader.cancel()
-              res.end()
-              return
+              // ✅ reader.cancel() 제거 - 스트림이 자연스럽게 종료되도록 함
+              // ✅ res.end() 제거 - 루프가 끝날 때까지 기다림
+              // ✅ return 제거 - 루프 계속 (곧 done: true를 받음)
             }
 
           } catch (parseError) {
@@ -511,39 +504,44 @@ async function handleOpenAIStreaming(
       }
     }
 
-    // 토큰이 없으면 추정
-    if (!inputTokens) inputTokens = estimateTokens(prompt, 'openai')
-    if (!outputTokens) outputTokens = estimateTokens(fullContent, 'openai')
+    // 🔥 finish_reason을 받지 못한 경우에만 fallback done 이벤트 전송
+    if (!stopEventReceived) {
+      console.log('⚠️ [OpenAI Stream] finish_reason 미수신! fallback done 이벤트 전송')
 
-    const responseTime = Date.now() - startTime
-    const pricing = getOpenAIPricing(model)
-    const inputCost = (inputTokens * pricing.inputCost) / 1000000
-    const outputCost = (outputTokens * pricing.outputCost) / 1000000
+      // 토큰이 없으면 추정
+      if (!inputTokens) inputTokens = estimateTokens(prompt, 'openai')
+      if (!outputTokens) outputTokens = estimateTokens(fullContent, 'openai')
 
-    const doneEvent = JSON.stringify({
-      type: 'done',
-      content: fullContent,
-      usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens },
-      cost: { inputCost, outputCost, totalCost: inputCost + outputCost },
-      model,
-      finishReason: 'stop',
-      responseTime
-    })
+      const responseTime = Date.now() - startTime
+      const pricing = getOpenAIPricing(model)
+      const inputCost = (inputTokens * pricing.inputCost) / 1000000
+      const outputCost = (outputTokens * pricing.outputCost) / 1000000
 
-    console.log('📤 [OpenAI Stream] done 이벤트 전송 중:', doneEvent.substring(0, 200))
+      const doneEvent = JSON.stringify({
+        type: 'done',
+        content: fullContent,
+        usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens },
+        cost: { inputCost, outputCost, totalCost: inputCost + outputCost },
+        model,
+        finishReason: 'stop',
+        responseTime
+      })
 
-    // 🔥 done 이벤트를 두 번 전송하여 확실히 전달 보장
-    res.write(`data: ${doneEvent}\n\n`)
-    res.write(`data: ${doneEvent}\n\n`)
+      console.log('📤 [OpenAI Stream] fallback done 이벤트 전송:', doneEvent.substring(0, 200))
 
-    // 🔥 SSE 표준 종료 마커 전송
-    res.write('data: [DONE]\n\n')
+      // 🔥 done 이벤트를 세 번 전송하여 확실히 전달 보장
+      res.write(`data: ${doneEvent}\n\n`)
+      res.write(`data: ${doneEvent}\n\n`)
+      res.write(`data: ${doneEvent}\n\n`)
+
+      // 🔥 SSE 표준 종료 마커 전송
+      res.write('data: [DONE]\n\n`)
+    }
 
     // 🔥 버퍼 플러시를 위한 충분한 지연 (Vercel 환경에서 안정적)
-    // 10ms → 100ms로 증가하여 네트워크 버퍼 완전 플러시 보장
-    await new Promise(resolve => setTimeout(resolve, 100))
+    await new Promise(resolve => setTimeout(resolve, 500))
 
-    console.log(`✅ [OpenAI Stream] 완료: ${inputTokens + outputTokens} 토큰, ${responseTime}ms`)
+    console.log(`✅ [OpenAI Stream] 스트림 종료 완료`)
     res.end()
 
   } catch (error) {
@@ -594,6 +592,7 @@ async function handleGoogleAIStreaming(
 
   let fullContent = ''
   let buffer = ''
+  let stopEventReceived = false  // 🔥 finishReason 플래그
 
   try {
     while (true) {
@@ -651,9 +650,9 @@ async function handleGoogleAIStreaming(
             }
 
             // 🔥 finishReason: Google AI 스트리밍 완료 시그널
-            // finishReason이 있으면 즉시 done 이벤트 전송
             if (finishReason) {
-              console.log(`🛑 [Google AI Stream] finishReason 수신: ${finishReason}! 즉시 done 이벤트 전송`)
+              console.log(`🛑 [Google AI Stream] finishReason 수신: ${finishReason}! done 이벤트 전송`)
+              stopEventReceived = true
 
               const inputTokens = estimateTokens(prompt, 'google')
               const outputTokens = estimateTokens(fullContent, 'google')
@@ -672,26 +671,21 @@ async function handleGoogleAIStreaming(
                 responseTime
               })
 
-              console.log('📤 [Google AI Stream] done 이벤트 즉시 전송:', doneEvent.substring(0, 200))
+              console.log('📤 [Google AI Stream] done 이벤트 전송:', doneEvent.substring(0, 200))
 
-              // 🔥 done 이벤트를 두 번 전송하여 확실히 전달 보장
+              // 🔥 done 이벤트를 세 번 전송하여 확실히 전달 보장
+              res.write(`data: ${doneEvent}\n\n`)
               res.write(`data: ${doneEvent}\n\n`)
               res.write(`data: ${doneEvent}\n\n`)
 
               // 🔥 SSE 표준 종료 마커 전송
-              res.write('data: [DONE]\n\n')
+              res.write('data: [DONE]\n\n`)
 
-              console.log(`✅ [Google AI Stream] 완료: ${inputTokens + outputTokens} 토큰, ${responseTime}ms`)
+              console.log(`✅ [Google AI Stream] done 이벤트 전송 완료: ${inputTokens + outputTokens} 토큰, ${responseTime}ms`)
 
-              // 🔥 버퍼 플러시를 위한 충분한 지연 (Vercel 환경에서 안정적)
-              await new Promise(resolve => setTimeout(resolve, 200))
-
-              console.log('💤 [Google AI Stream] 200ms 플러시 대기 완료, 연결 종료')
-
-              // 🔥 연결 종료 (더 이상 스트림을 읽지 않음)
-              reader.cancel()
-              res.end()
-              return
+              // ✅ reader.cancel() 제거 - 스트림이 자연스럽게 종료되도록 함
+              // ✅ res.end() 제거 - 루프가 끝날 때까지 기다림
+              // ✅ return 제거 - 루프 계속 (곧 done: true를 받음)
             }
 
           } catch (parseError) {
@@ -701,37 +695,42 @@ async function handleGoogleAIStreaming(
       }
     }
 
-    const inputTokens = estimateTokens(prompt, 'google')
-    const outputTokens = estimateTokens(fullContent, 'google')
-    const responseTime = Date.now() - startTime
-    const pricing = getGoogleAIPricing(model)
-    const inputCost = (inputTokens * pricing.inputCost) / 1000000
-    const outputCost = (outputTokens * pricing.outputCost) / 1000000
+    // 🔥 finishReason을 받지 못한 경우에만 fallback done 이벤트 전송
+    if (!stopEventReceived) {
+      console.log('⚠️ [Google AI Stream] finishReason 미수신! fallback done 이벤트 전송')
 
-    const doneEvent = JSON.stringify({
-      type: 'done',
-      content: fullContent,
-      usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens },
-      cost: { inputCost, outputCost, totalCost: inputCost + outputCost },
-      model,
-      finishReason: 'stop',
-      responseTime
-    })
+      const inputTokens = estimateTokens(prompt, 'google')
+      const outputTokens = estimateTokens(fullContent, 'google')
+      const responseTime = Date.now() - startTime
+      const pricing = getGoogleAIPricing(model)
+      const inputCost = (inputTokens * pricing.inputCost) / 1000000
+      const outputCost = (outputTokens * pricing.outputCost) / 1000000
 
-    console.log('📤 [Google AI Stream] done 이벤트 전송 중:', doneEvent.substring(0, 200))
+      const doneEvent = JSON.stringify({
+        type: 'done',
+        content: fullContent,
+        usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens },
+        cost: { inputCost, outputCost, totalCost: inputCost + outputCost },
+        model,
+        finishReason: 'stop',
+        responseTime
+      })
 
-    // 🔥 done 이벤트를 두 번 전송하여 확실히 전달 보장
-    res.write(`data: ${doneEvent}\n\n`)
-    res.write(`data: ${doneEvent}\n\n`)
+      console.log('📤 [Google AI Stream] fallback done 이벤트 전송:', doneEvent.substring(0, 200))
 
-    // 🔥 SSE 표준 종료 마커 전송
-    res.write('data: [DONE]\n\n')
+      // 🔥 done 이벤트를 세 번 전송하여 확실히 전달 보장
+      res.write(`data: ${doneEvent}\n\n`)
+      res.write(`data: ${doneEvent}\n\n`)
+      res.write(`data: ${doneEvent}\n\n`)
+
+      // 🔥 SSE 표준 종료 마커 전송
+      res.write('data: [DONE]\n\n`)
+    }
 
     // 🔥 버퍼 플러시를 위한 충분한 지연 (Vercel 환경에서 안정적)
-    // 10ms → 100ms로 증가하여 네트워크 버퍼 완전 플러시 보장
-    await new Promise(resolve => setTimeout(resolve, 100))
+    await new Promise(resolve => setTimeout(resolve, 500))
 
-    console.log(`✅ [Google AI Stream] 완료: ${inputTokens + outputTokens} 토큰, ${responseTime}ms`)
+    console.log(`✅ [Google AI Stream] 스트림 종료 완료`)
     res.end()
 
   } catch (error) {
