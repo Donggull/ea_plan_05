@@ -343,9 +343,8 @@ async function handleAnthropicStreaming(
       }
     }
 
-    // 🔥 버퍼 플러시를 위한 충분한 지연 (3초로 증가)
-    await new Promise(resolve => setTimeout(resolve, 3000))
-
+    // ✅ 지연 제거: Vercel 60초 타임아웃 직전에 함수가 종료되는 것을 방지
+    // 8KB 주석 데이터와 done 이벤트 10회 전송만으로 충분히 버퍼 플러시됨
     console.log(`✅ [Anthropic Stream] 스트림 종료 완료`)
     res.end()
 
@@ -560,9 +559,8 @@ async function handleOpenAIStreaming(
       }
     }
 
-    // 🔥 버퍼 플러시를 위한 충분한 지연 (3초로 증가)
-    await new Promise(resolve => setTimeout(resolve, 3000))
-
+    // ✅ 지연 제거: Vercel 60초 타임아웃 직전에 함수가 종료되는 것을 방지
+    // 8KB 주석 데이터와 done 이벤트 10회 전송만으로 충분히 버퍼 플러시됨
     console.log(`✅ [OpenAI Stream] 스트림 종료 완료`)
     res.end()
 
@@ -759,9 +757,8 @@ async function handleGoogleAIStreaming(
       }
     }
 
-    // 🔥 버퍼 플러시를 위한 충분한 지연 (3초로 증가)
-    await new Promise(resolve => setTimeout(resolve, 3000))
-
+    // ✅ 지연 제거: Vercel 60초 타임아웃 직전에 함수가 종료되는 것을 방지
+    // 8KB 주석 데이터와 done 이벤트 10회 전송만으로 충분히 버퍼 플러시됨
     console.log(`✅ [Google AI Stream] 스트림 종료 완료`)
     res.end()
 
