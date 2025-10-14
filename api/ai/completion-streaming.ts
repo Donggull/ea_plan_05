@@ -279,6 +279,12 @@ async function handleAnthropicStreaming(
 
               console.log(`✅ [Anthropic Stream] 완료: ${inputTokens + outputTokens} 토큰, ${responseTime}ms`)
 
+              // 🔥 버퍼 플러시를 위한 충분한 지연 (Vercel 환경에서 안정적)
+              // 100ms → 200ms로 증가하여 네트워크 버퍼 완전 플러시 보장
+              await new Promise(resolve => setTimeout(resolve, 200))
+
+              console.log('💤 [Anthropic Stream] 200ms 플러시 대기 완료, 연결 종료')
+
               // 🔥 연결 종료 (더 이상 스트림을 읽지 않음)
               reader.cancel()
               res.end()
@@ -487,6 +493,11 @@ async function handleOpenAIStreaming(
 
               console.log(`✅ [OpenAI Stream] 완료: ${inputTokens + outputTokens} 토큰, ${responseTime}ms`)
 
+              // 🔥 버퍼 플러시를 위한 충분한 지연 (Vercel 환경에서 안정적)
+              await new Promise(resolve => setTimeout(resolve, 200))
+
+              console.log('💤 [OpenAI Stream] 200ms 플러시 대기 완료, 연결 종료')
+
               // 🔥 연결 종료 (더 이상 스트림을 읽지 않음)
               reader.cancel()
               res.end()
@@ -671,6 +682,11 @@ async function handleGoogleAIStreaming(
               res.write('data: [DONE]\n\n')
 
               console.log(`✅ [Google AI Stream] 완료: ${inputTokens + outputTokens} 토큰, ${responseTime}ms`)
+
+              // 🔥 버퍼 플러시를 위한 충분한 지연 (Vercel 환경에서 안정적)
+              await new Promise(resolve => setTimeout(resolve, 200))
+
+              console.log('💤 [Google AI Stream] 200ms 플러시 대기 완료, 연결 종료')
 
               // 🔥 연결 종료 (더 이상 스트림을 읽지 않음)
               reader.cancel()
