@@ -16,7 +16,7 @@ import {
 import { Document, Paragraph, TextRun, HeadingLevel, AlignmentType, Packer } from 'docx'
 import { saveAs } from 'file-saver'
 import { ProposalDataManager } from '../../../../services/proposal/dataManager'
-import { ProposalTemplateService, AppliedTemplate, TemplateSelection } from '../../../../services/proposal/proposalTemplateService'
+import { ProposalTemplateService, AppliedTemplate } from '../../../../services/proposal/proposalTemplateService'
 import { PageContainer, PageHeader, PageContent, Card, Badge, Button } from '../../../../components/LinearComponents'
 
 interface ProposalSection {
@@ -48,7 +48,6 @@ export function ProposalFinalPage() {
 
   const [loading, setLoading] = useState(true)
   const [proposal, setProposal] = useState<ProposalResult | null>(null)
-  const [templateSelection, setTemplateSelection] = useState<TemplateSelection | null>(null)
   const [appliedTemplate, setAppliedTemplate] = useState<AppliedTemplate | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [showDownloadMenu, setShowDownloadMenu] = useState(false)
@@ -74,7 +73,6 @@ export function ProposalFinalPage() {
         }
 
         console.log('✅ 선택된 템플릿:', selection)
-        setTemplateSelection(selection)
 
         // 2. 최신 제안서 데이터 조회
         console.log('2️⃣ 제안서 데이터 조회 중...')
@@ -548,13 +546,14 @@ ${proposal.enhancementNotes ? `## 개선 노트\n${proposal.enhancementNotes}\n`
               <p className="text-sm text-text-muted">
                 다른 템플릿으로 변경하려면 "템플릿 변경" 버튼을 클릭하세요.
               </p>
-              <Button.Secondary
-                onClick={() => navigate(`/projects/${id}/proposal/template-selector`)}
-                className="flex-shrink-0"
-              >
-                <Layout className="w-4 h-4" />
-                템플릿 변경
-              </Button.Secondary>
+              <div className="flex-shrink-0">
+                <Button.Secondary
+                  onClick={() => navigate(`/projects/${id}/proposal/template-selector`)}
+                >
+                  <Layout className="w-4 h-4" />
+                  템플릿 변경
+                </Button.Secondary>
+              </div>
             </div>
           </Card>
 

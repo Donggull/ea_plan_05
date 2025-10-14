@@ -302,6 +302,7 @@ export type Database = {
       }
       analysis_reports: {
         Row: {
+          agency_perspective: Json | null
           ai_model: string | null
           ai_provider: string | null
           baseline_data: Json | null
@@ -323,6 +324,7 @@ export type Database = {
           visualization_data: Json | null
         }
         Insert: {
+          agency_perspective?: Json | null
           ai_model?: string | null
           ai_provider?: string | null
           baseline_data?: Json | null
@@ -344,6 +346,7 @@ export type Database = {
           visualization_data?: Json | null
         }
         Update: {
+          agency_perspective?: Json | null
           ai_model?: string | null
           ai_provider?: string | null
           baseline_data?: Json | null
@@ -1299,6 +1302,177 @@ export type Database = {
           },
         ]
       }
+      proposal_enhancements: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          created_by: string | null
+          enhancement_request: string
+          id: string
+          project_id: string
+          proposal_version: number
+          section_name: string | null
+          status: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          enhancement_request: string
+          id?: string
+          project_id: string
+          proposal_version?: number
+          section_name?: string | null
+          status?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          enhancement_request?: string
+          id?: string
+          project_id?: string
+          proposal_version?: number
+          section_name?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_created_by"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_project"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proposal_enhancements_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proposal_enhancements_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      proposal_template_selections: {
+        Row: {
+          id: string
+          project_id: string
+          selected_at: string | null
+          selected_by: string | null
+          template_id: string
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          selected_at?: string | null
+          selected_by?: string | null
+          template_id: string
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          selected_at?: string | null
+          selected_by?: string | null
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_project"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_selected_by"
+            columns: ["selected_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_template"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "proposal_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proposal_template_selections_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proposal_template_selections_selected_by_fkey"
+            columns: ["selected_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proposal_template_selections_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "proposal_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      proposal_templates: {
+        Row: {
+          created_at: string | null
+          css_styles: string | null
+          description: string | null
+          html_template: string
+          id: string
+          is_active: boolean | null
+          name: string
+          template_type: string
+          thumbnail_url: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          css_styles?: string | null
+          description?: string | null
+          html_template: string
+          id?: string
+          is_active?: boolean | null
+          name: string
+          template_type?: string
+          thumbnail_url?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          css_styles?: string | null
+          description?: string | null
+          html_template?: string
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          template_type?: string
+          thumbnail_url?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       proposal_workflow_analysis: {
         Row: {
           ai_model: string
@@ -2228,7 +2402,7 @@ export type Database = {
       }
       l2_normalize: {
         Args: { "": string } | { "": unknown } | { "": unknown }
-        Returns: string
+        Returns: unknown
       }
       match_documents: {
         Args: {

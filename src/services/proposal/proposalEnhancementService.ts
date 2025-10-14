@@ -15,8 +15,8 @@ export interface EnhancementRecord {
   section_name: string | null
   enhancement_request: string
   status: 'pending' | 'processing' | 'completed' | 'failed'
-  created_by: string
-  created_at: string
+  created_by: string | null
+  created_at: string | null
   completed_at: string | null
 }
 
@@ -38,6 +38,10 @@ export class ProposalEnhancementService {
   static async saveEnhancementRequest(
     request: EnhancementRequest
   ): Promise<EnhancementRecord> {
+    if (!supabase) {
+      throw new Error('Supabase client not initialized')
+    }
+
     const { data, error } = await supabase
       .from('proposal_enhancements')
       .insert({
@@ -56,7 +60,7 @@ export class ProposalEnhancementService {
       throw new Error(`보강 요청 저장 실패: ${error.message}`)
     }
 
-    return data
+    return data as EnhancementRecord
   }
 
   /**
@@ -65,6 +69,10 @@ export class ProposalEnhancementService {
   static async enhanceProposal(
     params: EnhanceProposalParams
   ): Promise<any> {
+    if (!supabase) {
+      throw new Error('Supabase client not initialized')
+    }
+
     try {
       // 1. 보강 요청 상태를 'processing'으로 업데이트
       await supabase
@@ -116,9 +124,10 @@ export class ProposalEnhancementService {
           workflow_step: 'proposal_draft',
           analysis_type: `enhancement_v${params.version}`,
           status: 'completed',
-          result: enhancedContent,
-          model_used: params.aiModel || 'claude-4-sonnet',
-          tokens_used: result.tokensUsed || 0,
+          structured_output: enhancedContent,
+          ai_model: params.aiModel || 'claude-4-sonnet',
+          ai_provider: params.aiProvider || 'anthropic',
+          input_tokens: result.tokensUsed || 0,
           cost: result.cost || 0,
           created_by: params.userId
         })
@@ -205,6 +214,10 @@ ${sectionContext}
   static async getEnhancementHistory(
     projectId: string
   ): Promise<EnhancementRecord[]> {
+    if (!supabase) {
+      throw new Error('Supabase client not initialized')
+    }
+
     const { data, error } = await supabase
       .from('proposal_enhancements')
       .select('*')
@@ -216,7 +229,7 @@ ${sectionContext}
       throw new Error('보강 이력 조회 실패')
     }
 
-    return data || []
+    return (data as EnhancementRecord[]) || []
   }
 
   /**
@@ -226,6 +239,10 @@ ${sectionContext}
     projectId: string,
     version: number
   ): Promise<EnhancementRecord | null> {
+    if (!supabase) {
+      throw new Error('Supabase client not initialized')
+    }
+
     const { data, error } = await supabase
       .from('proposal_enhancements')
       .select('*')
@@ -242,13 +259,17 @@ ${sectionContext}
       throw new Error('보강 요청 조회 실패')
     }
 
-    return data
+    return data as EnhancementRecord
   }
 
   /**
    * 최신 제안서 버전 조회
    */
   static async getLatestVersion(projectId: string): Promise<number> {
+    if (!supabase) {
+      throw new Error('Supabase client not initialized')
+    }
+
     const { data, error } = await supabase
       .from('proposal_workflow_analysis')
       .select('analysis_type')

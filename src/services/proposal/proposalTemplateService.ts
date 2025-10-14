@@ -17,8 +17,8 @@ export interface TemplateSelection {
   id: string
   project_id: string
   template_id: string
-  selected_by: string
-  selected_at: string
+  selected_by: string | null
+  selected_at: string | null
   template?: ProposalTemplate
 }
 
@@ -42,6 +42,10 @@ export class ProposalTemplateService {
    * 사용 가능한 템플릿 목록 조회
    */
   static async getAvailableTemplates(): Promise<ProposalTemplate[]> {
+    if (!supabase) {
+      throw new Error('Supabase client not initialized')
+    }
+
     const { data, error } = await supabase
       .from('proposal_templates')
       .select('*')
@@ -53,13 +57,17 @@ export class ProposalTemplateService {
       throw new Error('템플릿 목록 조회 실패')
     }
 
-    return data || []
+    return (data as ProposalTemplate[]) || []
   }
 
   /**
    * 특정 템플릿 조회
    */
   static async getTemplateById(templateId: string): Promise<ProposalTemplate> {
+    if (!supabase) {
+      throw new Error('Supabase client not initialized')
+    }
+
     const { data, error } = await supabase
       .from('proposal_templates')
       .select('*')
@@ -71,7 +79,7 @@ export class ProposalTemplateService {
       throw new Error('템플릿 조회 실패')
     }
 
-    return data
+    return data as ProposalTemplate
   }
 
   /**
@@ -82,6 +90,10 @@ export class ProposalTemplateService {
     templateId: string
     selectedBy: string
   }): Promise<TemplateSelection> {
+    if (!supabase) {
+      throw new Error('Supabase client not initialized')
+    }
+
     // upsert를 사용하여 기존 선택이 있으면 업데이트, 없으면 삽입
     const { data, error } = await supabase
       .from('proposal_template_selections')
@@ -104,7 +116,7 @@ export class ProposalTemplateService {
       throw new Error('템플릿 선택 저장 실패')
     }
 
-    return data
+    return data as TemplateSelection
   }
 
   /**
@@ -113,6 +125,10 @@ export class ProposalTemplateService {
   static async getSelectedTemplate(
     projectId: string
   ): Promise<TemplateSelection | null> {
+    if (!supabase) {
+      throw new Error('Supabase client not initialized')
+    }
+
     const { data, error } = await supabase
       .from('proposal_template_selections')
       .select(
@@ -129,7 +145,7 @@ export class ProposalTemplateService {
       throw new Error('선택된 템플릿 조회 실패')
     }
 
-    return data
+    return data as TemplateSelection | null
   }
 
   /**
@@ -272,6 +288,10 @@ export class ProposalTemplateService {
   static async createTemplate(
     template: Omit<ProposalTemplate, 'id' | 'created_at' | 'updated_at'>
   ): Promise<ProposalTemplate> {
+    if (!supabase) {
+      throw new Error('Supabase client not initialized')
+    }
+
     const { data, error } = await supabase
       .from('proposal_templates')
       .insert({
@@ -291,7 +311,7 @@ export class ProposalTemplateService {
       throw new Error('템플릿 생성 실패')
     }
 
-    return data
+    return data as ProposalTemplate
   }
 
   /**
@@ -301,6 +321,10 @@ export class ProposalTemplateService {
     templateId: string,
     updates: Partial<ProposalTemplate>
   ): Promise<ProposalTemplate> {
+    if (!supabase) {
+      throw new Error('Supabase client not initialized')
+    }
+
     const { data, error } = await supabase
       .from('proposal_templates')
       .update({
@@ -316,13 +340,17 @@ export class ProposalTemplateService {
       throw new Error('템플릿 수정 실패')
     }
 
-    return data
+    return data as ProposalTemplate
   }
 
   /**
    * 템플릿 비활성화 (관리자 전용)
    */
   static async deactivateTemplate(templateId: string): Promise<void> {
+    if (!supabase) {
+      throw new Error('Supabase client not initialized')
+    }
+
     const { error } = await supabase
       .from('proposal_templates')
       .update({
