@@ -355,16 +355,23 @@ ${documents.map((doc, index) => `${index + 1}. ${doc.name}`).join('\n')}
     return prompt
   }
 
-  // 제안서 작성 질문 생성 (사전 분석 + 시장 조사 + 페르소나 데이터 통합)
+  // 제안서 작성 질문 생성 (웹 에이전시 관점 - 클라이언트 제출용 제안서)
   if (context?.requestType === 'proposal_questions') {
     const { marketResearchData, personasData } = request as any
 
-    let prompt = `당신은 경험이 풍부한 제안서 작성 전문가입니다.
+    let prompt = `당신은 웹 에이전시의 제안서 작성 전문가입니다.
+
+# 상황
+우리는 웹 에이전시이며, 클라이언트로부터 받은 RFP(제안요청서)를 분석 완료했습니다.
+- 사전 분석: RFP 문서 분석 완료
+- 시장 조사: 타겟 시장 및 경쟁 환경 파악 완료
+- 페르소나 분석: 최종 사용자 특성 파악 완료
 
 # 미션
-이 프로젝트의 성공적인 제안서를 작성하기 위해 **사전 분석, 시장 조사, 페르소나 분석의 모든 인사이트를 통합**하여, 구체적이고 실행 가능한 솔루션 제안 질문들을 생성해주세요.
+이제 **우리 에이전시가 클라이언트에게 제출할 제안서**를 작성하기 위한 질문들을 생성해주세요.
+질문은 **우리 에이전시 팀(PM, 개발자, 디자이너)이 답변**하며, 답변 내용이 클라이언트 제출용 제안서가 됩니다.
 
-# 프로젝트 기본 정보
+# 프로젝트 기본 정보 (RFP 분석 결과)
 - **프로젝트명**: ${projectInfo?.name || '미정'}
 - **프로젝트 설명**: ${projectInfo?.description || '미정'}
 - **산업 분야**: ${projectInfo?.industry || '미정'}
@@ -378,13 +385,13 @@ ${documents.map((doc, index) => `${index + 1}. ${doc.name}`).join('\n')}
     )
 
     if (hasPreAnalysisData) {
-      prompt += `## 1. 사전 분석에서 도출된 핵심 인사이트\n\n`
+      prompt += `## 1. RFP 사전 분석 결과 (클라이언트 요구사항)\n\n`
 
       if (preAnalysisData.report) {
-        prompt += `### 분석 요약\n${preAnalysisData.report.summary || '없음'}\n\n`
+        prompt += `### 클라이언트 요구사항 요약\n${preAnalysisData.report.summary || '없음'}\n\n`
 
         if (preAnalysisData.report.key_findings && preAnalysisData.report.key_findings.length > 0) {
-          prompt += `### 핵심 발견사항\n`
+          prompt += `### 핵심 요구사항 및 과제\n`
           preAnalysisData.report.key_findings.forEach((f: string, idx: number) => {
             prompt += `${idx + 1}. ${f}\n`
           })
@@ -392,7 +399,7 @@ ${documents.map((doc, index) => `${index + 1}. ${doc.name}`).join('\n')}
         }
 
         if (preAnalysisData.report.recommendations && preAnalysisData.report.recommendations.length > 0) {
-          prompt += `### 권장사항\n`
+          prompt += `### 제안 방향 권장사항\n`
           preAnalysisData.report.recommendations.forEach((r: string, idx: number) => {
             prompt += `${idx + 1}. ${r}\n`
           })
@@ -400,7 +407,7 @@ ${documents.map((doc, index) => `${index + 1}. ${doc.name}`).join('\n')}
         }
 
         if (preAnalysisData.report.technical_insights && preAnalysisData.report.technical_insights.length > 0) {
-          prompt += `### 기술적 인사이트\n`
+          prompt += `### 기술적 요구사항\n`
           preAnalysisData.report.technical_insights.forEach((t: string, idx: number) => {
             prompt += `${idx + 1}. ${t}\n`
           })
@@ -409,7 +416,7 @@ ${documents.map((doc, index) => `${index + 1}. ${doc.name}`).join('\n')}
       }
 
       if (preAnalysisData.documentAnalyses && preAnalysisData.documentAnalyses.length > 0) {
-        prompt += `### 문서 분석 결과\n`
+        prompt += `### RFP 문서 분석 결과\n`
         preAnalysisData.documentAnalyses.forEach((analysis: any, index: number) => {
           prompt += `**${index + 1}. ${analysis.document_name || '문서'}**\n`
           if (analysis.summary) {
@@ -425,7 +432,7 @@ ${documents.map((doc, index) => `${index + 1}. ${doc.name}`).join('\n')}
 
     // 시장 조사 데이터 통합
     if (marketResearchData) {
-      prompt += `## 2. 시장 조사에서 파악된 시장 환경\n\n`
+      prompt += `## 2. 시장 조사 분석 결과 (경쟁 환경)\n\n`
 
       if (marketResearchData.structured_output) {
         const structuredOutput = marketResearchData.structured_output
@@ -435,7 +442,7 @@ ${documents.map((doc, index) => `${index + 1}. ${doc.name}`).join('\n')}
         }
 
         if (structuredOutput.competitors && structuredOutput.competitors.length > 0) {
-          prompt += `### 주요 경쟁사\n`
+          prompt += `### 주요 경쟁사/경쟁 솔루션\n`
           structuredOutput.competitors.forEach((comp: string, idx: number) => {
             prompt += `${idx + 1}. ${comp}\n`
           })
@@ -443,7 +450,7 @@ ${documents.map((doc, index) => `${index + 1}. ${doc.name}`).join('\n')}
         }
 
         if (structuredOutput.competitiveAdvantage) {
-          prompt += `### 경쟁 우위 요소\n${structuredOutput.competitiveAdvantage}\n\n`
+          prompt += `### 차별화 기회 요소\n${structuredOutput.competitiveAdvantage}\n\n`
         }
 
         if (structuredOutput.marketTrends && structuredOutput.marketTrends.length > 0) {
@@ -468,29 +475,29 @@ ${documents.map((doc, index) => `${index + 1}. ${doc.name}`).join('\n')}
 
     // 페르소나 데이터 통합
     if (personasData) {
-      prompt += `## 3. 페르소나 분석에서 도출된 타겟 고객 특성\n\n`
+      prompt += `## 3. 최종 사용자 페르소나 분석 결과\n\n`
 
       if (personasData.structured_output) {
         const structuredOutput = personasData.structured_output
 
         if (structuredOutput.demographics) {
-          prompt += `### 인구통계학적 정보\n${structuredOutput.demographics}\n\n`
+          prompt += `### 사용자 인구통계\n${structuredOutput.demographics}\n\n`
         }
 
         if (structuredOutput.psychographics) {
-          prompt += `### 심리적 특성\n${structuredOutput.psychographics}\n\n`
+          prompt += `### 사용자 심리 특성\n${structuredOutput.psychographics}\n\n`
         }
 
         if (structuredOutput.behavioral) {
-          prompt += `### 행동 패턴\n${structuredOutput.behavioral}\n\n`
+          prompt += `### 사용자 행동 패턴\n${structuredOutput.behavioral}\n\n`
         }
 
         if (structuredOutput.goals) {
-          prompt += `### 목표와 동기\n${structuredOutput.goals}\n\n`
+          prompt += `### 사용자 목표\n${structuredOutput.goals}\n\n`
         }
 
         if (structuredOutput.painPoints && structuredOutput.painPoints.length > 0) {
-          prompt += `### Pain Points (고충점)\n`
+          prompt += `### 사용자 Pain Points\n`
           structuredOutput.painPoints.forEach((pain: string, idx: number) => {
             prompt += `${idx + 1}. ${pain}\n`
           })
@@ -498,7 +505,7 @@ ${documents.map((doc, index) => `${index + 1}. ${doc.name}`).join('\n')}
         }
 
         if (structuredOutput.channels && structuredOutput.channels.length > 0) {
-          prompt += `### 선호 채널 및 접점\n`
+          prompt += `### 사용자 선호 채널\n`
           structuredOutput.channels.forEach((channel: string, idx: number) => {
             prompt += `${idx + 1}. ${channel}\n`
           })
@@ -511,7 +518,7 @@ ${documents.map((doc, index) => `${index + 1}. ${doc.name}`).join('\n')}
 
     // 문서 내용 요약
     if (documents && documents.length > 0) {
-      prompt += `## 업로드된 프로젝트 문서\n`
+      prompt += `## RFP 관련 문서\n`
       documents.forEach((doc, index) => {
         prompt += `${index + 1}. ${doc.name}\n`
         if (doc.summary) {
@@ -524,99 +531,106 @@ ${documents.map((doc, index) => `${index + 1}. ${doc.name}`).join('\n')}
     // 맞춤형 제안서 질문 생성 지시
     prompt += `---
 
-# 제안서 질문 생성 전략
+# 제안서 작성 전략 (웹 에이전시 관점)
 
-## Step 1: 데이터 통합 분석
-위에서 제공된 **사전 분석, 시장 조사, 페르소나 분석의 모든 정보**를 종합하여:
-- **해결해야 할 핵심 문제**: 사전 분석에서 도출된 주요 과제
-- **시장 기회**: 시장 조사에서 발견된 차별화 포인트와 시장 진입 전략
-- **고객 중심 가치**: 페르소나 분석에서 파악된 타겟 고객의 니즈와 고충
+## 중요: 질문의 대상과 목적
+- ❌ 질문 대상은 클라이언트가 **아닙니다**
+- ✅ 질문 대상은 **우리 에이전시 팀** (PM, 개발자, 디자이너)입니다
+- ✅ 질문의 답변 내용이 **클라이언트 제출용 제안서**가 됩니다
+- ✅ "우리가 제안할 내용"을 정의하는 질문이어야 합니다
 
-## Step 2: 제안서 필수 영역 정의
-제안서는 다음 6가지 영역을 포함해야 합니다:
+## Step 1: 제안서 구조 (웹 에이전시 표준)
 
-### 1. 문제 정의 및 배경 (Problem Statement)
-- 사전 분석의 핵심 발견사항을 바탕으로 해결해야 할 문제 명확화
-- 페르소나 분석의 Pain Points와 연결
-- **프로젝트 연결**: "${projectInfo?.name || '이 프로젝트'}"가 해결하려는 근본 문제는 무엇인가?
+### 1. 프로젝트 이해 및 접근 방식 (Executive Summary)
+- **우리의** RFP 이해도 및 핵심 과제 요약
+- **우리가 보는** 프로젝트의 성공 요인
+- 예시 질문: "RFP에서 파악한 클라이언트의 핵심 요구사항에 대한 우리의 이해는?"
 
-### 2. 솔루션 개요 (Solution Overview)
-- 제안하는 솔루션의 핵심 가치
-- 사전 분석의 권장사항과 기술 인사이트 기반
-- 시장 조사의 경쟁 우위 요소 반영
-- **프로젝트 연결**: 어떤 솔루션을 제안하며, 왜 이 솔루션이 최선인가?
+### 2. 제안 솔루션 (Proposed Solution)
+- **우리가 제안하는** 솔루션의 개요와 핵심 가치
+- **우리 솔루션이** 클라이언트 문제를 해결하는 방식
+- 예시 질문: "RFP의 [요구사항]을 해결하기 위해 우리가 제안하는 솔루션의 핵심 기능은?"
 
-### 3. 기술 구현 계획 (Technical Approach)
-- 사용할 기술 스택 및 아키텍처
-- 사전 분석의 기술적 인사이트 구체화
-- 페르소나의 기술 숙련도 고려
-- **프로젝트 연결**: 어떤 기술을 사용하며, 어떻게 구현할 것인가?
+### 3. 기술 아키텍처 (Technical Architecture)
+- **우리가 사용할** 기술 스택 (프론트엔드, 백엔드, DB, 인프라)
+- **우리가 설계한** 시스템 아키텍처 및 구조
+- **우리의** 기술 선택 근거
+- 예시 질문: "프로젝트에 우리가 제안하는 기술 스택과 선택 이유는?"
 
-### 4. 비즈니스 가치 및 ROI (Business Value)
-- 시장 조사의 시장 규모와 성장성 기반
-- 페르소나의 목표 달성에 기여하는 방식
-- 측정 가능한 성과 지표 (KPI)
-- **프로젝트 연결**: 이 솔루션이 제공하는 구체적 비즈니스 가치는?
+### 4. 팀 구성 및 개발 방법론 (Team & Methodology)
+- **우리 에이전시의** 투입 인력 구성 (역할, 경력, 투입 기간)
+- **우리가 사용할** 개발 방법론 (Agile, Scrum 등)
+- **우리의** 협업 및 커뮤니케이션 방식
+- 예시 질문: "프로젝트에 투입할 우리 팀의 구성과 각 역할은?"
 
-### 5. 실행 계획 및 일정 (Implementation Plan)
-- 단계별 구현 로드맵
-- 마일스톤 및 산출물
-- 리스크 관리 계획
-- **프로젝트 연결**: 어떤 순서로, 얼마나 걸려서 구현할 것인가?
+### 5. 일정 및 마일스톤 (Timeline & Milestones)
+- **우리가 계획한** 단계별 개발 일정
+- **우리가 제시하는** 주요 마일스톤과 산출물
+- **우리의** 일정 리스크 관리 계획
+- 예시 질문: "프로젝트를 몇 단계로 나누어 진행하며, 각 단계의 기간과 산출물은?"
 
-### 6. 차별화 전략 (Differentiation Strategy)
-- 시장 조사의 경쟁사 분석 기반
-- 시장 트렌드 반영
-- 타겟 고객에게 가장 어필하는 포인트
-- **프로젝트 연결**: 경쟁 솔루션 대비 우리 제안의 독특한 강점은?
+### 6. 비용 산정 (Cost Breakdown)
+- **우리가 제시하는** 프로젝트 총 비용 견적
+- **우리의** 항목별 비용 breakdown (인건비, 인프라, 라이선스 등)
+- **우리의** 지불 조건 및 일정
+- 예시 질문: "프로젝트 총 비용과 항목별 상세 내역은?"
 
-## Step 3: 프로젝트 맥락 통합 질문 생성
-**중요: 모든 질문은 사전 분석, 시장 조사, 페르소나 분석의 구체적 인사이트를 직접 참조해야 합니다.**
+### 7. 리스크 관리 (Risk Management)
+- **우리가 예상하는** 프로젝트 리스크 요인
+- **우리의** 리스크 대응 및 완화 계획
+- 예시 질문: "프로젝트에서 예상되는 주요 리스크와 우리의 대응 방안은?"
 
-### 질문 생성 원칙
-✅ **좋은 질문의 조건:**
-- 3단계 분석(사전/시장/페르소나) 중 최소 1개 이상의 인사이트를 명시적으로 언급
-- 프로젝트명 또는 핵심 과제가 질문에 포함됨
-- 답변이 제안서의 특정 섹션을 직접 작성하는데 사용됨
-- 구체적이고 실행 가능한 답변을 유도함
+### 8. 차별화 요소 (Why Us)
+- **우리 에이전시의** 강점과 경쟁력
+- **우리의** 유사 프로젝트 경험 및 성공 사례
+- **우리 솔루션의** 독특한 차별화 포인트
+- 예시 질문: "경쟁 에이전시 대비 우리만의 차별화 요소는?"
 
-✅ **좋은 질문 예시:**
-- "사전 분석에서 도출된 [핵심 발견사항]을 해결하기 위해 ${projectInfo?.name || '이 프로젝트'}가 제시하는 솔루션의 핵심 가치 제안(Value Proposition)은 무엇입니까?" (솔루션 개요)
-- "시장 조사에서 파악된 [주요 경쟁사]와 비교했을 때, 우리 솔루션만의 차별화된 기술적/비즈니스적 강점은 무엇입니까?" (차별화 전략)
-- "페르소나 분석에서 도출된 타겟 고객의 [주요 Pain Point]를 해결하기 위한 구체적인 기능과 사용자 경험 설계는 무엇입니까?" (솔루션 개요 + 기술 구현)
-- "사전 분석의 기술 인사이트와 타겟 고객의 기술 숙련도를 고려할 때, 최적의 기술 스택과 아키텍처는 무엇입니까?" (기술 구현 계획)
-- "시장 조사의 시장 규모와 타겟 세그먼트를 고려할 때, 예상되는 비즈니스 가치(매출, 사용자 수, 비용 절감 등)는 어떻게 측정됩니까?" (비즈니스 가치)
+## Step 2: 질문 생성 원칙
 
-❌ **피해야 할 질문:**
-- "프로젝트의 목표는 무엇입니까?" ← 너무 일반적, 이미 사전 분석에서 파악됨
-- "예산 범위는 어떻게 되나요?" ← 프로젝트 관리 질문이지 제안서 내용 아님
-- "완료 기한은 언제입니까?" ← 실행 계획에서 다뤄야 할 내용이지만 너무 단순
+### ✅ 올바른 질문 예시 (에이전시 팀에게 묻기)
+- "RFP의 [핵심 요구사항]을 충족하기 위해 **우리가 제안할** 솔루션의 주요 기능과 기술적 접근 방식은?"
+- "경쟁사 분석 결과를 바탕으로, **우리 에이전시만의** 차별화된 강점과 제안 포인트는?"
+- "페르소나 분석에서 파악된 사용자 Pain Point를 해결하기 위해 **우리가 구현할** UX/UI 전략은?"
+- "프로젝트에 **우리가 투입할 팀** 구성은? (역할, 인원, 투입 기간)"
+- "**우리가 제시하는** 프로젝트 일정은 어떻게 되며, 주요 마일스톤과 산출물은?"
+- "**우리가 산정한** 프로젝트 총 비용과 항목별 비용 breakdown은?"
+- "RFP 기술 요구사항을 고려할 때, **우리가 선택한** 기술 스택과 그 근거는?"
+
+### ❌ 잘못된 질문 예시 (클라이언트에게 묻는 것처럼 들림)
+- "타겟 고객의 주요 Pain Point를 해결하기 위한 기능은?" ← 주체 불명확
+- "프로젝트의 목표는?" ← 이미 RFP에서 파악했어야 함
+- "예산 범위는?" ← 우리가 견적을 제시해야 함
+- "원하는 기술 스택은?" ← 우리가 제안해야 함
+
+## Step 3: 질문 구성
 
 ### 질문 개수 및 분포
-- **총 8-12개 질문 생성**
-- 6가지 제안서 영역이 고르게 분포되도록 구성 (각 영역당 1-2개)
-- 사전 분석, 시장 조사, 페르소나 분석 데이터가 골고루 활용되도록 함
-- **우선순위**: 프로젝트 핵심 과제와 직결된 영역은 2-3개 질문으로 심화
+- **총 10-15개 질문 생성**
+- 8가지 제안서 영역이 고르게 분포 (각 영역당 1-2개)
+- 핵심 영역(솔루션, 기술, 팀, 비용, 일정)은 2개 이상 심화 질문
 
-### 질문 유형 (type) 선택 가이드
-- **text**: 짧은 텍스트 입력 (예: 기술 스택 이름, 주요 기능 명칭)
-- **textarea**: 긴 설명이 필요한 경우 (예: 솔루션 개요, 차별화 전략, 구현 계획)
-- **select**: 단일 선택 (예: 배포 환경, 개발 방법론)
-- **multiselect**: 복수 선택 (예: 적용 기술 스택, 주요 기능 목록, 타겟 플랫폼)
-- **number**: 숫자 입력 (예: 개발 기간(주), 예상 비용, 예상 사용자 수)
+### 질문 유형 (type) 선택
+- **textarea**: 솔루션 개요, 기술 설명, 차별화 전략 등 상세 설명
+- **multiselect**: 기술 스택, 주요 기능 목록, 팀 역할 등
+- **text**: 프로젝트 기간, 팀원 이름/역할 등 간단한 입력
+- **number**: 비용, 인원 수, 개발 기간(주) 등 숫자
+- **select**: 개발 방법론, 배포 환경 등 단일 선택
 
 ### helpText 작성 원칙
-- **반드시** 사전 분석/시장 조사/페르소나 분석에서 도출된 구체적 인사이트를 인용
-- 왜 이 질문이 제안서에 중요한지 명확히 설명
-- 답변 작성 시 참고할 가이드 제공 (예: "타겟 고객의 [특정 Pain Point]를 고려하여...")
+- RFP 분석 결과를 구체적으로 인용
+- "우리 에이전시가 작성할 제안서에 포함될 내용"임을 명시
+- 답변 작성 가이드 제공 (예: "클라이언트에게 우리의 기술 선택을 어필할 수 있도록...")
 
-### category 선택 가이드
-- "문제 정의" - Problem Statement 관련 질문
-- "솔루션 개요" - Solution Overview 관련 질문
-- "기술 구현" - Technical Approach 관련 질문
-- "비즈니스 가치" - Business Value & ROI 관련 질문
-- "실행 계획" - Implementation Plan 관련 질문
-- "차별화 전략" - Differentiation Strategy 관련 질문
+### category 선택
+- "프로젝트 이해" - Executive Summary
+- "제안 솔루션" - Proposed Solution
+- "기술 아키텍처" - Technical Architecture
+- "팀 구성" - Team Composition
+- "일정 계획" - Timeline & Milestones
+- "비용 산정" - Cost Breakdown
+- "리스크 관리" - Risk Management
+- "차별화 요소" - Why Us
 
 ---
 
@@ -628,12 +642,12 @@ JSON 형식:
 {
   "questions": [
     {
-      "category": "문제 정의|솔루션 개요|기술 구현|비즈니스 가치|실행 계획|차별화 전략",
-      "text": "프로젝트 맥락과 3단계 분석이 반영된 구체적 질문",
+      "category": "프로젝트 이해|제안 솔루션|기술 아키텍처|팀 구성|일정 계획|비용 산정|리스크 관리|차별화 요소",
+      "text": "우리 에이전시 팀이 답변할 질문 (주체를 '우리'로 명확히)",
       "type": "text|select|multiselect|number|textarea",
       "options": ["옵션1", "옵션2"],
       "required": true|false,
-      "helpText": "사전 분석/시장 조사/페르소나 분석의 구체적 인사이트 인용 + 답변 가이드",
+      "helpText": "RFP 분석 결과 인용 + 이 답변이 제안서에 어떻게 활용되는지 설명",
       "priority": "high|medium|low",
       "confidence": 0.0-1.0
     }
