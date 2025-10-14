@@ -250,6 +250,8 @@ export function ProjectDetailPage() {
                 if (tab.enabled) {
                   if (tab.id === 'pre-analysis') {
                     navigate(`/projects/${id}/pre-analysis`)
+                  } else if (tab.id === 'proposal') {
+                    navigate(`/projects/${id}/proposal`)
                   } else {
                     setActiveTab(tab.id)
                   }
