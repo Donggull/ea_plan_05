@@ -288,9 +288,9 @@ async function handleAnthropicStreaming(
 
               console.log(`✅ [Anthropic Stream] done 이벤트 전송 완료: ${inputTokens + outputTokens} 토큰, ${responseTime}ms`)
 
-              // ✅ reader.cancel() 제거 - 스트림이 자연스럽게 종료되도록 함
-              // ✅ res.end() 제거 - 루프가 끝날 때까지 기다림
-              // ✅ return 제거 - 루프 계속 (곧 done: true를 받음)
+              // 🔥 즉시 종료: Vercel 60초 타임아웃 전에 응답 완료 보장
+              res.end()
+              return
             }
 
           } catch (parseError) {
@@ -508,9 +508,9 @@ async function handleOpenAIStreaming(
 
               console.log(`✅ [OpenAI Stream] done 이벤트 전송 완료: ${inputTokens + outputTokens} 토큰, ${responseTime}ms`)
 
-              // ✅ reader.cancel() 제거 - 스트림이 자연스럽게 종료되도록 함
-              // ✅ res.end() 제거 - 루프가 끝날 때까지 기다림
-              // ✅ return 제거 - 루프 계속 (곧 done: true를 받음)
+              // 🔥 즉시 종료: Vercel 60초 타임아웃 전에 응답 완료 보장
+              res.end()
+              return
             }
 
           } catch (parseError) {
@@ -708,9 +708,9 @@ async function handleGoogleAIStreaming(
 
               console.log(`✅ [Google AI Stream] done 이벤트 전송 완료: ${inputTokens + outputTokens} 토큰, ${responseTime}ms`)
 
-              // ✅ reader.cancel() 제거 - 스트림이 자연스럽게 종료되도록 함
-              // ✅ res.end() 제거 - 루프가 끝날 때까지 기다림
-              // ✅ return 제거 - 루프 계속 (곧 done: true를 받음)
+              // 🔥 즉시 종료: Vercel 60초 타임아웃 전에 응답 완료 보장
+              res.end()
+              return
             }
 
           } catch (parseError) {
