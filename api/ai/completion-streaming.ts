@@ -115,6 +115,7 @@ export default async function handler(
       // 이미 종료된 연결일 수 있음
       console.error('응답 쓰기 실패:', writeError)
     }
+    return // ✅ TypeScript 오류 수정: catch 블록에서도 return 필요
   }
 }
 
