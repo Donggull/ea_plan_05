@@ -1266,93 +1266,64 @@ export class ProposalAnalysisService {
       let textEventCount = 0;
       let doneEventCount = 0;
 
-      // 🔥 이벤트 타입별 처리 함수 (중복 방지)
-      const processEvent = (event: any, source: string) => {
-        if (!event || !event.type) return;
-
-        if (event.type === 'text') {
-          textEventCount++;
-          // 🔥 fullContent 누적 보장: event.fullContent를 우선 사용하되, 없으면 기존 fullContent 유지
-          if (event.fullContent) {
-            fullContent = event.fullContent;
-          } else if (event.content) {
-            fullContent += event.content;
-          }
-
-          // 진행 콜백 호출
-          if (onProgress) {
-            onProgress(event.content || '', fullContent);
-          }
-
-          // 첫 이벤트와 마지막 몇 개만 로깅
-          if (textEventCount <= 3 || textEventCount % 50 === 0) {
-            console.log(`📝 [Streaming] 텍스트 수신 #${textEventCount}:`, fullContent.length, 'chars');
-          }
-        }
-
-        // 최종 완료 이벤트 (중복 방지: 첫 번째만 처리)
-        if (event.type === 'done') {
-          doneEventCount++;
-          if (!finalData) {
-            finalData = event;
-            console.log(`✅ [Streaming] 최종 데이터 수신 (${source}):`, {
-              contentLength: event.content?.length,
-              inputTokens: event.usage?.inputTokens,
-              outputTokens: event.usage?.outputTokens,
-              totalCost: event.cost?.totalCost,
-              source
-            });
-          } else {
-            console.log(`ℹ️ [Streaming] 중복 done 이벤트 무시 (${source})`);
-          }
-        }
-
-        // 에러 이벤트
-        if (event.type === 'error') {
-          throw new Error(event.error || '스트리밍 중 오류가 발생했습니다.');
-        }
-      };
 
       while (true) {
         const { done, value } = await reader.read();
 
         chunkCount++;
 
-        // 🔥 스트림 종료 시 남은 버퍼 철저히 처리
+        // 🔥 스트림 종료 전 남은 버퍼 처리 (PreAnalysisService와 동일한 패턴)
         if (done) {
           console.log('✅ [Streaming] 스트림 완료', {
             chunkCount,
             textEventCount,
             doneEventCount,
             bufferLength: buffer.length,
-            bufferPreview: buffer.substring(0, 300)
+            bufferContent: buffer.substring(0, 200)
           });
 
-          // 🔥 남은 버퍼를 모두 처리 (불완전한 라인까지 포함)
+          // 남은 버퍼에 데이터가 있으면 처리
           if (buffer.trim()) {
-            console.log('🔍 [Streaming] 남은 버퍼 전체 처리 시작');
-            const remainingLines = buffer.split('\n').filter(line => line.trim());
+            console.log('🔍 [Streaming] 남은 버퍼 처리 시작:', buffer.substring(0, 200));
+            const remainingLines = buffer.split('\n');
 
             for (const line of remainingLines) {
-              // 🔥 SSE 주석 라인 무시
-              if (line.startsWith(':')) {
-                continue;
-              }
-
-              if (line.startsWith('data:')) {
+              if (line.trim() && line.startsWith('data:')) {
                 const data = line.slice(5).trim();
+                console.log('🔍 [Streaming] 남은 버퍼 라인:', data.substring(0, 100));
 
-                if (!data || data === '[DONE]') continue;
+                if (data && data !== '[DONE]') {
+                  try {
+                    const event = JSON.parse(data);
+                    console.log('🔍 [Streaming] 남은 버퍼 이벤트 타입:', event.type);
 
-                try {
-                  const event = JSON.parse(data);
-                  console.log(`🔍 [Streaming] 남은 버퍼 이벤트: ${event.type}`);
-                  processEvent(event, 'buffer');
-                } catch (parseError) {
-                  console.warn('⚠️ 남은 버퍼 파싱 오류:', {
-                    linePreview: data.substring(0, 100),
-                    error: parseError instanceof Error ? parseError.message : String(parseError)
-                  });
+                    // 텍스트 이벤트 처리
+                    if (event.type === 'text') {
+                      textEventCount++;
+                      if (event.fullContent) {
+                        fullContent = event.fullContent;
+                      } else if (event.content) {
+                        fullContent += event.content;
+                      }
+                    }
+
+                    // done 이벤트 처리 (PreAnalysisService와 동일)
+                    if (event.type === 'done') {
+                      doneEventCount++;
+                      if (!finalData) {
+                        finalData = event;
+                        console.log('✅ [Streaming] 남은 버퍼에서 최종 데이터 발견!', {
+                          contentLength: event.content?.length,
+                          inputTokens: event.usage?.inputTokens,
+                          outputTokens: event.usage?.outputTokens,
+                        });
+                      } else {
+                        console.log('ℹ️ [Streaming] 남은 버퍼의 중복 done 이벤트 무시');
+                      }
+                    }
+                  } catch (parseError) {
+                    console.warn('⚠️ 남은 버퍼 파싱 오류:', data.substring(0, 100), parseError);
+                  }
                 }
               }
             }
@@ -1370,42 +1341,69 @@ export class ProposalAnalysisService {
         buffer = lines.pop() || '';
 
         for (const line of lines) {
-          // 🔥 SSE 주석 라인 무시
-          if (line.startsWith(':')) {
-            continue;
-          }
-
           if (line.startsWith('data:')) {
             const data = line.slice(5).trim();
 
-            if (!data || data === '[DONE]') continue;
+            if (data === '[DONE]') continue;
 
             try {
               const event = JSON.parse(data);
-              processEvent(event, 'loop');
-            } catch (parseError) {
-              // 파싱 오류는 로그만 남기고 계속 진행
-              if (textEventCount <= 3) {
-                console.warn('⚠️ SSE 파싱 오류:', data.substring(0, 100));
+
+              // 실시간 텍스트 조각 (PreAnalysisService와 동일)
+              if (event.type === 'text') {
+                textEventCount++;
+                fullContent = event.fullContent || fullContent;
+
+                // 진행 콜백 호출
+                if (onProgress) {
+                  onProgress(event.content, fullContent);
+                }
+
+                // 첫 이벤트와 마지막 몇 개만 로깅
+                if (textEventCount <= 3 || textEventCount % 50 === 0) {
+                  console.log(`📝 [Streaming] 텍스트 수신 #${textEventCount}:`, fullContent.length, 'chars');
+                }
               }
+
+              // 최종 완료 이벤트 (중복 방지: 첫 번째만 처리)
+              if (event.type === 'done') {
+                doneEventCount++;
+                if (!finalData) {
+                  finalData = event;
+                  console.log('✅ [Streaming] 최종 데이터 수신 (루프 중):', {
+                    contentLength: event.content?.length,
+                    inputTokens: event.usage?.inputTokens,
+                    outputTokens: event.usage?.outputTokens,
+                    totalCost: event.cost?.totalCost
+                  });
+                } else {
+                  console.log('ℹ️ [Streaming] 중복 done 이벤트 무시 (이미 수신함)');
+                }
+              }
+
+              // 에러 이벤트
+              if (event.type === 'error') {
+                throw new Error(event.error || '스트리밍 중 오류가 발생했습니다.');
+              }
+
+            } catch (parseError) {
+              console.warn('⚠️ SSE 파싱 오류:', data);
             }
           }
         }
       }
 
-      // 🔥 최종 데이터 검증 및 fallback 처리
+      // 최종 데이터 검증 (PreAnalysisService와 동일한 패턴)
       if (!finalData) {
-        console.error('❌ [Streaming] done 이벤트 미수신!', {
+        console.error('❌ [Streaming] 최종 데이터 누락!', {
           textEventCount,
           doneEventCount,
           fullContentLength: fullContent.length,
-          fullContentPreview: fullContent.substring(0, 300),
-          bufferWasEmpty: !buffer.trim()
+          fullContentPreview: fullContent.substring(0, 200)
         });
 
-        // 🔥 Fallback: fullContent가 있으면 무조건 사용 (done 이벤트 누락 대응)
-        // 최소 길이 조건을 50자로 낮춤 (짧은 응답도 허용)
-        if (fullContent && fullContent.length > 50) {
+        // Fallback: fullContent가 있으면 사용
+        if (fullContent && fullContent.length > 100) {
           console.warn('⚠️ [Streaming] Fallback 모드 활성화: fullContent로 최종 데이터 생성');
 
           // 토큰 추정 함수
@@ -1489,18 +1487,40 @@ export class ProposalAnalysisService {
         }
       }
 
-      // 🔥 finalData는 있지만 content가 비어있는 경우 체크
+      // finalData는 있지만 content가 비어있는 경우 체크 (매우 중요!)
       if (finalData && (!finalData.content || finalData.content.length === 0)) {
         console.warn('⚠️ [Streaming] finalData.content가 비어있음! fullContent로 대체');
         finalData.content = fullContent;
+      }
+
+      // 여전히 content가 없으면 fullContent 강제 사용
+      if (!finalData || !finalData.content) {
+        console.error('❌ [Streaming] 최종 데이터가 여전히 없음! fullContent 강제 사용');
+        if (fullContent && fullContent.length > 0) {
+          if (!finalData) {
+            finalData = {
+              type: 'done',
+              content: fullContent,
+              usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+              cost: { inputCost: 0, outputCost: 0, totalCost: 0 },
+              model: model,
+              finishReason: 'stop',
+              responseTime: Date.now() - startTime
+            };
+          } else {
+            finalData.content = fullContent;
+          }
+          console.log('✅ [Streaming] fullContent로 복구 성공:', fullContent.length, 'chars');
+        }
       }
 
       console.log('🎉 [Streaming] 전체 통계:', {
         totalChunks: chunkCount,
         totalTextEvents: textEventCount,
         totalDoneEvents: doneEventCount,
-        finalContentLength: finalData.content?.length,
-        hasFinalData: !!finalData
+        finalContentLength: finalData?.content?.length || 0,
+        hasFinalData: !!finalData,
+        hasContent: !!(finalData?.content)
       });
 
       console.log(`✅ [${provider}/${model}] 스트리밍 성공`, {
