@@ -277,7 +277,7 @@ async function handleAnthropicStreaming(
               res.write(`data: ${doneEvent}\n\n`)
 
               // 🔥 SSE 표준 종료 마커 전송
-              res.write('data: [DONE]\n\n`)
+              res.write(`data: [DONE]\n\n`)
 
               console.log(`✅ [Anthropic Stream] done 이벤트 전송 완료: ${inputTokens + outputTokens} 토큰, ${responseTime}ms`)
 
@@ -328,7 +328,7 @@ async function handleAnthropicStreaming(
       res.write(`data: ${doneEvent}\n\n`)
 
       // 🔥 SSE 표준 종료 마커 전송
-      res.write('data: [DONE]\n\n`)
+      res.write(`data: [DONE]\n\n`)
     }
 
     // 🔥 버퍼 플러시를 위한 충분한 지연 (Vercel 환경에서 안정적)
@@ -488,7 +488,7 @@ async function handleOpenAIStreaming(
               res.write(`data: ${doneEvent}\n\n`)
 
               // 🔥 SSE 표준 종료 마커 전송
-              res.write('data: [DONE]\n\n`)
+              res.write(`data: [DONE]\n\n`)
 
               console.log(`✅ [OpenAI Stream] done 이벤트 전송 완료: ${inputTokens + outputTokens} 토큰, ${responseTime}ms`)
 
@@ -535,7 +535,7 @@ async function handleOpenAIStreaming(
       res.write(`data: ${doneEvent}\n\n`)
 
       // 🔥 SSE 표준 종료 마커 전송
-      res.write('data: [DONE]\n\n`)
+      res.write(`data: [DONE]\n\n`)
     }
 
     // 🔥 버퍼 플러시를 위한 충분한 지연 (Vercel 환경에서 안정적)
@@ -679,7 +679,7 @@ async function handleGoogleAIStreaming(
               res.write(`data: ${doneEvent}\n\n`)
 
               // 🔥 SSE 표준 종료 마커 전송
-              res.write('data: [DONE]\n\n`)
+              res.write(`data: [DONE]\n\n`)
 
               console.log(`✅ [Google AI Stream] done 이벤트 전송 완료: ${inputTokens + outputTokens} 토큰, ${responseTime}ms`)
 
@@ -724,7 +724,7 @@ async function handleGoogleAIStreaming(
       res.write(`data: ${doneEvent}\n\n`)
 
       // 🔥 SSE 표준 종료 마커 전송
-      res.write('data: [DONE]\n\n`)
+      res.write(`data: [DONE]\n\n`)
     }
 
     // 🔥 버퍼 플러시를 위한 충분한 지연 (Vercel 환경에서 안정적)
