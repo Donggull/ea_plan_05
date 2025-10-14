@@ -1502,38 +1502,123 @@ export class ProposalAnalysisService {
   }
 
   /**
-   * 분석 결과 파싱
+   * 분석 결과 파싱 (개선된 JSON 추출 로직)
    */
   private static parseAnalysisResult(aiResponse: string): AnalysisResult {
     try {
-      // JSON 추출 시도
-      const jsonMatch = aiResponse.match(/\{[\s\S]*\}/)
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0])
-        return {
-          summary: parsed.summary || '분석 요약이 제공되지 않았습니다.',
-          keyFindings: parsed.keyFindings || [],
-          recommendations: parsed.recommendations || [],
-          structuredData: parsed.structuredData || {},
-          nextSteps: parsed.nextSteps || [],
-          confidence: parsed.confidence || 0.5,
-          warnings: parsed.warnings || []
-        }
-      } else {
-        // JSON이 없으면 텍스트 응답으로 처리
-        return {
-          summary: aiResponse.substring(0, 500) + '...',
-          keyFindings: ['AI 응답을 구조화된 형태로 파싱할 수 없었습니다.'],
-          recommendations: ['분석 결과를 수동으로 검토해주세요.'],
-          structuredData: { rawResponse: aiResponse },
-          nextSteps: ['응답 형식을 개선하여 재시도해주세요.'],
-          confidence: 0.3,
-          warnings: ['AI 응답이 예상된 JSON 형식이 아닙니다.']
-        }
+      console.log('🔍 [parseAnalysisResult] AI 응답 파싱 시작:', {
+        responseLength: aiResponse.length,
+        responsePreview: aiResponse.substring(0, 200)
+      })
+
+      // 1. JSON 코드 블록 먼저 시도 (```json ... ```)
+      const codeBlockMatch = aiResponse.match(/```json\s*([\s\S]*?)\s*```/)
+      if (codeBlockMatch) {
+        console.log('✅ JSON 코드 블록 발견')
+        const parsed = JSON.parse(codeBlockMatch[1])
+        return this.validateAndFormatResult(parsed)
+      }
+
+      // 2. 순수 JSON 추출 (balanced braces 알고리즘)
+      const jsonString = this.extractJSON(aiResponse)
+      if (jsonString) {
+        console.log('✅ 순수 JSON 추출 성공:', {
+          extractedLength: jsonString.length,
+          extractedPreview: jsonString.substring(0, 200)
+        })
+        const parsed = JSON.parse(jsonString)
+        return this.validateAndFormatResult(parsed)
+      }
+
+      // 3. JSON을 찾을 수 없는 경우
+      console.warn('⚠️ JSON을 찾을 수 없음, 응답 전체 내용:', aiResponse.substring(0, 1000))
+      return {
+        summary: aiResponse.substring(0, 500) + '...',
+        keyFindings: ['AI 응답을 구조화된 형태로 파싱할 수 없었습니다.'],
+        recommendations: ['분석 결과를 수동으로 검토해주세요.'],
+        structuredData: { rawResponse: aiResponse },
+        nextSteps: ['응답 형식을 개선하여 재시도해주세요.'],
+        confidence: 0.3,
+        warnings: ['AI 응답이 예상된 JSON 형식이 아닙니다.']
       }
     } catch (error) {
-      console.error('Failed to parse AI response:', error)
-      throw new Error('AI 응답을 파싱할 수 없습니다.')
+      console.error('❌ Failed to parse AI response:', error)
+      console.error('응답 내용:', aiResponse.substring(0, 500))
+      throw new Error(`AI 응답을 파싱할 수 없습니다: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  /**
+   * JSON 추출 (balanced braces 알고리즘)
+   * 첫 번째 `{`부터 매칭되는 `}`까지 추출
+   */
+  private static extractJSON(text: string): string | null {
+    const firstBrace = text.indexOf('{')
+    if (firstBrace === -1) return null
+
+    let braceCount = 0
+    let inString = false
+    let escapeNext = false
+
+    for (let i = firstBrace; i < text.length; i++) {
+      const char = text[i]
+
+      // 이스케이프 처리
+      if (escapeNext) {
+        escapeNext = false
+        continue
+      }
+
+      if (char === '\\') {
+        escapeNext = true
+        continue
+      }
+
+      // 문자열 내부 처리
+      if (char === '"') {
+        inString = !inString
+        continue
+      }
+
+      // 문자열 내부가 아닐 때만 중괄호 카운트
+      if (!inString) {
+        if (char === '{') {
+          braceCount++
+        } else if (char === '}') {
+          braceCount--
+          if (braceCount === 0) {
+            // 완전한 JSON 발견
+            return text.substring(firstBrace, i + 1)
+          }
+        }
+      }
+    }
+
+    return null
+  }
+
+  /**
+   * 파싱된 결과 검증 및 포맷팅
+   */
+  private static validateAndFormatResult(parsed: any): AnalysisResult {
+    console.log('🔍 [validateAndFormatResult] 파싱된 데이터 검증:', {
+      hasSummary: !!parsed.summary,
+      hasKeyFindings: !!parsed.keyFindings,
+      hasRecommendations: !!parsed.recommendations,
+      hasStructuredData: !!parsed.structuredData,
+      hasNextSteps: !!parsed.nextSteps,
+      hasConfidence: parsed.confidence !== undefined,
+      hasWarnings: !!parsed.warnings
+    })
+
+    return {
+      summary: parsed.summary || '분석 요약이 제공되지 않았습니다.',
+      keyFindings: Array.isArray(parsed.keyFindings) ? parsed.keyFindings : [],
+      recommendations: Array.isArray(parsed.recommendations) ? parsed.recommendations : [],
+      structuredData: parsed.structuredData || {},
+      nextSteps: Array.isArray(parsed.nextSteps) ? parsed.nextSteps : [],
+      confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.5,
+      warnings: Array.isArray(parsed.warnings) ? parsed.warnings : []
     }
   }
 
