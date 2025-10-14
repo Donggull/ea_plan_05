@@ -1068,7 +1068,7 @@ export class ProposalAnalysisService {
         provider,
         model: model_id,
         prompt: fullPrompt,
-        maxTokens: 4000,
+        maxTokens: 16000,  // 16000으로 대폭 증가 (10-15 섹션 × 800자 분량 제안서 완전 생성)
         temperature: 0.3
       }
 
@@ -1113,22 +1113,32 @@ export class ProposalAnalysisService {
         responseTime: data.responseTime
       })
 
+      // 응답 구조 검증
+      if (!data.content) {
+        console.error('❌ 응답에 content 필드가 없습니다:', data)
+        throw new Error('AI 응답에 content 필드가 없습니다.')
+      }
+
+      if (!data.usage || !data.cost) {
+        console.warn('⚠️ 응답에 usage 또는 cost 정보가 없습니다. 기본값 사용')
+      }
+
       // 3. 응답을 AIResponse 형식으로 반환
       return {
         content: data.content,
         usage: {
-          inputTokens: data.usage.inputTokens,
-          outputTokens: data.usage.outputTokens,
-          totalTokens: data.usage.totalTokens
+          inputTokens: data.usage?.inputTokens || 0,
+          outputTokens: data.usage?.outputTokens || 0,
+          totalTokens: data.usage?.totalTokens || 0
         },
         cost: {
-          inputCost: data.cost.inputCost,
-          outputCost: data.cost.outputCost,
-          totalCost: data.cost.totalCost
+          inputCost: data.cost?.inputCost || 0,
+          outputCost: data.cost?.outputCost || 0,
+          totalCost: data.cost?.totalCost || 0
         },
-        model: data.model,
-        finishReason: data.finishReason,
-        responseTime: data.responseTime
+        model: data.model || model_id,
+        finishReason: data.finishReason || 'unknown',
+        responseTime: data.responseTime || 0
       }
     } catch (error) {
       console.error('❌ AI analysis execution failed:', error)
