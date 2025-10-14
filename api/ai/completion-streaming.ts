@@ -276,15 +276,14 @@ async function handleAnthropicStreaming(
                 res.write(`data: ${doneEvent}\n\n`)
               }
 
-              // 🔥 SSE keepalive 주석으로 버퍼 플러시 강제
-              for (let i = 0; i < 5; i++) {
-                res.write(`: keepalive\n\n`)
-              }
+              // 🔥 대용량 주석 데이터로 버퍼 강제 플러시 (8KB)
+              // SSE 주석은 클라이언트가 무시하지만 네트워크 버퍼를 플러시함
+              res.write(`: ${'-'.repeat(8000)}\n\n`)
 
               // 🔥 SSE 표준 종료 마커 전송
-              res.write(`data: [DONE]\n\n`)
-              res.write(`data: [DONE]\n\n`)
-              res.write(`data: [DONE]\n\n`)
+              for (let i = 0; i < 5; i++) {
+                res.write(`data: [DONE]\n\n`)
+              }
 
               console.log(`✅ [Anthropic Stream] done 이벤트 전송 완료: ${inputTokens + outputTokens} 토큰, ${responseTime}ms`)
 
@@ -334,19 +333,17 @@ async function handleAnthropicStreaming(
         res.write(`data: ${doneEvent}\n\n`)
       }
 
-      // 🔥 SSE keepalive 주석으로 버퍼 플러시 강제
-      for (let i = 0; i < 5; i++) {
-        res.write(`: keepalive\n\n`)
-      }
+      // 🔥 대용량 주석 데이터로 버퍼 강제 플러시 (8KB)
+      res.write(`: ${'-'.repeat(8000)}\n\n`)
 
       // 🔥 SSE 표준 종료 마커 전송
-      res.write(`data: [DONE]\n\n`)
-      res.write(`data: [DONE]\n\n`)
-      res.write(`data: [DONE]\n\n`)
+      for (let i = 0; i < 5; i++) {
+        res.write(`data: [DONE]\n\n`)
+      }
     }
 
-    // 🔥 버퍼 플러시를 위한 충분한 지연 (Vercel 환경에서 안정적)
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    // 🔥 버퍼 플러시를 위한 충분한 지연 (3초로 증가)
+    await new Promise(resolve => setTimeout(resolve, 3000))
 
     console.log(`✅ [Anthropic Stream] 스트림 종료 완료`)
     res.end()
@@ -501,15 +498,13 @@ async function handleOpenAIStreaming(
                 res.write(`data: ${doneEvent}\n\n`)
               }
 
-              // 🔥 SSE keepalive 주석으로 버퍼 플러시 강제
-              for (let i = 0; i < 5; i++) {
-                res.write(`: keepalive\n\n`)
-              }
+              // 🔥 대용량 주석 데이터로 버퍼 강제 플러시 (8KB)
+              res.write(`: ${'-'.repeat(8000)}\n\n`)
 
               // 🔥 SSE 표준 종료 마커 전송
-              res.write(`data: [DONE]\n\n`)
-              res.write(`data: [DONE]\n\n`)
-              res.write(`data: [DONE]\n\n`)
+              for (let i = 0; i < 5; i++) {
+                res.write(`data: [DONE]\n\n`)
+              }
 
               console.log(`✅ [OpenAI Stream] done 이벤트 전송 완료: ${inputTokens + outputTokens} 토큰, ${responseTime}ms`)
 
@@ -555,19 +550,17 @@ async function handleOpenAIStreaming(
         res.write(`data: ${doneEvent}\n\n`)
       }
 
-      // 🔥 SSE keepalive 주석으로 버퍼 플러시 강제
-      for (let i = 0; i < 5; i++) {
-        res.write(`: keepalive\n\n`)
-      }
+      // 🔥 대용량 주석 데이터로 버퍼 강제 플러시 (8KB)
+      res.write(`: ${'-'.repeat(8000)}\n\n`)
 
       // 🔥 SSE 표준 종료 마커 전송
-      res.write(`data: [DONE]\n\n`)
-      res.write(`data: [DONE]\n\n`)
-      res.write(`data: [DONE]\n\n`)
+      for (let i = 0; i < 5; i++) {
+        res.write(`data: [DONE]\n\n`)
+      }
     }
 
-    // 🔥 버퍼 플러시를 위한 충분한 지연 (Vercel 환경에서 안정적)
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    // 🔥 버퍼 플러시를 위한 충분한 지연 (3초로 증가)
+    await new Promise(resolve => setTimeout(resolve, 3000))
 
     console.log(`✅ [OpenAI Stream] 스트림 종료 완료`)
     res.end()
@@ -706,15 +699,13 @@ async function handleGoogleAIStreaming(
                 res.write(`data: ${doneEvent}\n\n`)
               }
 
-              // 🔥 SSE keepalive 주석으로 버퍼 플러시 강제
-              for (let i = 0; i < 5; i++) {
-                res.write(`: keepalive\n\n`)
-              }
+              // 🔥 대용량 주석 데이터로 버퍼 강제 플러시 (8KB)
+              res.write(`: ${'-'.repeat(8000)}\n\n`)
 
               // 🔥 SSE 표준 종료 마커 전송
-              res.write(`data: [DONE]\n\n`)
-              res.write(`data: [DONE]\n\n`)
-              res.write(`data: [DONE]\n\n`)
+              for (let i = 0; i < 5; i++) {
+                res.write(`data: [DONE]\n\n`)
+              }
 
               console.log(`✅ [Google AI Stream] done 이벤트 전송 완료: ${inputTokens + outputTokens} 토큰, ${responseTime}ms`)
 
@@ -758,19 +749,17 @@ async function handleGoogleAIStreaming(
         res.write(`data: ${doneEvent}\n\n`)
       }
 
-      // 🔥 SSE keepalive 주석으로 버퍼 플러시 강제
-      for (let i = 0; i < 5; i++) {
-        res.write(`: keepalive\n\n`)
-      }
+      // 🔥 대용량 주석 데이터로 버퍼 강제 플러시 (8KB)
+      res.write(`: ${'-'.repeat(8000)}\n\n`)
 
       // 🔥 SSE 표준 종료 마커 전송
-      res.write(`data: [DONE]\n\n`)
-      res.write(`data: [DONE]\n\n`)
-      res.write(`data: [DONE]\n\n`)
+      for (let i = 0; i < 5; i++) {
+        res.write(`data: [DONE]\n\n`)
+      }
     }
 
-    // 🔥 버퍼 플러시를 위한 충분한 지연 (Vercel 환경에서 안정적)
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    // 🔥 버퍼 플러시를 위한 충분한 지연 (3초로 증가)
+    await new Promise(resolve => setTimeout(resolve, 3000))
 
     console.log(`✅ [Google AI Stream] 스트림 종료 완료`)
     res.end()
