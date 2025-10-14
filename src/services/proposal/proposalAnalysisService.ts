@@ -721,8 +721,8 @@ export class ProposalAnalysisService {
       // 분석 프롬프트 생성
       const prompt = await this.generateAnalysisPrompt(context)
 
-      // AI 분석 실행 (provider와 model_id 직접 전달)
-      const aiResponse = await this.executeAIAnalysis(provider, model_id, prompt, userId)
+      // AI 분석 실행 (provider와 model_id 직접 전달, workflowStep도 전달하여 제안서 단계에서 스트리밍 사용)
+      const aiResponse = await this.executeAIAnalysis(provider, model_id, prompt, userId, workflowStep)
 
       // 결과 파싱 및 검증
       const analysisResult = this.parseAnalysisResult(aiResponse.content)
@@ -1020,16 +1020,18 @@ export class ProposalAnalysisService {
 
   /**
    * AI 분석 실행 (PreAnalysisService 패턴 적용 - provider와 model_id 직접 사용)
+   * 제안서 생성 단계에서는 스트리밍 방식 사용
    */
   private static async executeAIAnalysis(
     provider: string,
     model_id: string,
     messages: AIMessage[],
-    userId: string
+    userId: string,
+    workflowStep?: WorkflowStep
   ): Promise<AIResponse> {
     try {
       console.log('🚀 [executeAIAnalysis] AI 분석 실행 시작')
-      console.log('📊 입력 파라미터:', { provider, model_id, userId, messagesCount: messages.length })
+      console.log('📊 입력 파라미터:', { provider, model_id, userId, messagesCount: messages.length, workflowStep })
 
       // 1. messages를 단일 프롬프트 문자열로 변환
       const systemMessage = messages.find(m => m.role === 'system')?.content || ''
@@ -1044,7 +1046,38 @@ export class ProposalAnalysisService {
         totalLength: fullPrompt.length
       })
 
-      // 2. Vercel API 호출
+      // 2. 제안서 생성 단계는 스트리밍 API 사용 (타임아웃 방지)
+      if (workflowStep === 'proposal') {
+        console.log('🌊 제안서 생성 단계 - 스트리밍 API 사용')
+
+        const streamingResponse = await this.callAICompletionAPIStreaming(
+          provider,
+          model_id,
+          fullPrompt,
+          16000,  // maxTokens
+          0.3     // temperature
+        )
+
+        // 스트리밍 응답을 AIResponse 형식으로 변환
+        return {
+          content: streamingResponse.content,
+          usage: {
+            inputTokens: streamingResponse.usage.inputTokens,
+            outputTokens: streamingResponse.usage.outputTokens,
+            totalTokens: streamingResponse.usage.totalTokens
+          },
+          cost: {
+            inputCost: streamingResponse.cost.inputCost,
+            outputCost: streamingResponse.cost.outputCost,
+            totalCost: streamingResponse.cost.totalCost
+          },
+          model: streamingResponse.model || model_id,
+          finishReason: streamingResponse.finishReason || 'stop',
+          responseTime: streamingResponse.responseTime || 0
+        }
+      }
+
+      // 3. 나머지 단계는 기존 방식 사용 (non-streaming)
       const apiUrl = import.meta.env.DEV
         ? 'https://ea-plan-05.vercel.app/api/ai/completion'
         : '/api/ai/completion'
@@ -1123,7 +1156,7 @@ export class ProposalAnalysisService {
         console.warn('⚠️ 응답에 usage 또는 cost 정보가 없습니다. 기본값 사용')
       }
 
-      // 3. 응답을 AIResponse 형식으로 반환
+      // 4. 응답을 AIResponse 형식으로 반환
       return {
         content: data.content,
         usage: {
@@ -1143,6 +1176,328 @@ export class ProposalAnalysisService {
     } catch (error) {
       console.error('❌ AI analysis execution failed:', error)
       throw error
+    }
+  }
+
+  /**
+   * AI Completion API 스트리밍 호출 (사전 분석과 동일한 패턴)
+   * 제안서 생성 단계에서 타임아웃 방지를 위해 사용
+   */
+  private static async callAICompletionAPIStreaming(
+    provider: string,
+    model: string,
+    prompt: string,
+    maxTokens: number = 16000,
+    temperature: number = 0.3,
+    onProgress?: (chunk: string, fullContent: string) => void
+  ): Promise<any> {
+    try {
+      console.log(`🌊 [${provider}/${model}] AI 스트리밍 요청:`, {
+        provider,
+        model,
+        promptLength: prompt.length,
+        maxTokens,
+        temperature
+      });
+
+      // 인증 토큰 추출
+      let authToken: string | undefined
+      try {
+        const session = await supabase?.auth.getSession()
+        authToken = session?.data.session?.access_token
+        console.log(`🔐 [${provider}/${model}] 인증 토큰:`, authToken ? '있음' : '없음')
+      } catch (authError) {
+        console.warn(`🔐 [${provider}/${model}] 인증 토큰 추출 실패:`, authError)
+      }
+
+      // 개발환경에서는 Vercel 프로덕션 API 직접 호출, 프로덕션에서는 상대 경로 사용
+      const apiUrl = import.meta.env.DEV
+        ? 'https://ea-plan-05.vercel.app/api/ai/completion-streaming'
+        : '/api/ai/completion-streaming';
+
+      console.log(`🌐 [${provider}/${model}] 스트리밍 URL:`, apiUrl);
+
+      // 인증 헤더 구성
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`
+      }
+
+      // 스트리밍 요청 시작
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          provider,
+          model,
+          prompt,
+          maxTokens,
+          temperature
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error(`❌ [${provider}/${model}] HTTP ${response.status} 오류:`, errorData);
+        throw new Error(
+          errorData.error ||
+          `API 요청 실패: ${response.status} ${response.statusText}`
+        );
+      }
+
+      // SSE 응답 처리
+      if (!response.body) {
+        throw new Error('응답 본문이 없습니다.');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let fullContent = '';
+      let finalData: any = null;
+      const startTime = Date.now();
+
+      console.log('📥 [Streaming] SSE 수신 시작');
+
+      let chunkCount = 0;
+      let textEventCount = 0;
+      let doneEventCount = 0;
+
+      while (true) {
+        const { done, value } = await reader.read();
+
+        chunkCount++;
+
+        // 스트림 종료 전 남은 버퍼 처리
+        if (done) {
+          console.log('✅ [Streaming] 스트림 완료', {
+            chunkCount,
+            textEventCount,
+            doneEventCount,
+            bufferLength: buffer.length,
+            bufferContent: buffer.substring(0, 200)
+          });
+
+          // 남은 버퍼에 데이터가 있으면 처리
+          if (buffer.trim()) {
+            console.log('🔍 [Streaming] 남은 버퍼 처리 시작:', buffer.substring(0, 200));
+            const remainingLines = buffer.split('\n');
+
+            for (const line of remainingLines) {
+              if (line.trim() && line.startsWith('data:')) {
+                const data = line.slice(5).trim();
+                console.log('🔍 [Streaming] 남은 버퍼 라인:', data.substring(0, 100));
+
+                if (data && data !== '[DONE]') {
+                  try {
+                    const event = JSON.parse(data);
+                    console.log('🔍 [Streaming] 남은 버퍼 이벤트 타입:', event.type);
+
+                    if (event.type === 'done') {
+                      doneEventCount++;
+                      if (!finalData) {
+                        finalData = event;
+                        console.log('✅ [Streaming] 남은 버퍼에서 최종 데이터 발견!', {
+                          contentLength: event.content?.length,
+                          inputTokens: event.usage?.inputTokens,
+                          outputTokens: event.usage?.outputTokens,
+                        });
+                      } else {
+                        console.log('ℹ️ [Streaming] 남은 버퍼의 중복 done 이벤트 무시');
+                      }
+                    }
+                  } catch (parseError) {
+                    console.warn('⚠️ 남은 버퍼 파싱 오류:', data.substring(0, 100), parseError);
+                  }
+                }
+              }
+            }
+          } else {
+            console.warn('⚠️ [Streaming] 남은 버퍼가 비어있습니다!');
+          }
+          break;
+        }
+
+        // SSE 데이터 파싱
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+
+        // 마지막 불완전한 라인은 다음 청크로
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data:')) {
+            const data = line.slice(5).trim();
+
+            if (data === '[DONE]') continue;
+
+            try {
+              const event = JSON.parse(data);
+
+              // 실시간 텍스트 조각
+              if (event.type === 'text') {
+                textEventCount++;
+                fullContent = event.fullContent || fullContent;
+
+                // 진행 콜백 호출
+                if (onProgress) {
+                  onProgress(event.content, fullContent);
+                }
+
+                // 첫 이벤트와 마지막 몇 개만 로깅
+                if (textEventCount <= 3 || textEventCount % 50 === 0) {
+                  console.log(`📝 [Streaming] 텍스트 수신 #${textEventCount}:`, fullContent.length, 'chars');
+                }
+              }
+
+              // 최종 완료 이벤트 (중복 방지: 첫 번째만 처리)
+              if (event.type === 'done') {
+                doneEventCount++;
+                if (!finalData) {
+                  finalData = event;
+                  console.log('✅ [Streaming] 최종 데이터 수신 (루프 중):', {
+                    contentLength: event.content?.length,
+                    inputTokens: event.usage?.inputTokens,
+                    outputTokens: event.usage?.outputTokens,
+                    totalCost: event.cost?.totalCost
+                  });
+                } else {
+                  console.log('ℹ️ [Streaming] 중복 done 이벤트 무시 (이미 수신함)');
+                }
+              }
+
+              // 에러 이벤트
+              if (event.type === 'error') {
+                throw new Error(event.error || '스트리밍 중 오류가 발생했습니다.');
+              }
+
+            } catch (parseError) {
+              console.warn('⚠️ SSE 파싱 오류:', data);
+            }
+          }
+        }
+      }
+
+      // 최종 데이터 검증
+      if (!finalData) {
+        console.error('❌ [Streaming] 최종 데이터 누락!', {
+          textEventCount,
+          doneEventCount,
+          fullContentLength: fullContent.length,
+          fullContentPreview: fullContent.substring(0, 200),
+          bufferWasEmpty: !buffer.trim()
+        });
+
+        // Fallback: fullContent가 있으면 done 이벤트 없이도 처리
+        if (fullContent && fullContent.length > 100) {
+          console.warn('⚠️ [Streaming] Fallback 모드: fullContent로 최종 데이터 생성 (done 이벤트 누락)');
+
+          // 토큰 추정 함수
+          const estimateTokens = (text: string): number => {
+            switch (provider) {
+              case 'anthropic': return Math.ceil(text.length / 3.5)
+              case 'openai': return Math.ceil(text.length / 4)
+              case 'google': return Math.ceil(text.length / 4)
+              default: return Math.ceil(text.length / 4)
+            }
+          }
+
+          const inputTokens = estimateTokens(prompt)
+          const outputTokens = estimateTokens(fullContent)
+
+          // 모델별 가격 정보
+          const getPricing = (): { inputCost: number; outputCost: number } => {
+            if (provider === 'anthropic') {
+              const pricing: Record<string, { inputCost: number; outputCost: number }> = {
+                'claude-sonnet-4-20250514': { inputCost: 3, outputCost: 15 },
+                'claude-3-5-sonnet-20241022': { inputCost: 3, outputCost: 15 },
+                'claude-3-haiku-20240307': { inputCost: 0.25, outputCost: 1.25 }
+              }
+              return pricing[model] || { inputCost: 3, outputCost: 15 }
+            } else if (provider === 'openai') {
+              const pricing: Record<string, { inputCost: number; outputCost: number }> = {
+                'gpt-4o': { inputCost: 5, outputCost: 15 },
+                'gpt-4o-mini': { inputCost: 0.15, outputCost: 0.6 }
+              }
+              return pricing[model] || { inputCost: 5, outputCost: 15 }
+            } else {
+              const pricing: Record<string, { inputCost: number; outputCost: number }> = {
+                'gemini-2.0-flash-exp': { inputCost: 0.075, outputCost: 0.3 },
+                'gemini-1.5-pro': { inputCost: 1.25, outputCost: 5 }
+              }
+              return pricing[model] || { inputCost: 1.25, outputCost: 5 }
+            }
+          }
+
+          const pricing = getPricing()
+          const inputCost = (inputTokens * pricing.inputCost) / 1000000
+          const outputCost = (outputTokens * pricing.outputCost) / 1000000
+
+          finalData = {
+            type: 'done',
+            content: fullContent,
+            usage: {
+              inputTokens,
+              outputTokens,
+              totalTokens: inputTokens + outputTokens
+            },
+            cost: {
+              inputCost,
+              outputCost,
+              totalCost: inputCost + outputCost
+            },
+            model,
+            finishReason: 'stop',
+            responseTime: Date.now() - startTime
+          }
+
+          console.log('✅ [Streaming] Fallback 데이터 생성 완료:', {
+            contentLength: fullContent.length,
+            inputTokens,
+            outputTokens,
+            totalCost: finalData.cost.totalCost,
+            responseTime: finalData.responseTime
+          });
+        } else {
+          throw new Error('스트리밍이 완료되었지만 최종 데이터를 받지 못했습니다.');
+        }
+      }
+
+      console.log('🎉 [Streaming] 전체 통계:', {
+        totalChunks: chunkCount,
+        totalTextEvents: textEventCount,
+        totalDoneEvents: doneEventCount,
+        finalContentLength: finalData.content?.length,
+        hasFinalData: !!finalData
+      });
+
+      console.log(`✅ [${provider}/${model}] 스트리밍 성공`, {
+        inputTokens: finalData.usage?.inputTokens,
+        outputTokens: finalData.usage?.outputTokens,
+        cost: finalData.cost?.totalCost,
+        responseTime: finalData.responseTime
+      });
+
+      return finalData;
+
+    } catch (error) {
+      console.error(`❌ [${provider}/${model}] 스트리밍 오류:`, error);
+
+      // 타임아웃 관련 에러 메시지 개선
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          throw new Error('스트리밍 요청이 중단되었습니다. 네트워크 연결을 확인해주세요.');
+        } else if (error.message.includes('504')) {
+          throw new Error('AI 서비스에서 처리 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.');
+        } else if (error instanceof TypeError && error.message.includes('fetch')) {
+          throw new Error('네트워크 연결을 확인해주세요. API 서버에 접근할 수 없습니다.');
+        }
+      }
+
+      throw error;
     }
   }
 
