@@ -535,6 +535,36 @@ export function ProposalWriterPage() {
       setAnalyzing(true)
       setError(null)
 
+      // 🔥 기존 제안서가 있는지 확인
+      console.log('🔍 기존 제안서 확인 중...')
+      const { data: existingProposal, error: checkError } = await supabase!
+        .from('proposal_workflow_analysis')
+        .select('id, created_at')
+        .eq('project_id', id)
+        .eq('workflow_step', 'proposal')
+        .eq('status', 'completed')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (existingProposal && !checkError) {
+        const createdDate = existingProposal.created_at
+          ? new Date(existingProposal.created_at).toLocaleString('ko-KR')
+          : '날짜 정보 없음'
+        const confirmed = window.confirm(
+          `이미 생성된 1차 제안서가 있습니다.\n` +
+          `생성 시간: ${createdDate}\n\n` +
+          `기존 제안서를 삭제하고 새로 생성하시겠습니까?`
+        )
+
+        if (!confirmed) {
+          setAnalyzing(false)
+          return
+        }
+
+        console.log('✅ 사용자가 제안서 재생성을 확인했습니다.')
+      }
+
       // 필수 질문 검증
       const requiredQuestions = questions.filter(q => q.is_required)
       const missingRequired = requiredQuestions.filter(q =>

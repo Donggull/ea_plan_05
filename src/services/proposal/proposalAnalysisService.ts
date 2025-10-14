@@ -710,6 +710,44 @@ export class ProposalAnalysisService {
     aiModel?: string
   ): Promise<AnalysisResult> {
     try {
+      // 🔥 기존 분석 결과가 있는지 확인하고 삭제 (제안서 재생성 지원)
+      if (workflowStep === 'proposal') {
+        console.log('🔍 기존 제안서 분석 결과 확인 중...');
+
+        try {
+          // 기존 분석 결과 조회
+          const { data: existingAnalyses, error: fetchError } = await supabase!
+            .from('proposal_workflow_analysis')
+            .select('id')
+            .eq('project_id', projectId)
+            .eq('workflow_step', workflowStep)
+            .eq('status', 'completed');
+
+          if (!fetchError && existingAnalyses && existingAnalyses.length > 0) {
+            console.log(`⚠️ 기존 제안서 분석 결과 ${existingAnalyses.length}개 발견, 삭제 중...`);
+
+            // 기존 분석 결과 삭제
+            const { error: deleteError } = await supabase!
+              .from('proposal_workflow_analysis')
+              .delete()
+              .eq('project_id', projectId)
+              .eq('workflow_step', workflowStep);
+
+            if (deleteError) {
+              console.error('❌ 기존 분석 결과 삭제 실패:', deleteError);
+              throw new Error('기존 분석 결과 삭제에 실패했습니다. 다시 시도해주세요.');
+            }
+
+            console.log('✅ 기존 제안서 분석 결과 삭제 완료');
+          } else {
+            console.log('✅ 기존 제안서 분석 결과 없음');
+          }
+        } catch (dbError) {
+          console.error('❌ 기존 분석 결과 처리 중 오류:', dbError);
+          // 오류가 발생해도 계속 진행 (새로 생성 시도)
+        }
+      }
+
       // 분석 컨텍스트 준비
       const context = await this.prepareAnalysisContext(projectId, workflowStep)
 
@@ -1265,12 +1303,31 @@ export class ProposalAnalysisService {
       let chunkCount = 0;
       let textEventCount = 0;
       let doneEventCount = 0;
+      let lastActivity = Date.now();
+      let lastFullContentLength = 0;
 
+      // 타임아웃 및 스트리밍 모니터링 설정
+      const TIMEOUT_MS = 30000; // 30초 타임아웃
 
       while (true) {
         const { done, value } = await reader.read();
 
         chunkCount++;
+
+        // 타임아웃 체크: 30초 동안 콘텐츠가 증가하지 않으면 종료
+        const now = Date.now();
+        if (fullContent.length > lastFullContentLength) {
+          lastActivity = now;
+          lastFullContentLength = fullContent.length;
+        } else if (now - lastActivity > TIMEOUT_MS) {
+          console.warn('⚠️ [Streaming] 타임아웃 - 30초 동안 활동 없음, 강제 종료');
+          break;
+        }
+
+        // 주기적 상태 로깅
+        if (chunkCount % 100 === 0) {
+          console.log(`📊 [Streaming] 진행 상황 - chunks: ${chunkCount}, text events: ${textEventCount}, content: ${fullContent.length} chars`);
+        }
 
         // 🔥 스트림 종료 전 남은 버퍼 처리 (PreAnalysisService와 동일한 패턴)
         if (done) {
