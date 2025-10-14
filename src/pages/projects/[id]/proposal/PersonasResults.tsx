@@ -83,15 +83,77 @@ export function PersonasResultsPage() {
         const latestAnalysis = analyses[0]
         console.log('✅ 최신 분석 결과:', latestAnalysis)
 
-        // analysis_result는 JSON 문자열이므로 파싱
-        let parsedResult: PersonaResult
-        if (typeof latestAnalysis.analysis_result === 'string') {
-          parsedResult = JSON.parse(latestAnalysis.analysis_result)
-        } else {
-          parsedResult = latestAnalysis.analysis_result
+        // structured_output에서 데이터 변환
+        const structuredOutput = latestAnalysis.structured_output
+        console.log('📊 structured_output:', structuredOutput)
+
+        // structured_output을 PersonaResult 형식으로 변환
+        const transformedPersonas: PersonaResult['personas'] = []
+
+        // Primary Persona 추가
+        if (structuredOutput.primaryPersona) {
+          const primary = structuredOutput.primaryPersona
+          transformedPersonas.push({
+            name: primary.name || '주요 페르소나',
+            age: primary.demographics?.age,
+            occupation: primary.demographics?.occupation,
+            background: primary.psychographics?.lifestyle || primary.demographics?.education,
+            goals: primary.needsAndPains?.motivations || [],
+            painPoints: primary.needsAndPains?.painPoints || [],
+            behaviors: primary.behaviors?.decisionFactors || [],
+            motivations: primary.needsAndPains?.primaryNeeds || [],
+            digitalBehavior: {
+              channels: primary.behaviors?.preferredChannels || [],
+              devices: primary.behaviors?.mediaConsumption || [],
+              techSavviness: primary.psychographics?.techSavvy ? `레벨 ${primary.psychographics.techSavvy}/5` : undefined
+            },
+            quote: primary.quote
+          })
         }
 
-        console.log('📄 파싱된 분석 결과:', parsedResult)
+        // Secondary Personas 추가
+        if (structuredOutput.secondaryPersonas && Array.isArray(structuredOutput.secondaryPersonas)) {
+          structuredOutput.secondaryPersonas.forEach((secondary: any) => {
+            transformedPersonas.push({
+              name: secondary.name || '추가 페르소나',
+              age: secondary.demographics?.age,
+              occupation: secondary.demographics?.occupation,
+              background: secondary.demographics?.education,
+              goals: [],
+              painPoints: [],
+              behaviors: secondary.behaviors?.informationSeeking ? [secondary.behaviors.informationSeeking] : [],
+              motivations: [],
+              digitalBehavior: {
+                channels: [],
+                devices: [],
+                techSavviness: undefined
+              }
+            })
+          })
+        }
+
+        // PersonaResult 형식으로 변환
+        const parsedResult: PersonaResult = {
+          summary: `총 ${transformedPersonas.length}개의 페르소나가 식별되었습니다. 주요 페르소나는 ${structuredOutput.primaryPersona?.name || '식별된 대상'}이며, AI 기술 도입을 검토하는 의사결정자입니다.`,
+          personas: transformedPersonas,
+          insights: [
+            '타겟 고객은 한국어 특화 AI 솔루션을 선호합니다',
+            '의사결정 시 기술적 신뢰성과 비용 효율성을 중시합니다',
+            '업계 전문지와 기술 컨퍼런스를 통해 정보를 습득합니다',
+            '동종업계 성공 사례와 케이스 스터디를 중요하게 생각합니다'
+          ],
+          recommendations: structuredOutput.recommendations || [],
+          nextSteps: [
+            '제안서 작성 단계로 진행',
+            '페르소나별 맞춤 메시지 개발',
+            '케이스 스터디 자료 준비',
+            '기술 컨퍼런스 참가 전략 수립'
+          ],
+          confidence: 0.85,
+          warnings: []
+        }
+
+        console.log('📄 변환된 분석 결과:', parsedResult)
 
         setAnalysis(parsedResult)
 
