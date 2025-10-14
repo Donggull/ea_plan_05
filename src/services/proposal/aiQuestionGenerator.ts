@@ -376,8 +376,8 @@ export class AIQuestionGenerator {
           summary: doc.content ? doc.content.substring(0, 200) : undefined,
           content: doc.content
         })) || [],
-        // 시장 조사의 경우 사전 분석 데이터 포함
-        preAnalysisData: (step === 'market_research' || step === 'personas') && context.preAnalysisData?.hasPreAnalysis
+        // 시장 조사, 페르소나, 제안서 단계는 사전 분석 데이터 포함
+        preAnalysisData: (step === 'market_research' || step === 'personas' || step === 'proposal') && context.preAnalysisData?.hasPreAnalysis
           ? {
               hasPreAnalysis: context.preAnalysisData.hasPreAnalysis,
               report: context.preAnalysisData.report,
@@ -385,8 +385,8 @@ export class AIQuestionGenerator {
               summary: context.preAnalysisData.summary
             }
           : undefined,
-        // 페르소나 분석의 경우 시장 조사 데이터 포함
-        marketResearchData: step === 'personas' && context.marketResearchData
+        // 페르소나, 제안서 단계는 시장 조사 데이터 포함
+        marketResearchData: (step === 'personas' || step === 'proposal') && context.marketResearchData
           ? context.marketResearchData
           : undefined,
         // 제안서 작성의 경우 페르소나 데이터 포함
