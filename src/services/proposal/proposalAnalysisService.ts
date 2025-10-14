@@ -1266,52 +1266,93 @@ export class ProposalAnalysisService {
       let textEventCount = 0;
       let doneEventCount = 0;
 
+      // 🔥 이벤트 타입별 처리 함수 (중복 방지)
+      const processEvent = (event: any, source: string) => {
+        if (!event || !event.type) return;
+
+        if (event.type === 'text') {
+          textEventCount++;
+          // 🔥 fullContent 누적 보장: event.fullContent를 우선 사용하되, 없으면 기존 fullContent 유지
+          if (event.fullContent) {
+            fullContent = event.fullContent;
+          } else if (event.content) {
+            fullContent += event.content;
+          }
+
+          // 진행 콜백 호출
+          if (onProgress) {
+            onProgress(event.content || '', fullContent);
+          }
+
+          // 첫 이벤트와 마지막 몇 개만 로깅
+          if (textEventCount <= 3 || textEventCount % 50 === 0) {
+            console.log(`📝 [Streaming] 텍스트 수신 #${textEventCount}:`, fullContent.length, 'chars');
+          }
+        }
+
+        // 최종 완료 이벤트 (중복 방지: 첫 번째만 처리)
+        if (event.type === 'done') {
+          doneEventCount++;
+          if (!finalData) {
+            finalData = event;
+            console.log(`✅ [Streaming] 최종 데이터 수신 (${source}):`, {
+              contentLength: event.content?.length,
+              inputTokens: event.usage?.inputTokens,
+              outputTokens: event.usage?.outputTokens,
+              totalCost: event.cost?.totalCost,
+              source
+            });
+          } else {
+            console.log(`ℹ️ [Streaming] 중복 done 이벤트 무시 (${source})`);
+          }
+        }
+
+        // 에러 이벤트
+        if (event.type === 'error') {
+          throw new Error(event.error || '스트리밍 중 오류가 발생했습니다.');
+        }
+      };
+
       while (true) {
         const { done, value } = await reader.read();
 
         chunkCount++;
 
-        // 스트림 종료 전 남은 버퍼 처리
+        // 🔥 스트림 종료 시 남은 버퍼 철저히 처리
         if (done) {
           console.log('✅ [Streaming] 스트림 완료', {
             chunkCount,
             textEventCount,
             doneEventCount,
             bufferLength: buffer.length,
-            bufferContent: buffer.substring(0, 200)
+            bufferPreview: buffer.substring(0, 300)
           });
 
-          // 남은 버퍼에 데이터가 있으면 처리
+          // 🔥 남은 버퍼를 모두 처리 (불완전한 라인까지 포함)
           if (buffer.trim()) {
-            console.log('🔍 [Streaming] 남은 버퍼 처리 시작:', buffer.substring(0, 200));
-            const remainingLines = buffer.split('\n');
+            console.log('🔍 [Streaming] 남은 버퍼 전체 처리 시작');
+            const remainingLines = buffer.split('\n').filter(line => line.trim());
 
             for (const line of remainingLines) {
-              if (line.trim() && line.startsWith('data:')) {
+              // 🔥 SSE 주석 라인 무시
+              if (line.startsWith(':')) {
+                continue;
+              }
+
+              if (line.startsWith('data:')) {
                 const data = line.slice(5).trim();
-                console.log('🔍 [Streaming] 남은 버퍼 라인:', data.substring(0, 100));
 
-                if (data && data !== '[DONE]') {
-                  try {
-                    const event = JSON.parse(data);
-                    console.log('🔍 [Streaming] 남은 버퍼 이벤트 타입:', event.type);
+                if (!data || data === '[DONE]') continue;
 
-                    if (event.type === 'done') {
-                      doneEventCount++;
-                      if (!finalData) {
-                        finalData = event;
-                        console.log('✅ [Streaming] 남은 버퍼에서 최종 데이터 발견!', {
-                          contentLength: event.content?.length,
-                          inputTokens: event.usage?.inputTokens,
-                          outputTokens: event.usage?.outputTokens,
-                        });
-                      } else {
-                        console.log('ℹ️ [Streaming] 남은 버퍼의 중복 done 이벤트 무시');
-                      }
-                    }
-                  } catch (parseError) {
-                    console.warn('⚠️ 남은 버퍼 파싱 오류:', data.substring(0, 100), parseError);
-                  }
+                try {
+                  const event = JSON.parse(data);
+                  console.log(`🔍 [Streaming] 남은 버퍼 이벤트: ${event.type}`);
+                  processEvent(event, 'buffer');
+                } catch (parseError) {
+                  console.warn('⚠️ 남은 버퍼 파싱 오류:', {
+                    linePreview: data.substring(0, 100),
+                    error: parseError instanceof Error ? parseError.message : String(parseError)
+                  });
                 }
               }
             }
@@ -1329,71 +1370,43 @@ export class ProposalAnalysisService {
         buffer = lines.pop() || '';
 
         for (const line of lines) {
+          // 🔥 SSE 주석 라인 무시
+          if (line.startsWith(':')) {
+            continue;
+          }
+
           if (line.startsWith('data:')) {
             const data = line.slice(5).trim();
 
-            if (data === '[DONE]') continue;
+            if (!data || data === '[DONE]') continue;
 
             try {
               const event = JSON.parse(data);
-
-              // 실시간 텍스트 조각
-              if (event.type === 'text') {
-                textEventCount++;
-                fullContent = event.fullContent || fullContent;
-
-                // 진행 콜백 호출
-                if (onProgress) {
-                  onProgress(event.content, fullContent);
-                }
-
-                // 첫 이벤트와 마지막 몇 개만 로깅
-                if (textEventCount <= 3 || textEventCount % 50 === 0) {
-                  console.log(`📝 [Streaming] 텍스트 수신 #${textEventCount}:`, fullContent.length, 'chars');
-                }
-              }
-
-              // 최종 완료 이벤트 (중복 방지: 첫 번째만 처리)
-              if (event.type === 'done') {
-                doneEventCount++;
-                if (!finalData) {
-                  finalData = event;
-                  console.log('✅ [Streaming] 최종 데이터 수신 (루프 중):', {
-                    contentLength: event.content?.length,
-                    inputTokens: event.usage?.inputTokens,
-                    outputTokens: event.usage?.outputTokens,
-                    totalCost: event.cost?.totalCost
-                  });
-                } else {
-                  console.log('ℹ️ [Streaming] 중복 done 이벤트 무시 (이미 수신함)');
-                }
-              }
-
-              // 에러 이벤트
-              if (event.type === 'error') {
-                throw new Error(event.error || '스트리밍 중 오류가 발생했습니다.');
-              }
-
+              processEvent(event, 'loop');
             } catch (parseError) {
-              console.warn('⚠️ SSE 파싱 오류:', data);
+              // 파싱 오류는 로그만 남기고 계속 진행
+              if (textEventCount <= 3) {
+                console.warn('⚠️ SSE 파싱 오류:', data.substring(0, 100));
+              }
             }
           }
         }
       }
 
-      // 최종 데이터 검증
+      // 🔥 최종 데이터 검증 및 fallback 처리
       if (!finalData) {
-        console.error('❌ [Streaming] 최종 데이터 누락!', {
+        console.error('❌ [Streaming] done 이벤트 미수신!', {
           textEventCount,
           doneEventCount,
           fullContentLength: fullContent.length,
-          fullContentPreview: fullContent.substring(0, 200),
+          fullContentPreview: fullContent.substring(0, 300),
           bufferWasEmpty: !buffer.trim()
         });
 
-        // Fallback: fullContent가 있으면 done 이벤트 없이도 처리
-        if (fullContent && fullContent.length > 100) {
-          console.warn('⚠️ [Streaming] Fallback 모드: fullContent로 최종 데이터 생성 (done 이벤트 누락)');
+        // 🔥 Fallback: fullContent가 있으면 무조건 사용 (done 이벤트 누락 대응)
+        // 최소 길이 조건을 50자로 낮춤 (짧은 응답도 허용)
+        if (fullContent && fullContent.length > 50) {
+          console.warn('⚠️ [Streaming] Fallback 모드 활성화: fullContent로 최종 데이터 생성');
 
           // 토큰 추정 함수
           const estimateTokens = (text: string): number => {
@@ -1414,19 +1427,24 @@ export class ProposalAnalysisService {
               const pricing: Record<string, { inputCost: number; outputCost: number }> = {
                 'claude-sonnet-4-20250514': { inputCost: 3, outputCost: 15 },
                 'claude-3-5-sonnet-20241022': { inputCost: 3, outputCost: 15 },
+                'claude-3-5-haiku-20241022': { inputCost: 0.8, outputCost: 4 },
+                'claude-3-opus-20240229': { inputCost: 15, outputCost: 75 },
                 'claude-3-haiku-20240307': { inputCost: 0.25, outputCost: 1.25 }
               }
               return pricing[model] || { inputCost: 3, outputCost: 15 }
             } else if (provider === 'openai') {
               const pricing: Record<string, { inputCost: number; outputCost: number }> = {
                 'gpt-4o': { inputCost: 5, outputCost: 15 },
-                'gpt-4o-mini': { inputCost: 0.15, outputCost: 0.6 }
+                'gpt-4o-mini': { inputCost: 0.15, outputCost: 0.6 },
+                'gpt-4-turbo': { inputCost: 10, outputCost: 30 },
+                'gpt-3.5-turbo': { inputCost: 0.5, outputCost: 1.5 }
               }
               return pricing[model] || { inputCost: 5, outputCost: 15 }
             } else {
               const pricing: Record<string, { inputCost: number; outputCost: number }> = {
                 'gemini-2.0-flash-exp': { inputCost: 0.075, outputCost: 0.3 },
-                'gemini-1.5-pro': { inputCost: 1.25, outputCost: 5 }
+                'gemini-1.5-pro': { inputCost: 1.25, outputCost: 5 },
+                'gemini-1.5-flash': { inputCost: 0.075, outputCost: 0.3 }
               }
               return pricing[model] || { inputCost: 1.25, outputCost: 5 }
             }
@@ -1462,8 +1480,19 @@ export class ProposalAnalysisService {
             responseTime: finalData.responseTime
           });
         } else {
-          throw new Error('스트리밍이 완료되었지만 최종 데이터를 받지 못했습니다.');
+          // 🔥 fullContent도 없으면 명확한 오류 메시지 제공
+          throw new Error(
+            `스트리밍 완료되었으나 최종 데이터 수신 실패 (done 이벤트: ${doneEventCount}회, ` +
+            `텍스트 이벤트: ${textEventCount}회, fullContent 길이: ${fullContent.length}자). ` +
+            `네트워크 연결을 확인하거나 잠시 후 다시 시도해주세요.`
+          );
         }
+      }
+
+      // 🔥 finalData는 있지만 content가 비어있는 경우 체크
+      if (finalData && (!finalData.content || finalData.content.length === 0)) {
+        console.warn('⚠️ [Streaming] finalData.content가 비어있음! fullContent로 대체');
+        finalData.content = fullContent;
       }
 
       console.log('🎉 [Streaming] 전체 통계:', {
