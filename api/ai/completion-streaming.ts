@@ -85,13 +85,13 @@ export default async function handler(
     switch (provider) {
       case 'anthropic':
         await handleAnthropicStreaming(res, apiKey, model, prompt, maxTokens, temperature, topP)
-        break
+        return // ✅ TypeScript 오류 수정: 모든 경로에서 return
       case 'openai':
         await handleOpenAIStreaming(res, apiKey, model, prompt, maxTokens, temperature, topP)
-        break
+        return // ✅ TypeScript 오류 수정: 모든 경로에서 return
       case 'google':
         await handleGoogleAIStreaming(res, apiKey, model, prompt, maxTokens, temperature, topP)
-        break
+        return // ✅ TypeScript 오류 수정: 모든 경로에서 return
       default:
         res.write(`data: ${JSON.stringify({ type: 'error', error: `지원하지 않는 프로바이더: ${provider}` })}\n\n`)
         res.end()
