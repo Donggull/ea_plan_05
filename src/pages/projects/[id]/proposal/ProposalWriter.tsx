@@ -399,6 +399,17 @@ export function ProposalWriterPage() {
     })
     setCategories(updatedCategories)
 
+    // 🔥 추가: 전체 진행률 업데이트 (DB에서 조회하여 정확한 진행률 반영)
+    if (id) {
+      try {
+        const status = await ProposalDataManager.getStepCompletionStatus(id, 'proposal')
+        setCompletionStatus(status)
+        console.log(`📊 전체 진행률 업데이트: ${Math.round(status.completionRate)}%`)
+      } catch (err) {
+        console.error('진행률 업데이트 실패:', err)
+      }
+    }
+
     console.log(`🔄 카테고리 변경: ${categories[currentCategory]?.name} → ${categories[newCategoryIndex]?.name}`)
     console.log(`📊 업데이트된 카테고리 상태:`, updatedCategories.map(c => ({
       name: c.name,
@@ -418,7 +429,7 @@ export function ProposalWriterPage() {
         [questionId]: value
       }
 
-      // 답변 변경 시 카테고리 완료 상태 즉시 업데이트
+      // 답변 변경 시 카테고리 완료 상태 및 전체 진행률 즉시 업데이트
       setTimeout(() => {
         const updatedCategories = categories.map(category => {
           const completed = category.questions.filter(q =>
@@ -431,6 +442,29 @@ export function ProposalWriterPage() {
           }
         })
         setCategories(updatedCategories)
+
+        // 🔥 추가: 전체 진행률 로컬 계산 (실시간 UX 개선)
+        const totalQuestions = questions.length
+        const answeredQuestions = questions.filter(q =>
+          isValidAnswer(updated[q.question_id])
+        ).length
+        const requiredQuestions = questions.filter(q => q.is_required).length
+        const answeredRequiredQuestions = questions.filter(q =>
+          q.is_required && isValidAnswer(updated[q.question_id])
+        ).length
+        const isCompleted = requiredQuestions > 0
+          ? answeredRequiredQuestions === requiredQuestions
+          : answeredQuestions === totalQuestions
+        const completionRate = totalQuestions > 0 ? (answeredQuestions / totalQuestions) * 100 : 0
+
+        setCompletionStatus({
+          totalQuestions,
+          answeredQuestions,
+          requiredQuestions,
+          answeredRequiredQuestions,
+          isCompleted,
+          completionRate
+        })
       }, 0)
 
       return updated
