@@ -331,67 +331,201 @@ JSON 형식:
   },
 
   proposal: {
-    system: `당신은 경험이 풍부한 제안서 작성 전문가입니다. 시장 분석과 페르소나 분석 결과를 바탕으로 설득력 있는 제안서 구조와 내용을 설계해주세요.
+    system: `당신은 20년 경력의 전문 제안서 작성 컨설턴트입니다. 사전 분석, 시장 조사, 페르소나 분석, 질문 답변을 통합하여 **실제 제출 가능한 고품질 제안서**를 작성해주세요.
 
-제안서 구성 요소:
-- 문제 정의와 기회 제시
-- 솔루션 개요와 접근 방법
-- 차별화 포인트와 경쟁 우위
-- 구현 계획과 일정
-- 기대 효과와 성공 지표
-- 위험 관리 방안
+# 미션
+제공된 모든 데이터를 종합하여 **10-15페이지 분량의 완전한 제안서**를 생성하세요. 각 섹션은 충분한 내용(300-800자)을 포함해야 하며, 단순 개요가 아닌 실제 제안서 콘텐츠를 작성하세요.
 
-결과는 다음 JSON 형식으로 제공해주세요:
+# 제안서 작성 원칙
+
+## 1. 데이터 통합 전략
+- **사전 분석**: 핵심 문제, 기술적 요구사항, 현황 분석
+- **시장 조사**: 시장 규모, 경쟁 환경, 기회 요인
+- **페르소나 분석**: 타겟 고객의 니즈, Pain Points, 의사결정 요인
+- **질문 답변**: 프로젝트 구체적 요구사항, 제약사항, 기대사항
+
+→ **모든 섹션에서 이 4가지 데이터 소스를 명시적으로 활용하고 출처를 표시하세요**
+
+## 2. 섹션별 작성 가이드
+
+### 필수 섹션 (순서대로)
+1. **표지 및 목차** (섹션 ID: cover)
+2. **프로젝트 개요** (섹션 ID: overview)
+   - 프로젝트명, 배경, 목표, 범위
+   - 사전 분석의 핵심 발견사항 인용
+3. **현황 분석 및 문제 정의** (섹션 ID: problem)
+   - 사전 분석에서 도출된 핵심 문제
+   - 시장 조사에서 확인된 시장 트렌드와 연결
+   - 페르소나의 Pain Points 구체적 설명
+4. **타겟 고객 분석** (섹션 ID: target)
+   - 페르소나 분석 결과 상세 요약
+   - 고객 니즈, 의사결정 요인, 구매 패턴
+5. **제안 솔루션 개요** (섹션 ID: solution_overview)
+   - 핵심 솔루션 및 접근 방법
+   - 사전 분석 권장사항과 연결
+   - 차별화 포인트 (시장 조사 경쟁 분석 기반)
+6. **솔루션 상세 설명** (섹션 ID: solution_detail)
+   - 주요 기능 및 모듈
+   - 기술 스택 (질문 답변 기반)
+   - 아키텍처 개요
+7. **구현 계획 및 일정** (섹션 ID: implementation)
+   - 단계별 구현 계획 (Phase 1, 2, 3...)
+   - 상세 일정표 (Gantt Chart 텍스트 설명)
+   - 주요 마일스톤 및 산출물
+8. **프로젝트 팀 및 역할** (섹션 ID: team)
+   - 투입 인력 구성
+   - 역할 및 책임 (RACI Matrix 포함)
+9. **비용 개요** (섹션 ID: budget_overview)
+   - 총 사업비 및 주요 비용 항목
+   - 단계별 비용 배분
+10. **기대 효과 및 성공 지표** (섹션 ID: outcomes)
+    - 비즈니스 가치 및 ROI (시장 조사 데이터 기반)
+    - 핵심 성과 지표 (KPI)
+    - 페르소나 니즈 충족도 평가 기준
+11. **위험 관리 계획** (섹션 ID: risk)
+    - 식별된 위험 요소
+    - 완화 전략 및 대응 계획
+12. **결론 및 제안 요약** (섹션 ID: conclusion)
+
+### 선택 섹션 (필요시 추가)
+- **경쟁사 비교 분석** (섹션 ID: competition) - 시장 조사 데이터 풍부할 경우
+- **기술적 검증 계획** (섹션 ID: technical_validation) - 기술 프로젝트일 경우
+- **운영 및 유지보수 계획** (섹션 ID: maintenance) - 장기 프로젝트일 경우
+
+## 3. 콘텐츠 품질 기준
+- **구체성**: 추상적 설명 금지, 구체적 수치와 사례 포함
+- **일관성**: 모든 섹션이 사전 분석/시장 조사/페르소나 분석과 일관되게 연결
+- **설득력**: 각 주장에 대한 근거 제시 (데이터 소스 명시)
+- **실용성**: 실행 가능한 계획, 현실적 일정과 비용
+
+## 4. HTML 태그 사용 가이드
+각 섹션의 content 필드에서 다음 태그를 활용하여 가독성을 높이세요:
+- \`<h3>중요 소제목</h3>\`
+- \`<p>단락 텍스트</p>\`
+- \`<ul><li>목록 항목</li></ul>\`
+- \`<strong>강조 텍스트</strong>\`
+- \`<table>\` 표 (일정표, 비용표 등)
+
+# 출력 JSON 형식
+
+**중요: 반드시 아래 형식을 정확히 따르세요. sections 배열이 핵심입니다.**
+
 {
-  "summary": "제안서 핵심 요약",
-  "keyFindings": ["핵심 제안 포인트들"],
-  "recommendations": ["제안서 작성 권장사항들"],
-  "structuredData": {
-    "executiveSummary": "경영진 요약",
-    "problemStatement": "문제 정의",
-    "proposedSolution": {
-      "overview": "솔루션 개요",
-      "approach": "접근 방법",
-      "keyFeatures": ["핵심 기능들"],
-      "differentiators": ["차별화 요소들"]
+  "title": "제안서 제목 (예: [프로젝트명] 구축 제안서)",
+  "summary": "제안서 전체를 3-5문장으로 요약. 사전 분석/시장 조사/페르소나 분석 핵심 내용 모두 언급",
+  "sections": [
+    {
+      "id": "cover",
+      "title": "표지 및 목차",
+      "content": "<h3>제안서 제목</h3><p>제안 일자, 제안 회사명, 프로젝트 개요 1-2문장</p><h3>목차</h3><ul><li>1. 프로젝트 개요</li><li>2. 현황 분석 및 문제 정의</li>...</ul>",
+      "order": 1
     },
-    "implementation": {
-      "timeline": "구현 일정",
-      "phases": ["단계별 계획"],
-      "resources": ["필요 자원들"],
-      "milestones": ["주요 마일스톤들"]
+    {
+      "id": "overview",
+      "title": "프로젝트 개요",
+      "content": "<h3>프로젝트 배경</h3><p>사전 분석에서 도출된 핵심 문제: [구체적 설명 300자 이상]</p><h3>프로젝트 목표</h3><ul><li>목표 1</li><li>목표 2</li>...</ul><h3>프로젝트 범위</h3><p>...</p>",
+      "order": 2
     },
-    "expectedOutcomes": {
-      "businessValue": "비즈니스 가치",
-      "kpis": ["핵심 성과 지표들"],
-      "roi": "투자 대비 효과",
-      "timeline": "효과 실현 시기"
+    {
+      "id": "problem",
+      "title": "현황 분석 및 문제 정의",
+      "content": "<h3>현황 분석</h3><p>[사전 분석] 핵심 발견: ...</p><p>[시장 조사] 시장 트렌드: ...</p><h3>핵심 문제</h3><ul><li>문제 1: [페르소나 Pain Point와 연결]</li><li>문제 2: ...</li></ul>",
+      "order": 3
     },
-    "riskMitigation": {
-      "identifiedRisks": ["식별된 위험들"],
-      "mitigationStrategies": ["완화 전략들"],
-      "contingencyPlans": ["비상 계획들"]
-    }
-  },
-  "nextSteps": ["제안서 완성을 위한 다음 단계들"],
+    {
+      "id": "target",
+      "title": "타겟 고객 분석",
+      "content": "<h3>주요 페르소나</h3><p>[페르소나 분석] 이름: ... / 직책: ... / 니즈: ...</p><h3>의사결정 요인</h3><ul><li>요인 1</li>...</ul>",
+      "order": 4
+    },
+    ...
+    // 총 10-15개 섹션
+  ],
+  "keyFindings": [
+    "[사전 분석] 핵심 발견 1",
+    "[시장 조사] 핵심 발견 2",
+    "[페르소나] 핵심 발견 3",
+    "[질문 답변] 핵심 발견 4"
+  ],
+  "recommendations": [
+    "제안서 기반 실행 권장사항 1",
+    "제안서 기반 실행 권장사항 2",
+    ...
+  ],
+  "nextSteps": [
+    "제안서 승인 후 다음 단계 1",
+    "제안서 승인 후 다음 단계 2",
+    ...
+  ],
   "confidence": 0.9,
-  "warnings": ["주의할 점들"]
-}`,
+  "warnings": [
+    "주의사항 1 (있을 경우)",
+    ...
+  ]
+}
 
-    user: `프로젝트명: {projectName}
-프로젝트 설명: {projectDescription}
+**정확한 JSON만 반환하세요. 다른 텍스트는 포함하지 마세요.**`,
 
-=== 이전 분석 결과 ===
-시장 분석: {marketAnalysis}
-페르소나 분석: {personaAnalysis}
+    user: `# 프로젝트 기본 정보
+**프로젝트명**: {projectName}
+**프로젝트 설명**: {projectDescription}
 
-=== 제안서 관련 질문-답변 ===
+---
+
+# 1단계: 사전 분석 결과
+
+## 사전 분석 보고서
+{preAnalysisReport}
+
+## 사전 분석 문서 분석 결과
+{preAnalysisDocuments}
+
+**활용 지침**: 사전 분석에서 도출된 핵심 문제, 권장사항, 기술적 요구사항을 제안서 전체에 반영하세요.
+
+---
+
+# 2단계: 시장 조사 결과
+
+{marketResearchAnalysis}
+
+**활용 지침**: 시장 규모, 경쟁 환경, 차별화 요소를 제안서의 비즈니스 가치 및 경쟁 우위 섹션에 반영하세요.
+
+---
+
+# 3단계: 페르소나 분석 결과
+
+{personaAnalysis}
+
+**활용 지침**: 타겟 고객의 니즈, Pain Points, 의사결정 요인을 솔루션 설계 및 기대 효과 섹션에 구체적으로 연결하세요.
+
+---
+
+# 4단계: 제안서 작성 질문-답변
+
 {questionResponses}
 
-=== 관련 문서 내용 ===
+**활용 지침**: 프로젝트 구체적 요구사항, 제약사항, 예산, 일정 등을 제안서 상세 섹션에 반영하세요.
+
+---
+
+# 5단계: 업로드된 프로젝트 문서
+
 {documentContents}
 
-위 모든 정보를 종합하여 강력하고 설득력 있는 제안서 구조를 설계해주세요.`
+**활용 지침**: 추가 참고 자료로 활용하여 제안서의 구체성을 높이세요.
+
+---
+
+# 최종 지시사항
+
+위 1-5단계의 모든 데이터를 통합하여 **10-15개 섹션, 각 섹션 300-800자 분량의 완전한 제안서**를 JSON 형식으로 생성하세요.
+
+**핵심 요구사항:**
+1. sections 배열에 모든 제안서 내용을 구조화
+2. 각 섹션은 실제 제안서 콘텐츠 (단순 개요 금지)
+3. 데이터 소스 명시 (예: "[사전 분석] ...", "[페르소나] ...")
+4. HTML 태그로 가독성 향상
+5. 일관성, 구체성, 설득력 확보`
   },
 
   budget: {
@@ -787,6 +921,7 @@ export class ProposalAnalysisService {
     // 이전 단계 분석 결과 조회 (페르소나, 제안서, 비용 산정에서 사용)
     let previousAnalysisContext = ''
     let marketResearchAnalysis = ''
+    let personaAnalysis = ''
     if (workflowStep !== 'market_research') {
       const previousSteps = this.getPreviousSteps(workflowStep)
       for (const step of previousSteps) {
@@ -798,6 +933,15 @@ export class ProposalAnalysisService {
           // 페르소나 단계에서는 시장 조사 결과를 별도 변수에 저장
           if (step === 'market_research' && workflowStep === 'personas') {
             marketResearchAnalysis = result.analysis_result
+          }
+
+          // 제안서 단계에서는 시장 조사 및 페르소나 분석 결과를 별도 변수에 저장
+          if (workflowStep === 'proposal') {
+            if (step === 'market_research') {
+              marketResearchAnalysis = result.analysis_result
+            } else if (step === 'personas') {
+              personaAnalysis = result.analysis_result
+            }
           }
         }
       }
@@ -821,8 +965,38 @@ export class ProposalAnalysisService {
         .replace('{preAnalysisDocuments}', preAnalysisDocuments)
         .replace('{marketResearchAnalysis}', marketResearchAnalysis || '시장 조사 결과 없음')
     } else if (workflowStep === 'proposal') {
-      userPrompt = userPrompt.replace('{marketAnalysis}', previousAnalysisContext.includes('MARKET_RESEARCH') ? 'Market analysis data...' : '시장 분석 결과 없음')
-      userPrompt = userPrompt.replace('{personaAnalysis}', previousAnalysisContext.includes('PERSONAS') ? 'Persona analysis data...' : '페르소나 분석 결과 없음')
+      // 제안서 단계: 사전 분석 + 시장 조사 + 페르소나 모두 통합
+      const preAnalysisData = await ProposalDataManager.getPreAnalysisData(context.projectId)
+
+      // 사전 분석 보고서
+      let proposalPreAnalysisReport = ''
+      if (preAnalysisData.hasPreAnalysis && preAnalysisData.report) {
+        proposalPreAnalysisReport = `분석 요약: ${preAnalysisData.report.summary || '요약 없음'}\n\n` +
+          `핵심 발견사항:\n${preAnalysisData.report.key_findings?.join('\n- ') || '없음'}\n\n` +
+          `권장사항:\n${preAnalysisData.report.recommendations?.join('\n- ') || '없음'}\n\n` +
+          `구조화된 데이터:\n${JSON.stringify(preAnalysisData.report.structured_data, null, 2) || '{}'}`
+      } else {
+        proposalPreAnalysisReport = '이 프로젝트에는 사전 분석 단계가 수행되지 않았습니다.'
+      }
+
+      // 사전 분석 문서 분석 결과
+      let proposalPreAnalysisDocuments = ''
+      if (preAnalysisData.documentAnalyses && preAnalysisData.documentAnalyses.length > 0) {
+        proposalPreAnalysisDocuments = preAnalysisData.documentAnalyses.map((analysis: any) => {
+          return `[문서: ${analysis.document_name || '알 수 없음'}]\n` +
+            `분석 요약: ${analysis.summary || '요약 없음'}\n` +
+            `핵심 포인트:\n- ${analysis.key_points?.join('\n- ') || '없음'}\n` +
+            `카테고리: ${analysis.categories?.join(', ') || '없음'}`
+        }).join('\n\n---\n\n')
+      } else {
+        proposalPreAnalysisDocuments = '사전 분석된 문서가 없습니다.'
+      }
+
+      userPrompt = userPrompt
+        .replace('{preAnalysisReport}', proposalPreAnalysisReport)
+        .replace('{preAnalysisDocuments}', proposalPreAnalysisDocuments)
+        .replace('{marketResearchAnalysis}', marketResearchAnalysis || '시장 조사 결과가 없습니다. 제안서 작성 시 일반적인 시장 조사 관점에서 접근하세요.')
+        .replace('{personaAnalysis}', personaAnalysis || '페르소나 분석 결과가 없습니다. 제안서 작성 시 일반적인 타겟 고객 관점에서 접근하세요.')
     } else if (workflowStep === 'budget') {
       userPrompt = userPrompt.replace('{marketAnalysis}', 'Market analysis...')
       userPrompt = userPrompt.replace('{personaAnalysis}', 'Persona analysis...')
