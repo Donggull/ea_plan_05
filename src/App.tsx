@@ -26,6 +26,7 @@ import { ProposalWriterPage } from '@/pages/projects/[id]/proposal/ProposalWrite
 import { ProposalWriterResultsPage } from '@/pages/projects/[id]/proposal/ProposalWriterResults'
 import { ProposalDraftPage } from '@/pages/projects/[id]/proposal/ProposalDraft'
 import { ProposalTemplateSelectorPage } from '@/pages/projects/[id]/proposal/ProposalTemplateSelector'
+import { ProposalFinalPage } from '@/pages/projects/[id]/proposal/ProposalFinal'
 import { BudgetPage } from '@/pages/projects/[id]/proposal/Budget'
 import { BudgetResultsPage } from '@/pages/projects/[id]/proposal/BudgetResults'
 import { DocumentsPage } from '@/pages/DocumentsPage'
@@ -82,6 +83,7 @@ function App() {
               <Route path="/projects/:id/proposal/proposal-writer/results" element={<ProposalWriterResultsPage />} />
               <Route path="/projects/:id/proposal/draft" element={<ProposalDraftPage />} />
               <Route path="/projects/:id/proposal/template-selector" element={<ProposalTemplateSelectorPage />} />
+              <Route path="/projects/:id/proposal/final" element={<ProposalFinalPage />} />
               <Route path="/projects/:id/proposal/budget" element={<BudgetPage />} />
               <Route path="/projects/:id/proposal/budget/results" element={<BudgetResultsPage />} />
               <Route path="/documents" element={<DocumentsPage />} />
