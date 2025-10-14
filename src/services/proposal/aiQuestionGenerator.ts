@@ -312,6 +312,7 @@ export class AIQuestionGenerator {
         summary: string
       }
       marketResearchData?: any  // 시장 조사 분석 결과 (페르소나 단계용)
+      personasData?: any  // 페르소나 분석 결과 (제안서 단계용)
     },
     userId?: string,
     selectedModelId?: string
@@ -320,8 +321,8 @@ export class AIQuestionGenerator {
       console.log('🤖 AIQuestionGenerator.generateAIQuestions 시작 (새로운 API)');
       console.log('📊 입력 파라미터:', { step, projectId, userId, context });
 
-      // 사전 분석이 아닌 경우 AND 시장 조사가 아닌 경우 AND 페르소나가 아닌 경우 기본 질문만 반환
-      if (step !== 'pre_analysis' && step !== 'questions' && step !== 'market_research' && step !== 'personas') {
+      // 사전 분석이 아닌 경우 AND 시장 조사가 아닌 경우 AND 페르소나가 아닌 경우 AND 제안서가 아닌 경우 기본 질문만 반환
+      if (step !== 'pre_analysis' && step !== 'questions' && step !== 'market_research' && step !== 'personas' && step !== 'proposal') {
         const baseQuestions = this.generateQuestions(step, projectId)
         return baseQuestions
       }
@@ -388,11 +389,16 @@ export class AIQuestionGenerator {
         marketResearchData: step === 'personas' && context.marketResearchData
           ? context.marketResearchData
           : undefined,
+        // 제안서 작성의 경우 페르소나 데이터 포함
+        personasData: step === 'proposal' && context.personasData
+          ? context.personasData
+          : undefined,
         context: {
           userId,
           sessionId: `${projectId}_${Date.now()}`,
           requestType: step === 'market_research' ? 'market_research_questions' :
                        step === 'personas' ? 'personas_questions' :
+                       step === 'proposal' ? 'proposal_questions' :
                        'pre_analysis_questions'
         }
       };
