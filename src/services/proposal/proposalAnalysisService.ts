@@ -1305,28 +1305,59 @@ export class ProposalAnalysisService {
       let doneEventCount = 0;
       let lastActivity = Date.now();
       let lastFullContentLength = 0;
+      let noChangeCount = 0; // 콘텐츠가 변하지 않은 횟수
 
       // 타임아웃 및 스트리밍 모니터링 설정
-      const TIMEOUT_MS = 30000; // 30초 타임아웃
+      const TIMEOUT_MS = 10000; // 10초 타임아웃으로 단축
+      const MAX_TEXT_EVENTS = 1000; // 최대 텍스트 이벤트 수
+      const NO_CHANGE_THRESHOLD = 50; // 50번 연속 변화 없으면 종료
 
       while (true) {
         const { done, value } = await reader.read();
 
         chunkCount++;
 
-        // 타임아웃 체크: 30초 동안 콘텐츠가 증가하지 않으면 종료
+        // 콘텐츠 변화 모니터링
         const now = Date.now();
         if (fullContent.length > lastFullContentLength) {
           lastActivity = now;
           lastFullContentLength = fullContent.length;
-        } else if (now - lastActivity > TIMEOUT_MS) {
-          console.warn('⚠️ [Streaming] 타임아웃 - 30초 동안 활동 없음, 강제 종료');
+          noChangeCount = 0;
+        } else {
+          noChangeCount++;
+
+          // 연속으로 변화가 없으면 종료
+          if (noChangeCount >= NO_CHANGE_THRESHOLD) {
+            console.warn(`⚠️ [Streaming] ${NO_CHANGE_THRESHOLD}번 연속 콘텐츠 변화 없음, 스트림 종료`);
+            break;
+          }
+
+          // 타임아웃 체크
+          if (now - lastActivity > TIMEOUT_MS) {
+            console.warn('⚠️ [Streaming] 타임아웃 - 10초 동안 활동 없음, 강제 종료');
+            break;
+          }
+        }
+
+        // 최대 이벤트 수 초과 시 종료
+        if (textEventCount >= MAX_TEXT_EVENTS) {
+          console.warn(`⚠️ [Streaming] 최대 텍스트 이벤트 수(${MAX_TEXT_EVENTS}) 초과, 강제 종료`);
           break;
         }
 
+        // JSON 완료 패턴 감지
+        if (fullContent.includes('```') && fullContent.includes('}') &&
+            (fullContent.includes('"title"') || fullContent.includes('"summary"'))) {
+          const jsonEndPattern = /\}\s*```\s*$/;
+          if (jsonEndPattern.test(fullContent.trim())) {
+            console.log('✅ [Streaming] JSON 완료 패턴 감지, 스트림 종료');
+            break;
+          }
+        }
+
         // 주기적 상태 로깅
-        if (chunkCount % 100 === 0) {
-          console.log(`📊 [Streaming] 진행 상황 - chunks: ${chunkCount}, text events: ${textEventCount}, content: ${fullContent.length} chars`);
+        if (chunkCount % 50 === 0) {
+          console.log(`📊 [Streaming] 진행 - chunks: ${chunkCount}, text: ${textEventCount}, content: ${fullContent.length} chars, noChange: ${noChangeCount}`);
         }
 
         // 🔥 스트림 종료 전 남은 버퍼 처리 (PreAnalysisService와 동일한 패턴)
@@ -1450,18 +1481,20 @@ export class ProposalAnalysisService {
         }
       }
 
-      // 최종 데이터 검증 (PreAnalysisService와 동일한 패턴)
-      if (!finalData) {
-        console.error('❌ [Streaming] 최종 데이터 누락!', {
+      // 최종 데이터 검증 - 매우 적극적인 fallback 처리
+      if (!finalData || !finalData.content) {
+        console.error('❌ [Streaming] done 이벤트 미수신 또는 content 누락!', {
           textEventCount,
           doneEventCount,
           fullContentLength: fullContent.length,
-          fullContentPreview: fullContent.substring(0, 200)
+          fullContentPreview: fullContent.substring(0, 200),
+          hasFinalData: !!finalData,
+          hasContent: !!(finalData?.content)
         });
 
-        // Fallback: fullContent가 있으면 사용
-        if (fullContent && fullContent.length > 100) {
-          console.warn('⚠️ [Streaming] Fallback 모드 활성화: fullContent로 최종 데이터 생성');
+        // 🔥 매우 적극적인 Fallback: 최소한의 조건만 확인
+        if (fullContent && fullContent.length > 50) { // 조건을 50자로 낮춤
+          console.warn('⚠️ [Streaming] 강제 Fallback 모드 활성화: fullContent로 최종 데이터 생성');
 
           // 토큰 추정 함수
           const estimateTokens = (text: string): number => {
@@ -1544,31 +1577,53 @@ export class ProposalAnalysisService {
         }
       }
 
-      // finalData는 있지만 content가 비어있는 경우 체크 (매우 중요!)
-      if (finalData && (!finalData.content || finalData.content.length === 0)) {
-        console.warn('⚠️ [Streaming] finalData.content가 비어있음! fullContent로 대체');
-        finalData.content = fullContent;
-      }
+      // 🔥 강제 finalData 생성 - fullContent가 있으면 무조건 사용
+      if ((!finalData || !finalData.content || finalData.content.length === 0) && fullContent && fullContent.length > 0) {
+        console.warn('⚠️ [Streaming] finalData 부재 또는 content 비어있음 - fullContent로 강제 생성');
 
-      // 여전히 content가 없으면 fullContent 강제 사용
-      if (!finalData || !finalData.content) {
-        console.error('❌ [Streaming] 최종 데이터가 여전히 없음! fullContent 강제 사용');
-        if (fullContent && fullContent.length > 0) {
-          if (!finalData) {
-            finalData = {
-              type: 'done',
-              content: fullContent,
-              usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
-              cost: { inputCost: 0, outputCost: 0, totalCost: 0 },
-              model: model,
-              finishReason: 'stop',
-              responseTime: Date.now() - startTime
-            };
-          } else {
-            finalData.content = fullContent;
+        // 토큰 및 비용 계산
+        const estimateTokens = (text: string): number => {
+          switch (provider) {
+            case 'anthropic': return Math.ceil(text.length / 3.5)
+            case 'openai': return Math.ceil(text.length / 4)
+            case 'google': return Math.ceil(text.length / 4)
+            default: return Math.ceil(text.length / 4)
           }
-          console.log('✅ [Streaming] fullContent로 복구 성공:', fullContent.length, 'chars');
         }
+
+        const inputTokens = estimateTokens(prompt)
+        const outputTokens = estimateTokens(fullContent)
+
+        // 가격 정보
+        const getPricing = (): { inputCost: number; outputCost: number } => {
+          if (provider === 'anthropic') {
+            return { inputCost: 3, outputCost: 15 }
+          } else if (provider === 'openai') {
+            return { inputCost: 5, outputCost: 15 }
+          } else {
+            return { inputCost: 1.25, outputCost: 5 }
+          }
+        }
+
+        const pricing = getPricing()
+        const inputCost = (inputTokens * pricing.inputCost) / 1000000
+        const outputCost = (outputTokens * pricing.outputCost) / 1000000
+
+        finalData = {
+          type: 'done',
+          content: fullContent,
+          usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens },
+          cost: { inputCost, outputCost, totalCost: inputCost + outputCost },
+          model: model,
+          finishReason: 'forced',
+          responseTime: Date.now() - startTime
+        };
+
+        console.log('✅ [Streaming] 강제 finalData 생성 완료:', {
+          contentLength: fullContent.length,
+          textEvents: textEventCount,
+          doneEvents: doneEventCount
+        });
       }
 
       console.log('🎉 [Streaming] 전체 통계:', {
@@ -1580,11 +1635,44 @@ export class ProposalAnalysisService {
         hasContent: !!(finalData?.content)
       });
 
-      console.log(`✅ [${provider}/${model}] 스트리밍 성공`, {
+      // 🔥 최종 검증: finalData가 정말로 있고 content가 있는지 확인
+      if (!finalData || !finalData.content) {
+        console.error('❌ [Streaming] 치명적 오류: 모든 시도 후에도 finalData 없음!');
+
+        // 최후의 수단: 에러를 던지지 말고 최소한의 데이터라도 반환
+        if (fullContent && fullContent.length > 0) {
+          finalData = {
+            type: 'done',
+            content: fullContent,
+            usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+            cost: { inputCost: 0, outputCost: 0, totalCost: 0 },
+            model: model,
+            finishReason: 'emergency',
+            responseTime: Date.now() - startTime
+          };
+          console.log('🚨 [Streaming] 비상 finalData 생성');
+        } else {
+          // 정말 최악의 경우 - 빈 응답이라도 반환
+          finalData = {
+            type: 'done',
+            content: '{"error": "스트리밍 응답을 받지 못했습니다."}',
+            usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+            cost: { inputCost: 0, outputCost: 0, totalCost: 0 },
+            model: model,
+            finishReason: 'error',
+            responseTime: Date.now() - startTime
+          };
+          console.log('🚨 [Streaming] 오류 finalData 반환');
+        }
+      }
+
+      console.log(`✅ [${provider}/${model}] 스트리밍 완료`, {
         inputTokens: finalData.usage?.inputTokens,
         outputTokens: finalData.usage?.outputTokens,
         cost: finalData.cost?.totalCost,
-        responseTime: finalData.responseTime
+        responseTime: finalData.responseTime,
+        contentLength: finalData.content?.length || 0,
+        finishReason: finalData.finishReason
       });
 
       return finalData;
