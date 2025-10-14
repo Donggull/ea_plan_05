@@ -412,18 +412,39 @@ export function ProposalWorkflowPage() {
                   )}
 
                   {stepDetail?.analysisCompleted && (
-                    <button
-                      onClick={() => {
-                        const urlPath = step.key === 'market_research' ? 'market-research' :
-                                       step.key === 'proposal' ? 'proposal-writer' :
-                                       step.key // personas, budget은 그대로
-                        navigate(`/projects/${id}/proposal/${urlPath}/results`)
-                      }}
-                      className="flex items-center space-x-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
-                    >
-                      <CheckCircle className="w-4 h-4" />
-                      <span>결과 보기</span>
-                    </button>
+                    <>
+                      {step.key === 'proposal' ? (
+                        // 제안서 작성 단계: 1차 제안서와 최종 제안서 모두 표시
+                        <>
+                          <button
+                            onClick={() => navigate(`/projects/${id}/proposal/draft`)}
+                            className="flex items-center space-x-2 px-3 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors text-sm"
+                          >
+                            <FileText className="w-4 h-4" />
+                            <span>1차 제안서</span>
+                          </button>
+                          <button
+                            onClick={() => navigate(`/projects/${id}/proposal/final`)}
+                            className="flex items-center space-x-2 px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm"
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                            <span>최종 제안서</span>
+                          </button>
+                        </>
+                      ) : (
+                        // 다른 단계: 기존처럼 결과 보기
+                        <button
+                          onClick={() => {
+                            const urlPath = step.key === 'market_research' ? 'market-research' : step.key
+                            navigate(`/projects/${id}/proposal/${urlPath}/results`)
+                          }}
+                          className="flex items-center space-x-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                          <span>결과 보기</span>
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
 
