@@ -14,11 +14,17 @@ import {
   Edit3,
   Layout,
   BookOpen,
-  Shield
+  Shield,
+  Wand2,
+  X,
+  Loader2
 } from 'lucide-react'
 import { Document, Paragraph, TextRun, HeadingLevel, AlignmentType, Packer } from 'docx'
 import { saveAs } from 'file-saver'
 import { ProposalDataManager } from '../../../../services/proposal/dataManager'
+import { ProposalEnhancementService } from '../../../../services/proposal/proposalEnhancementService'
+import { useAuth } from '../../../../contexts/AuthContext'
+import { useAIModel } from '../../../../contexts/AIModelContext'
 import { PageContainer, PageHeader, PageContent, Card, Badge, Button, ProgressBar } from '../../../../components/LinearComponents'
 
 interface ProposalSection {
@@ -43,11 +49,20 @@ interface ProposalResult {
 export function ProposalDraftPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const { getSelectedModel } = useAIModel()
+
   const [loading, setLoading] = useState(true)
   const [proposal, setProposal] = useState<ProposalResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [showDownloadMenu, setShowDownloadMenu] = useState(false)
   const downloadMenuRef = useRef<HTMLDivElement>(null)
+
+  // 보강 기능 상태
+  const [showEnhancementModal, setShowEnhancementModal] = useState(false)
+  const [enhancing, setEnhancing] = useState(false)
+  const [enhancementRequest, setEnhancementRequest] = useState('')
+  const [targetSection, setTargetSection] = useState<string | null>(null)
 
   useEffect(() => {
     const loadProposal = async () => {
@@ -395,6 +410,73 @@ ${proposal.enhancementNotes ? `## 개선 노트\n${proposal.enhancementNotes}\n`
     }
   }
 
+  // 보강 요청 처리
+  const handleEnhancementRequest = async () => {
+    if (!id || !user?.id || !proposal) return
+
+    if (!enhancementRequest.trim()) {
+      alert('보강 요청 내용을 입력해주세요.')
+      return
+    }
+
+    try {
+      setEnhancing(true)
+      console.log('🔧 제안서 보강 시작...')
+
+      // 1. 현재 버전 확인
+      const currentVersion = proposal.version || 1
+      const nextVersion = currentVersion + 1
+
+      console.log(`📊 현재 버전: ${currentVersion} → 다음 버전: ${nextVersion}`)
+
+      // 2. 보강 요청 저장
+      await ProposalEnhancementService.saveEnhancementRequest({
+        projectId: id,
+        proposalVersion: currentVersion,
+        sectionName: targetSection,
+        enhancementRequest: enhancementRequest.trim(),
+        createdBy: user.id
+      })
+
+      console.log('✅ 보강 요청 저장 완료')
+
+      // 3. AI 모델 선택
+      const selectedModel = getSelectedModel()
+      const aiProvider = selectedModel?.provider || 'anthropic'
+      const aiModel = selectedModel?.model_id || 'claude-4-sonnet'
+
+      console.log('🤖 사용할 AI 모델:', { aiProvider, aiModel })
+
+      // 4. AI 보강 실행
+      const enhancedProposal = await ProposalEnhancementService.enhanceProposal({
+        projectId: id,
+        currentProposal: proposal,
+        enhancementRequest: enhancementRequest.trim(),
+        targetSection,
+        version: nextVersion,
+        userId: user.id,
+        aiProvider,
+        aiModel
+      })
+
+      console.log('✅ 보강 완료:', enhancedProposal)
+
+      // 5. 모달 닫기 및 상태 초기화
+      setShowEnhancementModal(false)
+      setEnhancementRequest('')
+      setTargetSection(null)
+
+      // 6. 페이지 리로드하여 새 버전 표시
+      window.location.reload()
+
+    } catch (error) {
+      console.error('❌ 보강 실패:', error)
+      alert(`제안서 보강에 실패했습니다: ${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setEnhancing(false)
+    }
+  }
+
   if (loading) {
     return (
       <PageContainer>
@@ -486,6 +568,24 @@ ${proposal.enhancementNotes ? `## 개선 노트\n${proposal.enhancementNotes}\n`
                 </div>
               )}
             </div>
+
+            {/* 내용 보강 버튼 */}
+            <Button.Secondary
+              onClick={() => setShowEnhancementModal(true)}
+              disabled={enhancing}
+            >
+              {enhancing ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  보강 중...
+                </>
+              ) : (
+                <>
+                  <Wand2 className="w-4 h-4" />
+                  내용 보강
+                </>
+              )}
+            </Button.Secondary>
 
             <Button.Secondary onClick={() => navigate(`/projects/${id}/proposal`)}>
               <ArrowLeft className="w-4 h-4" />
@@ -664,6 +764,120 @@ ${proposal.enhancementNotes ? `## 개선 노트\n${proposal.enhancementNotes}\n`
           </Card>
         </div>
       </PageContent>
+
+      {/* 보강 요청 모달 */}
+      {showEnhancementModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-bg-secondary border border-border-primary rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            {/* 모달 헤더 */}
+            <div className="flex items-center justify-between p-6 border-b border-border-primary">
+              <div className="flex items-center space-x-3">
+                <Wand2 className="w-6 h-6 text-purple-500" />
+                <h2 className="text-xl font-semibold text-text-primary">제안서 내용 보강</h2>
+              </div>
+              <button
+                onClick={() => {
+                  setShowEnhancementModal(false)
+                  setEnhancementRequest('')
+                  setTargetSection(null)
+                }}
+                className="p-2 hover:bg-bg-tertiary rounded-lg transition-colors"
+                disabled={enhancing}
+              >
+                <X className="w-5 h-5 text-text-secondary" />
+              </button>
+            </div>
+
+            {/* 모달 내용 */}
+            <div className="p-6 space-y-6">
+              {/* 섹션 선택 */}
+              <div>
+                <label className="block text-sm font-medium text-text-primary mb-2">
+                  보강할 섹션 선택
+                </label>
+                <select
+                  value={targetSection || ''}
+                  onChange={(e) => setTargetSection(e.target.value || null)}
+                  className="w-full px-3 py-2 bg-bg-tertiary border border-border-primary rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  disabled={enhancing}
+                >
+                  <option value="">전체 제안서</option>
+                  {proposal?.sections?.map((section) => (
+                    <option key={section.id} value={section.title}>
+                      {section.title}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-text-muted mt-1">
+                  특정 섹션만 보강하려면 선택하세요. 기본값은 전체 제안서입니다.
+                </p>
+              </div>
+
+              {/* 보강 요청 내용 */}
+              <div>
+                <label className="block text-sm font-medium text-text-primary mb-2">
+                  보강 요청 내용 <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={enhancementRequest}
+                  onChange={(e) => setEnhancementRequest(e.target.value)}
+                  rows={8}
+                  className="w-full px-3 py-2 bg-bg-tertiary border border-border-primary rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-purple-500 resize-vertical"
+                  placeholder="예시:&#10;- 기술 스택 설명을 더 구체적으로 작성해주세요&#10;- 일정 부분에 마일스톤을 추가해주세요&#10;- 비용 산출 근거를 보강해주세요&#10;- 경쟁 우위 요소를 강조해주세요"
+                  disabled={enhancing}
+                />
+                <p className="text-xs text-text-muted mt-1">
+                  제안서에서 개선하고 싶은 부분을 구체적으로 설명해주세요.
+                </p>
+              </div>
+
+              {/* 안내 메시지 */}
+              <div className="p-4 bg-purple-500/5 border border-purple-500/20 rounded-lg">
+                <div className="flex items-start space-x-3">
+                  <Sparkles className="w-5 h-5 text-purple-500 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <h4 className="text-sm font-semibold text-purple-500 mb-1">AI 보강 프로세스</h4>
+                    <p className="text-xs text-text-secondary leading-relaxed">
+                      AI가 현재 제안서 내용을 분석하고, 요청하신 사항을 반영하여 개선된 버전을 생성합니다.
+                      기존 내용의 핵심은 유지하면서 구체성과 설득력을 강화합니다.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 모달 푸터 */}
+            <div className="flex items-center justify-end space-x-3 p-6 border-t border-border-primary">
+              <Button.Secondary
+                onClick={() => {
+                  setShowEnhancementModal(false)
+                  setEnhancementRequest('')
+                  setTargetSection(null)
+                }}
+                disabled={enhancing}
+              >
+                취소
+              </Button.Secondary>
+              <Button.Primary
+                onClick={handleEnhancementRequest}
+                disabled={enhancing || !enhancementRequest.trim()}
+              >
+                {enhancing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    보강 중...
+                  </>
+                ) : (
+                  <>
+                    <Wand2 className="w-4 h-4 mr-2" />
+                    보강 시작
+                  </>
+                )}
+              </Button.Primary>
+            </div>
+          </div>
+        </div>
+      )}
     </PageContainer>
   )
 }
