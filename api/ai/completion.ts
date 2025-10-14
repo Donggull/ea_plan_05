@@ -178,7 +178,7 @@ export default async function handler(
       model: req.body?.model,
       timestamp: new Date().toISOString(),
       // 디버깅을 위한 추가 정보 (개발 환경에서만)
-      ...(process.env.NODE_ENV === 'development' && {
+      ...(process.env['NODE_ENV'] === 'development' && {
         debugInfo: {
           stack: error instanceof Error ? error.stack : undefined,
           requestBody: req.body

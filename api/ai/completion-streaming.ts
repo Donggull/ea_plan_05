@@ -353,7 +353,9 @@ async function handleAnthropicStreaming(
 
               console.log(`✅ [Anthropic Stream] done 이벤트 전송 완료: ${inputTokens + outputTokens} 토큰, ${responseTime}ms`)
 
-              // 🔥 즉시 종료: Vercel 60초 타임아웃 전에 응답 완료 보장
+              // 🔥 200ms 지연: Vercel 프록시 버퍼 플러시 보장
+              await new Promise(resolve => setTimeout(resolve, 200))
+
               res.end()
               return
             }
@@ -408,8 +410,10 @@ async function handleAnthropicStreaming(
       }
     }
 
-    // ✅ 지연 제거: Vercel 60초 타임아웃 직전에 함수가 종료되는 것을 방지
-    // 8KB 주석 데이터와 done 이벤트 10회 전송만으로 충분히 버퍼 플러시됨
+    // 🔥 200ms 지연: Vercel 프록시 버퍼 플러시 보장
+    // done 이벤트 전송 후 짧은 지연으로 버퍼 플러시 시간 제공
+    await new Promise(resolve => setTimeout(resolve, 200))
+
     console.log(`✅ [Anthropic Stream] 스트림 종료 완료`)
     res.end()
 
@@ -625,7 +629,9 @@ async function handleOpenAIStreaming(
 
               console.log(`✅ [OpenAI Stream] done 이벤트 전송 완료: ${inputTokens + outputTokens} 토큰, ${responseTime}ms`)
 
-              // 🔥 즉시 종료: Vercel 60초 타임아웃 전에 응답 완료 보장
+              // 🔥 200ms 지연: Vercel 프록시 버퍼 플러시 보장
+              await new Promise(resolve => setTimeout(resolve, 200))
+
               res.end()
               return
             }
@@ -676,8 +682,10 @@ async function handleOpenAIStreaming(
       }
     }
 
-    // ✅ 지연 제거: Vercel 60초 타임아웃 직전에 함수가 종료되는 것을 방지
-    // 8KB 주석 데이터와 done 이벤트 10회 전송만으로 충분히 버퍼 플러시됨
+    // 🔥 200ms 지연: Vercel 프록시 버퍼 플러시 보장
+    // done 이벤트 전송 후 짧은 지연으로 버퍼 플러시 시간 제공
+    await new Promise(resolve => setTimeout(resolve, 200))
+
     console.log(`✅ [OpenAI Stream] 스트림 종료 완료`)
     res.end()
 
@@ -875,7 +883,9 @@ async function handleGoogleAIStreaming(
 
               console.log(`✅ [Google AI Stream] done 이벤트 전송 완료: ${inputTokens + outputTokens} 토큰, ${responseTime}ms`)
 
-              // 🔥 즉시 종료: Vercel 60초 타임아웃 전에 응답 완료 보장
+              // 🔥 200ms 지연: Vercel 프록시 버퍼 플러시 보장
+              await new Promise(resolve => setTimeout(resolve, 200))
+
               res.end()
               return
             }
@@ -924,8 +934,10 @@ async function handleGoogleAIStreaming(
       }
     }
 
-    // ✅ 지연 제거: Vercel 60초 타임아웃 직전에 함수가 종료되는 것을 방지
-    // 8KB 주석 데이터와 done 이벤트 10회 전송만으로 충분히 버퍼 플러시됨
+    // 🔥 200ms 지연: Vercel 프록시 버퍼 플러시 보장
+    // done 이벤트 전송 후 짧은 지연으로 버퍼 플러시 시간 제공
+    await new Promise(resolve => setTimeout(resolve, 200))
+
     console.log(`✅ [Google AI Stream] 스트림 종료 완료`)
     res.end()
 
