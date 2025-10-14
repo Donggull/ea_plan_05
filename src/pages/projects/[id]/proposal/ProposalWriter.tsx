@@ -639,6 +639,43 @@ export function ProposalWriterPage() {
           </select>
         )
 
+      case 'multiselect':
+        return (
+          <div className="space-y-2 p-3 bg-bg-tertiary rounded-lg">
+            {question.options && question.options.length > 0 ? (
+              question.options.map((option, index) => {
+                const currentValues = Array.isArray(value) ? value : []
+                const isChecked = currentValues.includes(option)
+
+                return (
+                  <label
+                    key={index}
+                    className="flex items-center gap-2 py-2 px-3 rounded hover:bg-bg-secondary cursor-pointer transition-colors"
+                  >
+                    <input
+                      type="checkbox"
+                      value={option}
+                      checked={isChecked}
+                      onChange={(e) => {
+                        const newValues = e.target.checked
+                          ? [...currentValues, option]
+                          : currentValues.filter(v => v !== option)
+                        handleAnswerChange(question.question_id, newValues)
+                      }}
+                      className="w-4 h-4 rounded border-border-primary text-purple-500 focus:ring-2 focus:ring-purple-500"
+                    />
+                    <span className="text-text-primary">{option}</span>
+                  </label>
+                )
+              })
+            ) : (
+              <div className="text-text-muted text-sm text-center py-2">
+                선택 가능한 옵션이 없습니다.
+              </div>
+            )}
+          </div>
+        )
+
       default:
         return (
           <div className="p-3 bg-bg-tertiary rounded-lg text-text-muted text-center">

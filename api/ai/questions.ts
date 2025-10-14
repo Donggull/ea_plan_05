@@ -24,6 +24,8 @@ interface QuestionRequest {
     documentAnalyses: any[]
     summary: string
   }
+  marketResearchData?: any
+  personasData?: any
   context?: {
     userId?: string
     sessionId?: string
@@ -349,6 +351,296 @@ ${documents.map((doc, index) => `${index + 1}. ${doc.name}`).join('\n')}
 }
 
 정확한 JSON 형식만 반환하고 다른 텍스트는 포함하지 마세요.`
+
+    return prompt
+  }
+
+  // 제안서 작성 질문 생성 (사전 분석 + 시장 조사 + 페르소나 데이터 통합)
+  if (context?.requestType === 'proposal_questions') {
+    const { marketResearchData, personasData } = request as any
+
+    let prompt = `당신은 경험이 풍부한 제안서 작성 전문가입니다.
+
+# 미션
+이 프로젝트의 성공적인 제안서를 작성하기 위해 **사전 분석, 시장 조사, 페르소나 분석의 모든 인사이트를 통합**하여, 구체적이고 실행 가능한 솔루션 제안 질문들을 생성해주세요.
+
+# 프로젝트 기본 정보
+- **프로젝트명**: ${projectInfo?.name || '미정'}
+- **프로젝트 설명**: ${projectInfo?.description || '미정'}
+- **산업 분야**: ${projectInfo?.industry || '미정'}
+
+`
+
+    // 사전 분석 데이터 확인 및 핵심 인사이트 추출
+    const hasPreAnalysisData = preAnalysisData && (
+      (preAnalysisData.report && Object.keys(preAnalysisData.report).length > 0) ||
+      (preAnalysisData.documentAnalyses && preAnalysisData.documentAnalyses.length > 0)
+    )
+
+    if (hasPreAnalysisData) {
+      prompt += `## 1. 사전 분석에서 도출된 핵심 인사이트\n\n`
+
+      if (preAnalysisData.report) {
+        prompt += `### 분석 요약\n${preAnalysisData.report.summary || '없음'}\n\n`
+
+        if (preAnalysisData.report.key_findings && preAnalysisData.report.key_findings.length > 0) {
+          prompt += `### 핵심 발견사항\n`
+          preAnalysisData.report.key_findings.forEach((f: string, idx: number) => {
+            prompt += `${idx + 1}. ${f}\n`
+          })
+          prompt += `\n`
+        }
+
+        if (preAnalysisData.report.recommendations && preAnalysisData.report.recommendations.length > 0) {
+          prompt += `### 권장사항\n`
+          preAnalysisData.report.recommendations.forEach((r: string, idx: number) => {
+            prompt += `${idx + 1}. ${r}\n`
+          })
+          prompt += `\n`
+        }
+
+        if (preAnalysisData.report.technical_insights && preAnalysisData.report.technical_insights.length > 0) {
+          prompt += `### 기술적 인사이트\n`
+          preAnalysisData.report.technical_insights.forEach((t: string, idx: number) => {
+            prompt += `${idx + 1}. ${t}\n`
+          })
+          prompt += `\n`
+        }
+      }
+
+      if (preAnalysisData.documentAnalyses && preAnalysisData.documentAnalyses.length > 0) {
+        prompt += `### 문서 분석 결과\n`
+        preAnalysisData.documentAnalyses.forEach((analysis: any, index: number) => {
+          prompt += `**${index + 1}. ${analysis.document_name || '문서'}**\n`
+          if (analysis.summary) {
+            prompt += `   - 요약: ${analysis.summary}\n`
+          }
+          if (analysis.key_points && analysis.key_points.length > 0) {
+            prompt += `   - 핵심 포인트: ${analysis.key_points.join(', ')}\n`
+          }
+        })
+        prompt += `\n`
+      }
+    }
+
+    // 시장 조사 데이터 통합
+    if (marketResearchData) {
+      prompt += `## 2. 시장 조사에서 파악된 시장 환경\n\n`
+
+      if (marketResearchData.structured_output) {
+        const structuredOutput = marketResearchData.structured_output
+
+        if (structuredOutput.marketSize) {
+          prompt += `### 시장 규모\n${structuredOutput.marketSize}\n\n`
+        }
+
+        if (structuredOutput.competitors && structuredOutput.competitors.length > 0) {
+          prompt += `### 주요 경쟁사\n`
+          structuredOutput.competitors.forEach((comp: string, idx: number) => {
+            prompt += `${idx + 1}. ${comp}\n`
+          })
+          prompt += `\n`
+        }
+
+        if (structuredOutput.competitiveAdvantage) {
+          prompt += `### 경쟁 우위 요소\n${structuredOutput.competitiveAdvantage}\n\n`
+        }
+
+        if (structuredOutput.marketTrends && structuredOutput.marketTrends.length > 0) {
+          prompt += `### 시장 트렌드\n`
+          structuredOutput.marketTrends.forEach((trend: string, idx: number) => {
+            prompt += `${idx + 1}. ${trend}\n`
+          })
+          prompt += `\n`
+        }
+
+        if (structuredOutput.targetSegments && structuredOutput.targetSegments.length > 0) {
+          prompt += `### 타겟 시장 세그먼트\n`
+          structuredOutput.targetSegments.forEach((segment: string, idx: number) => {
+            prompt += `${idx + 1}. ${segment}\n`
+          })
+          prompt += `\n`
+        }
+      } else if (marketResearchData.analysis_data) {
+        prompt += `### 시장 분석 결과\n${JSON.stringify(marketResearchData.analysis_data, null, 2)}\n\n`
+      }
+    }
+
+    // 페르소나 데이터 통합
+    if (personasData) {
+      prompt += `## 3. 페르소나 분석에서 도출된 타겟 고객 특성\n\n`
+
+      if (personasData.structured_output) {
+        const structuredOutput = personasData.structured_output
+
+        if (structuredOutput.demographics) {
+          prompt += `### 인구통계학적 정보\n${structuredOutput.demographics}\n\n`
+        }
+
+        if (structuredOutput.psychographics) {
+          prompt += `### 심리적 특성\n${structuredOutput.psychographics}\n\n`
+        }
+
+        if (structuredOutput.behavioral) {
+          prompt += `### 행동 패턴\n${structuredOutput.behavioral}\n\n`
+        }
+
+        if (structuredOutput.goals) {
+          prompt += `### 목표와 동기\n${structuredOutput.goals}\n\n`
+        }
+
+        if (structuredOutput.painPoints && structuredOutput.painPoints.length > 0) {
+          prompt += `### Pain Points (고충점)\n`
+          structuredOutput.painPoints.forEach((pain: string, idx: number) => {
+            prompt += `${idx + 1}. ${pain}\n`
+          })
+          prompt += `\n`
+        }
+
+        if (structuredOutput.channels && structuredOutput.channels.length > 0) {
+          prompt += `### 선호 채널 및 접점\n`
+          structuredOutput.channels.forEach((channel: string, idx: number) => {
+            prompt += `${idx + 1}. ${channel}\n`
+          })
+          prompt += `\n`
+        }
+      } else if (personasData.analysis_data) {
+        prompt += `### 페르소나 분석 결과\n${JSON.stringify(personasData.analysis_data, null, 2)}\n\n`
+      }
+    }
+
+    // 문서 내용 요약
+    if (documents && documents.length > 0) {
+      prompt += `## 업로드된 프로젝트 문서\n`
+      documents.forEach((doc, index) => {
+        prompt += `${index + 1}. ${doc.name}\n`
+        if (doc.summary) {
+          prompt += `   요약: ${doc.summary.substring(0, 150)}...\n`
+        }
+      })
+      prompt += `\n`
+    }
+
+    // 맞춤형 제안서 질문 생성 지시
+    prompt += `---
+
+# 제안서 질문 생성 전략
+
+## Step 1: 데이터 통합 분석
+위에서 제공된 **사전 분석, 시장 조사, 페르소나 분석의 모든 정보**를 종합하여:
+- **해결해야 할 핵심 문제**: 사전 분석에서 도출된 주요 과제
+- **시장 기회**: 시장 조사에서 발견된 차별화 포인트와 시장 진입 전략
+- **고객 중심 가치**: 페르소나 분석에서 파악된 타겟 고객의 니즈와 고충
+
+## Step 2: 제안서 필수 영역 정의
+제안서는 다음 6가지 영역을 포함해야 합니다:
+
+### 1. 문제 정의 및 배경 (Problem Statement)
+- 사전 분석의 핵심 발견사항을 바탕으로 해결해야 할 문제 명확화
+- 페르소나 분석의 Pain Points와 연결
+- **프로젝트 연결**: "${projectInfo?.name || '이 프로젝트'}"가 해결하려는 근본 문제는 무엇인가?
+
+### 2. 솔루션 개요 (Solution Overview)
+- 제안하는 솔루션의 핵심 가치
+- 사전 분석의 권장사항과 기술 인사이트 기반
+- 시장 조사의 경쟁 우위 요소 반영
+- **프로젝트 연결**: 어떤 솔루션을 제안하며, 왜 이 솔루션이 최선인가?
+
+### 3. 기술 구현 계획 (Technical Approach)
+- 사용할 기술 스택 및 아키텍처
+- 사전 분석의 기술적 인사이트 구체화
+- 페르소나의 기술 숙련도 고려
+- **프로젝트 연결**: 어떤 기술을 사용하며, 어떻게 구현할 것인가?
+
+### 4. 비즈니스 가치 및 ROI (Business Value)
+- 시장 조사의 시장 규모와 성장성 기반
+- 페르소나의 목표 달성에 기여하는 방식
+- 측정 가능한 성과 지표 (KPI)
+- **프로젝트 연결**: 이 솔루션이 제공하는 구체적 비즈니스 가치는?
+
+### 5. 실행 계획 및 일정 (Implementation Plan)
+- 단계별 구현 로드맵
+- 마일스톤 및 산출물
+- 리스크 관리 계획
+- **프로젝트 연결**: 어떤 순서로, 얼마나 걸려서 구현할 것인가?
+
+### 6. 차별화 전략 (Differentiation Strategy)
+- 시장 조사의 경쟁사 분석 기반
+- 시장 트렌드 반영
+- 타겟 고객에게 가장 어필하는 포인트
+- **프로젝트 연결**: 경쟁 솔루션 대비 우리 제안의 독특한 강점은?
+
+## Step 3: 프로젝트 맥락 통합 질문 생성
+**중요: 모든 질문은 사전 분석, 시장 조사, 페르소나 분석의 구체적 인사이트를 직접 참조해야 합니다.**
+
+### 질문 생성 원칙
+✅ **좋은 질문의 조건:**
+- 3단계 분석(사전/시장/페르소나) 중 최소 1개 이상의 인사이트를 명시적으로 언급
+- 프로젝트명 또는 핵심 과제가 질문에 포함됨
+- 답변이 제안서의 특정 섹션을 직접 작성하는데 사용됨
+- 구체적이고 실행 가능한 답변을 유도함
+
+✅ **좋은 질문 예시:**
+- "사전 분석에서 도출된 [핵심 발견사항]을 해결하기 위해 ${projectInfo?.name || '이 프로젝트'}가 제시하는 솔루션의 핵심 가치 제안(Value Proposition)은 무엇입니까?" (솔루션 개요)
+- "시장 조사에서 파악된 [주요 경쟁사]와 비교했을 때, 우리 솔루션만의 차별화된 기술적/비즈니스적 강점은 무엇입니까?" (차별화 전략)
+- "페르소나 분석에서 도출된 타겟 고객의 [주요 Pain Point]를 해결하기 위한 구체적인 기능과 사용자 경험 설계는 무엇입니까?" (솔루션 개요 + 기술 구현)
+- "사전 분석의 기술 인사이트와 타겟 고객의 기술 숙련도를 고려할 때, 최적의 기술 스택과 아키텍처는 무엇입니까?" (기술 구현 계획)
+- "시장 조사의 시장 규모와 타겟 세그먼트를 고려할 때, 예상되는 비즈니스 가치(매출, 사용자 수, 비용 절감 등)는 어떻게 측정됩니까?" (비즈니스 가치)
+
+❌ **피해야 할 질문:**
+- "프로젝트의 목표는 무엇입니까?" ← 너무 일반적, 이미 사전 분석에서 파악됨
+- "예산 범위는 어떻게 되나요?" ← 프로젝트 관리 질문이지 제안서 내용 아님
+- "완료 기한은 언제입니까?" ← 실행 계획에서 다뤄야 할 내용이지만 너무 단순
+
+### 질문 개수 및 분포
+- **총 8-12개 질문 생성**
+- 6가지 제안서 영역이 고르게 분포되도록 구성 (각 영역당 1-2개)
+- 사전 분석, 시장 조사, 페르소나 분석 데이터가 골고루 활용되도록 함
+- **우선순위**: 프로젝트 핵심 과제와 직결된 영역은 2-3개 질문으로 심화
+
+### 질문 유형 (type) 선택 가이드
+- **text**: 짧은 텍스트 입력 (예: 기술 스택 이름, 주요 기능 명칭)
+- **textarea**: 긴 설명이 필요한 경우 (예: 솔루션 개요, 차별화 전략, 구현 계획)
+- **select**: 단일 선택 (예: 배포 환경, 개발 방법론)
+- **multiselect**: 복수 선택 (예: 적용 기술 스택, 주요 기능 목록, 타겟 플랫폼)
+- **number**: 숫자 입력 (예: 개발 기간(주), 예상 비용, 예상 사용자 수)
+
+### helpText 작성 원칙
+- **반드시** 사전 분석/시장 조사/페르소나 분석에서 도출된 구체적 인사이트를 인용
+- 왜 이 질문이 제안서에 중요한지 명확히 설명
+- 답변 작성 시 참고할 가이드 제공 (예: "타겟 고객의 [특정 Pain Point]를 고려하여...")
+
+### category 선택 가이드
+- "문제 정의" - Problem Statement 관련 질문
+- "솔루션 개요" - Solution Overview 관련 질문
+- "기술 구현" - Technical Approach 관련 질문
+- "비즈니스 가치" - Business Value & ROI 관련 질문
+- "실행 계획" - Implementation Plan 관련 질문
+- "차별화 전략" - Differentiation Strategy 관련 질문
+
+---
+
+# 출력 형식
+
+**JSON 형식으로만 반환하세요. 다른 텍스트는 포함하지 마세요.**
+
+JSON 형식:
+{
+  "questions": [
+    {
+      "category": "문제 정의|솔루션 개요|기술 구현|비즈니스 가치|실행 계획|차별화 전략",
+      "text": "프로젝트 맥락과 3단계 분석이 반영된 구체적 질문",
+      "type": "text|select|multiselect|number|textarea",
+      "options": ["옵션1", "옵션2"],
+      "required": true|false,
+      "helpText": "사전 분석/시장 조사/페르소나 분석의 구체적 인사이트 인용 + 답변 가이드",
+      "priority": "high|medium|low",
+      "confidence": 0.0-1.0
+    }
+  ]
+}
+
+정확한 JSON만 반환하세요.`
 
     return prompt
   }
