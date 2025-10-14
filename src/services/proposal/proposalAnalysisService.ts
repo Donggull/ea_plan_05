@@ -1502,7 +1502,7 @@ export class ProposalAnalysisService {
   }
 
   /**
-   * 분석 결과 파싱 (개선된 JSON 추출 로직)
+   * 분석 결과 파싱 (PreAnalysisService 패턴 적용)
    */
   private static parseAnalysisResult(aiResponse: string): AnalysisResult {
     try {
@@ -1511,16 +1511,27 @@ export class ProposalAnalysisService {
         responsePreview: aiResponse.substring(0, 200)
       })
 
+      // 🔥 PreAnalysisService 패턴: 응답 정제 (제어 문자, 잘못된 이스케이프 제거)
+      let cleanedResponse = aiResponse
+        .replace(/[\x00-\x1F\x7F-\x9F]/g, '') // 제어 문자 제거
+        .replace(/\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4})/g, '') // 잘못된 이스케이프 제거
+        .trim()
+
+      console.log('🧹 [parseAnalysisResult] 응답 정제 완료:', {
+        originalLength: aiResponse.length,
+        cleanedLength: cleanedResponse.length
+      })
+
       // 1. JSON 코드 블록 먼저 시도 (```json ... ```)
-      const codeBlockMatch = aiResponse.match(/```json\s*([\s\S]*?)\s*```/)
+      const codeBlockMatch = cleanedResponse.match(/```json\s*([\s\S]*?)\s*```/)
       if (codeBlockMatch) {
         console.log('✅ JSON 코드 블록 발견')
-        const parsed = JSON.parse(codeBlockMatch[1])
+        const parsed = JSON.parse(codeBlockMatch[1].trim())
         return this.validateAndFormatResult(parsed)
       }
 
       // 2. 순수 JSON 추출 (balanced braces 알고리즘)
-      const jsonString = this.extractJSON(aiResponse)
+      const jsonString = this.extractJSON(cleanedResponse)
       if (jsonString) {
         console.log('✅ 순수 JSON 추출 성공:', {
           extractedLength: jsonString.length,
@@ -1531,12 +1542,12 @@ export class ProposalAnalysisService {
       }
 
       // 3. JSON을 찾을 수 없는 경우
-      console.warn('⚠️ JSON을 찾을 수 없음, 응답 전체 내용:', aiResponse.substring(0, 1000))
+      console.warn('⚠️ JSON을 찾을 수 없음, 응답 전체 내용:', cleanedResponse.substring(0, 1000))
       return {
-        summary: aiResponse.substring(0, 500) + '...',
+        summary: cleanedResponse.substring(0, 500) + '...',
         keyFindings: ['AI 응답을 구조화된 형태로 파싱할 수 없었습니다.'],
         recommendations: ['분석 결과를 수동으로 검토해주세요.'],
-        structuredData: { rawResponse: aiResponse },
+        structuredData: { rawResponse: cleanedResponse },
         nextSteps: ['응답 형식을 개선하여 재시도해주세요.'],
         confidence: 0.3,
         warnings: ['AI 응답이 예상된 JSON 형식이 아닙니다.']
@@ -1598,7 +1609,7 @@ export class ProposalAnalysisService {
   }
 
   /**
-   * 파싱된 결과 검증 및 포맷팅
+   * 파싱된 결과 검증 및 포맷팅 (제안서 sections 필드 포함)
    */
   private static validateAndFormatResult(parsed: any): AnalysisResult {
     console.log('🔍 [validateAndFormatResult] 파싱된 데이터 검증:', {
@@ -1608,14 +1619,37 @@ export class ProposalAnalysisService {
       hasStructuredData: !!parsed.structuredData,
       hasNextSteps: !!parsed.nextSteps,
       hasConfidence: parsed.confidence !== undefined,
-      hasWarnings: !!parsed.warnings
+      hasWarnings: !!parsed.warnings,
+      // 🔥 제안서 특화 필드 검증
+      hasTitle: !!parsed.title,
+      hasSections: !!parsed.sections,
+      sectionsCount: Array.isArray(parsed.sections) ? parsed.sections.length : 0
     })
+
+    // 🔥 제안서 생성 시 최상위 필드(title, sections)를 structuredData에 포함
+    // PreAnalysisService 패턴: 파싱된 모든 데이터를 보존
+    const structuredData = parsed.structuredData || {}
+
+    // 제안서의 경우 sections 배열이 최상위에 있으므로 structuredData에 복사
+    if (parsed.sections && Array.isArray(parsed.sections)) {
+      structuredData.sections = parsed.sections
+      console.log('✅ [validateAndFormatResult] sections 필드를 structuredData에 포함:', {
+        sectionsCount: parsed.sections.length,
+        sectionIds: parsed.sections.map((s: any) => s.id)
+      })
+    }
+
+    // 제안서 제목도 structuredData에 포함
+    if (parsed.title) {
+      structuredData.title = parsed.title
+      console.log('✅ [validateAndFormatResult] title 필드를 structuredData에 포함:', parsed.title)
+    }
 
     return {
       summary: parsed.summary || '분석 요약이 제공되지 않았습니다.',
       keyFindings: Array.isArray(parsed.keyFindings) ? parsed.keyFindings : [],
       recommendations: Array.isArray(parsed.recommendations) ? parsed.recommendations : [],
-      structuredData: parsed.structuredData || {},
+      structuredData,
       nextSteps: Array.isArray(parsed.nextSteps) ? parsed.nextSteps : [],
       confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.5,
       warnings: Array.isArray(parsed.warnings) ? parsed.warnings : []
