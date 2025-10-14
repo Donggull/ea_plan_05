@@ -1502,7 +1502,7 @@ export class ProposalAnalysisService {
   }
 
   /**
-   * 분석 결과 파싱 (PreAnalysisService 패턴 적용)
+   * 분석 결과 파싱 (PreAnalysisService 패턴 완전 적용 - 3단계 시도)
    */
   private static parseAnalysisResult(aiResponse: string): AnalysisResult {
     try {
@@ -1522,26 +1522,177 @@ export class ProposalAnalysisService {
         cleanedLength: cleanedResponse.length
       })
 
-      // 1. JSON 코드 블록 먼저 시도 (```json ... ```)
-      const codeBlockMatch = cleanedResponse.match(/```json\s*([\s\S]*?)\s*```/)
-      if (codeBlockMatch) {
-        console.log('✅ JSON 코드 블록 발견')
-        const parsed = JSON.parse(codeBlockMatch[1].trim())
-        return this.validateAndFormatResult(parsed)
+      // =====================================================
+      // 시도 1: ```json ``` 코드 블록에서 JSON 추출
+      // =====================================================
+      try {
+        console.log('🔎 [parseAnalysisResult] 시도 1: 코드 블록에서 JSON 추출...')
+        const codeBlockMatch = cleanedResponse.match(/```json\s*([\s\S]*?)\s*```/)
+
+        if (codeBlockMatch && codeBlockMatch[1]) {
+          const jsonString = codeBlockMatch[1].trim()
+          console.log('✅ [parseAnalysisResult] 코드 블록 발견!')
+          console.log('📝 [parseAnalysisResult] JSON 길이:', jsonString.length)
+          console.log('📝 [parseAnalysisResult] JSON 시작:', jsonString.substring(0, 200))
+
+          const parsed = JSON.parse(jsonString)
+          console.log('✅ [parseAnalysisResult] 코드 블록 JSON 파싱 성공!')
+          console.log('📊 [parseAnalysisResult] 파싱된 키:', Object.keys(parsed))
+
+          return this.validateAndFormatResult(parsed)
+        } else {
+          console.log('ℹ️ [parseAnalysisResult] 코드 블록 없음, 다음 방법 시도...')
+        }
+      } catch (error) {
+        console.error('❌ [parseAnalysisResult] 코드 블록 JSON 파싱 실패:', error)
       }
 
-      // 2. 순수 JSON 추출 (balanced braces 알고리즘)
-      const jsonString = this.extractJSON(cleanedResponse)
-      if (jsonString) {
-        console.log('✅ 순수 JSON 추출 성공:', {
-          extractedLength: jsonString.length,
-          extractedPreview: jsonString.substring(0, 200)
+      // =====================================================
+      // 시도 2: 순수 JSON 객체 추출 (balanced braces 알고리즘)
+      // =====================================================
+      try {
+        console.log('🔎 [parseAnalysisResult] 시도 2: 순수 JSON 객체 추출...')
+
+        const firstBrace = cleanedResponse.indexOf('{')
+        if (firstBrace !== -1) {
+          let braceCount = 0
+          let endIndex = -1
+          let inString = false
+          let escapeNext = false
+
+          for (let i = firstBrace; i < cleanedResponse.length; i++) {
+            const char = cleanedResponse[i]
+
+            // 문자열 내부 여부 추적
+            if (char === '"' && !escapeNext) {
+              inString = !inString
+            }
+
+            // 이스케이프 문자 처리
+            escapeNext = (char === '\\' && !escapeNext)
+
+            // 문자열 외부에서만 중괄호 카운트
+            if (!inString && !escapeNext) {
+              if (char === '{') braceCount++
+              if (char === '}') braceCount--
+
+              if (braceCount === 0) {
+                endIndex = i + 1
+                break
+              }
+            }
+          }
+
+          if (endIndex > firstBrace) {
+            const jsonString = cleanedResponse.substring(firstBrace, endIndex)
+            console.log('✅ [parseAnalysisResult] JSON 객체 발견!')
+            console.log('📝 [parseAnalysisResult] JSON 길이:', jsonString.length)
+            console.log('📝 [parseAnalysisResult] JSON 시작:', jsonString.substring(0, 200))
+            console.log('📝 [parseAnalysisResult] JSON 끝:', jsonString.substring(jsonString.length - 200))
+
+            const parsed = JSON.parse(jsonString)
+            console.log('✅ [parseAnalysisResult] 순수 JSON 파싱 성공!')
+            console.log('📊 [parseAnalysisResult] 파싱된 키:', Object.keys(parsed))
+
+            return this.validateAndFormatResult(parsed)
+          } else {
+            console.warn('⚠️ [parseAnalysisResult] 중괄호 균형이 맞지 않음')
+          }
+        } else {
+          console.warn('⚠️ [parseAnalysisResult] JSON 객체를 찾을 수 없음')
+        }
+      } catch (error) {
+        console.error('❌ [parseAnalysisResult] 순수 JSON 파싱 실패:', error)
+        console.error('파싱 에러 상세:', {
+          message: (error as Error).message,
+          name: (error as Error).name
         })
-        const parsed = JSON.parse(jsonString)
-        return this.validateAndFormatResult(parsed)
       }
 
-      // 3. JSON을 찾을 수 없는 경우
+      // =====================================================
+      // 🔥 NEW 시도 3: 불완전한 JSON 복구 시도 (PreAnalysisService 패턴)
+      // =====================================================
+      try {
+        console.log('🔎 [parseAnalysisResult] 시도 3: 불완전한 JSON 복구...')
+
+        const firstBrace = cleanedResponse.indexOf('{')
+        if (firstBrace !== -1) {
+          let jsonString = cleanedResponse.substring(firstBrace)
+
+          // 🔥 여러 패턴으로 마지막 완전한 요소 찾기
+          const patterns = [
+            { pattern: /",\s*$/g, desc: '객체 필드 끝' },           // "value",
+            { pattern: /"\s*\]/g, desc: '배열 문자열 끝' },         // "value"]
+            { pattern: /},\s*$/g, desc: '배열 내 객체 끝' },        // {...},
+            { pattern: /\}\s*\]/g, desc: '배열 내 마지막 객체' },   // {...}]
+          ]
+
+          let bestMatch = -1
+          let bestPattern = null
+
+          // 모든 패턴에서 가장 마지막 위치 찾기
+          for (const { pattern, desc } of patterns) {
+            const matches = [...jsonString.matchAll(pattern)]
+            if (matches.length > 0) {
+              const lastMatch = matches[matches.length - 1]
+              const matchEnd = lastMatch.index! + lastMatch[0].length
+              if (matchEnd > bestMatch) {
+                bestMatch = matchEnd
+                bestPattern = desc
+              }
+            }
+          }
+
+          console.log('🔍 [parseAnalysisResult] 마지막 완전한 요소:', {
+            위치: bestMatch,
+            패턴: bestPattern,
+            원본길이: jsonString.length
+          })
+
+          if (bestMatch > 0) {
+            // 마지막 완전한 요소까지 잘라냄
+            let truncatedJson = jsonString.substring(0, bestMatch)
+
+            // 🔥 닫히지 않은 배열과 객체 닫기
+            const openBrackets = (truncatedJson.match(/\[/g) || []).length
+            const closeBrackets = (truncatedJson.match(/\]/g) || []).length
+            const openBraces = (truncatedJson.match(/\{/g) || []).length
+            const closeBraces = (truncatedJson.match(/\}/g) || []).length
+
+            const missingBrackets = openBrackets - closeBrackets
+            const missingBraces = openBraces - closeBraces
+
+            // 배열 먼저 닫기
+            for (let i = 0; i < missingBrackets; i++) {
+              truncatedJson += '\n]'
+            }
+            // 객체 닫기
+            for (let i = 0; i < missingBraces; i++) {
+              truncatedJson += '\n}'
+            }
+
+            console.log('🔧 [parseAnalysisResult] JSON 복구 시도:', {
+              원본길이: jsonString.length,
+              복구길이: truncatedJson.length,
+              추가된배열닫기: missingBrackets,
+              추가된객체닫기: missingBraces,
+              미리보기: truncatedJson.substring(Math.max(0, truncatedJson.length - 300))
+            })
+
+            const parsed = JSON.parse(truncatedJson)
+            console.log('✅ [parseAnalysisResult] 불완전 JSON 복구 성공!')
+            console.log('📊 [parseAnalysisResult] 복구된 키:', Object.keys(parsed))
+
+            return this.validateAndFormatResult(parsed)
+          }
+        }
+      } catch (error) {
+        console.error('❌ [parseAnalysisResult] JSON 복구 실패:', error)
+      }
+
+      // =====================================================
+      // 시도 4: 모든 방법 실패 시 fallback
+      // =====================================================
       console.warn('⚠️ JSON을 찾을 수 없음, 응답 전체 내용:', cleanedResponse.substring(0, 1000))
       return {
         summary: cleanedResponse.substring(0, 500) + '...',
@@ -1559,54 +1710,6 @@ export class ProposalAnalysisService {
     }
   }
 
-  /**
-   * JSON 추출 (balanced braces 알고리즘)
-   * 첫 번째 `{`부터 매칭되는 `}`까지 추출
-   */
-  private static extractJSON(text: string): string | null {
-    const firstBrace = text.indexOf('{')
-    if (firstBrace === -1) return null
-
-    let braceCount = 0
-    let inString = false
-    let escapeNext = false
-
-    for (let i = firstBrace; i < text.length; i++) {
-      const char = text[i]
-
-      // 이스케이프 처리
-      if (escapeNext) {
-        escapeNext = false
-        continue
-      }
-
-      if (char === '\\') {
-        escapeNext = true
-        continue
-      }
-
-      // 문자열 내부 처리
-      if (char === '"') {
-        inString = !inString
-        continue
-      }
-
-      // 문자열 내부가 아닐 때만 중괄호 카운트
-      if (!inString) {
-        if (char === '{') {
-          braceCount++
-        } else if (char === '}') {
-          braceCount--
-          if (braceCount === 0) {
-            // 완전한 JSON 발견
-            return text.substring(firstBrace, i + 1)
-          }
-        }
-      }
-    }
-
-    return null
-  }
 
   /**
    * 파싱된 결과 검증 및 포맷팅 (제안서 sections 필드 포함)
