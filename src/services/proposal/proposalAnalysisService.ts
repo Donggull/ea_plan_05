@@ -1511,9 +1511,9 @@ export class ProposalAnalysisService {
         responsePreview: aiResponse.substring(0, 200)
       })
 
-      // 🔥 PreAnalysisService 패턴: 응답 정제 (제어 문자, 잘못된 이스케이프 제거)
+      // 🔥 PreAnalysisService 패턴: 응답 정제 (줄바꿈을 제외한 제어 문자, 잘못된 이스케이프 제거)
       let cleanedResponse = aiResponse
-        .replace(/[\x00-\x1F\x7F-\x9F]/g, '') // 제어 문자 제거
+        .replace(/[\x00-\x09\x0B-\x0C\x0E-\x1F\x7F-\x9F]/g, '') // 줄바꿈(\x0A=\n, \x0D=\r)을 제외한 제어 문자 제거
         .replace(/\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4})/g, '') // 잘못된 이스케이프 제거
         .trim()
 
