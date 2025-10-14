@@ -379,6 +379,37 @@ export function ProposalWriterPage() {
     }
   }
 
+  // 카테고리 변경 처리 (이전 카테고리 답변 자동 저장)
+  const handleCategoryChange = async (newCategoryIndex: number) => {
+    if (newCategoryIndex === currentCategory) return
+
+    // 현재 카테고리의 답변 저장
+    await saveCurrentCategoryAnswers()
+
+    // 카테고리 완료 상태 즉시 업데이트
+    const updatedCategories = categories.map(category => {
+      const completed = category.questions.filter(q =>
+        isValidAnswer(formData[q.question_id])
+      ).length
+
+      return {
+        ...category,
+        completed
+      }
+    })
+    setCategories(updatedCategories)
+
+    console.log(`🔄 카테고리 변경: ${categories[currentCategory]?.name} → ${categories[newCategoryIndex]?.name}`)
+    console.log(`📊 업데이트된 카테고리 상태:`, updatedCategories.map(c => ({
+      name: c.name,
+      completed: c.completed,
+      total: c.total
+    })))
+
+    // 카테고리 변경
+    setCurrentCategory(newCategoryIndex)
+  }
+
   // 답변 변경 처리
   const handleAnswerChange = (questionId: string, value: string | string[] | number) => {
     setFormData(prev => {
@@ -795,7 +826,7 @@ export function ProposalWriterPage() {
                 {categories.map((category, index) => (
                   <button
                     key={index}
-                    onClick={() => setCurrentCategory(index)}
+                    onClick={() => handleCategoryChange(index)}
                     className={`w-full text-left p-3 rounded-lg transition-colors ${
                       index === currentCategory
                         ? 'bg-purple-500/10 border border-purple-500/30 text-purple-500'
@@ -916,7 +947,7 @@ export function ProposalWriterPage() {
                 {/* 카테고리 네비게이션 */}
                 <div className="flex justify-between items-center mt-8 pt-6 border-t border-border-primary">
                   <button
-                    onClick={() => setCurrentCategory(Math.max(0, currentCategory - 1))}
+                    onClick={() => handleCategoryChange(Math.max(0, currentCategory - 1))}
                     disabled={currentCategory === 0}
                     className="flex items-center space-x-2 px-4 py-2 text-text-secondary hover:text-text-primary border border-border-primary rounded-lg hover:bg-bg-tertiary transition-colors disabled:opacity-50"
                   >
@@ -929,7 +960,7 @@ export function ProposalWriterPage() {
                   </div>
 
                   <button
-                    onClick={() => setCurrentCategory(Math.min(categories.length - 1, currentCategory + 1))}
+                    onClick={() => handleCategoryChange(Math.min(categories.length - 1, currentCategory + 1))}
                     disabled={currentCategory === categories.length - 1}
                     className="flex items-center space-x-2 px-4 py-2 text-text-secondary hover:text-text-primary border border-border-primary rounded-lg hover:bg-bg-tertiary transition-colors disabled:opacity-50"
                   >
