@@ -176,30 +176,95 @@ async function handleAnthropicStreaming(
 
       if (done) {
         console.log('✅ [Anthropic Stream] 스트림 완료, 남은 버퍼 처리 중...')
-        // 🔥 스트림 종료 시 버퍼에 남은 데이터 처리
+        // 🔥 스트림 종료 시 버퍼에 남은 데이터 철저히 처리 (message_stop 포함!)
         if (buffer.trim()) {
           console.log('📦 [Anthropic Stream] 남은 버퍼:', buffer.substring(0, 200))
-          const remainingLines = buffer.split('\n')
+          const remainingLines = buffer.split('\n').filter(line => line.trim())
 
           for (const line of remainingLines) {
-            if (line.trim() && line.startsWith('data:')) {
-              const data = line.slice(5).trim()
-              if (data && data !== '[DONE]') {
-                try {
-                  const event = JSON.parse(data)
+            // 🔥 SSE 주석 라인 무시
+            if (line.startsWith(':')) {
+              continue
+            }
 
-                  if (event.type === 'content_block_delta' && event.delta?.text) {
-                    fullContent += event.delta.text
-                  }
-                  if (event.type === 'message_delta' && event.usage) {
-                    outputTokens = event.usage.output_tokens || 0
-                  }
-                } catch (parseError) {
-                  console.warn('⚠️ 남은 버퍼 파싱 오류:', data.substring(0, 100))
+            if (line.startsWith('data:')) {
+              const data = line.slice(5).trim()
+              if (!data || data === '[DONE]') continue
+
+              try {
+                const event = JSON.parse(data)
+                console.log(`📦 [Anthropic Stream] 남은 버퍼 이벤트 타입: ${event.type}`)
+
+                // content_block_delta: 텍스트 조각
+                if (event.type === 'content_block_delta' && event.delta?.text) {
+                  fullContent += event.delta.text
                 }
+
+                // message_delta: 토큰 사용량
+                if (event.type === 'message_delta' && event.usage) {
+                  outputTokens = event.usage.output_tokens || 0
+                }
+
+                // message_start: 입력 토큰
+                if (event.type === 'message_start' && event.message?.usage) {
+                  inputTokens = event.message.usage.input_tokens || 0
+                }
+
+                // 🔥 message_stop: 남은 버퍼에서도 처리!
+                if (event.type === 'message_stop') {
+                  console.log('🛑 [Anthropic Stream] 남은 버퍼에서 message_stop 발견! done 이벤트 전송')
+                  stopEventReceived = true
+
+                  const responseTime = Date.now() - startTime
+                  const pricing = getAnthropicPricing(model)
+                  const inputCost = (inputTokens * pricing.inputCost) / 1000000
+                  const outputCost = (outputTokens * pricing.outputCost) / 1000000
+
+                  const doneEvent = JSON.stringify({
+                    type: 'done',
+                    content: fullContent,
+                    usage: {
+                      inputTokens,
+                      outputTokens,
+                      totalTokens: inputTokens + outputTokens
+                    },
+                    cost: {
+                      inputCost,
+                      outputCost,
+                      totalCost: inputCost + outputCost
+                    },
+                    model,
+                    finishReason: 'stop',
+                    responseTime
+                  })
+
+                  console.log('📤 [Anthropic Stream] done 이벤트 전송 (from buffer):', doneEvent.substring(0, 200))
+
+                  // 🔥 done 이벤트를 여러 번 전송하여 확실히 전달 보장
+                  for (let i = 0; i < 10; i++) {
+                    res.write(`data: ${doneEvent}\n\n`)
+                  }
+
+                  // 🔥 대용량 주석 데이터로 버퍼 강제 플러시 (8KB)
+                  res.write(`: ${'-'.repeat(8000)}\n\n`)
+
+                  // 🔥 SSE 표준 종료 마커 전송
+                  for (let i = 0; i < 5; i++) {
+                    res.write(`data: [DONE]\n\n`)
+                  }
+
+                  console.log(`✅ [Anthropic Stream] done 이벤트 전송 완료 (from buffer): ${inputTokens + outputTokens} 토큰, ${responseTime}ms`)
+                }
+              } catch (parseError) {
+                console.warn('⚠️ 남은 버퍼 파싱 오류:', {
+                  dataPreview: data.substring(0, 100),
+                  error: parseError instanceof Error ? parseError.message : String(parseError)
+                })
               }
             }
           }
+        } else {
+          console.warn('⚠️ [Anthropic Stream] 남은 버퍼가 비어있습니다!')
         }
         break
       }
@@ -406,32 +471,84 @@ async function handleOpenAIStreaming(
 
       if (done) {
         console.log('✅ [OpenAI Stream] 스트림 완료, 남은 버퍼 처리 중...')
-        // 🔥 스트림 종료 시 버퍼에 남은 데이터 처리
+        // 🔥 스트림 종료 시 버퍼에 남은 데이터 철저히 처리 (finish_reason 포함!)
         if (buffer.trim()) {
           console.log('📦 [OpenAI Stream] 남은 버퍼:', buffer.substring(0, 200))
-          const remainingLines = buffer.split('\n')
+          const remainingLines = buffer.split('\n').filter(line => line.trim())
 
           for (const line of remainingLines) {
-            if (line.trim() && line.startsWith('data:')) {
-              const data = line.slice(5).trim()
-              if (data && data !== '[DONE]') {
-                try {
-                  const event = JSON.parse(data)
-                  const content = event.choices?.[0]?.delta?.content
+            // 🔥 SSE 주석 라인 무시
+            if (line.startsWith(':')) {
+              continue
+            }
 
-                  if (content) {
-                    fullContent += content
-                  }
-                  if (event.usage) {
-                    inputTokens = event.usage.prompt_tokens
-                    outputTokens = event.usage.completion_tokens
-                  }
-                } catch (parseError) {
-                  console.warn('⚠️ 남은 버퍼 파싱 오류:', data.substring(0, 100))
+            if (line.startsWith('data:')) {
+              const data = line.slice(5).trim()
+              if (!data || data === '[DONE]') continue
+
+              try {
+                const event = JSON.parse(data)
+                const content = event.choices?.[0]?.delta?.content
+                const finishReason = event.choices?.[0]?.finish_reason
+
+                console.log(`📦 [OpenAI Stream] 남은 버퍼 이벤트: ${finishReason ? `finish_reason=${finishReason}` : 'delta'}`)
+
+                if (content) {
+                  fullContent += content
                 }
+
+                if (event.usage) {
+                  inputTokens = event.usage.prompt_tokens
+                  outputTokens = event.usage.completion_tokens
+                }
+
+                // 🔥 finish_reason: 남은 버퍼에서도 처리!
+                if (finishReason) {
+                  console.log(`🛑 [OpenAI Stream] 남은 버퍼에서 finish_reason 발견: ${finishReason}! done 이벤트 전송`)
+                  stopEventReceived = true
+
+                  if (!inputTokens) inputTokens = estimateTokens(prompt, 'openai')
+                  if (!outputTokens) outputTokens = estimateTokens(fullContent, 'openai')
+
+                  const responseTime = Date.now() - startTime
+                  const pricing = getOpenAIPricing(model)
+                  const inputCost = (inputTokens * pricing.inputCost) / 1000000
+                  const outputCost = (outputTokens * pricing.outputCost) / 1000000
+
+                  const doneEvent = JSON.stringify({
+                    type: 'done',
+                    content: fullContent,
+                    usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens },
+                    cost: { inputCost, outputCost, totalCost: inputCost + outputCost },
+                    model,
+                    finishReason,
+                    responseTime
+                  })
+
+                  console.log('📤 [OpenAI Stream] done 이벤트 전송 (from buffer):', doneEvent.substring(0, 200))
+
+                  for (let i = 0; i < 10; i++) {
+                    res.write(`data: ${doneEvent}\n\n`)
+                  }
+
+                  res.write(`: ${'-'.repeat(8000)}\n\n`)
+
+                  for (let i = 0; i < 5; i++) {
+                    res.write(`data: [DONE]\n\n`)
+                  }
+
+                  console.log(`✅ [OpenAI Stream] done 이벤트 전송 완료 (from buffer): ${inputTokens + outputTokens} 토큰, ${responseTime}ms`)
+                }
+              } catch (parseError) {
+                console.warn('⚠️ 남은 버퍼 파싱 오류:', {
+                  dataPreview: data.substring(0, 100),
+                  error: parseError instanceof Error ? parseError.message : String(parseError)
+                })
               }
             }
           }
+        } else {
+          console.warn('⚠️ [OpenAI Stream] 남은 버퍼가 비어있습니다!')
         }
         break
       }
@@ -620,28 +737,78 @@ async function handleGoogleAIStreaming(
 
       if (done) {
         console.log('✅ [Google AI Stream] 스트림 완료, 남은 버퍼 처리 중...')
-        // 🔥 스트림 종료 시 버퍼에 남은 데이터 처리
+        // 🔥 스트림 종료 시 버퍼에 남은 데이터 철저히 처리 (finishReason 포함!)
         if (buffer.trim()) {
           console.log('📦 [Google AI Stream] 남은 버퍼:', buffer.substring(0, 200))
-          const remainingLines = buffer.split('\n')
+          const remainingLines = buffer.split('\n').filter(line => line.trim())
 
           for (const line of remainingLines) {
-            if (line.trim() && line.startsWith('data:')) {
-              const data = line.slice(5).trim()
-              if (data) {
-                try {
-                  const event = JSON.parse(data)
-                  const content = event.candidates?.[0]?.content?.parts?.[0]?.text
+            // 🔥 SSE 주석 라인 무시
+            if (line.startsWith(':')) {
+              continue
+            }
 
-                  if (content) {
-                    fullContent += content
-                  }
-                } catch (parseError) {
-                  console.warn('⚠️ 남은 버퍼 파싱 오류:', data.substring(0, 100))
+            if (line.startsWith('data:')) {
+              const data = line.slice(5).trim()
+              if (!data) continue
+
+              try {
+                const event = JSON.parse(data)
+                const content = event.candidates?.[0]?.content?.parts?.[0]?.text
+                const finishReason = event.candidates?.[0]?.finishReason
+
+                console.log(`📦 [Google AI Stream] 남은 버퍼 이벤트: ${finishReason || 'content'}`)
+
+                if (content) {
+                  fullContent += content
                 }
+
+                // 🔥 finishReason: 남은 버퍼에서도 처리!
+                if (finishReason) {
+                  console.log(`🛑 [Google AI Stream] 남은 버퍼에서 finishReason 발견: ${finishReason}! done 이벤트 전송`)
+                  stopEventReceived = true
+
+                  const inputTokens = estimateTokens(prompt, 'google')
+                  const outputTokens = estimateTokens(fullContent, 'google')
+                  const responseTime = Date.now() - startTime
+                  const pricing = getGoogleAIPricing(model)
+                  const inputCost = (inputTokens * pricing.inputCost) / 1000000
+                  const outputCost = (outputTokens * pricing.outputCost) / 1000000
+
+                  const doneEvent = JSON.stringify({
+                    type: 'done',
+                    content: fullContent,
+                    usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens },
+                    cost: { inputCost, outputCost, totalCost: inputCost + outputCost },
+                    model,
+                    finishReason,
+                    responseTime
+                  })
+
+                  console.log('📤 [Google AI Stream] done 이벤트 전송 (from buffer):', doneEvent.substring(0, 200))
+
+                  for (let i = 0; i < 10; i++) {
+                    res.write(`data: ${doneEvent}\n\n`)
+                  }
+
+                  res.write(`: ${'-'.repeat(8000)}\n\n`)
+
+                  for (let i = 0; i < 5; i++) {
+                    res.write(`data: [DONE]\n\n`)
+                  }
+
+                  console.log(`✅ [Google AI Stream] done 이벤트 전송 완료 (from buffer): ${inputTokens + outputTokens} 토큰, ${responseTime}ms`)
+                }
+              } catch (parseError) {
+                console.warn('⚠️ 남은 버퍼 파싱 오류:', {
+                  dataPreview: data.substring(0, 100),
+                  error: parseError instanceof Error ? parseError.message : String(parseError)
+                })
               }
             }
           }
+        } else {
+          console.warn('⚠️ [Google AI Stream] 남은 버퍼가 비어있습니다!')
         }
         break
       }
