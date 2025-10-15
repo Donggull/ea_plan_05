@@ -54,7 +54,22 @@ export class ProposalTemplateService {
 
     if (error) {
       console.error('Error fetching templates:', error)
-      throw new Error('템플릿 목록 조회 실패')
+
+      // 테이블이 존재하지 않는 경우
+      if (error.message?.includes('relation') || error.message?.includes('does not exist')) {
+        throw new Error(
+          '템플릿 테이블이 존재하지 않습니다. ' +
+          'Supabase에서 scripts/create_proposal_templates_tables.sql을 실행하세요.'
+        )
+      }
+
+      // 권한 오류
+      if (error.message?.includes('permission') || error.message?.includes('policy')) {
+        throw new Error('템플릿 조회 권한이 없습니다. RLS 정책을 확인하세요.')
+      }
+
+      // 기타 오류
+      throw new Error(`템플릿 목록 조회 실패: ${error.message}`)
     }
 
     return (data as ProposalTemplate[]) || []
@@ -76,7 +91,22 @@ export class ProposalTemplateService {
 
     if (error) {
       console.error('Error fetching template:', error)
-      throw new Error('템플릿 조회 실패')
+
+      // 템플릿을 찾을 수 없는 경우
+      if (error.code === 'PGRST116') {
+        throw new Error(`템플릿을 찾을 수 없습니다 (ID: ${templateId})`)
+      }
+
+      // 테이블이 존재하지 않는 경우
+      if (error.message?.includes('relation') || error.message?.includes('does not exist')) {
+        throw new Error(
+          '템플릿 테이블이 존재하지 않습니다. ' +
+          'Supabase에서 scripts/create_proposal_templates_tables.sql을 실행하세요.'
+        )
+      }
+
+      // 기타 오류
+      throw new Error(`템플릿 조회 실패: ${error.message}`)
     }
 
     return data as ProposalTemplate
@@ -113,7 +143,27 @@ export class ProposalTemplateService {
 
     if (error) {
       console.error('Error saving template selection:', error)
-      throw new Error('템플릿 선택 저장 실패')
+
+      // 테이블이 존재하지 않는 경우
+      if (error.message?.includes('relation') || error.message?.includes('does not exist')) {
+        throw new Error(
+          '템플릿 선택 테이블이 존재하지 않습니다. ' +
+          'Supabase에서 scripts/create_proposal_templates_tables.sql을 실행하세요.'
+        )
+      }
+
+      // 외래 키 제약 조건 위반 (템플릿 ID가 존재하지 않음)
+      if (error.message?.includes('foreign key') || error.message?.includes('violates')) {
+        throw new Error(`선택한 템플릿이 존재하지 않거나 프로젝트가 유효하지 않습니다.`)
+      }
+
+      // 권한 오류
+      if (error.message?.includes('permission') || error.message?.includes('policy')) {
+        throw new Error('템플릿 선택 저장 권한이 없습니다. RLS 정책을 확인하세요.')
+      }
+
+      // 기타 오류
+      throw new Error(`템플릿 선택 저장 실패: ${error.message}`)
     }
 
     return data as TemplateSelection
@@ -142,7 +192,22 @@ export class ProposalTemplateService {
 
     if (error) {
       console.error('Error fetching selected template:', error)
-      throw new Error('선택된 템플릿 조회 실패')
+
+      // 테이블이 존재하지 않는 경우
+      if (error.message?.includes('relation') || error.message?.includes('does not exist')) {
+        throw new Error(
+          '템플릿 선택 테이블이 존재하지 않습니다. ' +
+          'Supabase에서 scripts/create_proposal_templates_tables.sql을 실행하세요.'
+        )
+      }
+
+      // 권한 오류
+      if (error.message?.includes('permission') || error.message?.includes('policy')) {
+        throw new Error('템플릿 선택 조회 권한이 없습니다. RLS 정책을 확인하세요.')
+      }
+
+      // 기타 오류
+      throw new Error(`선택된 템플릿 조회 실패: ${error.message}`)
     }
 
     return data as TemplateSelection | null

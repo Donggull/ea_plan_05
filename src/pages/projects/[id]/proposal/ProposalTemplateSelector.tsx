@@ -49,23 +49,46 @@ export function ProposalTemplateSelectorPage() {
         console.log('🎨 템플릿 목록 로딩 중...')
 
         // 사용 가능한 템플릿 조회
-        const availableTemplates = await ProposalTemplateService.getAvailableTemplates()
-        console.log(`✅ ${availableTemplates.length}개 템플릿 로드 완료`)
+        try {
+          const availableTemplates = await ProposalTemplateService.getAvailableTemplates()
+          console.log(`✅ ${availableTemplates.length}개 템플릿 로드 완료`)
+          setTemplates(availableTemplates)
+        } catch (templateError) {
+          console.error('❌ 템플릿 로딩 실패:', templateError)
 
-        setTemplates(availableTemplates)
+          // 테이블이 존재하지 않는 경우 특별한 안내 메시지 표시
+          const errorMessage = templateError instanceof Error ? templateError.message : String(templateError)
+          if (errorMessage.includes('relation') || errorMessage.includes('does not exist') || errorMessage.includes('테이블')) {
+            setError(
+              '데이터베이스 테이블이 아직 생성되지 않았습니다. ' +
+              'Supabase Dashboard에서 다음 스크립트를 실행해주세요:\n\n' +
+              '1. scripts/create_proposal_templates_tables.sql\n' +
+              '2. scripts/insert_business_presentation_template.sql\n\n' +
+              '자세한 내용은 docs/TEMPLATE_SETUP_GUIDE.md를 참조하세요.'
+            )
+          } else {
+            setError(`템플릿을 불러오는데 실패했습니다: ${errorMessage}`)
+          }
+          return
+        }
 
-        // 이미 선택된 템플릿이 있는지 확인
+        // 이미 선택된 템플릿이 있는지 확인 (실패해도 계속 진행)
         if (id) {
-          const selection = await ProposalTemplateService.getSelectedTemplate(id)
-          if (selection) {
-            setSelectedTemplateId(selection.template_id)
-            console.log('✅ 기존 선택된 템플릿:', selection.template_id)
+          try {
+            const selection = await ProposalTemplateService.getSelectedTemplate(id)
+            if (selection) {
+              setSelectedTemplateId(selection.template_id)
+              console.log('✅ 기존 선택된 템플릿:', selection.template_id)
+            }
+          } catch (selectionError) {
+            // 선택 정보 조회 실패는 무시 (처음 사용하는 경우 정상)
+            console.warn('⚠️ 선택된 템플릿 확인 실패 (무시):', selectionError)
           }
         }
 
       } catch (err) {
-        console.error('❌ 템플릿 로딩 실패:', err)
-        setError(`템플릿을 불러오는데 실패했습니다: ${err instanceof Error ? err.message : String(err)}`)
+        console.error('❌ 예상치 못한 오류:', err)
+        setError(`예상치 못한 오류가 발생했습니다: ${err instanceof Error ? err.message : String(err)}`)
       } finally {
         setLoading(false)
       }
@@ -169,24 +192,81 @@ export function ProposalTemplateSelectorPage() {
   }
 
   if (error || templates.length === 0) {
+    const isSetupRequired = error?.includes('데이터베이스 테이블')
+
     return (
       <PageContainer>
         <PageContent>
           <Card>
-            <div className="flex items-center space-x-3 text-accent-red">
-              <AlertTriangle className="w-6 h-6" />
-              <div>
-                <h2 className="text-lg font-semibold">템플릿 로딩 실패</h2>
-                <p className="text-text-secondary mt-1">
-                  {error || '사용 가능한 템플릿이 없습니다.'}
-                </p>
+            <div className="space-y-4">
+              <div className="flex items-start space-x-3 text-accent-red">
+                <AlertTriangle className="w-6 h-6 flex-shrink-0 mt-1" />
+                <div className="flex-1">
+                  <h2 className="text-lg font-semibold mb-2">
+                    {isSetupRequired ? '데이터베이스 설정 필요' : '템플릿 로딩 실패'}
+                  </h2>
+
+                  {isSetupRequired ? (
+                    <div className="space-y-3 text-text-secondary">
+                      <p>템플릿 시스템을 사용하기 위해 데이터베이스 테이블을 먼저 생성해야 합니다.</p>
+
+                      <div className="bg-bg-tertiary border border-border-primary rounded-lg p-4 space-y-3">
+                        <p className="font-semibold text-text-primary">설정 단계:</p>
+                        <ol className="list-decimal list-inside space-y-2 text-sm">
+                          <li>
+                            <a
+                              href="https://app.supabase.com"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-indigo-500 hover:underline"
+                            >
+                              Supabase Dashboard
+                            </a>
+                            에서 SQL Editor를 엽니다
+                          </li>
+                          <li>
+                            <code className="bg-bg-primary px-2 py-1 rounded text-xs">
+                              scripts/create_proposal_templates_tables.sql
+                            </code>{' '}
+                            파일의 내용을 실행합니다
+                          </li>
+                          <li>
+                            <code className="bg-bg-primary px-2 py-1 rounded text-xs">
+                              scripts/insert_business_presentation_template.sql
+                            </code>{' '}
+                            파일의 내용을 실행합니다
+                          </li>
+                          <li>이 페이지를 새로고침합니다</li>
+                        </ol>
+                      </div>
+
+                      <p className="text-xs">
+                        자세한 설치 가이드는{' '}
+                        <code className="bg-bg-tertiary px-2 py-1 rounded">
+                          docs/TEMPLATE_SETUP_GUIDE.md
+                        </code>{' '}
+                        파일을 참조하세요.
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-text-secondary">
+                      {error || '사용 가능한 템플릿이 없습니다.'}
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
-            <div className="mt-6">
-              <Button.Secondary onClick={() => navigate(`/projects/${id}/proposal`)}>
-                <ArrowLeft className="w-4 h-4" />
-                워크플로우로 돌아가기
-              </Button.Secondary>
+
+              <div className="flex space-x-3 pt-4 border-t border-border-primary">
+                <Button.Secondary onClick={() => navigate(`/projects/${id}/proposal/draft`)}>
+                  <ArrowLeft className="w-4 h-4" />
+                  초안으로 돌아가기
+                </Button.Secondary>
+                {isSetupRequired && (
+                  <Button.Primary onClick={() => window.location.reload()}>
+                    새로고침
+                  </Button.Primary>
+                )}
+              </div>
             </div>
           </Card>
         </PageContent>
