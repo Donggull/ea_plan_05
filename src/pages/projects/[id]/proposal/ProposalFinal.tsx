@@ -187,6 +187,12 @@ export function ProposalFinalPage() {
 </head>
 <body>
   ${appliedTemplate.html}
+  ${appliedTemplate.script ? `
+  <!-- 슬라이드 네비게이션 스크립트 -->
+  <script>
+    ${appliedTemplate.script}
+  </script>
+  ` : ''}
 </body>
 </html>
     `
