@@ -38,6 +38,7 @@ export class ProposalPhaseService {
     analysisResult: any,
     aiProvider: string,
     aiModel: string,
+    userId: string,  // 🔥 추가: DB 저장 시 created_by에 사용
     onProgress?: (phase: string, progress: number, message: string) => void
   ) {
     try {
@@ -53,8 +54,8 @@ export class ProposalPhaseService {
         (progress, message) => onProgress?.('phase1', progress, message)
       );
 
-      // Phase 1 완료 후 진행 상태 업데이트
-      await this.updateProposalProgress(projectId, 'phase1_completed', 33);
+      // Phase 1 완료 후 DB에 중간 저장 (Vercel 60초 타임아웃 방지)
+      await this.updateProposalProgress(projectId, userId, aiProvider, aiModel, 'phase1_completed', 33);
 
       // Phase 2: 기술 구현 상세 (기술 스택, 아키텍처, 구현 계획)
       console.log('📝 [Phase 2] 기술 구현 상세 생성 시작...');
@@ -67,8 +68,8 @@ export class ProposalPhaseService {
         (progress, message) => onProgress?.('phase2', progress, message)
       );
 
-      // Phase 2 완료 후 진행 상태 업데이트
-      await this.updateProposalProgress(projectId, 'phase2_completed', 66);
+      // Phase 2 완료 후 DB에 중간 저장
+      await this.updateProposalProgress(projectId, userId, aiProvider, aiModel, 'phase2_completed', 66);
 
       // Phase 3: 일정 및 비용 산정 (프로젝트 일정, 비용 상세, 리스크 관리)
       console.log('📝 [Phase 3] 일정 및 비용 산정 생성 시작...');
@@ -82,8 +83,8 @@ export class ProposalPhaseService {
         (progress, message) => onProgress?.('phase3', progress, message)
       );
 
-      // Phase 3 완료 후 진행 상태 업데이트
-      await this.updateProposalProgress(projectId, 'phase3_completed', 100);
+      // Phase 3 완료 후 DB에 중간 저장
+      await this.updateProposalProgress(projectId, userId, aiProvider, aiModel, 'phase3_completed', 100);
 
       // 모든 Phase 결과 병합
       const finalProposal = await this.mergePhaseResults(
@@ -456,17 +457,25 @@ ${phase2Data.technicalComplexity || 'medium'}
 
   /**
    * 진행 상태 업데이트 (proposal_workflow_analysis 테이블 사용)
+   *
+   * Vercel 60초 타임아웃을 피하기 위해 Phase별로 중간 저장합니다.
+   * 각 Phase가 완료될 때마다 DB에 저장하여 타임아웃 방지 + 진행 상황 추적
    */
   private async updateProposalProgress(
     projectId: string,
+    userId: string,        // ✅ 실제 사용자 UUID (외래 키)
+    aiProvider: string,
+    aiModel: string,
     status: string,
     progress: number
   ) {
     if (!supabase) return;
 
     try {
+      console.log(`💾 [Phase Progress] DB 저장: ${status} (${progress}%)`);
+
       // proposal_workflow_analysis 테이블에 진행 상태 저장
-      await supabase
+      const { error } = await supabase
         .from('proposal_workflow_analysis')
         .insert({
           project_id: projectId,
@@ -478,12 +487,21 @@ ${phase2Data.technicalComplexity || 'medium'}
             progress_percentage: progress,
             updated_at: new Date().toISOString()
           }),
-          created_by: 'system',
-          ai_provider: 'system',
-          ai_model: 'system'
+          created_by: userId,      // ✅ 유효한 UUID 사용
+          ai_provider: aiProvider, // ✅ 실제 AI provider
+          ai_model: aiModel        // ✅ 실제 AI model
         });
+
+      if (error) {
+        console.error('❌ [Phase Progress] DB 저장 실패:', error);
+        // 진행 상태 저장 실패는 치명적이지 않으므로 에러를 던지지 않음
+        // Phase 생성은 계속 진행
+      } else {
+        console.log(`✅ [Phase Progress] DB 저장 성공: ${status}`);
+      }
     } catch (error) {
-      console.error('진행 상태 업데이트 실패:', error);
+      console.error('❌ [Phase Progress] 저장 중 예외 발생:', error);
+      // 에러를 던지지 않고 계속 진행
     }
   }
 

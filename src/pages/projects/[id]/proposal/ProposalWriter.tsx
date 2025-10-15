@@ -628,6 +628,7 @@ export function ProposalWriterPage() {
           preAnalysisData, // 사전 분석 결과 전달
           aiProvider,
           aiModel,
+          user.id,  // 🔥 사용자 UUID 전달 (DB 저장용)
           (phase: string, progress: number, message: string) => {
             // Phase별 진행 상태 업데이트
             console.log(`📊 [${phase}] ${progress}% - ${message}`)
