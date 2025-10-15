@@ -34,6 +34,7 @@ export interface ApplyTemplateParams {
 export interface AppliedTemplate {
   html: string
   css: string
+  script?: string // 슬라이드 네비게이션 JavaScript (별도 실행 필요)
   templateInfo: ProposalTemplate
 }
 
@@ -250,8 +251,11 @@ export class ProposalTemplateService {
     }
 
     // 4. 슬라이드 네비게이션 및 JavaScript 추가 (비즈니스 프레젠테이션 템플릿용)
+    let script: string | undefined
     if (template.template_type === 'business') {
-      html = this.addSlideNavigation(html, proposalData.sections?.length || 0)
+      const { html: htmlWithNav, script: navScript } = this.addSlideNavigation(html, proposalData.sections?.length || 0)
+      html = htmlWithNav
+      script = navScript
       // 프레젠테이션 컨테이너로 전체 HTML 감싸기
       html = `<div class="presentation-container">\n${html}\n</div>`
     }
@@ -262,20 +266,30 @@ export class ProposalTemplateService {
     return {
       html,
       css,
+      script,
       templateInfo: template
     }
   }
 
   /**
    * 템플릿 변수 치환 헬퍼
+   * - {{key}}: 이스케이프된 값으로 치환
+   * - {{{key}}}: HTML 이스케이프 없이 치환 (triple mustache)
    */
   private static replaceVariable(
     html: string,
     key: string,
     value: string
   ): string {
-    const regex = new RegExp(`{{${key}}}`, 'g')
-    return html.replace(regex, value)
+    // Triple mustache {{{key}}} 먼저 치환 (HTML 이스케이프 없음)
+    const tripleMustacheRegex = new RegExp(`{{{${key}}}}`, 'g')
+    html = html.replace(tripleMustacheRegex, value)
+
+    // Double mustache {{key}} 치환 (HTML 이스케이프 - 여기서는 동일하게 처리)
+    const doubleMustacheRegex = new RegExp(`{{${key}}}`, 'g')
+    html = html.replace(doubleMustacheRegex, value)
+
+    return html
   }
 
   /**
@@ -438,13 +452,15 @@ export class ProposalTemplateService {
   }
 
   /**
-   * 슬라이드 네비게이션 및 JavaScript 추가 (비즈니스 프레젠테이션 템플릿용)
+   * 슬라이드 네비게이션 추가 (비즈니스 프레젠테이션 템플릿용)
+   *
+   * HTML과 JavaScript를 분리하여 반환 (React의 dangerouslySetInnerHTML은 <script> 태그를 실행하지 않음)
    */
-  private static addSlideNavigation(html: string, sectionCount: number): string {
+  private static addSlideNavigation(html: string, sectionCount: number): { html: string; script: string } {
     // 전체 슬라이드 수: 1 (커버) + sectionCount + 1 (감사)
     const totalSlides = sectionCount + 2
 
-    // 네비게이션 HTML 생성
+    // 네비게이션 HTML 생성 (JavaScript 제외)
     const navigationHtml = `
 <!-- 슬라이드 네비게이션 -->
 <div class="navigation" id="navigation">
@@ -456,9 +472,10 @@ export class ProposalTemplateService {
   </div>
   <button class="nav-btn" id="nextBtn">다음</button>
 </div>
+`
 
-<!-- 슬라이드 제어 JavaScript -->
-<script>
+    // 슬라이드 제어 JavaScript (별도 실행 필요)
+    const navigationScript = `
 (function() {
   let currentSlide = 0;
   const slides = document.querySelectorAll('.slide');
@@ -467,11 +484,15 @@ export class ProposalTemplateService {
   const nextBtn = document.getElementById('nextBtn');
   const indicators = document.querySelectorAll('.indicator');
 
+  console.log('🎬 슬라이드 네비게이션 초기화:', { totalSlides, slidesFound: slides.length });
+
   // 슬라이드 표시 함수
   function showSlide(index) {
     // 유효성 검사
     if (index < 0) index = 0;
     if (index >= totalSlides) index = totalSlides - 1;
+
+    console.log('📄 슬라이드 전환:', { from: currentSlide, to: index });
 
     // 모든 슬라이드 숨기기
     slides.forEach(slide => slide.classList.remove('active'));
@@ -531,11 +552,9 @@ export class ProposalTemplateService {
   // 초기 슬라이드 표시
   showSlide(0);
 })();
-</script>
 `
 
-    // HTML 끝에 네비게이션 추가 (</div> 태그 이전 또는 body 끝)
-    // 마지막 슬라이드 이후에 추가
+    // HTML 끝에 네비게이션 추가 (마지막 슬라이드 이후)
     const lastSlideIndex = html.lastIndexOf('</div>')
     if (lastSlideIndex !== -1) {
       html = html.slice(0, lastSlideIndex + 6) + navigationHtml + html.slice(lastSlideIndex + 6)
@@ -544,6 +563,6 @@ export class ProposalTemplateService {
       html += navigationHtml
     }
 
-    return html
+    return { html, script: navigationScript }
   }
 }

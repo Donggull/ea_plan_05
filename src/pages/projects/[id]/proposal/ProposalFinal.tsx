@@ -142,6 +142,22 @@ export function ProposalFinalPage() {
     loadFinalProposal()
   }, [id])
 
+  // 슬라이드 네비게이션 JavaScript 실행
+  useEffect(() => {
+    if (!appliedTemplate || !appliedTemplate.script) return
+
+    console.log('🎬 슬라이드 네비게이션 스크립트 실행 중...')
+
+    try {
+      // JavaScript를 동적으로 실행
+      // eslint-disable-next-line no-eval
+      eval(appliedTemplate.script)
+      console.log('✅ 슬라이드 네비게이션 스크립트 실행 완료')
+    } catch (err) {
+      console.error('❌ 슬라이드 네비게이션 스크립트 실행 실패:', err)
+    }
+  }, [appliedTemplate])
+
   // 외부 클릭 감지하여 드롭다운 메뉴 닫기
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
