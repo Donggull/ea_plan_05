@@ -671,6 +671,31 @@ export function ProposalWriterPage() {
 
         // 최종 결과를 DB에 저장 (proposal_workflow_analysis 테이블)
         if (finalProposal && user?.id) {
+          // 🔥 DB 저장 전 최종 검증
+          console.log('🔍 DB 저장 전 최종 검증 시작...')
+
+          if (!finalProposal.title || !finalProposal.sections || finalProposal.sections.length === 0) {
+            console.error('❌ 제안서 데이터 검증 실패:', {
+              hasTitle: !!finalProposal.title,
+              sectionsLength: finalProposal.sections?.length || 0
+            })
+            throw new Error('제안서 데이터가 유효하지 않습니다. title 또는 sections가 누락되었습니다.')
+          }
+
+          // JSON 직렬화 테스트
+          let finalProposalString: string
+          try {
+            finalProposalString = JSON.stringify(finalProposal)
+            console.log('✅ JSON 직렬화 성공:', {
+              length: finalProposalString.length,
+              title: finalProposal.title,
+              sectionsCount: finalProposal.sections.length
+            })
+          } catch (stringifyError) {
+            console.error('❌ JSON 직렬화 실패:', stringifyError)
+            throw new Error('제안서 데이터를 JSON으로 변환할 수 없습니다.')
+          }
+
           const { error: saveError } = await supabase!
             .from('proposal_workflow_analysis')
             .insert({
@@ -678,16 +703,17 @@ export function ProposalWriterPage() {
               workflow_step: 'proposal',
               analysis_type: 'proposal_draft',
               status: 'completed',
-              analysis_result: JSON.stringify(finalProposal),
+              analysis_result: finalProposalString,
               created_by: user.id,
               ai_provider: aiProvider,
               ai_model: aiModel
             })
 
           if (saveError) {
-            console.error('제안서 저장 오류:', saveError)
+            console.error('❌ 제안서 DB 저장 오류:', saveError)
+            throw new Error(`제안서 저장에 실패했습니다: ${saveError.message}`)
           } else {
-            console.log('✅ 제안서 저장 완료')
+            console.log('✅ 제안서 DB 저장 완료')
           }
         }
 

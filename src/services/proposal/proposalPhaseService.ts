@@ -384,22 +384,41 @@ ${phase2Data.technicalComplexity || 'medium'}
     console.log('🔄 Phase 결과 병합 시작...');
 
     // JSON 추출 (안전한 파싱) - 공통 유틸리티 사용
-    const phase1Data = extractJSON(phase1.content);
-    const phase2Data = extractJSON(phase2.content);
-    const phase3Data = extractJSON(phase3.content);
+    // 이제 callStreamingAPI에서 이미 검증된 JSON 문자열을 받으므로 JSON.parse만 하면 됨
+    let phase1Data, phase2Data, phase3Data;
 
-    console.log('✅ Phase 1 데이터:', {
-      title: phase1Data.title,
-      sectionsCount: phase1Data.sections?.length || 0
-    });
-    console.log('✅ Phase 2 데이터:', {
-      sectionsCount: phase2Data.sections?.length || 0,
-      complexity: phase2Data.technicalComplexity
-    });
-    console.log('✅ Phase 3 데이터:', {
-      sectionsCount: phase3Data.sections?.length || 0,
-      duration: phase3Data.totalDuration
-    });
+    try {
+      phase1Data = JSON.parse(phase1.content);
+      console.log('✅ Phase 1 데이터:', {
+        title: phase1Data.title,
+        sectionsCount: phase1Data.sections?.length || 0
+      });
+    } catch (e) {
+      console.error('❌ Phase 1 파싱 실패:', e);
+      throw new Error('Phase 1 결과를 파싱할 수 없습니다. AI 응답 형식을 확인해주세요.');
+    }
+
+    try {
+      phase2Data = JSON.parse(phase2.content);
+      console.log('✅ Phase 2 데이터:', {
+        sectionsCount: phase2Data.sections?.length || 0,
+        complexity: phase2Data.technicalComplexity
+      });
+    } catch (e) {
+      console.error('❌ Phase 2 파싱 실패:', e);
+      throw new Error('Phase 2 결과를 파싱할 수 없습니다. AI 응답 형식을 확인해주세요.');
+    }
+
+    try {
+      phase3Data = JSON.parse(phase3.content);
+      console.log('✅ Phase 3 데이터:', {
+        sectionsCount: phase3Data.sections?.length || 0,
+        duration: phase3Data.totalDuration
+      });
+    } catch (e) {
+      console.error('❌ Phase 3 파싱 실패:', e);
+      throw new Error('Phase 3 결과를 파싱할 수 없습니다. AI 응답 형식을 확인해주세요.');
+    }
 
     // Phase별 데이터 병합
     const mergedResult = {
@@ -591,12 +610,27 @@ ${phase2Data.technicalComplexity || 'medium'}
                         usage = event.usage || usage;
                         cost = event.cost || cost;
 
-                        // 완료 진행률
-                        onProgress?.(fullContent.length, 100);
+                        // 🔥 중요: AI 응답을 즉시 JSON으로 검증 및 정제
+                        console.log('🔍 [Phase Streaming] JSON 검증 시작...');
+                        const extractedJSON = extractJSON(fullContent);
 
-                        // Phase 결과 반환
+                        // 파싱 에러 체크
+                        if (extractedJSON._parseError) {
+                          console.error('❌ [Phase Streaming] JSON 파싱 실패:', extractedJSON._errorMessage);
+                          reject(new Error(`AI 응답이 유효한 JSON이 아닙니다: ${extractedJSON._errorMessage}`));
+                          return;
+                        }
+
+                        // 유효한 JSON으로 다시 문자열화 (항상 유효한 JSON 문자열 보장)
+                        const validJSONString = JSON.stringify(extractedJSON);
+                        console.log('✅ [Phase Streaming] JSON 검증 완료, 유효한 JSON 확인');
+
+                        // 완료 진행률
+                        onProgress?.(validJSONString.length, 100);
+
+                        // Phase 결과 반환 (검증된 JSON 문자열)
                         resolve({
-                          content: fullContent,
+                          content: validJSONString,
                           usage,
                           cost
                         });
@@ -619,13 +653,29 @@ ${phase2Data.technicalComplexity || 'medium'}
               // done 이벤트를 받지 못한 경우 fallback
               if (fullContent) {
                 console.log('⚠️ [Phase Streaming] done 이벤트 미수신, fallback 처리');
-                onProgress?.(fullContent.length, 100);
+
+                // 🔥 fallback에서도 JSON 검증 및 정제
+                console.log('🔍 [Phase Streaming Fallback] JSON 검증 시작...');
+                const extractedJSON = extractJSON(fullContent);
+
+                // 파싱 에러 체크
+                if (extractedJSON._parseError) {
+                  console.error('❌ [Phase Streaming Fallback] JSON 파싱 실패:', extractedJSON._errorMessage);
+                  reject(new Error(`AI 응답이 유효한 JSON이 아닙니다: ${extractedJSON._errorMessage}`));
+                  return;
+                }
+
+                // 유효한 JSON으로 다시 문자열화
+                const validJSONString = JSON.stringify(extractedJSON);
+                console.log('✅ [Phase Streaming Fallback] JSON 검증 완료');
+
+                onProgress?.(validJSONString.length, 100);
                 resolve({
-                  content: fullContent,
+                  content: validJSONString,
                   usage: usage.totalTokens > 0 ? usage : {
                     inputTokens: Math.ceil(prompt.length / 4),
-                    outputTokens: Math.ceil(fullContent.length / 4),
-                    totalTokens: Math.ceil(prompt.length / 4) + Math.ceil(fullContent.length / 4)
+                    outputTokens: Math.ceil(validJSONString.length / 4),
+                    totalTokens: Math.ceil(prompt.length / 4) + Math.ceil(validJSONString.length / 4)
                   },
                   cost: cost.totalCost > 0 ? cost : {
                     inputCost: 0.01,
