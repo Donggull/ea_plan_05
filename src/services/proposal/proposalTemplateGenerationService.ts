@@ -13,7 +13,7 @@
 import { supabase } from '../../lib/supabase'
 import { ProposalDataManager } from './dataManager'
 import { ProposalTemplateService } from './proposalTemplateService'
-import { textToSimpleHtml } from '../../utils/textToHtml'
+import { textToEnhancedHtml } from '../../utils/textToHtml'
 
 export interface TemplateGenerationPhase {
   phase: number
@@ -175,7 +175,7 @@ export class ProposalTemplateGenerationService {
   /**
    * 1차 제안서 section을 템플릿 slide로 직접 매핑
    *
-   * 🔥 핵심 로직: AI 호출 없이 텍스트를 HTML로 변환하여 매핑
+   * 🔥 핵심 로직: 섹션 타입을 자동 감지하여 템플릿 레이아웃 적용
    */
   private static mapSectionToSlide(
     section: any,
@@ -186,12 +186,12 @@ export class ProposalTemplateGenerationService {
     // 1. 원본 content가 이미 HTML인지 확인
     const isHtml = /<[a-z][\s\S]*>/i.test(section.content)
 
-    // 2. HTML로 변환 (순수 텍스트인 경우)
+    // 2. 향상된 HTML 변환 (템플릿 레이아웃 자동 적용)
     const htmlContent = isHtml
       ? section.content
-      : textToSimpleHtml(section.content)
+      : textToEnhancedHtml(section.title, section.content)
 
-    console.log(`  ✅ HTML 변환 완료: ${htmlContent.length}자`)
+    console.log(`  ✅ HTML 변환 완료: ${htmlContent.length}자 (타입별 레이아웃 적용)`)
 
     // 3. 시각적 요소 추출 (키워드 기반)
     const visualElements = this.suggestVisualElements(section.title, section.content)

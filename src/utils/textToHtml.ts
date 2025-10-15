@@ -185,6 +185,352 @@ export function textToSimpleHtml(text: string): string {
 }
 
 /**
+ * 템플릿용 향상된 HTML 변환 (Enhanced)
+ *
+ * 섹션 타입을 자동 감지하여 적절한 템플릿 레이아웃을 적용합니다.
+ * - 문제/과제형 → problem-section
+ * - 솔루션형 → solution-grid
+ * - 통계/지표형 → stats-container
+ * - 기술 스택형 → tech-stack
+ * - 일정형 → timeline
+ * - 키워드/숫자 자동 강조
+ */
+export interface SectionType {
+  type: 'problem' | 'solution' | 'stats' | 'tech' | 'timeline' | 'list' | 'standard'
+  confidence: number
+}
+
+export function detectSectionType(title: string, content: string): SectionType {
+  const text = `${title} ${content}`.toLowerCase()
+
+  // 키워드 기반 섹션 타입 감지
+  const patterns: Record<string, RegExp[]> = {
+    problem: [/문제|이슈|과제|니즈|pain point|challenge/i, /해결하고자|개선|보완/i],
+    solution: [/솔루션|제안|방안|해결책|approach|solution/i, /기능|특징|장점/i],
+    stats: [/\d+%|\d+배|\d+원|\d+명/g, /roi|지표|성과|수치|통계|증가|감소|향상/i],
+    tech: [/기술|스택|아키텍처|프레임워크|api|클라우드|데이터베이스/i],
+    timeline: [/일정|기간|마일스톤|단계|phase|schedule/i, /\d+개월|\d+주|\d+일/i],
+    list: [/^(\d+\.|[-*•])\s+/m]
+  }
+
+  const scores: Record<string, number> = {
+    problem: 0,
+    solution: 0,
+    stats: 0,
+    tech: 0,
+    timeline: 0,
+    list: 0
+  }
+
+  // 패턴 매칭으로 점수 계산
+  for (const [type, regexList] of Object.entries(patterns)) {
+    for (const regex of regexList) {
+      const matches = text.match(regex)
+      if (matches) {
+        scores[type] += matches.length
+      }
+    }
+  }
+
+  // 가장 높은 점수의 타입 선택
+  let maxScore = 0
+  let detectedType: SectionType['type'] = 'standard'
+
+  for (const [type, score] of Object.entries(scores)) {
+    if (score > maxScore) {
+      maxScore = score
+      detectedType = type as SectionType['type']
+    }
+  }
+
+  return {
+    type: maxScore > 0 ? detectedType : 'standard',
+    confidence: Math.min(maxScore / 10, 1)
+  }
+}
+
+/**
+ * 키워드 자동 하이라이트
+ */
+export function highlightKeywords(text: string): string {
+  const keywords = [
+    'AI', '인공지능', '머신러닝', 'ML', '딥러닝',
+    '클라우드', 'AWS', 'Azure', 'GCP',
+    '혁신', '개선', '향상', '최적화', '효율',
+    'API', '프레임워크', '아키텍처', '마이크로서비스',
+    '자동화', '실시간', '확장성', '보안'
+  ]
+
+  let result = text
+
+  keywords.forEach(keyword => {
+    const regex = new RegExp(`(${keyword})`, 'gi')
+    result = result.replace(regex, '<span class="keyword-highlight">$1</span>')
+  })
+
+  return result
+}
+
+/**
+ * 숫자 자동 강조 (통계, 비율, 금액 등)
+ */
+export function highlightNumbers(text: string): string {
+  // 퍼센트 (250%)
+  text = text.replace(/(\d+(?:\.\d+)?%)/g, '<span class="number-highlight">$1</span>')
+
+  // 배수 (50배, 2.5배)
+  text = text.replace(/(\d+(?:\.\d+)?배)/g, '<span class="number-highlight">$1</span>')
+
+  // 금액 (1,000원, 백만원)
+  text = text.replace(/(\d{1,3}(?:,\d{3})*원)/g, '<span class="number-highlight">$1</span>')
+  text = text.replace(/((?:백|천|만|억|조)\s*원)/g, '<span class="number-highlight">$1</span>')
+
+  return text
+}
+
+/**
+ * 통계 데이터 추출 및 stat-box 생성
+ */
+export function extractStats(text: string): { stats: Array<{number: string; label: string}>; remainingText: string } {
+  const statPattern = /(\d+(?:\.\d+)?%|\d+배|\d+(?:,\d+)*원)\s*[:：-]?\s*([^.\n]+)/g
+  const stats: Array<{number: string; label: string}> = []
+
+  const matches = [...text.matchAll(statPattern)]
+  matches.forEach(match => {
+    stats.push({
+      number: match[1],
+      label: match[2].trim()
+    })
+  })
+
+  // 통계를 추출한 후 원본 텍스트에서 제거
+  let remainingText = text
+  matches.forEach(match => {
+    remainingText = remainingText.replace(match[0], '')
+  })
+
+  return { stats, remainingText: remainingText.trim() }
+}
+
+/**
+ * 향상된 HTML 변환 - 섹션 타입별 레이아웃 적용
+ */
+export function textToEnhancedHtml(title: string, text: string): string {
+  if (!text) return ''
+
+  // 이미 HTML이면 그대로 반환
+  if (/<[a-z][\s\S]*>/i.test(text)) {
+    return text
+  }
+
+  // 섹션 타입 감지
+  const sectionType = detectSectionType(title, text)
+  console.log(`📊 섹션 "${title}" 타입 감지:`, sectionType.type, `(신뢰도: ${Math.round(sectionType.confidence * 100)}%)`)
+
+  // 타입별 처리
+  switch (sectionType.type) {
+    case 'problem':
+      return renderProblemSection(text)
+    case 'solution':
+      return renderSolutionSection(text)
+    case 'stats':
+      return renderStatsSection(text)
+    case 'tech':
+      return renderTechSection(text)
+    case 'timeline':
+      return renderTimelineSection(text)
+    case 'list':
+      return renderEnhancedList(text)
+    default:
+      return renderStandardSection(text)
+  }
+}
+
+/**
+ * 문제/과제 섹션 렌더링
+ */
+function renderProblemSection(text: string): string {
+  const lines = text.split('\n').filter(line => line.trim())
+
+  const problemItems = lines.map(line => {
+    const cleanLine = line.replace(/^[-*•\d.]\s*/, '').trim()
+    return `
+    <div class="problem-item">
+      <span class="icon">⚠️</span>
+      <div class="content">${highlightKeywords(cleanLine)}</div>
+    </div>`
+  }).join('\n')
+
+  return `
+<div class="problem-section">
+  <div class="problem-highlights">
+    ${problemItems}
+  </div>
+</div>`
+}
+
+/**
+ * 솔루션 섹션 렌더링 (카드 그리드)
+ */
+function renderSolutionSection(text: string): string {
+  const lines = text.split('\n').filter(line => line.trim())
+  const items: Array<{title: string; content: string}> = []
+
+  let currentTitle = ''
+  let currentContent: string[] = []
+
+  lines.forEach((line, index) => {
+    const isBold = /^\*\*(.+?)\*\*/.test(line) || /^#{1,3}\s+/.test(line)
+
+    if (isBold || index === 0) {
+      if (currentTitle && currentContent.length > 0) {
+        items.push({ title: currentTitle, content: currentContent.join(' ') })
+      }
+      currentTitle = line.replace(/^\*\*(.+?)\*\*/, '$1').replace(/^#{1,3}\s+/, '').trim()
+      currentContent = []
+    } else {
+      currentContent.push(line.replace(/^[-*•]\s*/, '').trim())
+    }
+  })
+
+  if (currentTitle && currentContent.length > 0) {
+    items.push({ title: currentTitle, content: currentContent.join(' ') })
+  }
+
+  if (items.length === 0) {
+    items.push({ title: '주요 내용', content: text })
+  }
+
+  const icons = ['✨', '🚀', '💡', '🎯', '⚡', '🔧']
+
+  const cards = items.map((item, index) => `
+  <div class="solution-card">
+    <span class="icon">${icons[index % icons.length]}</span>
+    <h4>${highlightKeywords(item.title)}</h4>
+    <p>${highlightKeywords(highlightNumbers(item.content))}</p>
+  </div>`).join('\n')
+
+  return `
+<div class="solution-grid">
+  ${cards}
+</div>`
+}
+
+/**
+ * 통계/지표 섹션 렌더링
+ */
+function renderStatsSection(text: string): string {
+  const { stats, remainingText } = extractStats(text)
+
+  let html = ''
+
+  if (stats.length > 0) {
+    const statBoxes = stats.map(stat => `
+    <div class="stat-box">
+      <div class="stat-number">${stat.number}</div>
+      <div class="stat-label">${stat.label}</div>
+    </div>`).join('\n')
+
+    html += `
+<div class="stats-container">
+  ${statBoxes}
+</div>`
+  }
+
+  if (remainingText) {
+    html += `
+<div class="highlight-box">
+  <p>${highlightKeywords(highlightNumbers(remainingText))}</p>
+</div>`
+  }
+
+  return html || renderStandardSection(text)
+}
+
+/**
+ * 기술 스택 섹션 렌더링
+ */
+function renderTechSection(text: string): string {
+  const techKeywords = text.match(/\b[A-Z][a-zA-Z0-9.]+\b/g) || []
+  const koreanTech = text.match(/[가-힣]+(?:스택|프레임워크|라이브러리|서버|데이터베이스)/g) || []
+
+  const allTech = [...new Set([...techKeywords, ...koreanTech])]
+
+  if (allTech.length > 0) {
+    const tags = allTech.map(tech => `<span class="tech-tag">${tech}</span>`).join('\n')
+
+    return `
+<div class="tech-stack">
+  ${tags}
+</div>
+<p>${highlightKeywords(text)}</p>`
+  }
+
+  return renderStandardSection(text)
+}
+
+/**
+ * 타임라인 섹션 렌더링
+ */
+function renderTimelineSection(text: string): string {
+  const lines = text.split('\n').filter(line => line.trim())
+
+  const timelineItems = lines.map(line => {
+    const cleanLine = line.replace(/^[-*•\d.]\s*/, '').trim()
+    const parts = cleanLine.split(/[:：]/)
+
+    if (parts.length >= 2) {
+      return `
+    <div class="timeline-item">
+      <h4>${parts[0].trim()}</h4>
+      <p>${highlightKeywords(parts.slice(1).join(':').trim())}</p>
+    </div>`
+    } else {
+      return `
+    <div class="timeline-item">
+      <p>${highlightKeywords(cleanLine)}</p>
+    </div>`
+    }
+  }).join('\n')
+
+  return `
+<div class="timeline">
+  ${timelineItems}
+</div>`
+}
+
+/**
+ * 향상된 목록 렌더링
+ */
+function renderEnhancedList(text: string): string {
+  const lines = text.split('\n').filter(line => line.trim())
+
+  const listItems = lines.map(line => {
+    const cleanLine = line.replace(/^(\d+\.|[-*•])\s*/, '').trim()
+    return `
+  <li class="list-item">
+    <span class="bullet">▸</span>
+    <span class="content">${highlightKeywords(highlightNumbers(cleanLine))}</span>
+  </li>`
+  }).join('\n')
+
+  return `
+<ul class="enhanced-list">
+  ${listItems}
+</ul>`
+}
+
+/**
+ * 표준 섹션 렌더링 (폴백)
+ */
+function renderStandardSection(text: string): string {
+  let html = textToSimpleHtml(text)
+  html = highlightKeywords(html)
+  html = highlightNumbers(html)
+  return html
+}
+
+/**
  * 섹션 제목을 슬라이드 제목으로 매핑
  *
  * 1차 제안서의 section 제목을 템플릿의 slide 제목에 맞게 매핑합니다.
