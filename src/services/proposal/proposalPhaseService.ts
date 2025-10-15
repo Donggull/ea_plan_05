@@ -219,30 +219,38 @@ ${JSON.stringify(analysisResult.projectSummary || {}, null, 2)}
    - 성과 측정 방법
    - 기대 ROI
 
-## 중요: 출력 형식 엄수
-**반드시 순수 JSON 형식만 출력하세요. 어떠한 설명 텍스트나 Markdown도 포함하지 마세요.**
-**첫 글자는 반드시 { 로 시작하고 마지막 글자는 } 로 끝나야 합니다.**
+## ⚠️ 중요: 출력 형식 엄수 (필수)
 
+**다음 규칙을 반드시 준수하세요:**
+1. 순수 JSON만 출력 (설명 텍스트, Markdown, 주석 금지)
+2. 첫 글자는 { 로 시작, 마지막 글자는 } 로 끝
+3. 모든 문자열은 큰따옴표(")로 감싸기
+4. 배열 요소 사이에 쉼표(,) 필수
+5. 마지막 요소 뒤에는 쉼표 금지
+6. content 필드는 순수 텍스트만 (HTML, Markdown 금지)
+7. 특수문자는 JSON 이스케이프 규칙 준수 (\\n, \\", \\\\ 등)
+
+**올바른 JSON 예제:**
 {
-  "title": "제안서 제목",
-  "summary": "제안서 요약 (200자 이내)",
+  "title": "K-AI 대외홍보 사이트 구축 제안서",
+  "summary": "KT의 한국적 AI 기술 융복합을 위한 전략적 홍보사이트 구축 프로젝트입니다. 사전 분석 보고서의 핵심 인사이트를 바탕으로 최적의 솔루션을 제안합니다.",
   "sections": [
     {
       "id": "overview",
       "title": "프로젝트 개요",
-      "content": "상세 내용...",
+      "content": "프로젝트 배경: AI 기술 대중화를 위한 홍보 플랫폼 구축\\n\\n프로젝트 목표: 1) 브랜드 인지도 향상 2) 고객 참여 증대 3) 기술 신뢰도 확립",
       "order": 1
     },
     {
       "id": "scope",
       "title": "프로젝트 범위",
-      "content": "상세 내용...",
+      "content": "주요 기능: 반응형 웹사이트, CMS 통합, SEO 최적화\\n\\n구현 범위: 프론트엔드, 백엔드, 관리자 페이지\\n\\n제외 사항: 모바일 앱, 결제 시스템",
       "order": 2
     },
     {
       "id": "success_metrics",
       "title": "성공 지표",
-      "content": "상세 내용...",
+      "content": "KPI: 월간 방문자 10만명, 체류시간 5분 이상\\n\\n성과 측정: Google Analytics, 사용자 피드백\\n\\n기대 ROI: 6개월 내 투자 대비 150% 효과",
       "order": 3
     }
   ],
@@ -280,33 +288,41 @@ ${JSON.stringify(analysisResult.projectSummary || {}, null, 2)}
    - 품질 관리 방안
    - 테스트 전략
 
-## 중요: 출력 형식 엄수
-**반드시 순수 JSON 형식만 출력하세요. 어떠한 설명 텍스트나 Markdown도 포함하지 마세요.**
-**첫 글자는 반드시 { 로 시작하고 마지막 글자는 } 로 끝나야 합니다.**
+## ⚠️ 중요: 출력 형식 엄수 (필수)
 
+**다음 규칙을 반드시 준수하세요:**
+1. 순수 JSON만 출력 (설명 텍스트, Markdown, 주석 금지)
+2. 첫 글자는 { 로 시작, 마지막 글자는 } 로 끝
+3. 모든 문자열은 큰따옴표(")로 감싸기
+4. 배열 요소 사이에 쉼표(,) 필수
+5. 마지막 요소 뒤에는 쉼표 금지
+6. content 필드는 순수 텍스트만 (HTML, Markdown 금지)
+7. 특수문자는 JSON 이스케이프 규칙 준수 (\\n, \\", \\\\ 등)
+
+**올바른 JSON 예제:**
 {
   "sections": [
     {
       "id": "tech_stack",
       "title": "기술 스택",
-      "content": "상세 내용...",
+      "content": "Frontend: React 18, TypeScript, Tailwind CSS\\n\\nBackend: Node.js, Express, PostgreSQL\\n\\nDatabase: Supabase (실시간 동기화)\\n\\n인프라: Vercel 배포, CDN 최적화",
       "order": 4
     },
     {
       "id": "architecture",
       "title": "시스템 아키텍처",
-      "content": "상세 내용...",
+      "content": "전체 구조: 3-tier 아키텍처 (프론트엔드-API-데이터베이스)\\n\\n컴포넌트 설계: 모듈형 설계, 재사용 가능한 컴포넌트\\n\\n데이터 플로우: REST API + WebSocket 실시간 통신",
       "order": 5
     },
     {
       "id": "methodology",
       "title": "구현 방법론",
-      "content": "상세 내용...",
+      "content": "개발 프로세스: Agile 스크럼, 2주 스프린트\\n\\n품질 관리: 코드 리뷰, 자동화된 테스트\\n\\n테스트 전략: 단위 테스트 80% 커버리지, E2E 테스트",
       "order": 6
     }
   ],
   "phase": 2,
-  "technicalComplexity": "high|medium|low"
+  "technicalComplexity": "medium"
 }`;
   }
 
@@ -341,28 +357,36 @@ ${phase2Data.technicalComplexity || 'medium'}
    - 대응 방안
    - 비상 계획
 
-## 중요: 출력 형식 엄수
-**반드시 순수 JSON 형식만 출력하세요. 어떠한 설명 텍스트나 Markdown도 포함하지 마세요.**
-**첫 글자는 반드시 { 로 시작하고 마지막 글자는 } 로 끝나야 합니다.**
+## ⚠️ 중요: 출력 형식 엄수 (필수)
 
+**다음 규칙을 반드시 준수하세요:**
+1. 순수 JSON만 출력 (설명 텍스트, Markdown, 주석 금지)
+2. 첫 글자는 { 로 시작, 마지막 글자는 } 로 끝
+3. 모든 문자열은 큰따옴표(")로 감싸기
+4. 배열 요소 사이에 쉼표(,) 필수
+5. 마지막 요소 뒤에는 쉼표 금지
+6. content 필드는 순수 텍스트만 (HTML, Markdown 금지)
+7. 특수문자는 JSON 이스케이프 규칙 준수 (\\n, \\", \\\\ 등)
+
+**올바른 JSON 예제:**
 {
   "sections": [
     {
       "id": "schedule",
       "title": "프로젝트 일정",
-      "content": "상세 내용...",
+      "content": "전체 일정: 12주 (3개월)\\n\\nPhase 1 (4주): 설계 및 UI/UX 작업\\nPhase 2 (6주): 개발 및 테스트\\nPhase 3 (2주): 배포 및 안정화\\n\\n마일스톤: 기획 완료, 개발 완료, 오픈 베타, 정식 런칭",
       "order": 7
     },
     {
       "id": "budget",
       "title": "비용 산정",
-      "content": "상세 내용...",
+      "content": "개발 비용: 80,000,000원 (인건비, 라이선스)\\n\\n운영 비용: 월 2,000,000원 (서버, 유지보수)\\n\\n유지보수 비용: 연 12,000,000원 (기능 개선, 버그 수정)\\n\\n총 예산: 150,000,000원",
       "order": 8
     },
     {
       "id": "risk_management",
       "title": "리스크 관리",
-      "content": "상세 내용...",
+      "content": "주요 리스크:\\n1) 일정 지연 - 버퍼 2주 확보\\n2) 기술적 난관 - 전문가 자문 준비\\n3) 범위 변경 - 변경 관리 프로세스 수립\\n\\n대응 방안: 주간 진행 점검, 이슈 트래킹, 신속한 의사결정",
       "order": 9
     }
   ],
