@@ -36,6 +36,7 @@ export interface GenerateTemplateProposalParams {
   userId: string
   aiProvider: string
   aiModel: string
+  onProgress?: (progress: TemplateGenerationProgress) => void // 진행 상황 콜백
 }
 
 export class ProposalTemplateGenerationService {
@@ -46,7 +47,7 @@ export class ProposalTemplateGenerationService {
   static async generateTemplateProposal(
     params: GenerateTemplateProposalParams
   ): Promise<TemplateGenerationProgress> {
-    const { projectId, templateId, originalProposal, userId, aiProvider, aiModel } = params
+    const { projectId, templateId, originalProposal, userId, aiProvider, aiModel, onProgress } = params
 
     console.log('🎨 템플릿 기반 제안서 생성 시작:', {
       projectId,
@@ -82,10 +83,20 @@ export class ProposalTemplateGenerationService {
     let successCount = 0
     let errorCount = 0
 
+    // 초기 진행 상황 전달
+    if (onProgress) {
+      onProgress({ ...progress })
+    }
+
     for (let i = 0; i < sections.length; i++) {
       const section = sections[i]
       progress.currentPhase = i + 1
       progress.phases[i].status = 'in_progress'
+
+      // 진행 상황 업데이트 (Phase 시작)
+      if (onProgress) {
+        onProgress({ ...progress })
+      }
 
       try {
         console.log(`\n📄 Phase ${i + 1}/${sections.length}: "${section.title}" 생성 중...`)
@@ -106,6 +117,11 @@ export class ProposalTemplateGenerationService {
 
         console.log(`✅ Phase ${i + 1}/${sections.length} 완료 (성공: ${successCount}, 실패: ${errorCount})`)
 
+        // 진행 상황 업데이트 (Phase 완료)
+        if (onProgress) {
+          onProgress({ ...progress })
+        }
+
       } catch (error) {
         console.error(`❌ Phase ${i + 1} 실패:`, error)
         progress.phases[i].status = 'error'
@@ -123,6 +139,11 @@ export class ProposalTemplateGenerationService {
         generatedSlides.push(fallbackSlide)
 
         console.warn(`⚠️ Phase ${i + 1} fallback 사용 (성공: ${successCount}, 실패: ${errorCount})`)
+
+        // 진행 상황 업데이트 (오류 포함)
+        if (onProgress) {
+          onProgress({ ...progress })
+        }
       }
     }
 
@@ -355,7 +376,7 @@ ${cleanContent}
   }
 
   /**
-   * AI 응답 파싱 - 더 견고한 로직으로 개선
+   * AI 응답 파싱 - PreAnalysisService 패턴 완전 적용 (3단계 시도)
    */
   private static parseGeneratedSlideContent(response: string): {
     title: string
@@ -363,59 +384,153 @@ ${cleanContent}
     visualElements?: string[]
   } {
     try {
-      console.log('🔍 원본 AI 응답 (처음 200자):', response.substring(0, 200))
-
-      // 1단계: 응답 정제 - 불필요한 텍스트 및 마크다운 제거
-      let cleanedResponse = response.trim()
-
-      // JSON 코드 블록 추출 (```json ... ``` 또는 ``` ... ```)
-      const codeBlockMatch = cleanedResponse.match(/```(?:json)?\s*([\s\S]*?)\s*```/)
-      if (codeBlockMatch) {
-        cleanedResponse = codeBlockMatch[1].trim()
-        console.log('📦 코드 블록 추출 완료')
-      }
-
-      // 2단계: JSON 객체만 추출
-      // 첫 번째 { 부터 마지막 } 까지 추출
-      const firstBrace = cleanedResponse.indexOf('{')
-      const lastBrace = cleanedResponse.lastIndexOf('}')
-
-      if (firstBrace === -1 || lastBrace === -1 || firstBrace >= lastBrace) {
-        throw new Error('JSON 객체를 찾을 수 없습니다')
-      }
-
-      const jsonStr = cleanedResponse.substring(firstBrace, lastBrace + 1)
-      console.log('🔍 추출된 JSON (처음 200자):', jsonStr.substring(0, 200))
-
-      // 3단계: JSON 파싱
-      const parsed = JSON.parse(jsonStr)
-
-      // 4단계: 필수 필드 검증
-      if (!parsed.title || !parsed.content) {
-        throw new Error('title 또는 content 필드가 누락되었습니다')
-      }
-
-      console.log('✅ JSON 파싱 성공:', {
-        title: parsed.title.substring(0, 50),
-        contentLength: parsed.content.length
+      console.log('🔍 [parseSlide] AI 응답 파싱 시작:', {
+        responseLength: response.length,
+        responsePreview: response.substring(0, 200)
       })
 
-      return {
-        title: parsed.title,
-        content: parsed.content,
-        visualElements: parsed.visualElements || []
+      // 🔥 PreAnalysisService 패턴: 응답 정제 (줄바꿈을 제외한 제어 문자, 잘못된 이스케이프 제거)
+      let cleanedResponse = response
+        .replace(/[\x00-\x09\x0B-\x0C\x0E-\x1F\x7F-\x9F]/g, '') // 줄바꿈(\x0A=\n, \x0D=\r)을 제외한 제어 문자 제거
+        .replace(/\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4})/g, '') // 잘못된 이스케이프 제거
+        .trim()
+
+      console.log('🧹 [parseSlide] 응답 정제 완료:', {
+        originalLength: response.length,
+        cleanedLength: cleanedResponse.length
+      })
+
+      // =====================================================
+      // 시도 1: ```json ``` 코드 블록에서 JSON 추출
+      // =====================================================
+      try {
+        console.log('🔎 [parseSlide] 시도 1: 코드 블록에서 JSON 추출...')
+        const codeBlockMatch = cleanedResponse.match(/```json\s*([\s\S]*?)\s*```/)
+
+        if (codeBlockMatch && codeBlockMatch[1]) {
+          const jsonString = codeBlockMatch[1].trim()
+          console.log('✅ [parseSlide] 코드 블록 발견!')
+          console.log('📝 [parseSlide] JSON 길이:', jsonString.length)
+
+          const parsed = JSON.parse(jsonString)
+          console.log('✅ [parseSlide] 코드 블록 JSON 파싱 성공!')
+
+          if (parsed.title && parsed.content) {
+            return {
+              title: parsed.title,
+              content: parsed.content,
+              visualElements: parsed.visualElements || []
+            }
+          }
+        } else {
+          console.log('ℹ️ [parseSlide] 코드 블록 없음, 다음 방법 시도...')
+        }
+      } catch (error) {
+        console.error('❌ [parseSlide] 코드 블록 JSON 파싱 실패:', error)
       }
+
+      // =====================================================
+      // 시도 2: 순수 JSON 객체 추출 (balanced braces 알고리즘)
+      // =====================================================
+      try {
+        console.log('🔎 [parseSlide] 시도 2: 순수 JSON 객체 추출...')
+
+        const firstBrace = cleanedResponse.indexOf('{')
+        if (firstBrace !== -1) {
+          let braceCount = 0
+          let endIndex = -1
+          let inString = false
+          let escapeNext = false
+
+          for (let i = firstBrace; i < cleanedResponse.length; i++) {
+            const char = cleanedResponse[i]
+
+            // 문자열 내부 여부 추적
+            if (char === '"' && !escapeNext) {
+              inString = !inString
+            }
+
+            // 이스케이프 문자 처리
+            escapeNext = (char === '\\' && !escapeNext)
+
+            // 문자열 외부에서만 중괄호 카운트
+            if (!inString && !escapeNext) {
+              if (char === '{') braceCount++
+              if (char === '}') braceCount--
+
+              if (braceCount === 0) {
+                endIndex = i + 1
+                break
+              }
+            }
+          }
+
+          if (endIndex > firstBrace) {
+            const jsonString = cleanedResponse.substring(firstBrace, endIndex)
+            console.log('✅ [parseSlide] JSON 객체 발견!')
+            console.log('📝 [parseSlide] JSON 길이:', jsonString.length)
+
+            const parsed = JSON.parse(jsonString)
+            console.log('✅ [parseSlide] 순수 JSON 파싱 성공!')
+
+            if (parsed.title && parsed.content) {
+              return {
+                title: parsed.title,
+                content: parsed.content,
+                visualElements: parsed.visualElements || []
+              }
+            }
+          } else {
+            console.warn('⚠️ [parseSlide] 중괄호 균형이 맞지 않음')
+          }
+        } else {
+          console.warn('⚠️ [parseSlide] JSON 객체를 찾을 수 없음')
+        }
+      } catch (error) {
+        console.error('❌ [parseSlide] 순수 JSON 파싱 실패:', error)
+      }
+
+      // =====================================================
+      // 시도 3: 단순 추출 (첫 { 부터 마지막 })
+      // =====================================================
+      try {
+        console.log('🔎 [parseSlide] 시도 3: 단순 JSON 추출...')
+
+        const firstBrace = cleanedResponse.indexOf('{')
+        const lastBrace = cleanedResponse.lastIndexOf('}')
+
+        if (firstBrace !== -1 && lastBrace !== -1 && firstBrace < lastBrace) {
+          const jsonString = cleanedResponse.substring(firstBrace, lastBrace + 1)
+          console.log('📝 [parseSlide] 단순 JSON 추출 시도:', jsonString.substring(0, 200))
+
+          const parsed = JSON.parse(jsonString)
+          console.log('✅ [parseSlide] 단순 JSON 파싱 성공!')
+
+          if (parsed.title && parsed.content) {
+            return {
+              title: parsed.title,
+              content: parsed.content,
+              visualElements: parsed.visualElements || []
+            }
+          }
+        }
+      } catch (error) {
+        console.error('❌ [parseSlide] 단순 JSON 파싱 실패:', error)
+      }
+
+      // 모든 시도 실패 - Fallback
+      throw new Error('모든 JSON 파싱 시도 실패')
+
     } catch (error) {
-      console.error('❌ AI 응답 파싱 실패:', error)
-      console.error('원본 응답 전체:', response)
+      console.error('❌ [parseSlide] 모든 파싱 시도 실패:', error)
+      console.error('원본 응답 (전체):', response)
 
       // Fallback: 원본 텍스트를 구조화하여 사용
-      // 첫 번째 줄을 제목으로, 나머지를 내용으로
       const lines = response.split('\n').filter(line => line.trim())
       const fallbackTitle = lines[0]?.substring(0, 100) || '제목 없음'
       const fallbackContent = lines.slice(1).join('\n') || response
 
-      console.warn('⚠️ Fallback 사용:', {
+      console.warn('⚠️ [parseSlide] Fallback 사용:', {
         title: fallbackTitle,
         contentLength: fallbackContent.length
       })

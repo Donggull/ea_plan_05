@@ -189,7 +189,22 @@ export function ProposalTemplateSelectorPage() {
         originalProposal,
         userId: user.id,
         aiProvider,
-        aiModel
+        aiModel,
+        onProgress: (progress) => {
+          // 실시간 진행 상황 업데이트
+          const currentPhaseIndex = progress.currentPhase - 1
+          const currentSectionTitle = currentPhaseIndex >= 0 && currentPhaseIndex < progress.phases.length
+            ? progress.phases[currentPhaseIndex]?.sectionTitle || '준비 중...'
+            : '준비 중...'
+
+          setGenerationProgress({
+            currentPhase: progress.currentPhase,
+            totalPhases: progress.phases.length,
+            currentSection: currentSectionTitle
+          })
+
+          console.log(`📊 UI 업데이트: ${progress.currentPhase}/${progress.phases.length} - ${currentSectionTitle}`)
+        }
       })
 
       console.log('✅ AI 재생성 완료:', progress)
