@@ -184,7 +184,7 @@ export class ProposalTemplateService {
       .select(
         `
         *,
-        template:proposal_templates(*)
+        template:proposal_templates!template_id(*)
       `
       )
       .eq('project_id', projectId)
