@@ -16,8 +16,8 @@ import {
   CheckSquare
 } from 'lucide-react'
 import { ProposalDataManager, ProposalWorkflowQuestion } from '../../../../services/proposal/dataManager'
-import { ProposalAnalysisService } from '../../../../services/proposal/proposalAnalysisService'
 import { AIQuestionGenerator } from '../../../../services/proposal/aiQuestionGenerator'
+import { proposalPhaseService } from '../../../../services/proposal/proposalPhaseService'
 import { useAuth } from '../../../../contexts/AuthContext'
 import { useAIModel } from '../../../../contexts/AIModelContext'
 import { supabase } from '../../../../lib/supabase'
@@ -527,7 +527,16 @@ export function ProposalWriterPage() {
     }
   }
 
-  // 최종 제출 및 AI 분석 (1차 제안서 생성)
+  // Phase 진행 상태 관리
+  const [phaseProgress, setPhaseProgress] = useState({
+    currentPhase: 'idle' as 'idle' | 'phase1' | 'phase2' | 'phase3' | 'complete',
+    phase1Progress: 0,
+    phase2Progress: 0,
+    phase3Progress: 0,
+    phaseMessage: ''
+  })
+
+  // 최종 제출 및 AI 분석 (Phase별 제안서 생성)
   const handleSubmitAndAnalyze = async () => {
     if (!id || !user?.id) return
 
@@ -584,8 +593,8 @@ export function ProposalWriterPage() {
       console.log('💾 전체 답변 최종 저장 중...')
       await handleSave(false)
 
-      // AI 분석 실행 (1차 제안서 생성)
-      console.log('🤖 1차 제안서 생성 시작...')
+      // AI 분석 실행 (Phase별 제안서 생성)
+      console.log('🤖 Phase별 제안서 생성 시작...')
 
       // Left 사이드바에서 선택된 AI 모델 가져오기
       const selectedModel = getSelectedModel()
@@ -598,24 +607,92 @@ export function ProposalWriterPage() {
       })
 
       // provider와 model_id 직접 전달
-      const aiProvider = selectedModel?.provider
-      const aiModel = selectedModel?.model_id
+      const aiProvider = selectedModel?.provider || 'anthropic'
+      const aiModel = selectedModel?.model_id || 'claude-4-sonnet'
 
-      if (!aiProvider || !aiModel) {
+      if (!selectedModel) {
         console.warn('⚠️ Left 사이드바에서 모델이 선택되지 않았습니다. 기본 모델을 사용합니다.')
       } else {
         console.log('✅ 사용할 모델:', { aiProvider, aiModel })
       }
 
       try {
-        await ProposalAnalysisService.analyzeStep(
+        // 사전 분석 결과 가져오기
+        const preAnalysisData = await ProposalDataManager.getPreAnalysisData(id)
+
+        // Phase별 제안서 생성 (실제 스트리밍 API 사용)
+        console.log('🚀 Phase별 제안서 생성 시작...')
+
+        const finalProposal = await proposalPhaseService.generateProposalInPhases(
           id,
-          'proposal',
-          user.id,
-          aiProvider,  // provider 직접 전달
-          aiModel      // model_id 직접 전달
+          preAnalysisData, // 사전 분석 결과 전달
+          aiProvider,
+          aiModel,
+          (phase: string, progress: number, message: string) => {
+            // Phase별 진행 상태 업데이트
+            console.log(`📊 [${phase}] ${progress}% - ${message}`)
+
+            if (phase === 'phase1') {
+              setPhaseProgress({
+                currentPhase: 'phase1',
+                phase1Progress: progress,
+                phase2Progress: 0,
+                phase3Progress: 0,
+                phaseMessage: message
+              })
+            } else if (phase === 'phase2') {
+              setPhaseProgress({
+                currentPhase: 'phase2',
+                phase1Progress: 100,
+                phase2Progress: progress,
+                phase3Progress: 0,
+                phaseMessage: message
+              })
+            } else if (phase === 'phase3') {
+              setPhaseProgress({
+                currentPhase: 'phase3',
+                phase1Progress: 100,
+                phase2Progress: 100,
+                phase3Progress: progress,
+                phaseMessage: message
+              })
+            }
+          }
         )
-        console.log('✅ 1차 제안서 생성 완료')
+
+        console.log('✅ 모든 Phase 완료! 제안서 생성 완료')
+        setPhaseProgress({
+          currentPhase: 'complete',
+          phase1Progress: 100,
+          phase2Progress: 100,
+          phase3Progress: 100,
+          phaseMessage: '제안서 생성 완료!'
+        })
+
+        // 최종 결과를 DB에 저장 (proposal_workflow_analysis 테이블)
+        if (finalProposal && user?.id) {
+          const { error: saveError } = await supabase!
+            .from('proposal_workflow_analysis')
+            .insert({
+              project_id: id,
+              workflow_step: 'proposal',
+              analysis_type: 'proposal_draft',
+              status: 'completed',
+              analysis_result: JSON.stringify(finalProposal),
+              created_by: user.id,
+              ai_provider: aiProvider,
+              ai_model: aiModel
+            })
+
+          if (saveError) {
+            console.error('제안서 저장 오류:', saveError)
+          } else {
+            console.log('✅ 제안서 저장 완료')
+          }
+        }
+
+        console.log('✅ 1차 제안서 생성 및 저장 완료')
+
       } catch (analysisError) {
         // AI 분석 실패 시 에러 메시지 표시하되, 결과 페이지로 이동은 허용
         console.error('❌ 1차 제안서 생성 실패:', analysisError)
@@ -639,6 +716,14 @@ export function ProposalWriterPage() {
       setError(`처리 중 오류가 발생했습니다: ${errorMessage}`)
     } finally {
       setAnalyzing(false)
+      // Phase 진행 상태 초기화
+      setPhaseProgress({
+        currentPhase: 'idle',
+        phase1Progress: 0,
+        phase2Progress: 0,
+        phase3Progress: 0,
+        phaseMessage: ''
+      })
     }
   }
 
@@ -866,7 +951,7 @@ export function ProposalWriterPage() {
               {analyzing ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  1차 제안서 생성 중...
+                  {phaseProgress.phaseMessage || '1차 제안서 생성 중...'}
                 </>
               ) : (
                 <>
@@ -880,6 +965,63 @@ export function ProposalWriterPage() {
       />
 
       <PageContent>
+        {/* Phase 진행 상태 표시 */}
+        {analyzing && phaseProgress.currentPhase !== 'idle' && (
+          <Card className="mb-6">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-text-primary">제안서 생성 진행 상황</h3>
+                <Badge variant="primary">{phaseProgress.currentPhase}</Badge>
+              </div>
+
+              <div className="space-y-3">
+                {/* Phase 1 */}
+                <div>
+                  <div className="flex items-center justify-between text-sm mb-1">
+                    <span className="text-text-secondary">Phase 1: 핵심 제안 내용</span>
+                    <span className="text-text-primary">{phaseProgress.phase1Progress}%</span>
+                  </div>
+                  <ProgressBar
+                    value={phaseProgress.phase1Progress}
+                    max={100}
+                    color={phaseProgress.currentPhase === 'phase1' ? '#6366F1' : '#10B981'}
+                  />
+                </div>
+
+                {/* Phase 2 */}
+                <div>
+                  <div className="flex items-center justify-between text-sm mb-1">
+                    <span className="text-text-secondary">Phase 2: 기술 구현 상세</span>
+                    <span className="text-text-primary">{phaseProgress.phase2Progress}%</span>
+                  </div>
+                  <ProgressBar
+                    value={phaseProgress.phase2Progress}
+                    max={100}
+                    color={phaseProgress.currentPhase === 'phase2' ? '#6366F1' : phaseProgress.phase2Progress > 0 ? '#10B981' : '#4B5563'}
+                  />
+                </div>
+
+                {/* Phase 3 */}
+                <div>
+                  <div className="flex items-center justify-between text-sm mb-1">
+                    <span className="text-text-secondary">Phase 3: 일정 및 비용 산정</span>
+                    <span className="text-text-primary">{phaseProgress.phase3Progress}%</span>
+                  </div>
+                  <ProgressBar
+                    value={phaseProgress.phase3Progress}
+                    max={100}
+                    color={phaseProgress.currentPhase === 'phase3' ? '#6366F1' : phaseProgress.phase3Progress > 0 ? '#10B981' : '#4B5563'}
+                  />
+                </div>
+              </div>
+
+              <div className="text-center text-sm text-text-muted">
+                {phaseProgress.phaseMessage}
+              </div>
+            </div>
+          </Card>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* 카테고리 사이드바 */}
           <div className="lg:col-span-1">
