@@ -572,15 +572,24 @@ ${proposal.enhancementNotes ? `## 개선 노트\n${proposal.enhancementNotes}\n`
             <div className="flex items-center space-x-3 mb-6">
               <Eye className="w-5 h-5 text-purple-500" />
               <h2 className="text-lg font-semibold text-text-primary">최종 제안서 미리보기</h2>
+              <Badge variant="primary">{proposal.sections?.length || 0}개 슬라이드</Badge>
             </div>
 
+            {/* 슬라이드 프레젠테이션 컨테이너 */}
             <div
-              className="bg-white rounded-lg p-8 shadow-inner border border-border-primary overflow-auto"
-              style={{ maxHeight: '800px' }}
+              className="relative rounded-lg shadow-inner border border-border-primary"
+              style={{
+                width: '100%',
+                height: '600px', // 고정 높이로 슬라이드 뷰포트 제공
+                backgroundColor: '#ffffff',
+                overflow: 'hidden' // 슬라이드가 넘치지 않도록
+              }}
             >
-              {/* 템플릿 적용된 HTML 렌더링 */}
+              {/* 템플릿 CSS 적용 */}
               <style dangerouslySetInnerHTML={{ __html: appliedTemplate.css }} />
-              <div dangerouslySetInnerHTML={{ __html: appliedTemplate.html }} />
+
+              {/* 템플릿 HTML 렌더링 (presentation-container 포함) */}
+              <div dangerouslySetInnerHTML={{ __html: appliedTemplate.html }} style={{ width: '100%', height: '100%' }} />
             </div>
 
             <div className="mt-6 flex items-center justify-center space-x-3">

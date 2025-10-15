@@ -252,6 +252,8 @@ export class ProposalTemplateService {
     // 4. 슬라이드 네비게이션 및 JavaScript 추가 (비즈니스 프레젠테이션 템플릿용)
     if (template.template_type === 'business') {
       html = this.addSlideNavigation(html, proposalData.sections?.length || 0)
+      // 프레젠테이션 컨테이너로 전체 HTML 감싸기
+      html = `<div class="presentation-container">\n${html}\n</div>`
     }
 
     // 5. CSS 스타일 적용
