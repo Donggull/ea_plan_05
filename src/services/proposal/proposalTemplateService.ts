@@ -249,7 +249,12 @@ export class ProposalTemplateService {
       html = this.replaceSections(html, proposalData.sections)
     }
 
-    // 4. CSS 스타일 적용
+    // 4. 슬라이드 네비게이션 및 JavaScript 추가 (비즈니스 프레젠테이션 템플릿용)
+    if (template.template_type === 'business') {
+      html = this.addSlideNavigation(html, proposalData.sections?.length || 0)
+    }
+
+    // 5. CSS 스타일 적용
     const css = template.css_styles || ''
 
     return {
@@ -416,7 +421,7 @@ export class ProposalTemplateService {
       throw new Error('Supabase client not initialized')
     }
 
-    const { error } = await supabase
+    const { error} = await supabase
       .from('proposal_templates')
       .update({
         is_active: false,
@@ -428,5 +433,115 @@ export class ProposalTemplateService {
       console.error('Error deactivating template:', error)
       throw new Error('템플릿 비활성화 실패')
     }
+  }
+
+  /**
+   * 슬라이드 네비게이션 및 JavaScript 추가 (비즈니스 프레젠테이션 템플릿용)
+   */
+  private static addSlideNavigation(html: string, sectionCount: number): string {
+    // 전체 슬라이드 수: 1 (커버) + sectionCount + 1 (감사)
+    const totalSlides = sectionCount + 2
+
+    // 네비게이션 HTML 생성
+    const navigationHtml = `
+<!-- 슬라이드 네비게이션 -->
+<div class="navigation" id="navigation">
+  <button class="nav-btn" id="prevBtn">이전</button>
+  <div class="slide-indicators" id="indicators">
+    ${Array.from({ length: totalSlides }, (_, i) =>
+      `<div class="indicator ${i === 0 ? 'active' : ''}" data-slide="${i}"></div>`
+    ).join('')}
+  </div>
+  <button class="nav-btn" id="nextBtn">다음</button>
+</div>
+
+<!-- 슬라이드 제어 JavaScript -->
+<script>
+(function() {
+  let currentSlide = 0;
+  const slides = document.querySelectorAll('.slide');
+  const totalSlides = slides.length;
+  const prevBtn = document.getElementById('prevBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  const indicators = document.querySelectorAll('.indicator');
+
+  // 슬라이드 표시 함수
+  function showSlide(index) {
+    // 유효성 검사
+    if (index < 0) index = 0;
+    if (index >= totalSlides) index = totalSlides - 1;
+
+    // 모든 슬라이드 숨기기
+    slides.forEach(slide => slide.classList.remove('active'));
+
+    // 현재 슬라이드 표시
+    if (slides[index]) {
+      slides[index].classList.add('active');
+    }
+
+    // 인디케이터 업데이트
+    indicators.forEach((indicator, i) => {
+      if (i === index) {
+        indicator.classList.add('active');
+      } else {
+        indicator.classList.remove('active');
+      }
+    });
+
+    // 버튼 활성화/비활성화
+    if (prevBtn) prevBtn.disabled = (index === 0);
+    if (nextBtn) nextBtn.disabled = (index === totalSlides - 1);
+
+    currentSlide = index;
+  }
+
+  // 이전 슬라이드
+  function prevSlide() {
+    showSlide(currentSlide - 1);
+  }
+
+  // 다음 슬라이드
+  function nextSlide() {
+    showSlide(currentSlide + 1);
+  }
+
+  // 특정 슬라이드로 이동
+  function goToSlide(index) {
+    showSlide(index);
+  }
+
+  // 이벤트 리스너 등록
+  if (prevBtn) prevBtn.addEventListener('click', prevSlide);
+  if (nextBtn) nextBtn.addEventListener('click', nextSlide);
+
+  indicators.forEach((indicator, index) => {
+    indicator.addEventListener('click', () => goToSlide(index));
+  });
+
+  // 키보드 네비게이션
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft') prevSlide();
+    if (e.key === 'ArrowRight') nextSlide();
+    if (e.key === 'Home') showSlide(0);
+    if (e.key === 'End') showSlide(totalSlides - 1);
+  });
+
+  // 초기 슬라이드 표시
+  showSlide(0);
+})();
+</script>
+`
+
+    // HTML 끝에 네비게이션 추가 (</div> 태그 이전 또는 body 끝)
+    // 마지막 슬라이드 이후에 추가
+    const lastSlideIndex = html.lastIndexOf('</div>')
+    if (lastSlideIndex !== -1) {
+      html = html.slice(0, lastSlideIndex + 6) + navigationHtml + html.slice(lastSlideIndex + 6)
+    } else {
+      // fallback: 끝에 추가
+      html += navigationHtml
+    }
+
+    return html
   }
 }
