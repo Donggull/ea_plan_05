@@ -19,19 +19,31 @@ import {
   ProposalTemplateService,
   ProposalTemplate
 } from '../../../../services/proposal/proposalTemplateService'
+import { ProposalTemplateGenerationService } from '../../../../services/proposal/proposalTemplateGenerationService'
+import { ProposalDataManager } from '../../../../services/proposal/dataManager'
 import { useAuth } from '../../../../contexts/AuthContext'
-import { PageContainer, PageHeader, PageContent, Card, Button } from '../../../../components/LinearComponents'
+import { useAIModel } from '../../../../contexts/AIModelContext'
+import { PageContainer, PageHeader, PageContent, Card, Button, ProgressBar } from '../../../../components/LinearComponents'
 
 export function ProposalTemplateSelectorPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { getSelectedModel } = useAIModel()
 
   const [loading, setLoading] = useState(true)
   const [templates, setTemplates] = useState<ProposalTemplate[]>([])
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [selecting, setSelecting] = useState(false)
+
+  // AI 생성 프로세스 상태
+  const [generating, setGenerating] = useState(false)
+  const [generationProgress, setGenerationProgress] = useState<{
+    currentPhase: number
+    totalPhases: number
+    currentSection: string
+  } | null>(null)
 
   // 미리보기 모달 상태
   const [showPreview, setShowPreview] = useState(false)
@@ -121,31 +133,77 @@ export function ProposalTemplateSelectorPage() {
     }
   }
 
-  // 템플릿 선택
+  // 템플릿 선택 및 AI 재생성 시작
   const handleSelectTemplate = async (templateId: string) => {
     if (!id || !user?.id) return
 
     try {
       setSelecting(true)
-      console.log('✅ 템플릿 선택:', templateId)
+      setGenerating(true)
+      console.log('🎨 템플릿 선택 및 AI 재생성 시작:', templateId)
 
-      // 템플릿 선택 저장
+      // 1. 템플릿 선택 저장
       await ProposalTemplateService.saveTemplateSelection({
         projectId: id,
         templateId,
         selectedBy: user.id
       })
-
       console.log('✅ 템플릿 선택 저장 완료')
 
-      // 최종 제안서 페이지로 이동
+      // 2. 1차 제안서 데이터 조회
+      console.log('📄 1차 제안서 데이터 조회 중...')
+      const analyses = await ProposalDataManager.getAnalysis(id, 'proposal', 'proposal_draft')
+
+      if (!analyses || analyses.length === 0) {
+        throw new Error('1차 제안서를 찾을 수 없습니다. 제안서 작성 단계를 먼저 완료해주세요.')
+      }
+
+      const latestProposal = analyses[0]
+      const originalProposal = typeof latestProposal.analysis_result === 'string'
+        ? JSON.parse(latestProposal.analysis_result)
+        : latestProposal.analysis_result
+
+      console.log(`📊 1차 제안서 섹션 수: ${originalProposal.sections?.length || 0}개`)
+
+      // 3. AI 모델 선택
+      const selectedModel = getSelectedModel()
+      const aiProvider = selectedModel?.provider || 'anthropic'
+      const aiModel = selectedModel?.model_id || 'claude-sonnet-4'
+
+      console.log('🤖 사용할 AI 모델:', { aiProvider, aiModel })
+
+      // 4. AI 재생성 프로세스 시작 (Phase별 순차 생성)
+      const totalPhases = originalProposal.sections?.length || 0
+      console.log(`🚀 AI 재생성 시작 (총 ${totalPhases}개 장표)...`)
+
+      setGenerationProgress({
+        currentPhase: 0,
+        totalPhases,
+        currentSection: '준비 중...'
+      })
+
+      // Phase별로 진행 상황 업데이트하면서 생성
+      const progress = await ProposalTemplateGenerationService.generateTemplateProposal({
+        projectId: id,
+        templateId,
+        originalProposal,
+        userId: user.id,
+        aiProvider,
+        aiModel
+      })
+
+      console.log('✅ AI 재생성 완료:', progress)
+
+      // 5. 최종 제안서 페이지로 이동
       navigate(`/projects/${id}/proposal/final`)
 
     } catch (err) {
-      console.error('❌ 템플릿 선택 실패:', err)
-      alert(`템플릿 선택에 실패했습니다: ${err instanceof Error ? err.message : String(err)}`)
+      console.error('❌ 템플릿 선택 및 생성 실패:', err)
+      alert(`템플릿 기반 제안서 생성에 실패했습니다:\n${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setSelecting(false)
+      setGenerating(false)
+      setGenerationProgress(null)
     }
   }
 
@@ -486,6 +544,76 @@ export function ProposalTemplateSelectorPage() {
                   </>
                 )}
               </Button.Primary>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI 생성 진행 모달 */}
+      {generating && generationProgress && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-bg-secondary border border-border-primary rounded-lg shadow-2xl max-w-2xl w-full">
+            {/* 모달 헤더 */}
+            <div className="flex items-center space-x-3 p-6 border-b border-border-primary">
+              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-purple-500/20">
+                <Sparkles className="w-6 h-6 text-purple-500 animate-pulse" />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-text-primary">
+                  AI가 템플릿 기반 제안서를 생성하고 있습니다
+                </h2>
+                <p className="text-sm text-text-secondary mt-1">
+                  각 장표를 순차적으로 생성 중입니다. 잠시만 기다려주세요.
+                </p>
+              </div>
+            </div>
+
+            {/* 모달 내용 */}
+            <div className="p-6 space-y-6">
+              {/* 진행 상태 */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-text-secondary">진행 상황</span>
+                  <span className="font-semibold text-text-primary">
+                    {generationProgress.currentPhase} / {generationProgress.totalPhases} 장표
+                  </span>
+                </div>
+
+                <ProgressBar
+                  value={generationProgress.currentPhase}
+                  max={generationProgress.totalPhases}
+                  color="purple"
+                  showLabel={true}
+                />
+              </div>
+
+              {/* 현재 처리 중인 섹션 */}
+              <div className="bg-bg-tertiary border border-border-primary rounded-lg p-4">
+                <div className="flex items-start space-x-3">
+                  <Loader2 className="w-5 h-5 text-purple-500 animate-spin flex-shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-text-muted mb-1">현재 생성 중</p>
+                    <p className="text-base font-medium text-text-primary truncate">
+                      {generationProgress.currentSection}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 안내 메시지 */}
+              <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-lg p-4">
+                <div className="flex items-start space-x-3">
+                  <AlertTriangle className="w-5 h-5 text-indigo-500 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-text-secondary">
+                    <p className="mb-2">이 작업은 몇 분이 소요될 수 있습니다.</p>
+                    <ul className="list-disc list-inside space-y-1 text-text-muted">
+                      <li>이 창을 닫지 마세요</li>
+                      <li>페이지를 새로고침하지 마세요</li>
+                      <li>생성이 완료되면 자동으로 최종 제안서 페이지로 이동합니다</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

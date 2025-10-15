@@ -75,8 +75,18 @@ export function ProposalFinalPage() {
         console.log('✅ 선택된 템플릿:', selection)
 
         // 2. 최신 제안서 데이터 조회
+        // 우선순위: template_proposal (AI 재생성) > integrated_analysis (1차 제안서)
         console.log('2️⃣ 제안서 데이터 조회 중...')
-        const analyses = await ProposalDataManager.getAnalysis(id, 'proposal', 'integrated_analysis')
+
+        let analyses = await ProposalDataManager.getAnalysis(id, 'proposal', 'template_proposal')
+        let proposalType = 'template_proposal'
+
+        // template_proposal이 없으면 integrated_analysis 조회 (하위 호환성)
+        if (!analyses || analyses.length === 0) {
+          console.log('⚠️ AI 재생성 제안서(template_proposal)를 찾을 수 없습니다. 1차 제안서(integrated_analysis)를 사용합니다.')
+          analyses = await ProposalDataManager.getAnalysis(id, 'proposal', 'integrated_analysis')
+          proposalType = 'integrated_analysis'
+        }
 
         if (!analyses || analyses.length === 0) {
           setError('제안서 초안을 찾을 수 없습니다. 제안서 작성 단계를 먼저 완료해주세요.')
@@ -85,7 +95,7 @@ export function ProposalFinalPage() {
 
         // 최신 제안서 사용
         const latestProposal = analyses[0]
-        console.log('✅ 최신 제안서:', latestProposal)
+        console.log(`✅ 최신 제안서 (${proposalType}):`, latestProposal)
 
         // analysis_result 파싱
         let parsedResult: ProposalResult

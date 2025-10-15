@@ -39,7 +39,7 @@ export interface ProposalWorkflowAnalysis {
   id: string
   project_id: string
   workflow_step: WorkflowStep
-  analysis_type: 'step_completion' | 'document_analysis' | 'integrated_analysis'
+  analysis_type: 'step_completion' | 'document_analysis' | 'integrated_analysis' | 'proposal_draft' | 'template_proposal'
   input_documents: string[]
   input_responses: string[]
   ai_provider: string
