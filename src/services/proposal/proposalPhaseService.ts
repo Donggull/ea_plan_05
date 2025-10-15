@@ -4,6 +4,7 @@
  */
 
 import { supabase } from '../../lib/supabase';
+import { extractJSON } from '../../utils/jsonExtractor';
 
 interface PhaseResult {
   content: string;
@@ -253,7 +254,7 @@ ${JSON.stringify(analysisResult.projectSummary || {}, null, 2)}
    * Phase 2 프롬프트 생성
    */
   private buildPhase2Prompt(_analysisResult: any, phase1Result: PhaseResult): string {
-    const phase1Data = this.extractJSON(phase1Result.content);
+    const phase1Data = extractJSON(phase1Result.content);
 
     return `# 제안서 작성 Phase 2: 기술 구현 상세
 
@@ -316,7 +317,7 @@ ${JSON.stringify(analysisResult.projectSummary || {}, null, 2)}
     _phase1Result: PhaseResult,
     phase2Result: PhaseResult
   ): string {
-    const phase2Data = this.extractJSON(phase2Result.content);
+    const phase2Data = extractJSON(phase2Result.content);
 
     return `# 제안서 작성 Phase 3: 일정 및 비용 산정
 
@@ -370,50 +371,7 @@ ${phase2Data.technicalComplexity || 'medium'}
 }`;
   }
 
-  /**
-   * JSON 추출 유틸리티 함수
-   * AI 응답에서 JSON 부분만 정확히 추출
-   */
-  private extractJSON(content: string): any {
-    try {
-      // 1. 이미 유효한 JSON인지 시도
-      return JSON.parse(content);
-    } catch {
-      // 2. Markdown 코드 블록에서 추출 시도 (```json ... ``` 또는 ``` ... ```)
-      const codeBlockMatch = content.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
-      if (codeBlockMatch) {
-        try {
-          return JSON.parse(codeBlockMatch[1].trim());
-        } catch (e) {
-          console.warn('코드 블록 JSON 파싱 실패:', e);
-        }
-      }
-
-      // 3. 중괄호 { } 패턴 추출 시도
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        try {
-          return JSON.parse(jsonMatch[0]);
-        } catch (e) {
-          console.warn('중괄호 패턴 JSON 파싱 실패:', e);
-        }
-      }
-
-      // 4. 모든 시도 실패 시 기본 구조 반환
-      console.error('❌ JSON 추출 완전 실패, fallback 사용');
-      console.error('원본 내용:', content.substring(0, 500));
-
-      return {
-        title: '제안서 (파싱 오류)',
-        summary: '제안서 내용을 정상적으로 추출할 수 없었습니다.',
-        sections: [],
-        phase: 0,
-        confidence: 0.5,
-        _parseError: true,
-        _originalContent: content.substring(0, 1000)
-      };
-    }
-  }
+  // extractJSON은 이제 공통 유틸리티(utils/jsonExtractor.ts)에서 import하여 사용
 
   /**
    * Phase 결과 병합
@@ -425,10 +383,10 @@ ${phase2Data.technicalComplexity || 'medium'}
   ) {
     console.log('🔄 Phase 결과 병합 시작...');
 
-    // JSON 추출 (안전한 파싱)
-    const phase1Data = this.extractJSON(phase1.content);
-    const phase2Data = this.extractJSON(phase2.content);
-    const phase3Data = this.extractJSON(phase3.content);
+    // JSON 추출 (안전한 파싱) - 공통 유틸리티 사용
+    const phase1Data = extractJSON(phase1.content);
+    const phase2Data = extractJSON(phase2.content);
+    const phase3Data = extractJSON(phase3.content);
 
     console.log('✅ Phase 1 데이터:', {
       title: phase1Data.title,

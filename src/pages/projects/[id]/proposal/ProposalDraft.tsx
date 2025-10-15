@@ -26,6 +26,7 @@ import { ProposalEnhancementService } from '../../../../services/proposal/propos
 import { useAuth } from '../../../../contexts/AuthContext'
 import { useAIModel } from '../../../../contexts/AIModelContext'
 import { PageContainer, PageHeader, PageContent, Card, Badge, Button, ProgressBar } from '../../../../components/LinearComponents'
+import { extractDoubleEncodedJSON, hasJSONParseError } from '../../../../utils/jsonExtractor'
 
 interface ProposalSection {
   id: string
@@ -88,15 +89,27 @@ export function ProposalDraftPage() {
         const latestProposal = analyses[0]
         console.log('✅ 최신 제안서:', latestProposal)
 
-        // analysis_result 파싱
+        // analysis_result 안전 파싱 (이중 인코딩 및 혼합 텍스트 처리)
         let parsedResult: ProposalResult
+
         if (typeof latestProposal.analysis_result === 'string') {
-          parsedResult = JSON.parse(latestProposal.analysis_result)
+          // 문자열인 경우: 이중 인코딩 가능성 고려
+          parsedResult = extractDoubleEncodedJSON<ProposalResult>(latestProposal.analysis_result)
+        } else if (typeof latestProposal.analysis_result === 'object') {
+          // 이미 객체인 경우
+          parsedResult = latestProposal.analysis_result as ProposalResult
         } else {
-          parsedResult = latestProposal.analysis_result
+          throw new Error('analysis_result 형식이 올바르지 않습니다')
         }
 
         console.log('📄 파싱된 제안서:', parsedResult)
+
+        // JSON 파싱 에러 확인
+        if (hasJSONParseError(parsedResult)) {
+          console.error('⚠️ JSON 파싱 에러 감지:', parsedResult)
+          setError(`제안서 데이터 파싱에 실패했습니다: ${(parsedResult as any)._errorMessage || '알 수 없는 오류'}`)
+          return
+        }
 
         // sections가 없으면 빈 배열로 초기화
         if (!parsedResult.sections) {
