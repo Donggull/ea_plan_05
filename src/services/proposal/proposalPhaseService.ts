@@ -217,8 +217,10 @@ ${JSON.stringify(analysisResult.projectSummary || {}, null, 2)}
    - 성과 측정 방법
    - 기대 ROI
 
-## 출력 형식
-다음 JSON 형식으로 정확히 출력해주세요:
+## 중요: 출력 형식 엄수
+**반드시 순수 JSON 형식만 출력하세요. 어떠한 설명 텍스트나 Markdown도 포함하지 마세요.**
+**첫 글자는 반드시 { 로 시작하고 마지막 글자는 } 로 끝나야 합니다.**
+
 {
   "title": "제안서 제목",
   "summary": "제안서 요약 (200자 이내)",
@@ -251,13 +253,13 @@ ${JSON.stringify(analysisResult.projectSummary || {}, null, 2)}
    * Phase 2 프롬프트 생성
    */
   private buildPhase2Prompt(_analysisResult: any, phase1Result: PhaseResult): string {
-    const phase1Data = JSON.parse(phase1Result.content);
+    const phase1Data = this.extractJSON(phase1Result.content);
 
     return `# 제안서 작성 Phase 2: 기술 구현 상세
 
 ## Phase 1 결과 요약
-- 제목: ${phase1Data.title}
-- 요약: ${phase1Data.summary}
+- 제목: ${phase1Data.title || '제안서'}
+- 요약: ${phase1Data.summary || '제안서 요약'}
 
 ## Phase 2 작성 항목
 1. **기술 스택**
@@ -276,7 +278,10 @@ ${JSON.stringify(analysisResult.projectSummary || {}, null, 2)}
    - 품질 관리 방안
    - 테스트 전략
 
-## 출력 형식
+## 중요: 출력 형식 엄수
+**반드시 순수 JSON 형식만 출력하세요. 어떠한 설명 텍스트나 Markdown도 포함하지 마세요.**
+**첫 글자는 반드시 { 로 시작하고 마지막 글자는 } 로 끝나야 합니다.**
+
 {
   "sections": [
     {
@@ -311,12 +316,12 @@ ${JSON.stringify(analysisResult.projectSummary || {}, null, 2)}
     _phase1Result: PhaseResult,
     phase2Result: PhaseResult
   ): string {
-    const phase2Data = JSON.parse(phase2Result.content);
+    const phase2Data = this.extractJSON(phase2Result.content);
 
     return `# 제안서 작성 Phase 3: 일정 및 비용 산정
 
 ## 기술 복잡도
-${phase2Data.technicalComplexity}
+${phase2Data.technicalComplexity || 'medium'}
 
 ## Phase 3 작성 항목
 1. **프로젝트 일정**
@@ -334,7 +339,10 @@ ${phase2Data.technicalComplexity}
    - 대응 방안
    - 비상 계획
 
-## 출력 형식
+## 중요: 출력 형식 엄수
+**반드시 순수 JSON 형식만 출력하세요. 어떠한 설명 텍스트나 Markdown도 포함하지 마세요.**
+**첫 글자는 반드시 { 로 시작하고 마지막 글자는 } 로 끝나야 합니다.**
+
 {
   "sections": [
     {
@@ -363,6 +371,51 @@ ${phase2Data.technicalComplexity}
   }
 
   /**
+   * JSON 추출 유틸리티 함수
+   * AI 응답에서 JSON 부분만 정확히 추출
+   */
+  private extractJSON(content: string): any {
+    try {
+      // 1. 이미 유효한 JSON인지 시도
+      return JSON.parse(content);
+    } catch {
+      // 2. Markdown 코드 블록에서 추출 시도 (```json ... ``` 또는 ``` ... ```)
+      const codeBlockMatch = content.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+      if (codeBlockMatch) {
+        try {
+          return JSON.parse(codeBlockMatch[1].trim());
+        } catch (e) {
+          console.warn('코드 블록 JSON 파싱 실패:', e);
+        }
+      }
+
+      // 3. 중괄호 { } 패턴 추출 시도
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          return JSON.parse(jsonMatch[0]);
+        } catch (e) {
+          console.warn('중괄호 패턴 JSON 파싱 실패:', e);
+        }
+      }
+
+      // 4. 모든 시도 실패 시 기본 구조 반환
+      console.error('❌ JSON 추출 완전 실패, fallback 사용');
+      console.error('원본 내용:', content.substring(0, 500));
+
+      return {
+        title: '제안서 (파싱 오류)',
+        summary: '제안서 내용을 정상적으로 추출할 수 없었습니다.',
+        sections: [],
+        phase: 0,
+        confidence: 0.5,
+        _parseError: true,
+        _originalContent: content.substring(0, 1000)
+      };
+    }
+  }
+
+  /**
    * Phase 결과 병합
    */
   private async mergePhaseResults(
@@ -370,23 +423,40 @@ ${phase2Data.technicalComplexity}
     phase2: PhaseResult,
     phase3: PhaseResult
   ) {
-    const phase1Data = JSON.parse(phase1.content);
-    const phase2Data = JSON.parse(phase2.content);
-    const phase3Data = JSON.parse(phase3.content);
+    console.log('🔄 Phase 결과 병합 시작...');
 
-    return {
+    // JSON 추출 (안전한 파싱)
+    const phase1Data = this.extractJSON(phase1.content);
+    const phase2Data = this.extractJSON(phase2.content);
+    const phase3Data = this.extractJSON(phase3.content);
+
+    console.log('✅ Phase 1 데이터:', {
       title: phase1Data.title,
-      summary: phase1Data.summary,
+      sectionsCount: phase1Data.sections?.length || 0
+    });
+    console.log('✅ Phase 2 데이터:', {
+      sectionsCount: phase2Data.sections?.length || 0,
+      complexity: phase2Data.technicalComplexity
+    });
+    console.log('✅ Phase 3 데이터:', {
+      sectionsCount: phase3Data.sections?.length || 0,
+      duration: phase3Data.totalDuration
+    });
+
+    // Phase별 데이터 병합
+    const mergedResult = {
+      title: phase1Data.title || '제안서',
+      summary: phase1Data.summary || '',
       sections: [
-        ...phase1Data.sections,
-        ...phase2Data.sections,
-        ...phase3Data.sections
+        ...(phase1Data.sections || []),
+        ...(phase2Data.sections || []),
+        ...(phase3Data.sections || [])
       ],
       metadata: {
-        confidence: phase1Data.confidence,
-        technicalComplexity: phase2Data.technicalComplexity,
-        totalDuration: phase3Data.totalDuration,
-        totalBudget: phase3Data.totalBudget,
+        confidence: phase1Data.confidence || 0.8,
+        technicalComplexity: phase2Data.technicalComplexity || 'medium',
+        totalDuration: phase3Data.totalDuration || '12주',
+        totalBudget: phase3Data.totalBudget || '미정',
         totalCost: phase1.cost.totalCost + phase2.cost.totalCost + phase3.cost.totalCost,
         totalTokens: phase1.usage.totalTokens + phase2.usage.totalTokens + phase3.usage.totalTokens
       },
@@ -396,6 +466,15 @@ ${phase2Data.technicalComplexity}
         phase3: phase3Data
       }
     };
+
+    console.log('✅ 병합 완료:', {
+      title: mergedResult.title,
+      totalSections: mergedResult.sections.length,
+      totalCost: mergedResult.metadata.totalCost,
+      totalTokens: mergedResult.metadata.totalTokens
+    });
+
+    return mergedResult;
   }
 
   /**
