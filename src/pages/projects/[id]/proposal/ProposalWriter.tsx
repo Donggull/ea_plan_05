@@ -527,12 +527,14 @@ export function ProposalWriterPage() {
     }
   }
 
-  // Phase 진행 상태 관리
+  // Phase 진행 상태 관리 (5단계)
   const [phaseProgress, setPhaseProgress] = useState({
-    currentPhase: 'idle' as 'idle' | 'phase1' | 'phase2' | 'phase3' | 'complete',
+    currentPhase: 'idle' as 'idle' | 'phase0' | 'phase1' | 'phase2' | 'phase3' | 'phase4' | 'complete',
+    phase0Progress: 0,
     phase1Progress: 0,
     phase2Progress: 0,
     phase3Progress: 0,
+    phase4Progress: 0,
     phaseMessage: ''
   })
 
@@ -630,31 +632,57 @@ export function ProposalWriterPage() {
           aiModel,
           user.id,  // 🔥 사용자 UUID 전달 (DB 저장용)
           (phase: string, progress: number, message: string) => {
-            // Phase별 진행 상태 업데이트
+            // Phase별 진행 상태 업데이트 (5단계)
             console.log(`📊 [${phase}] ${progress}% - ${message}`)
 
-            if (phase === 'phase1') {
+            if (phase === 'phase0') {
+              setPhaseProgress({
+                currentPhase: 'phase0',
+                phase0Progress: progress,
+                phase1Progress: 0,
+                phase2Progress: 0,
+                phase3Progress: 0,
+                phase4Progress: 0,
+                phaseMessage: message
+              })
+            } else if (phase === 'phase1') {
               setPhaseProgress({
                 currentPhase: 'phase1',
+                phase0Progress: 100,
                 phase1Progress: progress,
                 phase2Progress: 0,
                 phase3Progress: 0,
+                phase4Progress: 0,
                 phaseMessage: message
               })
             } else if (phase === 'phase2') {
               setPhaseProgress({
                 currentPhase: 'phase2',
+                phase0Progress: 100,
                 phase1Progress: 100,
                 phase2Progress: progress,
                 phase3Progress: 0,
+                phase4Progress: 0,
                 phaseMessage: message
               })
             } else if (phase === 'phase3') {
               setPhaseProgress({
                 currentPhase: 'phase3',
+                phase0Progress: 100,
                 phase1Progress: 100,
                 phase2Progress: 100,
                 phase3Progress: progress,
+                phase4Progress: 0,
+                phaseMessage: message
+              })
+            } else if (phase === 'phase4') {
+              setPhaseProgress({
+                currentPhase: 'phase4',
+                phase0Progress: 100,
+                phase1Progress: 100,
+                phase2Progress: 100,
+                phase3Progress: 100,
+                phase4Progress: progress,
                 phaseMessage: message
               })
             }
@@ -664,9 +692,11 @@ export function ProposalWriterPage() {
         console.log('✅ 모든 Phase 완료! 제안서 생성 완료')
         setPhaseProgress({
           currentPhase: 'complete',
+          phase0Progress: 100,
           phase1Progress: 100,
           phase2Progress: 100,
           phase3Progress: 100,
+          phase4Progress: 100,
           phaseMessage: '제안서 생성 완료!'
         })
 
@@ -743,12 +773,14 @@ export function ProposalWriterPage() {
       setError(`처리 중 오류가 발생했습니다: ${errorMessage}`)
     } finally {
       setAnalyzing(false)
-      // Phase 진행 상태 초기화
+      // Phase 진행 상태 초기화 (5단계)
       setPhaseProgress({
         currentPhase: 'idle',
+        phase0Progress: 0,
         phase1Progress: 0,
         phase2Progress: 0,
         phase3Progress: 0,
+        phase4Progress: 0,
         phaseMessage: ''
       })
     }
@@ -992,61 +1024,230 @@ export function ProposalWriterPage() {
       />
 
       <PageContent>
-        {/* Phase 진행 상태 표시 */}
+        {/* Phase 진행 상태 표시 - 카드 그리드 레이아웃 */}
         {analyzing && phaseProgress.currentPhase !== 'idle' && (
-          <Card className="mb-6">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-text-primary">제안서 생성 진행 상황</h3>
-                <Badge variant="primary">{phaseProgress.currentPhase}</Badge>
-              </div>
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-text-primary">제안서 생성 진행 상황</h3>
+              <Badge variant="primary">{phaseProgress.currentPhase}</Badge>
+            </div>
 
-              <div className="space-y-3">
-                {/* Phase 1 */}
-                <div>
-                  <div className="flex items-center justify-between text-sm mb-1">
-                    <span className="text-text-secondary">Phase 1: 핵심 제안 내용</span>
-                    <span className="text-text-primary">{phaseProgress.phase1Progress}%</span>
+            {/* Phase 카드 그리드 (2열 또는 3열) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-4">
+              {/* Phase 0 카드 */}
+              <Card className={`relative overflow-hidden transition-all ${
+                phaseProgress.currentPhase === 'phase0'
+                  ? 'border-2 border-purple-500/50 bg-purple-500/5 shadow-lg shadow-purple-500/20'
+                  : phaseProgress.phase0Progress === 100
+                  ? 'border border-green-500/30 bg-green-500/5'
+                  : 'border border-border-primary'
+              }`}>
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center space-x-2">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold text-sm ${
+                      phaseProgress.currentPhase === 'phase0'
+                        ? 'bg-purple-500 text-white'
+                        : phaseProgress.phase0Progress === 100
+                        ? 'bg-green-500 text-white'
+                        : 'bg-bg-tertiary text-text-muted'
+                    }`}>
+                      {phaseProgress.phase0Progress === 100 ? '✓' : '0'}
+                    </div>
+                    <div>
+                      <div className="text-xs text-text-muted">Phase 0</div>
+                      <div className="text-sm font-medium text-text-primary">고객 현황 분석</div>
+                    </div>
                   </div>
-                  <ProgressBar
-                    value={phaseProgress.phase1Progress}
-                    max={100}
-                    color={phaseProgress.currentPhase === 'phase1' ? '#6366F1' : '#10B981'}
-                  />
-                </div>
-
-                {/* Phase 2 */}
-                <div>
-                  <div className="flex items-center justify-between text-sm mb-1">
-                    <span className="text-text-secondary">Phase 2: 기술 구현 상세</span>
-                    <span className="text-text-primary">{phaseProgress.phase2Progress}%</span>
+                  <div className={`text-lg font-bold ${
+                    phaseProgress.currentPhase === 'phase0'
+                      ? 'text-purple-500'
+                      : phaseProgress.phase0Progress === 100
+                      ? 'text-green-500'
+                      : 'text-text-secondary'
+                  }`}>
+                    {phaseProgress.phase0Progress}%
                   </div>
-                  <ProgressBar
-                    value={phaseProgress.phase2Progress}
-                    max={100}
-                    color={phaseProgress.currentPhase === 'phase2' ? '#6366F1' : phaseProgress.phase2Progress > 0 ? '#10B981' : '#4B5563'}
-                  />
                 </div>
+                <ProgressBar
+                  value={phaseProgress.phase0Progress}
+                  max={100}
+                  color={phaseProgress.currentPhase === 'phase0' ? '#8B5CF6' : phaseProgress.phase0Progress > 0 ? '#10B981' : '#4B5563'}
+                />
+              </Card>
 
-                {/* Phase 3 */}
-                <div>
-                  <div className="flex items-center justify-between text-sm mb-1">
-                    <span className="text-text-secondary">Phase 3: 일정 및 비용 산정</span>
-                    <span className="text-text-primary">{phaseProgress.phase3Progress}%</span>
+              {/* Phase 1 카드 */}
+              <Card className={`relative overflow-hidden transition-all ${
+                phaseProgress.currentPhase === 'phase1'
+                  ? 'border-2 border-purple-500/50 bg-purple-500/5 shadow-lg shadow-purple-500/20'
+                  : phaseProgress.phase1Progress === 100
+                  ? 'border border-green-500/30 bg-green-500/5'
+                  : 'border border-border-primary'
+              }`}>
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center space-x-2">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold text-sm ${
+                      phaseProgress.currentPhase === 'phase1'
+                        ? 'bg-purple-500 text-white'
+                        : phaseProgress.phase1Progress === 100
+                        ? 'bg-green-500 text-white'
+                        : 'bg-bg-tertiary text-text-muted'
+                    }`}>
+                      {phaseProgress.phase1Progress === 100 ? '✓' : '1'}
+                    </div>
+                    <div>
+                      <div className="text-xs text-text-muted">Phase 1</div>
+                      <div className="text-sm font-medium text-text-primary">솔루션 제안</div>
+                    </div>
                   </div>
-                  <ProgressBar
-                    value={phaseProgress.phase3Progress}
-                    max={100}
-                    color={phaseProgress.currentPhase === 'phase3' ? '#6366F1' : phaseProgress.phase3Progress > 0 ? '#10B981' : '#4B5563'}
-                  />
+                  <div className={`text-lg font-bold ${
+                    phaseProgress.currentPhase === 'phase1'
+                      ? 'text-purple-500'
+                      : phaseProgress.phase1Progress === 100
+                      ? 'text-green-500'
+                      : 'text-text-secondary'
+                  }`}>
+                    {phaseProgress.phase1Progress}%
+                  </div>
                 </div>
-              </div>
+                <ProgressBar
+                  value={phaseProgress.phase1Progress}
+                  max={100}
+                  color={phaseProgress.currentPhase === 'phase1' ? '#8B5CF6' : phaseProgress.phase1Progress > 0 ? '#10B981' : '#4B5563'}
+                />
+              </Card>
 
-              <div className="text-center text-sm text-text-muted">
-                {phaseProgress.phaseMessage}
+              {/* Phase 2 카드 */}
+              <Card className={`relative overflow-hidden transition-all ${
+                phaseProgress.currentPhase === 'phase2'
+                  ? 'border-2 border-purple-500/50 bg-purple-500/5 shadow-lg shadow-purple-500/20'
+                  : phaseProgress.phase2Progress === 100
+                  ? 'border border-green-500/30 bg-green-500/5'
+                  : 'border border-border-primary'
+              }`}>
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center space-x-2">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold text-sm ${
+                      phaseProgress.currentPhase === 'phase2'
+                        ? 'bg-purple-500 text-white'
+                        : phaseProgress.phase2Progress === 100
+                        ? 'bg-green-500 text-white'
+                        : 'bg-bg-tertiary text-text-muted'
+                    }`}>
+                      {phaseProgress.phase2Progress === 100 ? '✓' : '2'}
+                    </div>
+                    <div>
+                      <div className="text-xs text-text-muted">Phase 2</div>
+                      <div className="text-sm font-medium text-text-primary">기술 구현</div>
+                    </div>
+                  </div>
+                  <div className={`text-lg font-bold ${
+                    phaseProgress.currentPhase === 'phase2'
+                      ? 'text-purple-500'
+                      : phaseProgress.phase2Progress === 100
+                      ? 'text-green-500'
+                      : 'text-text-secondary'
+                  }`}>
+                    {phaseProgress.phase2Progress}%
+                  </div>
+                </div>
+                <ProgressBar
+                  value={phaseProgress.phase2Progress}
+                  max={100}
+                  color={phaseProgress.currentPhase === 'phase2' ? '#8B5CF6' : phaseProgress.phase2Progress > 0 ? '#10B981' : '#4B5563'}
+                />
+              </Card>
+
+              {/* Phase 3 카드 */}
+              <Card className={`relative overflow-hidden transition-all ${
+                phaseProgress.currentPhase === 'phase3'
+                  ? 'border-2 border-purple-500/50 bg-purple-500/5 shadow-lg shadow-purple-500/20'
+                  : phaseProgress.phase3Progress === 100
+                  ? 'border border-green-500/30 bg-green-500/5'
+                  : 'border border-border-primary'
+              }`}>
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center space-x-2">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold text-sm ${
+                      phaseProgress.currentPhase === 'phase3'
+                        ? 'bg-purple-500 text-white'
+                        : phaseProgress.phase3Progress === 100
+                        ? 'bg-green-500 text-white'
+                        : 'bg-bg-tertiary text-text-muted'
+                    }`}>
+                      {phaseProgress.phase3Progress === 100 ? '✓' : '3'}
+                    </div>
+                    <div>
+                      <div className="text-xs text-text-muted">Phase 3</div>
+                      <div className="text-sm font-medium text-text-primary">일정 및 비용</div>
+                    </div>
+                  </div>
+                  <div className={`text-lg font-bold ${
+                    phaseProgress.currentPhase === 'phase3'
+                      ? 'text-purple-500'
+                      : phaseProgress.phase3Progress === 100
+                      ? 'text-green-500'
+                      : 'text-text-secondary'
+                  }`}>
+                    {phaseProgress.phase3Progress}%
+                  </div>
+                </div>
+                <ProgressBar
+                  value={phaseProgress.phase3Progress}
+                  max={100}
+                  color={phaseProgress.currentPhase === 'phase3' ? '#8B5CF6' : phaseProgress.phase3Progress > 0 ? '#10B981' : '#4B5563'}
+                />
+              </Card>
+
+              {/* Phase 4 카드 */}
+              <Card className={`relative overflow-hidden transition-all ${
+                phaseProgress.currentPhase === 'phase4'
+                  ? 'border-2 border-purple-500/50 bg-purple-500/5 shadow-lg shadow-purple-500/20'
+                  : phaseProgress.phase4Progress === 100
+                  ? 'border border-green-500/30 bg-green-500/5'
+                  : 'border border-border-primary'
+              }`}>
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center space-x-2">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold text-sm ${
+                      phaseProgress.currentPhase === 'phase4'
+                        ? 'bg-purple-500 text-white'
+                        : phaseProgress.phase4Progress === 100
+                        ? 'bg-green-500 text-white'
+                        : 'bg-bg-tertiary text-text-muted'
+                    }`}>
+                      {phaseProgress.phase4Progress === 100 ? '✓' : '4'}
+                    </div>
+                    <div>
+                      <div className="text-xs text-text-muted">Phase 4</div>
+                      <div className="text-sm font-medium text-text-primary">차별화 요소</div>
+                    </div>
+                  </div>
+                  <div className={`text-lg font-bold ${
+                    phaseProgress.currentPhase === 'phase4'
+                      ? 'text-purple-500'
+                      : phaseProgress.phase4Progress === 100
+                      ? 'text-green-500'
+                      : 'text-text-secondary'
+                  }`}>
+                    {phaseProgress.phase4Progress}%
+                  </div>
+                </div>
+                <ProgressBar
+                  value={phaseProgress.phase4Progress}
+                  max={100}
+                  color={phaseProgress.currentPhase === 'phase4' ? '#8B5CF6' : phaseProgress.phase4Progress > 0 ? '#10B981' : '#4B5563'}
+                />
+              </Card>
+            </div>
+
+            {/* 진행 메시지 */}
+            <div className="text-center">
+              <div className="inline-flex items-center space-x-2 px-4 py-2 bg-bg-secondary rounded-lg border border-border-primary">
+                <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
+                <span className="text-sm text-text-primary">{phaseProgress.phaseMessage}</span>
               </div>
             </div>
-          </Card>
+          </div>
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
