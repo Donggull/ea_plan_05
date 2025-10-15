@@ -49,10 +49,13 @@ export class ProposalTemplateGenerationService {
   ): Promise<TemplateGenerationProgress> {
     const { projectId, templateId, originalProposal, userId, aiProvider, aiModel, onProgress } = params
 
+    // 🚨 코드 버전 확인용 로그 (브라우저 캐시 문제 확인)
+    console.log('🚨🚨🚨 [VERSION CHECK] 재시도 메커니즘 + XML 폴백 버전 (2025-10-15) 🚨🚨🚨')
     console.log('🎨 템플릿 기반 제안서 생성 시작:', {
       projectId,
       templateId,
-      sectionsCount: originalProposal.sections?.length || 0
+      sectionsCount: originalProposal.sections?.length || 0,
+      timestamp: new Date().toISOString()
     })
 
     // 1. 템플릿 정보 조회
@@ -179,9 +182,13 @@ export class ProposalTemplateGenerationService {
   }): Promise<SlideContent> {
     const { section, templateType, templateStyle, aiProvider, aiModel } = params
 
-    console.log(`\n📝 슬라이드 생성 시작: "${section.title}"`)
+    console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
+    console.log(`📝 슬라이드 생성 시작: "${section.title}"`)
+    console.log(`   ⚙️ 재시도 메커니즘: 활성화 (최대 3회)`)
+    console.log(`   ⚙️ XML 폴백: 활성화`)
     console.log(`   AI 모델: ${aiProvider}/${aiModel}`)
     console.log(`   템플릿: ${templateType}`)
+    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`)
 
     const maxRetries = 3 // 최대 재시도 횟수
     let lastError: Error | null = null
@@ -209,10 +216,15 @@ export class ProposalTemplateGenerationService {
           2000
         )
 
-        console.log(`   AI 응답 길이: ${generatedContent.length}자`)
-        console.log(`   AI 응답 전체 (시도 ${attempt}):\n`, generatedContent)
+        console.log(`   ✅ AI 응답 수신 완료: ${generatedContent.length}자`)
+        console.log(`\n┌─────────────────────────────────────────────`)
+        console.log(`│ 📄 AI 응답 전체 내용 (시도 ${attempt}/${maxRetries}):`)
+        console.log(`├─────────────────────────────────────────────`)
+        console.log(generatedContent)
+        console.log(`└─────────────────────────────────────────────\n`)
 
         // JSON 파싱 시도
+        console.log(`   🔍 JSON 파싱 시도 중...`)
         const parsed = this.parseGeneratedSlideContent(generatedContent)
 
         // 파싱 성공
