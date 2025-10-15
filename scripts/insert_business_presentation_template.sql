@@ -969,6 +969,90 @@ body {
   animation: none; /* 호버 시 애니메이션 제거 */
 }
 
+/* ========================================
+   Multi-Column Layout & Text Hierarchy
+   ======================================== */
+
+/* Multi-column 리스트 레이아웃 */
+.enhanced-list.multi-column-2 {
+  column-count: 2;
+  column-gap: 2rem;
+}
+
+.enhanced-list.multi-column-3 {
+  column-count: 3;
+  column-gap: 2rem;
+}
+
+.enhanced-list .list-item {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+/* Compact vs Detailed 리스트 스타일 */
+.enhanced-list.compact-list .list-item {
+  margin-bottom: 0.75rem;
+}
+
+.enhanced-list.compact-list .content {
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.enhanced-list.detailed-list .list-item {
+  margin-bottom: 1.5rem;
+  padding: 0.75rem;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  transition: background 0.3s ease;
+}
+
+.enhanced-list.detailed-list .list-item:hover {
+  background: #f0f1f3;
+}
+
+.enhanced-list.detailed-list .content {
+  font-size: 1.0625rem;
+  line-height: 1.7;
+}
+
+/* 텍스트 위계 시스템 */
+.text-emphasis-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: inline-block;
+  margin-right: 0.25rem;
+}
+
+.text-emphasis-separator {
+  font-weight: 700;
+  color: var(--border-primary);
+  margin: 0 0.25rem;
+}
+
+.text-emphasis-body {
+  font-size: 1rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+/* Standard content 섹션 */
+.standard-content {
+  margin: 1rem 0;
+}
+
+.content-paragraph {
+  margin-bottom: 1.25rem;
+  line-height: 1.8;
+  color: var(--text-secondary);
+}
+
+.content-paragraph:last-child {
+  margin-bottom: 0;
+}
+
 /* 반응형 조정 */
 @media (max-width: 768px) {
   .stats-container {
@@ -1011,6 +1095,21 @@ body {
 
   .comparison-category {
     text-align: center;
+  }
+
+  /* 모바일에서는 multi-column 제거 */
+  .enhanced-list.multi-column-2,
+  .enhanced-list.multi-column-3 {
+    column-count: 1;
+  }
+
+  /* 텍스트 크기 조정 */
+  .text-emphasis-title {
+    font-size: 1rem;
+  }
+
+  .text-emphasis-body {
+    font-size: 0.9375rem;
   }
 }
 

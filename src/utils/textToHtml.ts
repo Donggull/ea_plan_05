@@ -541,34 +541,107 @@ function renderTimelineSection(text: string): string {
 }
 
 /**
- * 향상된 목록 렌더링
+ * 텍스트 길이에 따라 column 클래스 결정
+ */
+function getColumnClass(itemCount: number, avgLength: number): string {
+  // 항목이 너무 적으면 단일 column
+  if (itemCount <= 3) {
+    return ''
+  }
+
+  // 항목이 많고 짧으면 3 columns
+  if (itemCount >= 9 && avgLength < 80) {
+    return 'multi-column-3'
+  }
+
+  // 중간 항목 수는 2 columns
+  if (itemCount >= 4) {
+    return 'multi-column-2'
+  }
+
+  return ''
+}
+
+/**
+ * 타이틀과 본문을 분리하여 텍스트 위계 적용
+ */
+function emphasizeKeyPoints(text: string): string {
+  // "타이틀: 내용" 또는 "타이틀 - 내용" 패턴 감지
+  const titlePattern = /^(.+?)[:：\-]\s*(.+)$/
+  const match = text.match(titlePattern)
+
+  if (match) {
+    const title = match[1].trim()
+    const body = match[2].trim()
+    return `<span class="text-emphasis-title">${highlightKeywords(title)}</span><span class="text-emphasis-separator">:</span> <span class="text-emphasis-body">${highlightKeywords(highlightNumbers(body))}</span>`
+  }
+
+  // 패턴이 없으면 일반 강조 적용
+  return highlightKeywords(highlightNumbers(text))
+}
+
+/**
+ * 향상된 목록 렌더링 (Multi-column + 텍스트 위계)
  */
 function renderEnhancedList(text: string): string {
   const lines = text.split('\n').filter(line => line.trim())
 
+  // 평균 텍스트 길이 계산
+  const totalLength = lines.reduce((sum, line) => sum + line.length, 0)
+  const avgLength = lines.length > 0 ? totalLength / lines.length : 0
+
+  // Column 클래스 결정
+  const columnClass = getColumnClass(lines.length, avgLength)
+
+  // List 타입 결정 (compact vs detailed)
+  const listTypeClass = avgLength < 50 ? 'compact-list' : 'detailed-list'
+
+  console.log(`  📋 리스트 렌더링: ${lines.length}개 항목, 평균 ${Math.round(avgLength)}자 → ${columnClass || '1-column'}, ${listTypeClass}`)
+
   const listItems = lines.map(line => {
     const cleanLine = line.replace(/^(\d+\.|[-*•])\s*/, '').trim()
+    const emphasizedContent = emphasizeKeyPoints(cleanLine)
+
     return `
   <li class="list-item">
     <span class="bullet">▸</span>
-    <span class="content">${highlightKeywords(highlightNumbers(cleanLine))}</span>
+    <span class="content">${emphasizedContent}</span>
   </li>`
   }).join('\n')
 
   return `
-<ul class="enhanced-list">
+<ul class="enhanced-list ${columnClass} ${listTypeClass}">
   ${listItems}
 </ul>`
 }
 
 /**
- * 표준 섹션 렌더링 (폴백)
+ * 표준 섹션 렌더링 (폴백 + 스마트 포맷팅)
  */
 function renderStandardSection(text: string): string {
-  let html = textToSimpleHtml(text)
-  html = highlightKeywords(html)
-  html = highlightNumbers(html)
-  return html
+  const lines = text.split('\n').filter(line => line.trim())
+
+  // 리스트 패턴이 많으면 renderEnhancedList 사용
+  const listItemCount = lines.filter(line => /^(\d+\.|[-*•])\s+/.test(line)).length
+  if (listItemCount > 3) {
+    return renderEnhancedList(text)
+  }
+
+  // 일반 텍스트 처리 (paragraphs + 텍스트 위계)
+  const paragraphs = lines.map(line => {
+    // 리스트 아이템 제거 기호
+    const cleanLine = line.replace(/^(\d+\.|[-*•])\s*/, '').trim()
+
+    // 텍스트 위계 적용
+    const emphasizedLine = emphasizeKeyPoints(cleanLine)
+
+    return `<p class="content-paragraph">${emphasizedLine}</p>`
+  }).join('\n')
+
+  return `
+<div class="standard-content">
+  ${paragraphs}
+</div>`
 }
 
 /**
