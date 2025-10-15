@@ -168,7 +168,7 @@ export class ProposalTemplateGenerationService {
   }
 
   /**
-   * AI를 사용하여 개별 슬라이드 내용 생성
+   * AI를 사용하여 개별 슬라이드 내용 생성 (재시도 메커니즘 포함)
    */
   private static async generateSlideContent(params: {
     section: any
@@ -183,31 +183,88 @@ export class ProposalTemplateGenerationService {
     console.log(`   AI 모델: ${aiProvider}/${aiModel}`)
     console.log(`   템플릿: ${templateType}`)
 
+    const maxRetries = 3 // 최대 재시도 횟수
+    let lastError: Error | null = null
+
+    // JSON 형식으로 최대 3회 시도
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`\n🔄 JSON 시도 ${attempt}/${maxRetries}`)
+
+        // JSON 프롬프트 생성
+        const jsonPrompt = this.createSlideGenerationPrompt({
+          sectionTitle: section.title,
+          sectionContent: section.content,
+          templateType,
+          templateStyle
+        })
+
+        console.log(`   프롬프트 길이: ${jsonPrompt.length}자`)
+
+        // AI API 호출
+        const generatedContent = await this.callStreamingAPI(
+          aiProvider,
+          aiModel,
+          jsonPrompt,
+          2000
+        )
+
+        console.log(`   AI 응답 길이: ${generatedContent.length}자`)
+        console.log(`   AI 응답 전체 (시도 ${attempt}):\n`, generatedContent)
+
+        // JSON 파싱 시도
+        const parsed = this.parseGeneratedSlideContent(generatedContent)
+
+        // 파싱 성공
+        console.log(`   ✅ JSON 파싱 성공 (시도 ${attempt}): "${parsed.title}"`)
+
+        return {
+          sectionId: section.id,
+          title: parsed.title || section.title,
+          content: parsed.content,
+          order: section.order,
+          visualElements: parsed.visualElements
+        }
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error))
+        console.warn(`   ⚠️ JSON 시도 ${attempt} 실패:`, lastError.message)
+
+        if (attempt < maxRetries) {
+          console.log(`   🔄 재시도 중... (${attempt + 1}/${maxRetries})`)
+          await new Promise(resolve => setTimeout(resolve, 1000)) // 1초 대기
+        }
+      }
+    }
+
+    // JSON 방식 모두 실패 - XML 형식으로 폴백
+    console.warn(`\n⚠️ JSON 방식 ${maxRetries}회 모두 실패, XML 형식으로 전환`)
+
     try {
-      // 템플릿 타입별 프롬프트 생성
-      const prompt = this.createSlideGenerationPrompt({
+      // XML 프롬프트 생성
+      const xmlPrompt = this.createXmlSlideGenerationPrompt({
         sectionTitle: section.title,
         sectionContent: section.content,
         templateType,
         templateStyle
       })
 
-      console.log(`   프롬프트 길이: ${prompt.length}자`)
+      console.log(`   XML 프롬프트 길이: ${xmlPrompt.length}자`)
 
-      // 백엔드 API로 AI 요청
-      const generatedContent = await this.callStreamingAPI(
+      // AI API 호출
+      const xmlContent = await this.callStreamingAPI(
         aiProvider,
         aiModel,
-        prompt,
+        xmlPrompt,
         2000
       )
 
-      console.log(`   AI 응답 길이: ${generatedContent.length}자`)
+      console.log(`   XML 응답 길이: ${xmlContent.length}자`)
+      console.log(`   XML 응답 전체:\n`, xmlContent)
 
-      // 생성된 내용 파싱
-      const parsed = this.parseGeneratedSlideContent(generatedContent)
+      // XML 파싱
+      const parsed = this.parseXmlSlideContent(xmlContent)
 
-      console.log(`   ✅ 파싱 완료: "${parsed.title}"`)
+      console.log(`   ✅ XML 파싱 성공: "${parsed.title}"`)
 
       return {
         sectionId: section.id,
@@ -216,15 +273,14 @@ export class ProposalTemplateGenerationService {
         order: section.order,
         visualElements: parsed.visualElements
       }
-    } catch (error) {
-      console.error(`   ❌ 슬라이드 생성 실패: ${section.title}`)
-      console.error(`   오류:`, error)
+    } catch (xmlError) {
+      console.error(`   ❌ XML 방식도 실패:`, xmlError)
 
-      // 오류 발생 시에도 기본 슬라이드 반환 (프로세스 중단 방지)
+      // 최종 폴백: 원본 내용 사용
       return {
         sectionId: section.id,
         title: section.title,
-        content: `<div class="error-fallback"><p>⚠️ AI 생성 중 오류가 발생했습니다.</p><p>원본 내용:</p>${section.content}</div>`,
+        content: `<div class="error-fallback"><p>⚠️ AI 생성에 여러 번 실패했습니다.</p><p>원본 내용을 표시합니다:</p><hr/>${section.content}</div>`,
         order: section.order,
         visualElements: []
       }
@@ -315,7 +371,7 @@ export class ProposalTemplateGenerationService {
   }
 
   /**
-   * 슬라이드 생성을 위한 AI 프롬프트 생성
+   * 슬라이드 생성을 위한 AI 프롬프트 생성 (JSON 형식)
    */
   private static createSlideGenerationPrompt(params: {
     sectionTitle: string
@@ -326,47 +382,142 @@ export class ProposalTemplateGenerationService {
     const { sectionTitle, sectionContent, templateType, templateStyle } = params
 
     // HTML 태그 제거
-    const cleanContent = sectionContent.replace(/<[^>]*>/g, '')
+    const cleanContent = sectionContent.replace(/<[^>]*>/g, '').substring(0, 1000)
 
     return `You are a professional business presentation creator. Generate a JSON response ONLY.
 
-CRITICAL INSTRUCTIONS:
-1. You MUST return ONLY valid JSON - no explanations, no comments, no markdown text
+CRITICAL INSTRUCTIONS - READ CAREFULLY:
+1. You MUST return ONLY valid JSON - no explanations, no comments, no markdown
 2. Start your response with { and end with }
-3. Do NOT include any text before or after the JSON
-4. Use double quotes for all strings
-5. Escape special characters properly
+3. Do NOT write anything before { or after }
+4. Use double quotes (") for all strings
+5. Escape special characters: \\ for backslash, \" for quotes
+6. NO markdown code blocks like \`\`\`json
 
-Task: Rewrite the following proposal section for a ${templateType} style presentation slide.
+Task: Rewrite this proposal section for ${templateType} style presentation.
 
-Template Style: ${templateStyle}
-
-Original Section:
-Title: ${sectionTitle}
-Content: ${cleanContent}
+Template: ${templateStyle}
+Original Title: ${sectionTitle}
+Original Content: ${cleanContent}
 
 Requirements:
-- Concise and clear (200-400 characters)
-- Use HTML tags: <h3>, <p>, <ul>, <li>, <strong>
+- 200-400 characters in Korean
+- Use HTML: <h3>, <p>, <ul>, <li>, <strong>
 - Professional business tone
-- Visual structure with bullet points
+- Clear bullet points
 
-Response Format (EXACT JSON ONLY):
-{
-  "title": "Rewritten slide title in Korean",
-  "content": "<h3>Title</h3><p>Content with HTML formatting...</p>",
-  "visualElements": ["Chart suggestion", "Diagram suggestion"]
-}
+EXACT FORMAT (copy this structure):
+{"title":"슬라이드 제목","content":"<h3>제목</h3><p>내용</p>","visualElements":["차트"]}
 
-Example Response:
-{
-  "title": "디지털 혁신 전략",
-  "content": "<h3>핵심 전략</h3><ul><li><strong>AI 자동화:</strong> 효율 30% 향상</li><li><strong>클라우드:</strong> 비용 40% 절감</li></ul>",
-  "visualElements": ["막대 그래프"]
-}
+Example:
+{"title":"디지털 혁신","content":"<h3>핵심 전략</h3><ul><li><strong>AI:</strong> 30% 향상</li></ul>","visualElements":["그래프"]}
 
-REMEMBER: Return ONLY the JSON object. No markdown code blocks. No explanations.
-Start your response with { and end with }`
+NOW respond with ONLY the JSON object starting with { and ending with }`
+  }
+
+  /**
+   * XML 형식 슬라이드 생성 프롬프트 (JSON 실패 시 폴백)
+   */
+  private static createXmlSlideGenerationPrompt(params: {
+    sectionTitle: string
+    sectionContent: string
+    templateType: string
+    templateStyle: string
+  }): string {
+    const { sectionTitle, sectionContent, templateType, templateStyle } = params
+
+    // HTML 태그 제거
+    const cleanContent = sectionContent.replace(/<[^>]*>/g, '').substring(0, 1000)
+
+    return `You are a professional business presentation creator.
+
+Task: Rewrite this proposal section for ${templateType} style presentation.
+
+Template Style: ${templateStyle}
+Original Title: ${sectionTitle}
+Original Content: ${cleanContent}
+
+Requirements:
+- 200-400 characters in Korean
+- Use HTML tags for formatting
+- Professional business tone
+- Clear structure
+
+IMPORTANT: Respond using ONLY this XML format:
+
+<slide>
+<title>슬라이드 제목을 여기에</title>
+<content><h3>제목</h3><p>내용을 여기에 HTML 형식으로 작성</p><ul><li><strong>포인트 1:</strong> 설명</li><li><strong>포인트 2:</strong> 설명</li></ul></content>
+<visual>차트 제안</visual>
+<visual>다이어그램 제안</visual>
+</slide>
+
+Example:
+<slide>
+<title>디지털 혁신 전략</title>
+<content><h3>핵심 전략</h3><ul><li><strong>AI 자동화:</strong> 업무 효율 30% 향상</li><li><strong>클라우드:</strong> 비용 40% 절감</li></ul></content>
+<visual>막대 그래프</visual>
+</slide>
+
+NOW respond with the XML structure ONLY.`
+  }
+
+  /**
+   * XML 응답 파싱 (JSON 실패 시 폴백)
+   */
+  private static parseXmlSlideContent(response: string): {
+    title: string
+    content: string
+    visualElements?: string[]
+  } {
+    console.log('🔍 [parseXml] XML 파싱 시작')
+
+    try {
+      // 응답 정제
+      const cleanedResponse = response
+        .replace(/[\x00-\x09\x0B-\x0C\x0E-\x1F\x7F-\x9F]/g, '')
+        .trim()
+
+      // <slide> 태그 추출
+      const slideMatch = cleanedResponse.match(/<slide>([\s\S]*?)<\/slide>/i)
+      if (!slideMatch) {
+        throw new Error('slide 태그를 찾을 수 없습니다')
+      }
+
+      const slideContent = slideMatch[1]
+
+      // <title> 추출
+      const titleMatch = slideContent.match(/<title>([\s\S]*?)<\/title>/i)
+      const title = titleMatch ? titleMatch[1].trim() : '제목 없음'
+
+      // <content> 추출
+      const contentMatch = slideContent.match(/<content>([\s\S]*?)<\/content>/i)
+      const content = contentMatch ? contentMatch[1].trim() : '<p>내용 없음</p>'
+
+      // <visual> 추출 (여러 개 가능)
+      const visualMatches = slideContent.matchAll(/<visual>([\s\S]*?)<\/visual>/gi)
+      const visualElements: string[] = []
+      for (const match of visualMatches) {
+        if (match[1]) {
+          visualElements.push(match[1].trim())
+        }
+      }
+
+      console.log('✅ [parseXml] XML 파싱 성공:', {
+        title,
+        contentLength: content.length,
+        visualCount: visualElements.length
+      })
+
+      return {
+        title,
+        content,
+        visualElements
+      }
+    } catch (error) {
+      console.error('❌ [parseXml] XML 파싱 실패:', error)
+      throw error
+    }
   }
 
   /**
