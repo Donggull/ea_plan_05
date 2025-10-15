@@ -79,6 +79,8 @@ export class ProposalTemplateGenerationService {
     // 3. 각 섹션별로 순차적으로 생성
     progress.overallStatus = 'generating'
     const generatedSlides: SlideContent[] = []
+    let successCount = 0
+    let errorCount = 0
 
     for (let i = 0; i < sections.length; i++) {
       const section = sections[i]
@@ -86,7 +88,7 @@ export class ProposalTemplateGenerationService {
       progress.phases[i].status = 'in_progress'
 
       try {
-        console.log(`📄 Phase ${i + 1}/${sections.length}: "${section.title}" 생성 중...`)
+        console.log(`\n📄 Phase ${i + 1}/${sections.length}: "${section.title}" 생성 중...`)
 
         // AI로 슬라이드 내용 생성
         const slideContent = await this.generateSlideContent({
@@ -100,16 +102,31 @@ export class ProposalTemplateGenerationService {
         generatedSlides.push(slideContent)
         progress.phases[i].status = 'completed'
         progress.phases[i].generatedContent = slideContent.content
+        successCount++
 
-        console.log(`✅ Phase ${i + 1} 완료`)
+        console.log(`✅ Phase ${i + 1}/${sections.length} 완료 (성공: ${successCount}, 실패: ${errorCount})`)
 
       } catch (error) {
         console.error(`❌ Phase ${i + 1} 실패:`, error)
         progress.phases[i].status = 'error'
         progress.phases[i].error = error instanceof Error ? error.message : String(error)
-        throw error // 하나라도 실패하면 전체 실패
+        errorCount++
+
+        // 오류 발생 시에도 fallback 슬라이드 추가 (프로세스 계속 진행)
+        const fallbackSlide: SlideContent = {
+          sectionId: section.id,
+          title: section.title,
+          content: `<div class="generation-error"><p>⚠️ 이 섹션은 AI 생성 중 오류가 발생했습니다.</p><p>원본 내용을 그대로 표시합니다.</p><hr/>${section.content}</div>`,
+          order: section.order,
+          visualElements: []
+        }
+        generatedSlides.push(fallbackSlide)
+
+        console.warn(`⚠️ Phase ${i + 1} fallback 사용 (성공: ${successCount}, 실패: ${errorCount})`)
       }
     }
+
+    console.log(`\n📊 생성 완료: 전체 ${sections.length}개 중 성공 ${successCount}개, 실패 ${errorCount}개`)
 
     // 4. 생성된 슬라이드들을 ai_analysis 테이블에 저장
     progress.overallStatus = 'completed'
@@ -141,31 +158,55 @@ export class ProposalTemplateGenerationService {
   }): Promise<SlideContent> {
     const { section, templateType, templateStyle, aiProvider, aiModel } = params
 
-    // 템플릿 타입별 프롬프트 생성
-    const prompt = this.createSlideGenerationPrompt({
-      sectionTitle: section.title,
-      sectionContent: section.content,
-      templateType,
-      templateStyle
-    })
+    console.log(`\n📝 슬라이드 생성 시작: "${section.title}"`)
+    console.log(`   AI 모델: ${aiProvider}/${aiModel}`)
+    console.log(`   템플릿: ${templateType}`)
 
-    // 백엔드 API로 AI 요청
-    const generatedContent = await this.callStreamingAPI(
-      aiProvider,
-      aiModel,
-      prompt,
-      2000
-    )
+    try {
+      // 템플릿 타입별 프롬프트 생성
+      const prompt = this.createSlideGenerationPrompt({
+        sectionTitle: section.title,
+        sectionContent: section.content,
+        templateType,
+        templateStyle
+      })
 
-    // 생성된 내용 파싱
-    const parsed = this.parseGeneratedSlideContent(generatedContent)
+      console.log(`   프롬프트 길이: ${prompt.length}자`)
 
-    return {
-      sectionId: section.id,
-      title: parsed.title || section.title,
-      content: parsed.content,
-      order: section.order,
-      visualElements: parsed.visualElements
+      // 백엔드 API로 AI 요청
+      const generatedContent = await this.callStreamingAPI(
+        aiProvider,
+        aiModel,
+        prompt,
+        2000
+      )
+
+      console.log(`   AI 응답 길이: ${generatedContent.length}자`)
+
+      // 생성된 내용 파싱
+      const parsed = this.parseGeneratedSlideContent(generatedContent)
+
+      console.log(`   ✅ 파싱 완료: "${parsed.title}"`)
+
+      return {
+        sectionId: section.id,
+        title: parsed.title || section.title,
+        content: parsed.content,
+        order: section.order,
+        visualElements: parsed.visualElements
+      }
+    } catch (error) {
+      console.error(`   ❌ 슬라이드 생성 실패: ${section.title}`)
+      console.error(`   오류:`, error)
+
+      // 오류 발생 시에도 기본 슬라이드 반환 (프로세스 중단 방지)
+      return {
+        sectionId: section.id,
+        title: section.title,
+        content: `<div class="error-fallback"><p>⚠️ AI 생성 중 오류가 발생했습니다.</p><p>원본 내용:</p>${section.content}</div>`,
+        order: section.order,
+        visualElements: []
+      }
     }
   }
 
@@ -285,20 +326,36 @@ ${cleanContent}
 4. **HTML 포맷**: <h3>, <p>, <ul>, <li>, <strong> 등의 HTML 태그 사용
 5. **적절한 분량**: 한 슬라이드에 표시할 수 있는 분량 (200-400자 내외)
 
-## 출력 형식 (JSON)
+## 출력 형식
+**절대 다른 설명 없이 아래 JSON 형식만 반환하세요.**
+
 \`\`\`json
 {
-  "title": "재작성된 슬라이드 제목 (간결하게)",
-  "content": "HTML 형식의 슬라이드 내용",
-  "visualElements": ["차트/이미지 제안 (선택사항)"]
+  "title": "재작성된 슬라이드 제목",
+  "content": "<h3>제목</h3><p>내용...</p>",
+  "visualElements": ["차트", "그래프"]
 }
 \`\`\`
 
-**중요**: 반드시 위 JSON 형식으로만 응답해주세요.`
+## 출력 예시
+\`\`\`json
+{
+  "title": "디지털 혁신 전략 개요",
+  "content": "<h3>핵심 전략</h3><ul><li><strong>AI 기반 자동화:</strong> 업무 효율 30% 향상</li><li><strong>클라우드 전환:</strong> 인프라 비용 40% 절감</li><li><strong>데이터 분석:</strong> 실시간 의사결정 지원</li></ul><p>예상 ROI: 6개월 내 투자 회수</p>",
+  "visualElements": ["막대 그래프", "프로세스 다이어그램"]
+}
+\`\`\`
+
+**중요 규칙:**
+- 다른 설명이나 주석 없이 오직 JSON만 반환
+- JSON 외 어떤 텍스트도 포함하지 말 것
+- 코드 블록(\`\`\`json)으로 감싸서 반환
+- title, content 필드는 필수
+- content는 반드시 HTML 형식`
   }
 
   /**
-   * AI 응답 파싱
+   * AI 응답 파싱 - 더 견고한 로직으로 개선
    */
   private static parseGeneratedSlideContent(response: string): {
     title: string
@@ -306,27 +363,66 @@ ${cleanContent}
     visualElements?: string[]
   } {
     try {
-      // JSON 블록 추출
-      const jsonMatch = response.match(/```json\s*([\s\S]*?)\s*```/) || response.match(/{[\s\S]*}/)
+      console.log('🔍 원본 AI 응답 (처음 200자):', response.substring(0, 200))
 
-      if (!jsonMatch) {
-        throw new Error('JSON 형식을 찾을 수 없습니다')
+      // 1단계: 응답 정제 - 불필요한 텍스트 및 마크다운 제거
+      let cleanedResponse = response.trim()
+
+      // JSON 코드 블록 추출 (```json ... ``` 또는 ``` ... ```)
+      const codeBlockMatch = cleanedResponse.match(/```(?:json)?\s*([\s\S]*?)\s*```/)
+      if (codeBlockMatch) {
+        cleanedResponse = codeBlockMatch[1].trim()
+        console.log('📦 코드 블록 추출 완료')
       }
 
-      const jsonStr = jsonMatch[1] || jsonMatch[0]
+      // 2단계: JSON 객체만 추출
+      // 첫 번째 { 부터 마지막 } 까지 추출
+      const firstBrace = cleanedResponse.indexOf('{')
+      const lastBrace = cleanedResponse.lastIndexOf('}')
+
+      if (firstBrace === -1 || lastBrace === -1 || firstBrace >= lastBrace) {
+        throw new Error('JSON 객체를 찾을 수 없습니다')
+      }
+
+      const jsonStr = cleanedResponse.substring(firstBrace, lastBrace + 1)
+      console.log('🔍 추출된 JSON (처음 200자):', jsonStr.substring(0, 200))
+
+      // 3단계: JSON 파싱
       const parsed = JSON.parse(jsonStr)
 
+      // 4단계: 필수 필드 검증
+      if (!parsed.title || !parsed.content) {
+        throw new Error('title 또는 content 필드가 누락되었습니다')
+      }
+
+      console.log('✅ JSON 파싱 성공:', {
+        title: parsed.title.substring(0, 50),
+        contentLength: parsed.content.length
+      })
+
       return {
-        title: parsed.title || '',
-        content: parsed.content || '',
-        visualElements: parsed.visualElements
+        title: parsed.title,
+        content: parsed.content,
+        visualElements: parsed.visualElements || []
       }
     } catch (error) {
-      console.error('AI 응답 파싱 실패:', error)
-      // Fallback: 원본 텍스트 그대로 사용
+      console.error('❌ AI 응답 파싱 실패:', error)
+      console.error('원본 응답 전체:', response)
+
+      // Fallback: 원본 텍스트를 구조화하여 사용
+      // 첫 번째 줄을 제목으로, 나머지를 내용으로
+      const lines = response.split('\n').filter(line => line.trim())
+      const fallbackTitle = lines[0]?.substring(0, 100) || '제목 없음'
+      const fallbackContent = lines.slice(1).join('\n') || response
+
+      console.warn('⚠️ Fallback 사용:', {
+        title: fallbackTitle,
+        contentLength: fallbackContent.length
+      })
+
       return {
-        title: '',
-        content: `<p>${response}</p>`,
+        title: fallbackTitle,
+        content: `<div class="ai-generated-fallback"><p>${fallbackContent.replace(/\n/g, '</p><p>')}</p></div>`,
         visualElements: []
       }
     }
