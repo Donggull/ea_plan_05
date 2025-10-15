@@ -1,0 +1,39 @@
+<!-- 비즈니스 프레젠테이션 템플릿 - ELUO Project -->
+<div class="slide cover-slide active" id="slide-cover">
+  <div class="slide-content">
+    <h1 class="title-main">{{projectName}}</h1>
+    <p class="text-body subtitle">{{summary}}</p>
+    <div class="blue-line"></div>
+    <div class="metadata-footer">
+      <p>{{companyName}}</p>
+      <p>{{createdDate}}</p>
+    </div>
+  </div>
+</div>
+
+<!-- 섹션 슬라이드들 -->
+{{#sections}}
+<div class="slide section-slide" id="slide-{{id}}">
+  <div class="content-layout">
+    <div class="section-header">
+      <div class="section-number">{{@index}}</div>
+      <h2 class="title-section">{{title}}</h2>
+    </div>
+    <div class="section-body">
+      <div class="section-content">{{{content}}}</div>
+    </div>
+  </div>
+</div>
+{{/sections}}
+
+<!-- 마지막 슬라이드 - 감사 메시지 -->
+<div class="slide thank-you-slide" id="slide-end">
+  <div class="slide-content">
+    <h1 class="title-main">감사합니다</h1>
+    <div class="contact-info">
+      <p class="text-body">{{companyName}}</p>
+      <p class="text-body">{{contactEmail}}</p>
+    </div>
+    <div class="blue-line"></div>
+  </div>
+</div>
