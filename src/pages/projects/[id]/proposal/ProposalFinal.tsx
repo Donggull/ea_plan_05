@@ -604,6 +604,26 @@ ${proposal.enhancementNotes ? `## 개선 노트\n${proposal.enhancementNotes}\n`
               {/* 템플릿 CSS 적용 */}
               <style dangerouslySetInnerHTML={{ __html: appliedTemplate.css }} />
 
+              {/* 미리보기용 추가 CSS - 슬라이드를 컨테이너에 맞게 축소 */}
+              <style dangerouslySetInnerHTML={{ __html: `
+                /* 미리보기 모드: 슬라이드를 컨테이너에 맞게 축소 */
+                .presentation-container {
+                  transform: scale(0.6);
+                  transform-origin: top left;
+                  width: 166.67%; /* 100% / 0.6 = 166.67% */
+                  height: 166.67%;
+                }
+
+                /* 네비게이션을 미리보기 영역 내에 고정 */
+                .presentation-container .navigation {
+                  position: fixed;
+                  bottom: 1rem;
+                  left: 50%;
+                  transform: translateX(-50%) scale(1.67); /* 0.6의 역수로 원래 크기 복원 */
+                  z-index: 1000;
+                }
+              ` }} />
+
               {/* 템플릿 HTML 렌더링 (presentation-container 포함) */}
               <div dangerouslySetInnerHTML={{ __html: appliedTemplate.html }} style={{ width: '100%', height: '100%' }} />
             </div>
