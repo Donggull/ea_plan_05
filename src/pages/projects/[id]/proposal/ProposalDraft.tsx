@@ -75,8 +75,14 @@ export function ProposalDraftPage() {
 
         console.log('🔍 제안서 초안 로딩 중...')
 
-        // AI 분석 결과 조회 (proposal 단계)
-        const analyses = await ProposalDataManager.getAnalysis(id, 'proposal', 'integrated_analysis')
+        // AI 분석 결과 조회 (proposal 단계 - 'proposal_draft' 타입으로 조회)
+        let analyses = await ProposalDataManager.getAnalysis(id, 'proposal', 'proposal_draft')
+
+        // fallback: 'proposal_draft'로 찾지 못하면 'integrated_analysis'로 조회 (하위 호환성)
+        if (!analyses || analyses.length === 0) {
+          console.log('⚠️ proposal_draft 타입 없음, integrated_analysis로 재시도...')
+          analyses = await ProposalDataManager.getAnalysis(id, 'proposal', 'integrated_analysis')
+        }
 
         console.log('📊 조회된 제안서 결과:', analyses)
 
@@ -92,22 +98,54 @@ export function ProposalDraftPage() {
         // analysis_result 안전 파싱 (이중 인코딩 및 혼합 텍스트 처리)
         let parsedResult: ProposalResult
 
+        console.log('🔍 원본 analysis_result 타입:', typeof latestProposal.analysis_result)
+        console.log('🔍 원본 analysis_result 미리보기:',
+          typeof latestProposal.analysis_result === 'string'
+            ? latestProposal.analysis_result.substring(0, 200)
+            : JSON.stringify(latestProposal.analysis_result).substring(0, 200)
+        )
+
         if (typeof latestProposal.analysis_result === 'string') {
           // 문자열인 경우: 이중 인코딩 가능성 고려
+          console.log('📝 문자열 파싱 시작...')
           parsedResult = extractDoubleEncodedJSON<ProposalResult>(latestProposal.analysis_result)
+          console.log('✅ 파싱 결과:', {
+            hasTitle: !!parsedResult?.title,
+            hasSummary: !!parsedResult?.summary,
+            sectionsCount: parsedResult?.sections?.length || 0,
+            titlePreview: parsedResult?.title?.substring(0, 50),
+            summaryPreview: parsedResult?.summary?.substring(0, 100)
+          })
         } else if (typeof latestProposal.analysis_result === 'object') {
           // 이미 객체인 경우
+          console.log('📦 이미 객체 형식')
           parsedResult = latestProposal.analysis_result as ProposalResult
         } else {
           throw new Error('analysis_result 형식이 올바르지 않습니다')
         }
 
-        console.log('📄 파싱된 제안서:', parsedResult)
+        console.log('📄 최종 파싱된 제안서:', {
+          title: parsedResult?.title,
+          summary: parsedResult?.summary?.substring(0, 100),
+          sectionsCount: parsedResult?.sections?.length,
+          firstSectionTitle: parsedResult?.sections?.[0]?.title
+        })
 
         // JSON 파싱 에러 확인
         if (hasJSONParseError(parsedResult)) {
           console.error('⚠️ JSON 파싱 에러 감지:', parsedResult)
           setError(`제안서 데이터 파싱에 실패했습니다: ${(parsedResult as any)._errorMessage || '알 수 없는 오류'}`)
+          return
+        }
+
+        // 🔥 추가 검증: title과 sections가 유효한지 확인
+        if (!parsedResult || !parsedResult.title || !parsedResult.sections) {
+          console.error('❌ 필수 필드 누락:', {
+            hasTitle: !!parsedResult?.title,
+            hasSections: !!parsedResult?.sections,
+            sectionsLength: parsedResult?.sections?.length
+          })
+          setError('제안서 데이터가 올바르지 않습니다. title 또는 sections가 누락되었습니다.')
           return
         }
 
