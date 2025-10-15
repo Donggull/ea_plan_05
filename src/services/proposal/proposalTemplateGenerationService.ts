@@ -1,5 +1,4 @@
 import { supabase } from '../../lib/supabase'
-import { aiServiceManager } from '../ai/AIServiceManager'
 import { ProposalDataManager } from './dataManager'
 import { ProposalTemplateService } from './proposalTemplateService'
 
@@ -94,6 +93,7 @@ export class ProposalTemplateGenerationService {
           section,
           templateType: template.template_type,
           templateStyle: template.description || '',
+          aiProvider,
           aiModel
         })
 
@@ -136,9 +136,10 @@ export class ProposalTemplateGenerationService {
     section: any
     templateType: string
     templateStyle: string
+    aiProvider: string
     aiModel: string
   }): Promise<SlideContent> {
-    const { section, templateType, templateStyle, aiModel } = params
+    const { section, templateType, templateStyle, aiProvider, aiModel } = params
 
     // 템플릿 타입별 프롬프트 생성
     const prompt = this.createSlideGenerationPrompt({
@@ -148,14 +149,13 @@ export class ProposalTemplateGenerationService {
       templateStyle
     })
 
-    // AI 모델에 요청
-    const result = await aiServiceManager.generateCompletion(prompt, {
-      model: aiModel,
-      maxTokens: 2000,
-      temperature: 0.7
-    })
-
-    const generatedContent = result.content
+    // 백엔드 API로 AI 요청
+    const generatedContent = await this.callStreamingAPI(
+      aiProvider,
+      aiModel,
+      prompt,
+      2000
+    )
 
     // 생성된 내용 파싱
     const parsed = this.parseGeneratedSlideContent(generatedContent)
@@ -167,6 +167,89 @@ export class ProposalTemplateGenerationService {
       order: section.order,
       visualElements: parsed.visualElements
     }
+  }
+
+  /**
+   * 백엔드 API를 통한 AI 스트리밍 호출
+   */
+  private static async callStreamingAPI(
+    provider: string,
+    model: string,
+    prompt: string,
+    maxTokens: number
+  ): Promise<string> {
+    const apiUrl = process.env['NODE_ENV'] === 'production'
+      ? '/api/ai/completion-streaming'
+      : 'http://localhost:3000/api/ai/completion-streaming'
+
+    return new Promise((resolve, reject) => {
+      let fullContent = ''
+
+      fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider,
+          model,
+          prompt,
+          maxTokens,
+          temperature: 0.7,
+          topP: 1
+        })
+      })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`API 요청 실패: ${response.status}`)
+          }
+
+          const reader = response.body?.getReader()
+          if (!reader) {
+            throw new Error('스트림 리더를 생성할 수 없습니다')
+          }
+
+          const decoder = new TextDecoder()
+
+          function readStream(): Promise<void> {
+            return reader!.read().then(({ done, value }) => {
+              if (done) {
+                resolve(fullContent)
+                return
+              }
+
+              const chunk = decoder.decode(value, { stream: true })
+              const lines = chunk.split('\n')
+
+              for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                  try {
+                    const data = JSON.parse(line.slice(6))
+
+                    if (data.type === 'content') {
+                      fullContent += data.content
+                    } else if (data.type === 'error') {
+                      reject(new Error(data.error))
+                      return
+                    } else if (data.type === 'done') {
+                      resolve(fullContent)
+                      return
+                    }
+                  } catch (e) {
+                    // JSON 파싱 오류는 무시 (불완전한 청크)
+                  }
+                }
+              }
+
+              return readStream()
+            })
+          }
+
+          return readStream()
+        })
+        .catch(error => {
+          console.error('AI API 호출 오류:', error)
+          reject(error)
+        })
+    })
   }
 
   /**
