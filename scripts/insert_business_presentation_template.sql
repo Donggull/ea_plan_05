@@ -663,6 +663,312 @@ body {
   line-height: 1.8;
 }
 
+/* 비교표 섹션 */
+.comparison-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin: 2rem 0;
+}
+
+.comparison-row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 1rem;
+  align-items: center;
+  padding: 1.5rem;
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.comparison-row:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.comparison-category {
+  grid-column: 1 / -1;
+  font-weight: 600;
+  font-size: 1.125rem;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--border-light);
+}
+
+.comparison-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.comparison-item .label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.comparison-item.ours {
+  text-align: right;
+}
+
+.comparison-item.ours .label {
+  color: var(--border-primary);
+}
+
+.comparison-item.theirs .label {
+  color: #6b7280;
+}
+
+.comparison-item .content {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.comparison-vs {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-light);
+  padding: 0.5rem;
+}
+
+/* 팀 멤버 그리드 */
+.team-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 2rem;
+  margin: 2rem 0;
+}
+
+.team-member-card {
+  background: var(--bg-secondary);
+  padding: 2rem;
+  border-radius: 12px;
+  text-align: center;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  border: 2px solid transparent;
+}
+
+.team-member-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  border-color: var(--border-primary);
+}
+
+.member-avatar {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.member-name {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.member-role {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--border-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 1rem;
+}
+
+.member-description {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+/* 포트폴리오 그리드 */
+.portfolio-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 2rem;
+  margin: 2rem 0;
+}
+
+.portfolio-card {
+  background: var(--bg-secondary);
+  padding: 2rem;
+  border-radius: 12px;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  border: 2px solid var(--border-light);
+  position: relative;
+}
+
+.portfolio-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  border-color: var(--border-primary);
+}
+
+.portfolio-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.portfolio-icon {
+  font-size: 1.5rem;
+}
+
+.portfolio-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.portfolio-details {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0;
+}
+
+.portfolio-details li {
+  padding: 0.5rem 0;
+  padding-left: 1.5rem;
+  position: relative;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.portfolio-details li::before {
+  content: "✓";
+  position: absolute;
+  left: 0;
+  color: var(--border-primary);
+  font-weight: 700;
+}
+
+.portfolio-badge {
+  display: inline-block;
+  padding: 0.375rem 0.75rem;
+  background: #d1fae5;
+  color: #065f46;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-top: 1rem;
+}
+
+/* ========================================
+   Animations
+   ======================================== */
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* 슬라이드 전환 시 애니메이션 적용 */
+.slide.active {
+  animation: fadeIn 0.6s ease-out;
+}
+
+.solution-card,
+.stat-box,
+.team-member-card,
+.portfolio-card {
+  animation: scaleIn 0.5s ease-out;
+  animation-fill-mode: both;
+}
+
+.solution-card:nth-child(1) { animation-delay: 0.1s; }
+.solution-card:nth-child(2) { animation-delay: 0.2s; }
+.solution-card:nth-child(3) { animation-delay: 0.3s; }
+.solution-card:nth-child(4) { animation-delay: 0.4s; }
+.solution-card:nth-child(5) { animation-delay: 0.5s; }
+.solution-card:nth-child(6) { animation-delay: 0.6s; }
+
+.stat-box:nth-child(1) { animation-delay: 0.1s; }
+.stat-box:nth-child(2) { animation-delay: 0.2s; }
+.stat-box:nth-child(3) { animation-delay: 0.3s; }
+.stat-box:nth-child(4) { animation-delay: 0.4s; }
+
+.team-member-card:nth-child(1) { animation-delay: 0.1s; }
+.team-member-card:nth-child(2) { animation-delay: 0.2s; }
+.team-member-card:nth-child(3) { animation-delay: 0.3s; }
+.team-member-card:nth-child(4) { animation-delay: 0.4s; }
+
+.portfolio-card:nth-child(1) { animation-delay: 0.1s; }
+.portfolio-card:nth-child(2) { animation-delay: 0.2s; }
+.portfolio-card:nth-child(3) { animation-delay: 0.3s; }
+
+.comparison-row {
+  animation: slideInLeft 0.5s ease-out;
+  animation-fill-mode: both;
+}
+
+.comparison-row:nth-child(1) { animation-delay: 0.1s; }
+.comparison-row:nth-child(2) { animation-delay: 0.2s; }
+.comparison-row:nth-child(3) { animation-delay: 0.3s; }
+
+.timeline-item {
+  animation: slideInRight 0.5s ease-out;
+  animation-fill-mode: both;
+}
+
+.timeline-item:nth-child(1) { animation-delay: 0.1s; }
+.timeline-item:nth-child(2) { animation-delay: 0.2s; }
+.timeline-item:nth-child(3) { animation-delay: 0.3s; }
+.timeline-item:nth-child(4) { animation-delay: 0.4s; }
+.timeline-item:nth-child(5) { animation-delay: 0.5s; }
+
+/* 호버 효과 강화 */
+.solution-card:hover,
+.stat-box:hover,
+.team-member-card:hover,
+.portfolio-card:hover {
+  animation: none; /* 호버 시 애니메이션 제거 */
+}
+
 /* 반응형 조정 */
 @media (max-width: 768px) {
   .stats-container {
@@ -679,6 +985,32 @@ body {
 
   .timeline {
     padding-left: 1.5rem;
+  }
+
+  .team-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .portfolio-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .comparison-row {
+    grid-template-columns: 1fr;
+    text-align: center;
+  }
+
+  .comparison-item.ours {
+    text-align: center;
+  }
+
+  .comparison-vs {
+    grid-row: 2;
+    grid-column: 1;
+  }
+
+  .comparison-category {
+    text-align: center;
   }
 }
 

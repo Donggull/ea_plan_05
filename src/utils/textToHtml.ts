@@ -196,20 +196,46 @@ export function textToSimpleHtml(text: string): string {
  * - 키워드/숫자 자동 강조
  */
 export interface SectionType {
-  type: 'problem' | 'solution' | 'stats' | 'tech' | 'timeline' | 'list' | 'standard'
+  type: 'problem' | 'solution' | 'stats' | 'tech' | 'timeline' | 'list' | 'comparison' | 'team' | 'portfolio' | 'standard'
   confidence: number
 }
 
 export function detectSectionType(title: string, content: string): SectionType {
   const text = `${title} ${content}`.toLowerCase()
 
-  // 키워드 기반 섹션 타입 감지
+  // 키워드 기반 섹션 타입 감지 (다국어 지원)
   const patterns: Record<string, RegExp[]> = {
-    problem: [/문제|이슈|과제|니즈|pain point|challenge/i, /해결하고자|개선|보완/i],
-    solution: [/솔루션|제안|방안|해결책|approach|solution/i, /기능|특징|장점/i],
-    stats: [/\d+%|\d+배|\d+원|\d+명/g, /roi|지표|성과|수치|통계|증가|감소|향상/i],
-    tech: [/기술|스택|아키텍처|프레임워크|api|클라우드|데이터베이스/i],
-    timeline: [/일정|기간|마일스톤|단계|phase|schedule/i, /\d+개월|\d+주|\d+일/i],
+    problem: [
+      /문제|이슈|과제|니즈|pain point|challenge|problem|issue/i,
+      /해결하고자|개선|보완|improve|solve/i
+    ],
+    solution: [
+      /솔루션|제안|방안|해결책|approach|solution|proposal/i,
+      /기능|특징|장점|feature|benefit|advantage/i
+    ],
+    stats: [
+      /\d+%|\d+배|\d+원|\d+명/g,
+      /roi|지표|성과|수치|통계|증가|감소|향상|metric|performance|growth|increase/i
+    ],
+    tech: [
+      /기술|스택|아키텍처|프레임워크|api|클라우드|데이터베이스|technology|stack|architecture|framework|cloud|database/i
+    ],
+    timeline: [
+      /일정|기간|마일스톤|단계|phase|schedule|timeline|milestone|roadmap/i,
+      /\d+개월|\d+주|\d+일|\d+\s*month|\d+\s*week|\d+\s*day/i
+    ],
+    comparison: [
+      /비교|경쟁|차별화|vs|versus|comparison|competitive|differentiation/i,
+      /우위|강점|약점|장단점|pros|cons|strength|weakness/i
+    ],
+    team: [
+      /팀|조직|인력|구성원|멤버|team|organization|member|staff|personnel/i,
+      /경력|전문성|expertise|experience|skill/i
+    ],
+    portfolio: [
+      /실적|프로젝트|포트폴리오|레퍼런스|portfolio|project|reference|case study/i,
+      /성공|완료|수행|success|completed|delivered/i
+    ],
     list: [/^(\d+\.|[-*•])\s+/m]
   }
 
@@ -219,6 +245,9 @@ export function detectSectionType(title: string, content: string): SectionType {
     stats: 0,
     tech: 0,
     timeline: 0,
+    comparison: 0,
+    team: 0,
+    portfolio: 0,
     list: 0
   }
 
@@ -250,21 +279,27 @@ export function detectSectionType(title: string, content: string): SectionType {
 }
 
 /**
- * 키워드 자동 하이라이트
+ * 키워드 자동 하이라이트 (한글/영어 지원)
  */
 export function highlightKeywords(text: string): string {
   const keywords = [
+    // 한글 키워드
     'AI', '인공지능', '머신러닝', 'ML', '딥러닝',
     '클라우드', 'AWS', 'Azure', 'GCP',
     '혁신', '개선', '향상', '최적화', '효율',
     'API', '프레임워크', '아키텍처', '마이크로서비스',
-    '자동화', '실시간', '확장성', '보안'
+    '자동화', '실시간', '확장성', '보안',
+    // 영어 키워드
+    'innovation', 'optimization', 'efficiency', 'automation',
+    'scalability', 'security', 'performance', 'reliability',
+    'real-time', 'cloud-native', 'microservice', 'DevOps',
+    'CI/CD', 'blockchain', 'IoT', 'big data', 'analytics'
   ]
 
   let result = text
 
   keywords.forEach(keyword => {
-    const regex = new RegExp(`(${keyword})`, 'gi')
+    const regex = new RegExp(`\\b(${keyword})\\b`, 'gi')
     result = result.replace(regex, '<span class="keyword-highlight">$1</span>')
   })
 
@@ -339,6 +374,12 @@ export function textToEnhancedHtml(title: string, text: string): string {
       return renderTechSection(text)
     case 'timeline':
       return renderTimelineSection(text)
+    case 'comparison':
+      return renderComparisonSection(text)
+    case 'team':
+      return renderTeamSection(text)
+    case 'portfolio':
+      return renderPortfolioSection(text)
     case 'list':
       return renderEnhancedList(text)
     default:
@@ -528,6 +569,190 @@ function renderStandardSection(text: string): string {
   html = highlightKeywords(html)
   html = highlightNumbers(html)
   return html
+}
+
+/**
+ * 비교표 섹션 렌더링 (우리 vs 경쟁사)
+ */
+function renderComparisonSection(text: string): string {
+  const lines = text.split('\n').filter(line => line.trim())
+
+  // 비교 항목 추출 (vs, 대비, 비교 등의 키워드 포함)
+  const comparisons: Array<{ours: string; theirs: string; category?: string}> = []
+
+  lines.forEach(line => {
+    // "우리: A vs 경쟁사: B" 패턴
+    const vsMatch = line.match(/(.+?)[:：](.+?)\s+(?:vs|대비|versus)\s+(.+?)[:：](.+)/i)
+    if (vsMatch) {
+      comparisons.push({
+        category: vsMatch[1].trim(),
+        ours: vsMatch[2].trim(),
+        theirs: vsMatch[4].trim()
+      })
+      return
+    }
+
+    // 단순 "A vs B" 패턴
+    const simpleVs = line.match(/(.+?)\s+(?:vs|대비|versus)\s+(.+)/i)
+    if (simpleVs) {
+      comparisons.push({
+        ours: simpleVs[1].trim(),
+        theirs: simpleVs[2].trim()
+      })
+    }
+  })
+
+  if (comparisons.length > 0) {
+    const rows = comparisons.map(comp => `
+    <div class="comparison-row">
+      ${comp.category ? `<div class="comparison-category">${comp.category}</div>` : ''}
+      <div class="comparison-item ours">
+        <span class="label">우리</span>
+        <div class="content">${highlightKeywords(highlightNumbers(comp.ours))}</div>
+      </div>
+      <div class="comparison-vs">VS</div>
+      <div class="comparison-item theirs">
+        <span class="label">경쟁사</span>
+        <div class="content">${highlightKeywords(highlightNumbers(comp.theirs))}</div>
+      </div>
+    </div>`).join('\n')
+
+    return `
+<div class="comparison-section">
+  ${rows}
+</div>`
+  }
+
+  // 비교 패턴이 없으면 장단점 리스트로 표시
+  return `
+<div class="two-column">
+  <div class="column">
+    <h4>✅ 장점</h4>
+    ${renderEnhancedList(text)}
+  </div>
+  <div class="column">
+    <h4>⚠️ 고려사항</h4>
+    <p class="text-secondary">지속적인 개선 진행 중</p>
+  </div>
+</div>`
+}
+
+/**
+ * 팀/조직 섹션 렌더링
+ */
+function renderTeamSection(text: string): string {
+  const lines = text.split('\n').filter(line => line.trim())
+
+  const members: Array<{name: string; role: string; description: string}> = []
+
+  let currentName = ''
+  let currentRole = ''
+  let currentDesc: string[] = []
+
+  lines.forEach((line, index) => {
+    // 이름: 역할 패턴
+    const nameRoleMatch = line.match(/^(.+?)[:：]\s*(.+)/)
+
+    if (nameRoleMatch || index === 0) {
+      if (currentName) {
+        members.push({
+          name: currentName,
+          role: currentRole,
+          description: currentDesc.join(' ')
+        })
+      }
+
+      if (nameRoleMatch) {
+        currentName = nameRoleMatch[1].trim()
+        currentRole = nameRoleMatch[2].trim()
+      } else {
+        currentName = line.trim()
+        currentRole = ''
+      }
+      currentDesc = []
+    } else {
+      currentDesc.push(line.replace(/^[-*•]\s*/, '').trim())
+    }
+  })
+
+  if (currentName) {
+    members.push({
+      name: currentName,
+      role: currentRole,
+      description: currentDesc.join(' ')
+    })
+  }
+
+  if (members.length > 0) {
+    const memberCards = members.map(member => `
+    <div class="team-member-card">
+      <div class="member-avatar">👤</div>
+      <h4 class="member-name">${member.name}</h4>
+      ${member.role ? `<div class="member-role">${highlightKeywords(member.role)}</div>` : ''}
+      ${member.description ? `<p class="member-description">${highlightKeywords(member.description)}</p>` : ''}
+    </div>`).join('\n')
+
+    return `
+<div class="team-grid">
+  ${memberCards}
+</div>`
+  }
+
+  return renderStandardSection(text)
+}
+
+/**
+ * 포트폴리오/실적 섹션 렌더링
+ */
+function renderPortfolioSection(text: string): string {
+  const lines = text.split('\n').filter(line => line.trim())
+
+  const projects: Array<{title: string; details: string[]}> = []
+
+  let currentTitle = ''
+  let currentDetails: string[] = []
+
+  lines.forEach((line, index) => {
+    const isBold = /^\*\*(.+?)\*\*/.test(line) || /^#{1,3}\s+/.test(line) || index === 0
+
+    if (isBold) {
+      if (currentTitle && currentDetails.length > 0) {
+        projects.push({ title: currentTitle, details: currentDetails })
+      }
+      currentTitle = line.replace(/^\*\*(.+?)\*\*/, '$1').replace(/^#{1,3}\s+/, '').trim()
+      currentDetails = []
+    } else {
+      const detail = line.replace(/^[-*•]\s*/, '').trim()
+      if (detail) {
+        currentDetails.push(detail)
+      }
+    }
+  })
+
+  if (currentTitle && currentDetails.length > 0) {
+    projects.push({ title: currentTitle, details: currentDetails })
+  }
+
+  if (projects.length > 0) {
+    const projectCards = projects.map(project => `
+    <div class="portfolio-card">
+      <div class="portfolio-header">
+        <span class="portfolio-icon">📁</span>
+        <h4 class="portfolio-title">${highlightKeywords(project.title)}</h4>
+      </div>
+      <ul class="portfolio-details">
+        ${project.details.map(detail => `<li>${highlightKeywords(highlightNumbers(detail))}</li>`).join('\n')}
+      </ul>
+      <div class="portfolio-badge">✅ 완료</div>
+    </div>`).join('\n')
+
+    return `
+<div class="portfolio-grid">
+  ${projectCards}
+</div>`
+  }
+
+  return renderStandardSection(text)
 }
 
 /**
