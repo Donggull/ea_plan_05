@@ -312,8 +312,25 @@ export class ProposalTemplateGenerationService {
       ? '/api/ai/completion-streaming'
       : 'http://localhost:3000/api/ai/completion-streaming'
 
+    console.log(`🌐 [API] 요청 시작:`, {
+      url: apiUrl,
+      provider,
+      model,
+      maxTokens,
+      promptLength: prompt.length
+    })
+
     return new Promise((resolve, reject) => {
       let fullContent = ''
+      let eventCount = 0
+      let contentEventCount = 0
+
+      // 타임아웃 설정 (30초)
+      const timeout = setTimeout(() => {
+        console.error(`⏱️ [API] 타임아웃 발생 (30초)`)
+        console.error(`   이벤트 수신: ${eventCount}개, content 이벤트: ${contentEventCount}개`)
+        reject(new Error('AI API 타임아웃 (30초)'))
+      }, 30000)
 
       fetch(apiUrl, {
         method: 'POST',
@@ -328,6 +345,8 @@ export class ProposalTemplateGenerationService {
         })
       })
         .then(response => {
+          console.log(`✅ [API] HTTP 응답 수신: ${response.status}`)
+
           if (!response.ok) {
             throw new Error(`API 요청 실패: ${response.status}`)
           }
@@ -338,33 +357,54 @@ export class ProposalTemplateGenerationService {
           }
 
           const decoder = new TextDecoder()
+          console.log(`📖 [API] 스트림 리더 생성 완료, 읽기 시작...`)
 
           function readStream(): Promise<void> {
             return reader!.read().then(({ done, value }) => {
               if (done) {
+                clearTimeout(timeout)
+                console.log(`✅ [API] 스트림 종료`)
+                console.log(`   총 이벤트: ${eventCount}개, content: ${contentEventCount}개`)
+                console.log(`   누적 content 길이: ${fullContent.length}자`)
                 resolve(fullContent)
                 return
               }
 
               const chunk = decoder.decode(value, { stream: true })
+              console.log(`📦 [API] 청크 수신: ${chunk.length}바이트`)
+
               const lines = chunk.split('\n')
+              console.log(`   라인 수: ${lines.length}개`)
 
               for (const line of lines) {
                 if (line.startsWith('data: ')) {
+                  eventCount++
                   try {
-                    const data = JSON.parse(line.slice(6))
+                    const jsonStr = line.slice(6)
+                    console.log(`   📨 SSE 이벤트 #${eventCount}: ${jsonStr.substring(0, 100)}...`)
+
+                    const data = JSON.parse(jsonStr)
 
                     if (data.type === 'content') {
+                      contentEventCount++
                       fullContent += data.content
+                      console.log(`   ✅ content 이벤트 #${contentEventCount}: +${data.content.length}자 (누적: ${fullContent.length}자)`)
                     } else if (data.type === 'error') {
+                      clearTimeout(timeout)
+                      console.error(`   ❌ error 이벤트:`, data.error)
                       reject(new Error(data.error))
                       return
                     } else if (data.type === 'done') {
+                      clearTimeout(timeout)
+                      console.log(`   ✅ done 이벤트 수신 (최종 content: ${fullContent.length}자)`)
                       resolve(fullContent)
                       return
+                    } else {
+                      console.warn(`   ⚠️ 알 수 없는 이벤트 타입: ${data.type}`)
                     }
                   } catch (e) {
                     // JSON 파싱 오류는 무시 (불완전한 청크)
+                    console.warn(`   ⚠️ JSON 파싱 실패 (불완전한 청크일 가능성)`)
                   }
                 }
               }
@@ -376,7 +416,8 @@ export class ProposalTemplateGenerationService {
           return readStream()
         })
         .catch(error => {
-          console.error('AI API 호출 오류:', error)
+          clearTimeout(timeout)
+          console.error('❌ [API] 호출 오류:', error)
           reject(error)
         })
     })
