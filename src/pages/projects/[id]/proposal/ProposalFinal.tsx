@@ -18,6 +18,7 @@ import { saveAs } from 'file-saver'
 import { ProposalDataManager } from '../../../../services/proposal/dataManager'
 import { ProposalTemplateService, AppliedTemplate } from '../../../../services/proposal/proposalTemplateService'
 import { PageContainer, PageHeader, PageContent, Card, Badge, Button } from '../../../../components/LinearComponents'
+import '../../../../styles/business-presentation.css'
 
 interface ProposalSection {
   id: string
