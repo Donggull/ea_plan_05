@@ -338,7 +338,7 @@ export class ProposalTemplateService {
   }
 
   /**
-   * 섹션들을 슬라이드로 렌더링
+   * 섹션들을 슬라이드로 렌더링 (스마트 레이아웃 자동 적용)
    *
    * @param sections 섹션 배열
    * @param totalSlides 전체 슬라이드 수 (커버 + 섹션들 + 감사)
@@ -347,18 +347,353 @@ export class ProposalTemplateService {
     return sections
       .map((section, index) => {
         const slideNumber = index + 1 // 0은 커버, 1부터 섹션 시작
+
+        // 🎨 섹션 타입 감지 및 콘텐츠 자동 변환
+        const sectionType = this.detectSectionType(section.title || '', section.content || '')
+        const transformedContent = this.transformContentToPresentation(
+          section.title || '',
+          section.content || '',
+          sectionType
+        )
+
         return `
 <div class="slide" data-slide="${slideNumber}">
   <div class="slide-content">
     <h2 class="slide-title">${section.title || ''}</h2>
     <div class="slide-body">
-      ${section.content || ''}
+      ${transformedContent}
     </div>
   </div>
   <div class="slide-number">${slideNumber + 1} / ${totalSlides}</div>
 </div>`
       })
       .join('\n')
+  }
+
+  /**
+   * 섹션 타입 자동 감지
+   */
+  private static detectSectionType(title: string, content: string): string {
+    const titleLower = title.toLowerCase()
+    const contentLower = content.toLowerCase()
+
+    // 리스크/문제/과제
+    if (
+      titleLower.includes('리스크') ||
+      titleLower.includes('위험') ||
+      titleLower.includes('문제') ||
+      titleLower.includes('과제') ||
+      titleLower.includes('challenge') ||
+      titleLower.includes('problem') ||
+      titleLower.includes('risk')
+    ) {
+      return 'risk'
+    }
+
+    // 솔루션/해결방안
+    if (
+      titleLower.includes('솔루션') ||
+      titleLower.includes('해결') ||
+      titleLower.includes('방안') ||
+      titleLower.includes('solution') ||
+      titleLower.includes('approach')
+    ) {
+      return 'solution'
+    }
+
+    // 팀 소개
+    if (
+      titleLower.includes('팀') ||
+      titleLower.includes('조직') ||
+      titleLower.includes('인력') ||
+      titleLower.includes('team') ||
+      titleLower.includes('member')
+    ) {
+      return 'team'
+    }
+
+    // 일정/스케줄
+    if (
+      titleLower.includes('일정') ||
+      titleLower.includes('스케줄') ||
+      titleLower.includes('타임라인') ||
+      titleLower.includes('schedule') ||
+      titleLower.includes('timeline') ||
+      titleLower.includes('phase')
+    ) {
+      return 'timeline'
+    }
+
+    // 기술 스택
+    if (
+      titleLower.includes('기술') ||
+      titleLower.includes('스택') ||
+      titleLower.includes('tech') ||
+      titleLower.includes('technology') ||
+      titleLower.includes('stack')
+    ) {
+      return 'tech'
+    }
+
+    // 비교
+    if (
+      titleLower.includes('비교') ||
+      titleLower.includes('대비') ||
+      titleLower.includes('vs') ||
+      titleLower.includes('comparison')
+    ) {
+      return 'comparison'
+    }
+
+    // 통계/지표/ROI
+    if (
+      titleLower.includes('통계') ||
+      titleLower.includes('지표') ||
+      titleLower.includes('roi') ||
+      titleLower.includes('kpi') ||
+      titleLower.includes('성과') ||
+      titleLower.includes('stats') ||
+      titleLower.includes('metrics') ||
+      contentLower.includes('%') ||
+      /\d+배/.test(contentLower)
+    ) {
+      return 'stats'
+    }
+
+    return 'default'
+  }
+
+  /**
+   * 콘텐츠를 프레젠테이션 형태로 자동 변환
+   */
+  private static transformContentToPresentation(
+    _title: string,
+    content: string,
+    sectionType: string
+  ): string {
+    // HTML 태그 제거 및 텍스트 추출
+    const textContent = content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+
+    // 너무 짧은 내용은 그대로 반환
+    if (textContent.length < 50) {
+      return content
+    }
+
+    // 핵심 포인트 추출 (문장 단위로 분리)
+    const points = this.extractKeyPoints(content)
+
+    switch (sectionType) {
+      case 'risk':
+        return this.formatAsRiskCards(points)
+
+      case 'solution':
+        return this.formatAsSolutionGrid(points)
+
+      case 'stats':
+        return this.formatAsStatsBoxes(content, points)
+
+      case 'tech':
+        return this.formatAsTechStack(points)
+
+      case 'timeline':
+        return this.formatAsTimeline(points)
+
+      case 'comparison':
+        return this.formatAsComparison(points)
+
+      default:
+        // 일반 섹션: 향상된 bullet points
+        return this.formatAsEnhancedBullets(points)
+    }
+  }
+
+  /**
+   * 핵심 포인트 추출
+   */
+  private static extractKeyPoints(content: string): string[] {
+    // HTML 태그 제거
+    const text = content.replace(/<[^>]+>/g, '\n')
+
+    // 문장 단위로 분리 (마침표, 느낌표, 물음표 기준)
+    const sentences = text
+      .split(/[.!?\n]+/)
+      .map(s => s.trim())
+      .filter(s => s.length > 10 && s.length < 200) // 너무 짧거나 긴 문장 제외
+      .slice(0, 6) // 최대 6개 포인트
+
+    return sentences.length > 0 ? sentences : ['내용이 표시됩니다.']
+  }
+
+  /**
+   * 리스크 카드 형태로 포맷팅
+   */
+  private static formatAsRiskCards(points: string[]): string {
+    const icons = ['⚠️', '🔍', '⚡', '🎯', '🔒', '📊']
+    return `
+<div class="solution-grid">
+  ${points.map((point, i) => `
+    <div class="solution-card">
+      <span class="icon">${icons[i % icons.length]}</span>
+      <h4>리스크 ${i + 1}</h4>
+      <p>${point}</p>
+    </div>
+  `).join('')}
+</div>`
+  }
+
+  /**
+   * 솔루션 그리드 형태로 포맷팅
+   */
+  private static formatAsSolutionGrid(points: string[]): string {
+    const icons = ['💡', '🚀', '✨', '🎨', '⚙️', '🔧']
+    return `
+<div class="solution-grid">
+  ${points.map((point, i) => `
+    <div class="solution-card">
+      <span class="icon">${icons[i % icons.length]}</span>
+      <h4>해결방안 ${i + 1}</h4>
+      <p>${point}</p>
+    </div>
+  `).join('')}
+</div>`
+  }
+
+  /**
+   * 통계 박스 형태로 포맷팅
+   */
+  private static formatAsStatsBoxes(content: string, points: string[]): string {
+    // 숫자와 단위 추출 (예: 30%, 2배, 50만원 등)
+    const numberPattern = /(\d+(?:\.\d+)?)\s*([%배만억원시간일개월]|개월|시간)/g
+    const matches = [...content.matchAll(numberPattern)]
+
+    if (matches.length > 0) {
+      return `
+<div class="stats-container">
+  ${matches.slice(0, 4).map((match, i) => `
+    <div class="stat-box">
+      <div class="stat-number">${match[1]}${match[2]}</div>
+      <div class="stat-label">${points[i] || '성과 지표'}</div>
+    </div>
+  `).join('')}
+</div>
+${points.length > 0 ? `
+<div class="enhanced-list compact-list">
+  ${points.map(point => `
+    <div class="list-item">
+      <span class="bullet">▸</span>
+      <span class="content">${point}</span>
+    </div>
+  `).join('')}
+</div>` : ''}`
+    }
+
+    return this.formatAsEnhancedBullets(points)
+  }
+
+  /**
+   * 기술 스택 형태로 포맷팅
+   */
+  private static formatAsTechStack(points: string[]): string {
+    // 기술명으로 보이는 단어 추출 (대문자 시작, 특수문자 포함 등)
+    const techPattern = /[A-Z][a-zA-Z0-9.+#-]+|React|Vue|Angular|Node|Python|Java|TypeScript|JavaScript/g
+    const allText = points.join(' ')
+    const techMatches = [...new Set(allText.match(techPattern) || [])]
+
+    if (techMatches.length > 0) {
+      return `
+<div class="tech-stack">
+  ${techMatches.map(tech => `
+    <span class="tech-tag">${tech}</span>
+  `).join('')}
+</div>
+<div class="enhanced-list detailed-list">
+  ${points.map(point => `
+    <div class="list-item">
+      <span class="bullet">▸</span>
+      <span class="content">${point}</span>
+    </div>
+  `).join('')}
+</div>`
+    }
+
+    return this.formatAsEnhancedBullets(points)
+  }
+
+  /**
+   * 타임라인 형태로 포맷팅
+   */
+  private static formatAsTimeline(points: string[]): string {
+    return `
+<div class="timeline">
+  ${points.map((point, i) => `
+    <div class="timeline-item">
+      <h4>Phase ${i + 1}</h4>
+      <p>${point}</p>
+    </div>
+  `).join('')}
+</div>`
+  }
+
+  /**
+   * 비교 형태로 포맷팅
+   */
+  private static formatAsComparison(points: string[]): string {
+    const half = Math.ceil(points.length / 2)
+    const left = points.slice(0, half)
+    const right = points.slice(half)
+
+    return `
+<div class="comparison-section">
+  <div class="comparison-row">
+    <div class="comparison-item ours">
+      <span class="label">제안 방식</span>
+      ${left.map(point => `<div class="content">${point}</div>`).join('')}
+    </div>
+    <div class="comparison-vs">VS</div>
+    <div class="comparison-item theirs">
+      <span class="label">기존 방식</span>
+      ${right.map(point => `<div class="content">${point}</div>`).join('')}
+    </div>
+  </div>
+</div>`
+  }
+
+  /**
+   * 향상된 bullet points 형태로 포맷팅
+   */
+  private static formatAsEnhancedBullets(points: string[]): string {
+    // 숫자 하이라이트 적용
+    const highlightNumbers = (text: string): string => {
+      return text.replace(
+        /(\d+(?:\.\d+)?)\s*([%배만억원시간일개월]|개월|시간)/g,
+        '<span class="number-highlight">$1$2</span>'
+      )
+    }
+
+    // 키워드 하이라이트 (중요, 핵심, 필수, 우선 등)
+    const highlightKeywords = (text: string): string => {
+      const keywords = ['중요', '핵심', '필수', '우선', '주요', '최적', '효율']
+      let result = text
+      keywords.forEach(keyword => {
+        result = result.replace(
+          new RegExp(`(${keyword})`, 'g'),
+          '<span class="keyword-highlight">$1</span>'
+        )
+      })
+      return result
+    }
+
+    return `
+<div class="enhanced-list multi-column-2 detailed-list">
+  ${points.map(point => {
+    const highlighted = highlightKeywords(highlightNumbers(point))
+    return `
+    <div class="list-item">
+      <span class="bullet">●</span>
+      <span class="content">${highlighted}</span>
+    </div>
+  `}).join('')}
+</div>`
   }
 
   /**
