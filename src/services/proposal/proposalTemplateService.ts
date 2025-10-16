@@ -246,34 +246,49 @@ export class ProposalTemplateService {
     html = this.replaceVariable(html, 'duration', proposalData.duration || 'N/A')
 
     // 3. 섹션 데이터 치환 (Handlebars 스타일 반복문 처리)
-    let sectionSlides = ''
-    if (proposalData.sections && Array.isArray(proposalData.sections)) {
-      sectionSlides = this.replaceSections(html, proposalData.sections)
-    }
+    const sections = proposalData.sections || []
+    const sectionCount = sections.length
+    const totalSlideCount = sectionCount + 2 // 커버 + 섹션들 + 감사
 
     // 4. 비즈니스 프레젠테이션 템플릿의 경우: 슬라이드 시스템 구성
     let script: string | undefined
     if (template.template_type === 'business') {
-      // 4-1. 커버 슬라이드 생성
-      const coverSlide = this.createCoverSlide(params.projectName || proposalData.projectName || '프로젝트명', proposalData)
+      // 4-1. 커버 슬라이드 생성 (슬라이드 0)
+      const coverSlide = this.createCoverSlide(
+        params.projectName || proposalData.projectName || '프로젝트명',
+        proposalData,
+        0,
+        totalSlideCount
+      )
 
-      // 4-2. 감사 슬라이드 생성
-      const thankYouSlide = this.createThankYouSlide(params.companyName || '회사명', params.contactEmail || 'contact@example.com')
+      // 4-2. 섹션 슬라이드 생성 (슬라이드 1부터)
+      const sectionSlides = this.renderSlidesFromSections(sections, totalSlideCount)
 
-      // 4-3. 전체 슬라이드 구성: 커버 + 섹션들 + 감사
+      // 4-3. 감사 슬라이드 생성 (마지막 슬라이드)
+      const thankYouSlide = this.createThankYouSlide(
+        params.companyName || '회사명',
+        params.contactEmail || 'contact@example.com',
+        totalSlideCount - 1,
+        totalSlideCount
+      )
+
+      // 4-4. 전체 슬라이드 구성: 커버 + 섹션들 + 감사
       const totalSlides = [coverSlide, sectionSlides, thankYouSlide].join('\n')
 
-      // 4-4. 프레젠테이션 컨테이너로 감싸기
+      // 4-5. 프레젠테이션 컨테이너로 감싸기
       html = `<div class="presentation-container">\n${totalSlides}\n</div>`
 
-      // 4-5. 슬라이드 네비게이션 추가
-      const totalSlideCount = (proposalData.sections?.length || 0) + 2 // 커버 + 섹션들 + 감사
+      // 4-6. 슬라이드 네비게이션 추가
       const { html: htmlWithNav, script: navScript } = this.addSlideNavigation(html, totalSlideCount)
       html = htmlWithNav
       script = navScript
     } else {
-      // 다른 템플릿 타입: 기존 방식 유지
-      html = sectionSlides
+      // 다른 템플릿 타입: 슬라이드 없이 일반 렌더링
+      let sectionContent = ''
+      if (sections.length > 0) {
+        sectionContent = this.replaceSections(html, sections)
+      }
+      html = sectionContent
     }
 
     // 5. CSS 스타일 적용
@@ -311,67 +326,38 @@ export class ProposalTemplateService {
   /**
    * 섹션 반복문 처리 ({{#sections}}...{{/sections}})
    *
-   * 🎨 슬라이드 기반 렌더링으로 변경:
+   * 🎨 슬라이드 기반 렌더링:
+   * - 템플릿 반복문 블록 유무와 관계없이 항상 슬라이드로 렌더링
    * - 각 섹션을 .slide 클래스로 감싸기
-   * - 커버 슬라이드 추가 (첫 페이지)
-   * - 감사 슬라이드 추가 (마지막 페이지)
    */
-  private static replaceSections(html: string, sections: any[]): string {
-    // 섹션 반복문 패턴 찾기
-    const sectionBlockRegex = /{{#sections}}([\s\S]*?){{\/sections}}/g
-    const sectionMatch = sectionBlockRegex.exec(html)
-
-    if (!sectionMatch) {
-      // 반복문이 없으면 슬라이드 기반으로 렌더링
-      const slides = this.renderSlidesFromSections(sections)
-      return html + slides
-    }
-
-    // 반복문 블록 추출
-    const blockTemplate = sectionMatch[1]
-
-    // 각 섹션을 슬라이드로 렌더링
-    const renderedSections = sections
-      .map((section, index) => {
-        let block = blockTemplate
-        block = this.replaceVariable(block, 'id', section.id || `section_${index}`)
-        block = this.replaceVariable(block, 'title', section.title || '')
-        block = this.replaceVariable(block, 'content', section.content || '')
-        block = this.replaceVariable(block, '@index', String(index + 1))
-
-        // 슬라이드로 감싸기
-        return `
-<div class="slide" data-slide="${index + 1}">
-  <div class="slide-content">
-    <h2 class="slide-title">${section.title || ''}</h2>
-    <div class="slide-body">
-      ${block}
-    </div>
-  </div>
-  <div class="slide-number">${index + 1} / ${sections.length}</div>
-</div>`
-      })
-      .join('\n')
-
-    // 반복문 블록을 렌더링된 슬라이드로 교체
-    return html.replace(sectionBlockRegex, renderedSections)
+  private static replaceSections(_html: string, sections: any[]): string {
+    // 🔥 수정: 템플릿 HTML 무시하고 항상 슬라이드 구조로 렌더링
+    // 비즈니스 프레젠테이션에서는 슬라이드 기반으로만 표시
+    // 비즈니스 템플릿이 아닌 경우에만 사용 (전체 슬라이드 수 없음)
+    return this.renderSlidesFromSections(sections, sections.length + 2)
   }
 
   /**
-   * 섹션들을 슬라이드로 렌더링 (반복문 블록이 없는 경우)
+   * 섹션들을 슬라이드로 렌더링
+   *
+   * @param sections 섹션 배열
+   * @param totalSlides 전체 슬라이드 수 (커버 + 섹션들 + 감사)
    */
-  private static renderSlidesFromSections(sections: any[]): string {
+  private static renderSlidesFromSections(sections: any[], totalSlides: number): string {
     return sections
-      .map((section, index) => `
-<div class="slide" data-slide="${index + 1}">
+      .map((section, index) => {
+        const slideNumber = index + 1 // 0은 커버, 1부터 섹션 시작
+        return `
+<div class="slide" data-slide="${slideNumber}">
   <div class="slide-content">
     <h2 class="slide-title">${section.title || ''}</h2>
     <div class="slide-body">
       ${section.content || ''}
     </div>
   </div>
-  <div class="slide-number">${index + 1} / ${sections.length}</div>
-</div>`)
+  <div class="slide-number">${slideNumber + 1} / ${totalSlides}</div>
+</div>`
+      })
       .join('\n')
   }
 
@@ -502,29 +488,41 @@ export class ProposalTemplateService {
   /**
    * 커버 슬라이드 생성 (첫 페이지)
    */
-  private static createCoverSlide(projectName: string, proposalData: any): string {
+  private static createCoverSlide(
+    projectName: string,
+    proposalData: any,
+    slideNumber: number,
+    totalSlides: number
+  ): string {
     return `
-<div class="slide cover active" data-slide="0">
+<div class="slide cover active" data-slide="${slideNumber}">
   <div class="cover-title">${projectName}</div>
   <div class="cover-subtitle">${proposalData.summary || '프로젝트 제안서'}</div>
   <div class="cover-meta">
     <p>${proposalData.author || '작성자'}</p>
     <p>${new Date().toLocaleDateString('ko-KR')}</p>
   </div>
+  <div class="slide-number">${slideNumber + 1} / ${totalSlides}</div>
 </div>`
   }
 
   /**
    * 감사 슬라이드 생성 (마지막 페이지)
    */
-  private static createThankYouSlide(companyName: string, contactEmail: string): string {
+  private static createThankYouSlide(
+    companyName: string,
+    contactEmail: string,
+    slideNumber: number,
+    totalSlides: number
+  ): string {
     return `
-<div class="slide thank-you" data-slide="last">
+<div class="slide thank-you" data-slide="${slideNumber}">
   <div class="thank-you-title">감사합니다</div>
   <div class="thank-you-subtitle">
     <p>${companyName}</p>
     <p>${contactEmail}</p>
   </div>
+  <div class="slide-number">${slideNumber + 1} / ${totalSlides}</div>
 </div>`
   }
 
