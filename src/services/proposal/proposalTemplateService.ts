@@ -482,6 +482,9 @@ export class ProposalTemplateService {
     // 핵심 포인트 추출 (문장 단위로 분리)
     const points = this.extractKeyPoints(content)
 
+    // 콘텐츠 패턴 분석
+    const pattern = this.analyzeContentPattern(points, content)
+
     switch (sectionType) {
       case 'risk':
         return this.formatAsRiskCards(points)
@@ -502,8 +505,82 @@ export class ProposalTemplateService {
         return this.formatAsComparison(points)
 
       default:
-        // 일반 섹션: 향상된 bullet points
-        return this.formatAsEnhancedBullets(points)
+        // 🎨 일반 섹션: 패턴에 따라 최적 레이아웃 선택
+        if (pattern.hasCategories) {
+          return this.formatAsCategoryGroups(points, pattern.categories)
+        } else if (pattern.hasSequence) {
+          return this.formatAsNumberedProcess(points)
+        } else if (pattern.hasPriority) {
+          return this.formatAsHighlightedList(points, pattern.priorities)
+        } else if (points.length <= 3) {
+          // 포인트가 3개 이하: 큰 아이콘 카드
+          return this.formatAsIconCards(points)
+        } else if (points.every(p => p.length < 40)) {
+          // 모두 짧은 포인트: 3단 컬럼
+          return this.formatAsCompactGrid(points)
+        } else {
+          // 기본: 향상된 2단 bullet points
+          return this.formatAsEnhancedBullets(points)
+        }
+    }
+  }
+
+  /**
+   * 콘텐츠 패턴 분석 (카테고리, 순서, 우선순위 등)
+   */
+  private static analyzeContentPattern(points: string[], _content: string): {
+    hasCategories: boolean
+    categories: Map<string, string[]>
+    hasSequence: boolean
+    hasPriority: boolean
+    priorities: Map<string, number>
+  } {
+    const categories = new Map<string, string[]>()
+    const priorities = new Map<string, number>()
+    let hasCategories = false
+    let hasSequence = false
+    let hasPriority = false
+
+    points.forEach((point) => {
+      // 카테고리 감지: "카테고리: 내용" 또는 "카테고리 - 내용"
+      const categoryMatch = point.match(/^([^:：\-]+)[:\-：]\s*(.+)/)
+      if (categoryMatch && categoryMatch[1].length < 20) {
+        hasCategories = true
+        const category = categoryMatch[1].trim()
+        const content = categoryMatch[2].trim()
+        if (!categories.has(category)) {
+          categories.set(category, [])
+        }
+        categories.get(category)!.push(content)
+      }
+
+      // 순서 감지: "1.", "첫째", "Phase 1", "Step 1" 등
+      if (/^(\d+\.|첫째|둘째|셋째|넷째|Phase\s*\d+|Step\s*\d+)/i.test(point)) {
+        hasSequence = true
+      }
+
+      // 우선순위 감지: "중요", "핵심", "필수", "높음" 등
+      const priorityKeywords = ['중요', '핵심', '필수', '높음', 'high', 'critical']
+      const hasPriorityKeyword = priorityKeywords.some(kw =>
+        point.toLowerCase().includes(kw.toLowerCase())
+      )
+      if (hasPriorityKeyword) {
+        hasPriority = true
+        priorities.set(point, 3) // 높은 우선순위
+      } else if (point.includes('우선') || point.includes('먼저')) {
+        hasPriority = true
+        priorities.set(point, 2) // 중간 우선순위
+      } else {
+        priorities.set(point, 1) // 기본 우선순위
+      }
+    })
+
+    return {
+      hasCategories,
+      categories,
+      hasSequence,
+      hasPriority,
+      priorities
     }
   }
 
@@ -693,6 +770,146 @@ ${points.length > 0 ? `
       <span class="content">${highlighted}</span>
     </div>
   `}).join('')}
+</div>`
+  }
+
+  /**
+   * 카테고리별 그룹 형태로 포맷팅
+   */
+  private static formatAsCategoryGroups(
+    points: string[],
+    categories: Map<string, string[]>
+  ): string {
+    if (categories.size === 0) {
+      return this.formatAsEnhancedBullets(points)
+    }
+
+    const categoryIcons = ['📌', '🔖', '📍', '🏷️', '🎯', '⭐']
+    let iconIndex = 0
+
+    return `
+<div class="category-groups">
+  ${Array.from(categories.entries()).map(([category, items]) => {
+    const icon = categoryIcons[iconIndex % categoryIcons.length]
+    iconIndex++
+    return `
+    <div class="category-group">
+      <h4 class="category-header">
+        <span class="category-icon">${icon}</span>
+        <span class="category-title">${category}</span>
+      </h4>
+      <div class="category-items">
+        ${items.map(item => `
+          <div class="category-item">
+            <span class="item-bullet">▸</span>
+            <span class="item-content">${item}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `}).join('')}
+</div>`
+  }
+
+  /**
+   * 순서가 있는 프로세스 형태로 포맷팅
+   */
+  private static formatAsNumberedProcess(points: string[]): string {
+    return `
+<div class="numbered-process">
+  ${points.map((point, index) => {
+    // 기존 번호 제거 (1., 첫째, Phase 1 등)
+    const cleanPoint = point
+      .replace(/^(\d+\.|첫째|둘째|셋째|넷째|Phase\s*\d+|Step\s*\d+)\s*/i, '')
+      .trim()
+
+    return `
+    <div class="process-step">
+      <div class="step-number">${index + 1}</div>
+      <div class="step-content">
+        <div class="step-title">Step ${index + 1}</div>
+        <div class="step-description">${cleanPoint}</div>
+      </div>
+      ${index < points.length - 1 ? '<div class="step-connector">→</div>' : ''}
+    </div>
+  `}).join('')}
+</div>`
+  }
+
+  /**
+   * 우선순위가 있는 하이라이트 리스트 형태로 포맷팅
+   */
+  private static formatAsHighlightedList(
+    points: string[],
+    priorities: Map<string, number>
+  ): string {
+    const priorityIcons = {
+      3: '🔴', // 높음
+      2: '🟡', // 중간
+      1: '🟢'  // 낮음
+    }
+
+    const priorityLabels = {
+      3: '높음',
+      2: '중간',
+      1: '일반'
+    }
+
+    // 우선순위 순으로 정렬
+    const sortedPoints = [...points].sort((a, b) => {
+      const priorityA = priorities.get(a) || 1
+      const priorityB = priorities.get(b) || 1
+      return priorityB - priorityA
+    })
+
+    return `
+<div class="priority-list">
+  ${sortedPoints.map(point => {
+    const priority = priorities.get(point) || 1
+    const icon = priorityIcons[priority as keyof typeof priorityIcons]
+    const label = priorityLabels[priority as keyof typeof priorityLabels]
+
+    return `
+    <div class="priority-item priority-${priority}">
+      <div class="priority-badge">
+        <span class="priority-icon">${icon}</span>
+        <span class="priority-label">${label}</span>
+      </div>
+      <div class="priority-content">${point}</div>
+    </div>
+  `}).join('')}
+</div>`
+  }
+
+  /**
+   * 큰 아이콘 카드 형태로 포맷팅 (3개 이하 포인트)
+   */
+  private static formatAsIconCards(points: string[]): string {
+    const icons = ['🎯', '💡', '🚀', '✨', '⚡', '🎨']
+
+    return `
+<div class="icon-cards-large">
+  ${points.map((point, i) => `
+    <div class="icon-card-large">
+      <div class="card-icon-large">${icons[i % icons.length]}</div>
+      <div class="card-content-large">${point}</div>
+    </div>
+  `).join('')}
+</div>`
+  }
+
+  /**
+   * 컴팩트 3단 그리드 형태로 포맷팅 (짧은 포인트들)
+   */
+  private static formatAsCompactGrid(points: string[]): string {
+    return `
+<div class="compact-grid">
+  ${points.map((point, i) => `
+    <div class="compact-item">
+      <span class="compact-number">${i + 1}</span>
+      <span class="compact-text">${point}</span>
+    </div>
+  `).join('')}
 </div>`
   }
 
