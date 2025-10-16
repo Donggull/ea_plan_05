@@ -588,15 +588,49 @@ export class ProposalTemplateService {
    * 핵심 포인트 추출
    */
   private static extractKeyPoints(content: string): string[] {
-    // HTML 태그 제거
-    const text = content.replace(/<[^>]+>/g, '\n')
+    console.log('🔍 extractKeyPoints 입력:', content)
 
-    // 문장 단위로 분리 (마침표, 느낌표, 물음표 기준)
-    const sentences = text
-      .split(/[.!?\n]+/)
+    // HTML 블록 태그를 줄바꿈으로 치환하여 구조 보존
+    let text = content
+      .replace(/<\/?(p|div|br|li|h[1-6]|section|article)[^>]*>/gi, '\n')
+      .replace(/<[^>]+>/g, ' ') // 나머지 태그는 공백으로
+
+    console.log('🧹 HTML 제거 후:', text)
+
+    // 1차: 줄바꿈 기준으로 분리
+    let lines = text
+      .split(/[\n\r]+/)
       .map(s => s.trim())
-      .filter(s => s.length > 10 && s.length < 200) // 너무 짧거나 긴 문장 제외
-      .slice(0, 6) // 최대 6개 포인트
+      .filter(s => s.length > 0)
+
+    console.log('📝 줄바꿈 분리 결과:', lines)
+
+    // 2차: 줄바꿈이 별로 없으면 문장 단위로 분리 (마침표, 느낌표, 물음표 기준)
+    if (lines.length <= 2) {
+      lines = text
+        .split(/[.!?]+/)
+        .map(s => s.trim())
+        .filter(s => s.length > 0)
+
+      console.log('📝 문장 분리 결과:', lines)
+    }
+
+    // 3차: 그래도 별로 없으면 쉼표나 세미콜론 기준으로 분리
+    if (lines.length <= 2) {
+      lines = text
+        .split(/[,;]+/)
+        .map(s => s.trim())
+        .filter(s => s.length > 0)
+
+      console.log('📝 쉼표 분리 결과:', lines)
+    }
+
+    // 너무 짧거나 긴 문장 제외 (더 유연한 필터)
+    const sentences = lines
+      .filter(s => s.length >= 3 && s.length < 300)
+      .slice(0, 10) // 최대 10개 포인트로 증가
+
+    console.log('✅ 최종 추출된 포인트 (' + sentences.length + '개):', sentences)
 
     return sentences.length > 0 ? sentences : ['내용이 표시됩니다.']
   }
