@@ -842,6 +842,237 @@
 }
 
 /* ============================================
+   슬라이드 프레젠테이션 시스템
+   ============================================ */
+
+/* 프레젠테이션 컨테이너 */
+.presentation-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #f5f5f5;
+  overflow: hidden;
+}
+
+/* 개별 슬라이드 */
+.slide {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: white;
+  padding: var(--bp-spacing-xl);
+  overflow-y: auto;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(100%);
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1);
+}
+
+/* 활성 슬라이드 */
+.slide.active {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(0);
+  z-index: 10;
+}
+
+/* 이전 슬라이드 (왼쪽으로 나감) */
+.slide.prev {
+  transform: translateX(-100%);
+}
+
+/* 슬라이드 내부 콘텐츠 */
+.slide-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--bp-spacing-lg);
+}
+
+.slide-title {
+  font-size: var(--bp-font-2xl);
+  font-weight: 700;
+  color: var(--bp-black);
+  margin-bottom: var(--bp-spacing-lg);
+  padding-bottom: var(--bp-spacing-md);
+  border-bottom: 3px solid var(--bp-yellow);
+}
+
+/* 슬라이드 네비게이션 */
+.navigation {
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: var(--bp-spacing-md);
+  background: rgba(45, 45, 45, 0.95);
+  padding: var(--bp-spacing-md) var(--bp-spacing-lg);
+  border-radius: 50px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px);
+}
+
+/* 네비게이션 버튼 */
+.nav-btn {
+  padding: 10px 20px;
+  background: var(--bp-yellow);
+  color: var(--bp-black);
+  border: none;
+  border-radius: 24px;
+  font-size: var(--bp-font-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--bp-transition);
+  outline: none;
+}
+
+.nav-btn:hover:not(:disabled) {
+  background: #ffd700dd;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255, 215, 0, 0.4);
+}
+
+.nav-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  background: #666;
+  color: #999;
+}
+
+/* 슬라이드 인디케이터 */
+.slide-indicators {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.indicator {
+  width: 10px;
+  height: 10px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: var(--bp-transition);
+}
+
+.indicator:hover {
+  background: rgba(255, 255, 255, 0.6);
+  transform: scale(1.2);
+}
+
+.indicator.active {
+  background: var(--bp-yellow);
+  width: 32px;
+  border-radius: 5px;
+}
+
+/* 슬라이드 번호 표시 */
+.slide-number {
+  position: absolute;
+  bottom: var(--bp-spacing-lg);
+  right: var(--bp-spacing-lg);
+  background: rgba(45, 45, 45, 0.8);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: var(--bp-font-sm);
+  font-weight: 600;
+}
+
+/* 커버 슬라이드 (첫 페이지) */
+.slide.cover {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  background: linear-gradient(135deg, var(--bp-black) 0%, #1a1a1a 100%);
+  color: white;
+}
+
+.slide.cover .cover-title {
+  font-size: 48px;
+  font-weight: 700;
+  margin-bottom: var(--bp-spacing-lg);
+  color: var(--bp-yellow);
+}
+
+.slide.cover .cover-subtitle {
+  font-size: var(--bp-font-xl);
+  margin-bottom: var(--bp-spacing-xl);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.slide.cover .cover-meta {
+  font-size: var(--bp-font-md);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* 감사 슬라이드 (마지막 페이지) */
+.slide.thank-you {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  background: linear-gradient(135deg, var(--bp-yellow) 0%, #ffd70099 100%);
+}
+
+.slide.thank-you .thank-you-title {
+  font-size: 64px;
+  font-weight: 700;
+  color: var(--bp-black);
+  margin-bottom: var(--bp-spacing-lg);
+}
+
+.slide.thank-you .thank-you-subtitle {
+  font-size: var(--bp-font-xl);
+  color: var(--bp-text-dark);
+}
+
+/* ============================================
+   반응형 슬라이드
+   ============================================ */
+
+@media (max-width: 768px) {
+  .slide {
+    padding: var(--bp-spacing-md);
+  }
+
+  .slide-content {
+    padding: var(--bp-spacing-sm);
+  }
+
+  .slide-title {
+    font-size: var(--bp-font-xl);
+  }
+
+  .navigation {
+    bottom: 1rem;
+    padding: var(--bp-spacing-sm) var(--bp-spacing-md);
+    gap: var(--bp-spacing-sm);
+  }
+
+  .nav-btn {
+    padding: 8px 16px;
+    font-size: var(--bp-font-xs);
+  }
+
+  .slide.cover .cover-title {
+    font-size: 32px;
+  }
+
+  .slide.thank-you .thank-you-title {
+    font-size: 48px;
+  }
+}
+
+/* ============================================
    인쇄 스타일
    ============================================ */
 
@@ -858,6 +1089,20 @@
   .team-member-card,
   .portfolio-card {
     page-break-inside: avoid;
+  }
+
+  /* 슬라이드 인쇄 최적화 */
+  .slide {
+    position: relative;
+    transform: none !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    page-break-after: always;
+  }
+
+  .navigation,
+  .slide-number {
+    display: none;
   }
 
   @page {

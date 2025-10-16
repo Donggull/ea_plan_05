@@ -246,18 +246,34 @@ export class ProposalTemplateService {
     html = this.replaceVariable(html, 'duration', proposalData.duration || 'N/A')
 
     // 3. 섹션 데이터 치환 (Handlebars 스타일 반복문 처리)
+    let sectionSlides = ''
     if (proposalData.sections && Array.isArray(proposalData.sections)) {
-      html = this.replaceSections(html, proposalData.sections)
+      sectionSlides = this.replaceSections(html, proposalData.sections)
     }
 
-    // 4. 슬라이드 네비게이션 및 JavaScript 추가 (비즈니스 프레젠테이션 템플릿용)
+    // 4. 비즈니스 프레젠테이션 템플릿의 경우: 슬라이드 시스템 구성
     let script: string | undefined
     if (template.template_type === 'business') {
-      const { html: htmlWithNav, script: navScript } = this.addSlideNavigation(html, proposalData.sections?.length || 0)
+      // 4-1. 커버 슬라이드 생성
+      const coverSlide = this.createCoverSlide(params.projectName || proposalData.projectName || '프로젝트명', proposalData)
+
+      // 4-2. 감사 슬라이드 생성
+      const thankYouSlide = this.createThankYouSlide(params.companyName || '회사명', params.contactEmail || 'contact@example.com')
+
+      // 4-3. 전체 슬라이드 구성: 커버 + 섹션들 + 감사
+      const totalSlides = [coverSlide, sectionSlides, thankYouSlide].join('\n')
+
+      // 4-4. 프레젠테이션 컨테이너로 감싸기
+      html = `<div class="presentation-container">\n${totalSlides}\n</div>`
+
+      // 4-5. 슬라이드 네비게이션 추가
+      const totalSlideCount = (proposalData.sections?.length || 0) + 2 // 커버 + 섹션들 + 감사
+      const { html: htmlWithNav, script: navScript } = this.addSlideNavigation(html, totalSlideCount)
       html = htmlWithNav
       script = navScript
-      // 프레젠테이션 컨테이너로 전체 HTML 감싸기
-      html = `<div class="presentation-container">\n${html}\n</div>`
+    } else {
+      // 다른 템플릿 타입: 기존 방식 유지
+      html = sectionSlides
     }
 
     // 5. CSS 스타일 적용
@@ -294,6 +310,11 @@ export class ProposalTemplateService {
 
   /**
    * 섹션 반복문 처리 ({{#sections}}...{{/sections}})
+   *
+   * 🎨 슬라이드 기반 렌더링으로 변경:
+   * - 각 섹션을 .slide 클래스로 감싸기
+   * - 커버 슬라이드 추가 (첫 페이지)
+   * - 감사 슬라이드 추가 (마지막 페이지)
    */
   private static replaceSections(html: string, sections: any[]): string {
     // 섹션 반복문 패턴 찾기
@@ -301,17 +322,15 @@ export class ProposalTemplateService {
     const sectionMatch = sectionBlockRegex.exec(html)
 
     if (!sectionMatch) {
-      // 반복문이 없으면 개별 섹션 placeholder 치환
-      sections.forEach((section, index) => {
-        html = this.replaceVariable(html, `section_${section.id || index}`, section.content || '')
-      })
-      return html
+      // 반복문이 없으면 슬라이드 기반으로 렌더링
+      const slides = this.renderSlidesFromSections(sections)
+      return html + slides
     }
 
     // 반복문 블록 추출
     const blockTemplate = sectionMatch[1]
 
-    // 각 섹션에 대해 블록 렌더링
+    // 각 섹션을 슬라이드로 렌더링
     const renderedSections = sections
       .map((section, index) => {
         let block = blockTemplate
@@ -319,12 +338,41 @@ export class ProposalTemplateService {
         block = this.replaceVariable(block, 'title', section.title || '')
         block = this.replaceVariable(block, 'content', section.content || '')
         block = this.replaceVariable(block, '@index', String(index + 1))
-        return block
+
+        // 슬라이드로 감싸기
+        return `
+<div class="slide" data-slide="${index + 1}">
+  <div class="slide-content">
+    <h2 class="slide-title">${section.title || ''}</h2>
+    <div class="slide-body">
+      ${block}
+    </div>
+  </div>
+  <div class="slide-number">${index + 1} / ${sections.length}</div>
+</div>`
       })
       .join('\n')
 
-    // 반복문 블록을 렌더링된 섹션들로 교체
+    // 반복문 블록을 렌더링된 슬라이드로 교체
     return html.replace(sectionBlockRegex, renderedSections)
+  }
+
+  /**
+   * 섹션들을 슬라이드로 렌더링 (반복문 블록이 없는 경우)
+   */
+  private static renderSlidesFromSections(sections: any[]): string {
+    return sections
+      .map((section, index) => `
+<div class="slide" data-slide="${index + 1}">
+  <div class="slide-content">
+    <h2 class="slide-title">${section.title || ''}</h2>
+    <div class="slide-body">
+      ${section.content || ''}
+    </div>
+  </div>
+  <div class="slide-number">${index + 1} / ${sections.length}</div>
+</div>`)
+      .join('\n')
   }
 
   /**
@@ -452,13 +500,41 @@ export class ProposalTemplateService {
   }
 
   /**
+   * 커버 슬라이드 생성 (첫 페이지)
+   */
+  private static createCoverSlide(projectName: string, proposalData: any): string {
+    return `
+<div class="slide cover active" data-slide="0">
+  <div class="cover-title">${projectName}</div>
+  <div class="cover-subtitle">${proposalData.summary || '프로젝트 제안서'}</div>
+  <div class="cover-meta">
+    <p>${proposalData.author || '작성자'}</p>
+    <p>${new Date().toLocaleDateString('ko-KR')}</p>
+  </div>
+</div>`
+  }
+
+  /**
+   * 감사 슬라이드 생성 (마지막 페이지)
+   */
+  private static createThankYouSlide(companyName: string, contactEmail: string): string {
+    return `
+<div class="slide thank-you" data-slide="last">
+  <div class="thank-you-title">감사합니다</div>
+  <div class="thank-you-subtitle">
+    <p>${companyName}</p>
+    <p>${contactEmail}</p>
+  </div>
+</div>`
+  }
+
+  /**
    * 슬라이드 네비게이션 추가 (비즈니스 프레젠테이션 템플릿용)
    *
    * HTML과 JavaScript를 분리하여 반환 (React의 dangerouslySetInnerHTML은 <script> 태그를 실행하지 않음)
    */
-  private static addSlideNavigation(html: string, sectionCount: number): { html: string; script: string } {
-    // 전체 슬라이드 수: 1 (커버) + sectionCount + 1 (감사)
-    const totalSlides = sectionCount + 2
+  private static addSlideNavigation(html: string, totalSlides: number): { html: string; script: string } {
+    // totalSlides: 이미 커버 + 섹션들 + 감사를 포함한 전체 슬라이드 수
 
     // 네비게이션 HTML 생성 (JavaScript 제외)
     const navigationHtml = `
