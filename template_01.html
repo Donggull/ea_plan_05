@@ -1,0 +1,1303 @@
+## I. 레퍼런스 스타일 완전 분석 및 적용
+
+
+
+### 1. 필수 컬러 시스템 (정확히 재현)
+
+```css
+
+:root {
+
+  /* 베이스 컬러 */
+
+  --bg-primary: #ffffff;           /* 메인 배경 (깔끔한 흰색) */
+
+  --bg-secondary: #f8f9fa;         /* 섹션 배경 */
+
+  --text-primary: #000000;         /* 주요 텍스트 */
+
+  --text-secondary: #666666;       /* 보조 텍스트 */
+
+  --text-light: #999999;           /* 연한 텍스트 */
+
+
+
+  /* 레퍼런스의 핵심 컬러 */
+
+  --circle-dark: #000000;          /* 검은색 원형 */
+
+  --circle-accent: #ffff00;        /* 노란색 강조 원형 */
+
+  --circle-text-white: #ffffff;    /* 원형 내부 흰색 텍스트 */
+
+  --circle-text-black: #000000;    /* 원형 내부 검은색 텍스트 */
+
+
+
+  /* 구조 요소 컬러 */
+
+  --border-primary: #1d4ed8;       /* 파란색 구분선 */
+
+  --border-light: #e5e7eb;         /* 연한 구분선 */
+
+  --arrow-color: #374151;          /* 화살표 색상 */
+
+
+
+  /* 테이블 컬러 */
+
+  --table-header: #f3f4f6;         /* 테이블 헤더 */
+
+  --table-border: #d1d5db;         /* 테이블 테두리 */
+
+}
+
+```
+
+
+
+### 2. 필수 디자인 패턴 (레퍼런스 완전 복제)
+
+
+
+- **깔끔한 흰색 베이스**: 모든 슬라이드는 깔끔한 흰색 배경을 기본으로 하며, 검은색 텍스트로 명확한 가독성 확보
+
+- **원형 다이어그램 시스템**: 프로세스나 단계를 표현할 때 검은색 원형과 노란색 강조 원형 사용
+
+- **좌우 분할 레이아웃**: 텍스트 콘텐츠는 좌측, 다이어그램은 우측에 배치하거나 중앙 집중형 배치
+
+- **화살표 연결 시스템**: 점선 또는 실선 화살표로 프로세스 흐름 표현
+
+- **번호 매기기**: 단계별 프로세스에 명확한 번호 표시
+
+
+
+### 3. 타이포그래피 시스템 (레퍼런스 기준)
+
+```css
+
+/* 레퍼런스의 정확한 타이포그래피 재현 */
+
+.title-main { 
+
+  font-size: 2.5rem; 
+
+  font-weight: 700; 
+
+  line-height: 1.2; 
+
+  color: var(--text-primary);
+
+  margin-bottom: 1rem;
+
+}      /* 메인 타이틀 */
+
+
+
+.title-section { 
+
+  font-size: 1.875rem; 
+
+  font-weight: 600; 
+
+  line-height: 1.3; 
+
+  color: var(--text-primary);
+
+  margin-bottom: 1.5rem;
+
+}        /* 섹션 제목 */
+
+
+
+.title-sub { 
+
+  font-size: 1.5rem; 
+
+  font-weight: 500; 
+
+  line-height: 1.4; 
+
+  color: var(--text-primary);
+
+  margin-bottom: 1rem;
+
+}       /* 부제목 */
+
+
+
+.text-body { 
+
+  font-size: 1rem; 
+
+  font-weight: 400; 
+
+  line-height: 1.6; 
+
+  color: var(--text-primary);
+
+}         /* 본문 텍스트 */
+
+
+
+.text-small { 
+
+  font-size: 0.875rem; 
+
+  font-weight: 400; 
+
+  line-height: 1.5; 
+
+  color: var(--text-secondary);
+
+}         /* 작은 텍스트 */
+
+
+
+.circle-text { 
+
+  font-size: 1rem; 
+
+  font-weight: 600; 
+
+  line-height: 1.2; 
+
+  text-align: center;
+
+}      /* 원형 내부 텍스트 */
+
+```
+
+
+
+---
+
+
+
+## II. 콘텐츠 분석 및 구조화
+
+
+
+### 1. 문서 내용 완전 추출
+
+- 주어진 문서의 모든 텍스트, 데이터, 표, 프로세스, 핵심 메시지를 **누락 없이** 추출
+
+- 내용의 논리적 흐름을 파악하여 각 슬라이드가 하나의 명확한 메시지를 전달하도록 구성
+
+- 원본 문서의 구조와 순서를 존중하되, 시각적 임팩트를 위해 최적화
+
+
+
+### 2. 슬라이드별 콘텐츠 최적화
+
+- 각 슬라이드는 **핵심 메시지 1개**에 집중
+
+- 복잡한 정보는 레퍼런스 스타일의 다이어그램과 테이블로 변환
+
+- 텍스트는 간결하게 요약하되 핵심 정보는 보존
+
+
+
+---
+
+
+
+## III. 필수 구현 요소 (레퍼런스 기반)
+
+
+
+### 1. HTML 기본 구조
+
+```html
+
+<!DOCTYPE html>
+
+<html lang="ko">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>비즈니스 프레젠테이션</title>
+
+    <style>
+
+        /* CSS 스타일 여기에 */
+
+    </style>
+
+</head>
+
+<body>
+
+    <div class="presentation-container">
+
+        <div class="slide active" id="slide-1">
+
+            <!-- 슬라이드 내용 -->
+
+        </div>
+
+        <!-- 추가 슬라이드들 -->
+
+    </div>
+
+    
+
+    <div class="navigation">
+
+        <button class="nav-btn" onclick="previousSlide()">❮</button>
+
+        <div class="slide-indicators">
+
+            <!-- 슬라이드 인디케이터 -->
+
+        </div>
+
+        <button class="nav-btn" onclick="nextSlide()">❯</button>
+
+    </div>
+
+    
+
+    <script>
+
+        /* JavaScript 코드 여기에 */
+
+    </script>
+
+</body>
+
+</html>
+
+```
+
+
+
+### 2. 슬라이드 템플릿 유형
+
+
+
+#### A. 커버 슬라이드
+
+```html
+
+<!-- 레퍼런스 스타일: 중앙 정렬, 깔끔한 제목 -->
+
+<div class="slide cover-slide">
+
+    <div class="slide-content">
+
+        <h1 class="title-main">{문서 제목}</h1>
+
+        <p class="text-body subtitle">{부제목}</p>
+
+        <div class="blue-line"></div>
+
+    </div>
+
+</div>
+
+```
+
+
+
+#### B. 프로세스 흐름 슬라이드
+
+```html
+
+<!-- 레퍼런스 스타일: 원형 다이어그램, 화살표 연결 -->
+
+<div class="slide process-slide">
+
+    <div class="content-layout">
+
+        <div class="text-section">
+
+            <h2 class="title-section">{프로세스 제목}</h2>
+
+            <p class="text-body">{프로세스 설명}</p>
+
+        </div>
+
+        <div class="diagram-section">
+
+            <div class="process-flow">
+
+                <div class="process-step">
+
+                    <div class="circle-dark">
+
+                        <span class="circle-text">1단계</span>
+
+                    </div>
+
+                    <span class="step-label">{단계 제목}</span>
+
+                </div>
+
+                <div class="arrow-right"></div>
+
+                <div class="process-step">
+
+                    <div class="circle-dark">
+
+                        <span class="circle-text">2단계</span>
+
+                    </div>
+
+                    <span class="step-label">{단계 제목}</span>
+
+                </div>
+
+                <div class="arrow-right"></div>
+
+                <div class="process-step">
+
+                    <div class="circle-accent">
+
+                        <span class="circle-text">3단계</span>
+
+                    </div>
+
+                    <span class="step-label">{단계 제목}</span>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+```
+
+
+
+#### C. 테이블 정보 슬라이드
+
+```html
+
+<!-- 레퍼런스 스타일: 깔끔한 테이블, 구분선 -->
+
+<div class="slide table-slide">
+
+    <h2 class="title-section">{테이블 제목}</h2>
+
+    <div class="table-container">
+
+        <table class="business-table">
+
+            <thead>
+
+                <tr>
+
+                    <th>{헤더1}</th>
+
+                    <th>{헤더2}</th>
+
+                    <th>{헤더3}</th>
+
+                </tr>
+
+            </thead>
+
+            <tbody>
+
+                <tr>
+
+                    <td>{데이터1}</td>
+
+                    <td>{데이터2}</td>
+
+                    <td>{데이터3}</td>
+
+                </tr>
+
+                <!-- 추가 행들 -->
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+    <div class="blue-line"></div>
+
+</div>
+
+```
+
+
+
+#### D. 중앙 다이어그램 슬라이드
+
+```html
+
+<!-- 레퍼런스 스타일: 중앙 집중형 다이어그램 -->
+
+<div class="slide central-diagram-slide">
+
+    <h2 class="title-section">{다이어그램 제목}</h2>
+
+    <div class="central-diagram">
+
+        <div class="left-elements">
+
+            <div class="element-item">{좌측 요소1}</div>
+
+            <div class="element-item">{좌측 요소2}</div>
+
+        </div>
+
+        <div class="center-circles">
+
+            <div class="main-circle circle-dark">
+
+                <span class="circle-text">{중앙 텍스트1}</span>
+
+            </div>
+
+            <div class="main-circle circle-accent">
+
+                <span class="circle-text">{중앙 텍스트2}</span>
+
+            </div>
+
+        </div>
+
+        <div class="right-elements">
+
+            <div class="element-item">{우측 요소1}</div>
+
+            <div class="element-item">{우측 요소2}</div>
+
+        </div>
+
+    </div>
+
+</div>
+
+```
+
+
+
+### 3. 핵심 CSS 스타일
+
+```css
+
+* {
+
+    margin: 0;
+
+    padding: 0;
+
+    box-sizing: border-box;
+
+}
+
+
+
+body {
+
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+
+    background: var(--bg-primary);
+
+    color: var(--text-primary);
+
+    overflow: hidden;
+
+}
+
+
+
+.presentation-container {
+
+    width: 100vw;
+
+    height: 100vh;
+
+    position: relative;
+
+}
+
+
+
+.slide {
+
+    width: 100%;
+
+    height: 100%;
+
+    display: none;
+
+    flex-direction: column;
+
+    justify-content: center;
+
+    align-items: center;
+
+    padding: 4rem 6rem;
+
+    position: relative;
+
+}
+
+
+
+.slide.active {
+
+    display: flex;
+
+}
+
+
+
+/* 레이아웃 시스템 */
+
+.content-layout {
+
+    display: grid;
+
+    grid-template-columns: 1fr 1fr;
+
+    gap: 4rem;
+
+    width: 100%;
+
+    align-items: center;
+
+}
+
+
+
+.text-section {
+
+    display: flex;
+
+    flex-direction: column;
+
+}
+
+
+
+.diagram-section {
+
+    display: flex;
+
+    justify-content: center;
+
+    align-items: center;
+
+}
+
+
+
+/* 원형 다이어그램 스타일 */
+
+.circle-dark {
+
+    width: 120px;
+
+    height: 120px;
+
+    background: var(--circle-dark);
+
+    border-radius: 50%;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    color: var(--circle-text-white);
+
+}
+
+
+
+.circle-accent {
+
+    width: 120px;
+
+    height: 120px;
+
+    background: var(--circle-accent);
+
+    border-radius: 50%;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    color: var(--circle-text-black);
+
+}
+
+
+
+.main-circle {
+
+    width: 200px;
+
+    height: 200px;
+
+    margin: 0 2rem;
+
+}
+
+
+
+/* 프로세스 흐름 */
+
+.process-flow {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 2rem;
+
+}
+
+
+
+.process-step {
+
+    text-align: center;
+
+}
+
+
+
+.step-label {
+
+    display: block;
+
+    margin-top: 1rem;
+
+    font-size: 0.9rem;
+
+    font-weight: 500;
+
+}
+
+
+
+.arrow-right {
+
+    width: 0;
+
+    height: 0;
+
+    border-left: 20px solid var(--arrow-color);
+
+    border-top: 10px solid transparent;
+
+    border-bottom: 10px solid transparent;
+
+}
+
+
+
+/* 테이블 스타일 */
+
+.table-container {
+
+    width: 100%;
+
+    margin: 2rem 0;
+
+}
+
+
+
+.business-table {
+
+    width: 100%;
+
+    border-collapse: collapse;
+
+    font-size: 0.9rem;
+
+}
+
+
+
+.business-table th,
+
+.business-table td {
+
+    padding: 1rem;
+
+    text-align: left;
+
+    border: 1px solid var(--table-border);
+
+}
+
+
+
+.business-table th {
+
+    background: var(--table-header);
+
+    font-weight: 600;
+
+}
+
+
+
+.business-table tbody tr:nth-child(even) {
+
+    background: #fafafa;
+
+}
+
+
+
+/* 구분선 */
+
+.blue-line {
+
+    width: 100%;
+
+    height: 3px;
+
+    background: var(--border-primary);
+
+    margin-top: 2rem;
+
+}
+
+
+
+/* 중앙 다이어그램 */
+
+.central-diagram {
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+    width: 100%;
+
+    margin: 2rem 0;
+
+}
+
+
+
+.left-elements,
+
+.right-elements {
+
+    flex: 1;
+
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 1rem;
+
+}
+
+
+
+.center-circles {
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+}
+
+
+
+.element-item {
+
+    padding: 0.5rem 1rem;
+
+    background: var(--bg-secondary);
+
+    border-radius: 8px;
+
+    text-align: center;
+
+    font-size: 0.9rem;
+
+}
+
+
+
+/* 네비게이션 */
+
+.navigation {
+
+    position: fixed;
+
+    bottom: 2rem;
+
+    left: 50%;
+
+    transform: translateX(-50%);
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 1rem;
+
+    background: rgba(255, 255, 255, 0.9);
+
+    padding: 0.5rem 1rem;
+
+    border-radius: 25px;
+
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+
+}
+
+
+
+.nav-btn {
+
+    background: var(--circle-dark);
+
+    border: none;
+
+    color: white;
+
+    padding: 0.5rem 1rem;
+
+    border-radius: 20px;
+
+    cursor: pointer;
+
+    font-size: 1rem;
+
+    transition: background 0.3s;
+
+}
+
+
+
+.nav-btn:hover {
+
+    background: #333;
+
+}
+
+
+
+.slide-indicators {
+
+    display: flex;
+
+    gap: 0.5rem;
+
+}
+
+
+
+.indicator {
+
+    width: 10px;
+
+    height: 10px;
+
+    border-radius: 50%;
+
+    background: #ccc;
+
+    cursor: pointer;
+
+    transition: background 0.3s;
+
+}
+
+
+
+.indicator.active {
+
+    background: var(--border-primary);
+
+}
+
+
+
+/* 연결선 스타일 */
+
+.dotted-line {
+
+    border-top: 2px dotted var(--arrow-color);
+
+    width: 100px;
+
+    margin: 0 1rem;
+
+}
+
+
+
+.solid-line {
+
+    border-top: 2px solid var(--border-primary);
+
+    width: 100px;
+
+    margin: 0 1rem;
+
+}
+
+```
+
+
+
+### 4. JavaScript 기능
+
+```javascript
+
+let currentSlide = 0;
+
+const slides = document.querySelectorAll('.slide');
+
+const totalSlides = slides.length;
+
+
+
+function showSlide(n) {
+
+    slides[currentSlide].classList.remove('active');
+
+    currentSlide = (n + totalSlides) % totalSlides;
+
+    slides[currentSlide].classList.add('active');
+
+    updateIndicators();
+
+}
+
+
+
+function nextSlide() {
+
+    showSlide(currentSlide + 1);
+
+}
+
+
+
+function previousSlide() {
+
+    showSlide(currentSlide - 1);
+
+}
+
+
+
+function updateIndicators() {
+
+    const indicators = document.querySelectorAll('.indicator');
+
+    indicators.forEach((indicator, index) => {
+
+        indicator.classList.toggle('active', index === currentSlide);
+
+    });
+
+}
+
+
+
+// 키보드 네비게이션
+
+document.addEventListener('keydown', (e) => {
+
+    if (e.key === 'ArrowRight' || e.key === ' ') {
+
+        e.preventDefault();
+
+        nextSlide();
+
+    }
+
+    if (e.key === 'ArrowLeft') {
+
+        e.preventDefault();
+
+        previousSlide();
+
+    }
+
+    if (e.key === 'Home') {
+
+        e.preventDefault();
+
+        showSlide(0);
+
+    }
+
+    if (e.key === 'End') {
+
+        e.preventDefault();
+
+        showSlide(totalSlides - 1);
+
+    }
+
+});
+
+
+
+// 슬라이드 인디케이터 생성
+
+function createIndicators() {
+
+    const indicatorContainer = document.querySelector('.slide-indicators');
+
+    for (let i = 0; i < totalSlides; i++) {
+
+        const indicator = document.createElement('div');
+
+        indicator.className = 'indicator';
+
+        if (i === 0) indicator.classList.add('active');
+
+        indicator.addEventListener('click', () => showSlide(i));
+
+        indicatorContainer.appendChild(indicator);
+
+    }
+
+}
+
+
+
+// 터치 네비게이션 (모바일 지원)
+
+let startX = 0;
+
+let endX = 0;
+
+
+
+document.addEventListener('touchstart', (e) => {
+
+    startX = e.touches[0].clientX;
+
+});
+
+
+
+document.addEventListener('touchend', (e) => {
+
+    endX = e.changedTouches[0].clientX;
+
+    handleSwipe();
+
+});
+
+
+
+function handleSwipe() {
+
+    const swipeThreshold = 50;
+
+    if (startX - endX > swipeThreshold) {
+
+        nextSlide(); // 왼쪽으로 스와이프
+
+    }
+
+    if (endX - startX > swipeThreshold) {
+
+        previousSlide(); // 오른쪽으로 스와이프
+
+    }
+
+}
+
+
+
+// 초기화
+
+document.addEventListener('DOMContentLoaded', () => {
+
+    createIndicators();
+
+});
+
+```
+
+
+
+---
+
+
+
+## IV. 레퍼런스 기반 특수 요소
+
+
+
+### 1. 다단계 프로세스 표현
+
+```html
+
+<!-- 4단계 프로세스 (3개 검은색 + 1개 노란색) -->
+
+<div class="four-step-process">
+
+    <div class="step-item">
+
+        <div class="circle-dark"><span class="circle-text">1</span></div>
+
+        <h4>단계 제목</h4>
+
+        <p>단계 설명</p>
+
+    </div>
+
+    <div class="arrow-connector"></div>
+
+    <div class="step-item">
+
+        <div class="circle-dark"><span class="circle-text">2</span></div>
+
+        <h4>단계 제목</h4>
+
+        <p>단계 설명</p>
+
+    </div>
+
+    <div class="arrow-connector"></div>
+
+    <div class="step-item">
+
+        <div class="circle-dark"><span class="circle-text">3</span></div>
+
+        <h4>단계 제목</h4>
+
+        <p>단계 설명</p>
+
+    </div>
+
+    <div class="arrow-connector"></div>
+
+    <div class="step-item highlight">
+
+        <div class="circle-accent"><span class="circle-text">4</span></div>
+
+        <h4>단계 제목</h4>
+
+        <p>단계 설명</p>
+
+    </div>
+
+</div>
+
+```
+
+
+
+### 2. 이중 원형 시스템 표현
+
+```html
+
+<!-- EPMS + EGMS 스타일 -->
+
+<div class="dual-circle-system">
+
+    <div class="circle-system left">
+
+        <div class="main-circle circle-dark">
+
+            <span class="circle-text">시스템 A</span>
+
+        </div>
+
+        <div class="connection-lines left-lines">
+
+            <div class="line-item">요소 1</div>
+
+            <div class="line-item">요소 2</div>
+
+            <div class="line-item">요소 3</div>
+
+        </div>
+
+    </div>
+
+    
+
+    <div class="circle-system right">
+
+        <div class="main-circle circle-accent">
+
+            <span class="circle-text">시스템 B</span>
+
+        </div>
+
+        <div class="connection-lines right-lines">
+
+            <div class="line-item">요소 1</div>
+
+            <div class="line-item">요소 2</div>
+
+            <div class="line-item">요소 3</div>
+
+        </div>
+
+    </div>
+
+</div>
+
+```
+
+
+
+---
+
+
+
+## V. 최종 체크리스트
+
+
+
+- [ ] 모든 문서 내용이 누락 없이 포함되었는가?
+
+- [ ] 레퍼런스 이미지의 깔끔한 흰색 배경이 재현되었는가?
+
+- [ ] 검은색 원형과 노란색 강조 원형이 정확히 구현되었는가?
+
+- [ ] 화살표 연결선과 프로세스 흐름이 구현되었는가?
+
+- [ ] 테이블 디자인이 레퍼런스와 일치하는가?
+
+- [ ] 좌우 분할 레이아웃이 적절히 적용되었는가?
+
+- [ ] 타이포그래피가 깔끔하고 명확한가?
+
+- [ ] 키보드, 마우스, 터치 네비게이션이 모두 작동하는가?
+
+
+
+---
+
+
+
+
+
+"위의 프롬프트에 따라 [제공된 내용]을 기반으로 한 완전한 HTML 비즈니스 프레젠테이션을 생성해주세요. 모든 CSS와 JavaScript를 포함한 단일 HTML 파일로 만들어 주시고, 레퍼런스 이미지의 깔끔하고 전문적인 비즈니스 스타일을 100% 재현해주세요. 특히 검은색과 노란색 원형 다이어그램, 화살표 연결선, 그리고 깔끔한 테이블 구조를 정확히 구현해주세요."

@@ -1,28 +1,23 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git commit -m \"$(cat <<''EOF''\nfix: AI 질문 생성 오류 해결 및 모델 선택 영구 저장 구현\n\n1. Anthropic API 응답 처리 개선 (pages/api/ai/completion.ts)\n   - 응답 구조 검증 로직 추가 (content 배열 및 text 필드 검증)\n   - 실제 토큰 사용량 활용 (data.usage.input_tokens, output_tokens)\n   - 에러 발생 시 상세한 로깅으로 디버깅 개선\n   - 안전한 응답 파싱으로 500 에러 방지\n\n2. AI 모델 선택 상태 영구 저장 (src/contexts/AIModelContext.tsx)\n   - localStorage 키 정의 (ai_selected_provider, ai_selected_model)\n   - reducer에서 SELECT_PROVIDER/SELECT_MODEL 액션 시 localStorage 자동 저장\n   - CLEAR_SELECTION 시 localStorage 데이터 제거\n   - setDefaultModel → setInitialModel로 변경\n     - localStorage에 저장된 모델 우선 복원\n     - 저장된 모델 유효성 검증 (available 체크)\n     - 유효하지 않은 경우 기본 모델(Claude 4 Sonnet) 선택\n   - 새로고침 시에도 사용자가 선택한 모델 유지\n\n버그 해결:\n- 질문 생성 단계에서 \"AI 서비스 연결에 문제가 있습니다\" 오류 해결\n- Left 사이드바에서 선택한 AI 모델이 새로고침 시 초기화되는 문제 해결\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
-      "Bash(git commit -m \"$(cat <<''EOF''\nfix: Vercel 서버리스 함수 타임아웃 문제 해결\n\n문제 분석:\n- 큰 문서 분석 시 80초 이상 처리 시간 소요\n- vercel.json 기본 타임아웃: 30초\n- 타임아웃 초과로 500 에러 발생\n\n해결 방법:\n- pages/api/ai/completion.ts에 maxDuration 설정 추가\n- 타임아웃을 180초(3분)로 연장\n- 큰 문서 분석 완료까지 충분한 시간 확보\n\n영향 범위:\n- AI completion API 엔드포인트만 영향\n- 기존 정상 작동 코드는 수정하지 않음\n- 다른 API 엔드포인트는 기존 30초 유지\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
-      "Bash(git commit:*)",
-      "Bash(vercel logs:*)",
       "Bash(npm run type-check:*)",
-      "Bash(npm run typecheck:*)",
+      "Bash(npm run typecheck)",
+      "Bash(npm run build)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "mcp__ide__executeCode",
+      "Bash(git reset:*)",
       "mcp__github-mcp__git-status",
       "mcp__github-mcp__git-add",
       "mcp__github-mcp__git-commit",
       "mcp__github-mcp__git-push",
-      "mcp__context7__resolve-library-id",
-      "mcp__context7__get-library-docs",
-      "Bash(timeout 120 npm run typecheck)",
-      "Bash(git add:*)",
-      "Bash(git reset:*)",
-      "Bash(timeout 120 npm run type-check)",
-      "Bash(git revert:*)",
-      "mcp__supabase__execute_sql",
-      "mcp__github-mcp__git-add-all",
       "mcp__supabase__list_tables",
+      "mcp__supabase__execute_sql",
+      "Bash(npx tsc:*)",
       "mcp__supabase__apply_migration",
-      "Bash(git checkout:*)"
+      "mcp__github-mcp__git-add-all"
     ],
     "deny": [],
     "ask": []

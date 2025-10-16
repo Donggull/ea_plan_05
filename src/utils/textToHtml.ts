@@ -8,6 +8,12 @@
  * - 제목 패턴 → <h3>
  */
 
+import {
+  generateTwoCircleComparison,
+  generateProcessFlow,
+  generateHorizontalTimeline
+} from './svgDiagrams'
+
 export interface TextToHtmlOptions {
   useParagraphs?: boolean;      // true: <p> 태그 사용, false: <br> 사용
   convertLists?: boolean;        // 목록 패턴 자동 변환
@@ -196,7 +202,7 @@ export function textToSimpleHtml(text: string): string {
  * - 키워드/숫자 자동 강조
  */
 export interface SectionType {
-  type: 'problem' | 'solution' | 'stats' | 'tech' | 'timeline' | 'list' | 'comparison' | 'team' | 'portfolio' | 'standard'
+  type: 'problem' | 'solution' | 'stats' | 'tech' | 'timeline' | 'list' | 'comparison' | 'team' | 'portfolio' | 'processFlow' | 'circleComparison' | 'horizontalTimeline' | 'standard'
   confidence: number
 }
 
@@ -236,6 +242,19 @@ export function detectSectionType(title: string, content: string): SectionType {
       /실적|프로젝트|포트폴리오|레퍼런스|portfolio|project|reference|case study/i,
       /성공|완료|수행|success|completed|delivered/i
     ],
+    // 새로운 비즈니스 프레젠테이션 타입들
+    processFlow: [
+      /프로세스|절차|흐름|워크플로우|단계적|순차|process|workflow|procedure|flow/i,
+      /진행|수행|실행|execute|perform|conduct/i
+    ],
+    circleComparison: [
+      /관리방안|관리시스템|시스템|체계|management|system/i,
+      /epms|egms|pms|목표|goal|project/i
+    ],
+    horizontalTimeline: [
+      /단계별|phase별|연차별|quarterly|monthly|weekly/i,
+      /1단계|2단계|3단계|phase 1|phase 2|step 1|step 2/i
+    ],
     list: [/^(\d+\.|[-*•])\s+/m]
   }
 
@@ -248,6 +267,9 @@ export function detectSectionType(title: string, content: string): SectionType {
     comparison: 0,
     team: 0,
     portfolio: 0,
+    processFlow: 0,
+    circleComparison: 0,
+    horizontalTimeline: 0,
     list: 0
   }
 
@@ -380,6 +402,12 @@ export function textToEnhancedHtml(title: string, text: string): string {
       return renderTeamSection(text)
     case 'portfolio':
       return renderPortfolioSection(text)
+    case 'processFlow':
+      return renderProcessFlowSection(title, text)
+    case 'circleComparison':
+      return renderCircleComparisonSection(title, text)
+    case 'horizontalTimeline':
+      return renderHorizontalTimelineSection(title, text)
     case 'list':
       return renderEnhancedList(text)
     default:
@@ -866,4 +894,199 @@ export function mapSectionToSlideTitle(sectionTitle: string): string {
   };
 
   return mapping[sectionTitle] || sectionTitle;
+}
+
+// ========================================
+// 비즈니스 프레젠테이션 레이아웃 함수들
+// ========================================
+
+/**
+ * 프로세스 플로우 섹션 렌더링 (진척관리방안 스타일)
+ *
+ * 흑색/황색 원형 + 점선 연결
+ */
+function renderProcessFlowSection(title: string, text: string): string {
+  console.log(`  🔄 프로세스 플로우 렌더링: "${title}"`)
+
+  const lines = text.split('\n').filter(line => line.trim())
+
+  // 단계 추출 (번호 또는 기호로 시작하는 라인)
+  const steps = lines
+    .filter(line => /^(\d+\.|[-*•])\s+/.test(line))
+    .map((line, index) => {
+      const cleanLine = line.replace(/^(\d+\.|[-*•])\s*/, '').trim()
+      // "제목: 설명" 패턴 분리
+      const parts = cleanLine.split(/[:：]/)
+      const label = parts[0].trim()
+      const description = parts.slice(1).join(':').trim()
+
+      return {
+        id: `step-${index + 1}`,
+        label: `${index + 1}`,
+        sublabel: label.length > 20 ? label.substring(0, 18) + '...' : label,
+        color: (index === lines.length - 1 ? 'yellow' : 'black') as 'black' | 'yellow',
+        description: description || label
+      }
+    })
+
+  if (steps.length === 0) {
+    // 단계가 없으면 표준 렌더링
+    return renderStandardSection(text)
+  }
+
+  try {
+    const diagramHTML = generateProcessFlow(steps)
+    return diagramHTML
+  } catch (error) {
+    console.error('❌ 프로세스 플로우 렌더링 실패:', error)
+    return renderStandardSection(text)
+  }
+}
+
+/**
+ * 원형 비교 섹션 렌더링 (사업관리방안 스타일)
+ *
+ * 2개 대형 원형 (흑/황) + 양측 텍스트
+ */
+function renderCircleComparisonSection(title: string, text: string): string {
+  console.log(`  ⭕ 원형 비교 렌더링: "${title}"`)
+
+  const lines = text.split('\n').filter(line => line.trim())
+
+  // "EPMS", "EGMS" 등의 키워드 찾기
+  const leftKeywords = ['epms', 'pms', '프로젝트', 'project']
+  const rightKeywords = ['egms', 'gms', '목표', 'goal']
+
+  let leftTitle = '시스템 A'
+  let rightTitle = '시스템 B'
+  const leftItems: string[] = []
+  const rightItems: string[] = []
+  let currentSide: 'left' | 'right' | null = null
+
+  lines.forEach(line => {
+    const lowerLine = line.toLowerCase()
+
+    // 키워드로 좌/우 판단
+    if (leftKeywords.some(kw => lowerLine.includes(kw))) {
+      currentSide = 'left'
+      // 제목 추출
+      const match = line.match(/([A-Z]{2,}|[가-힣]+)/i)
+      if (match) leftTitle = match[1]
+      return
+    }
+
+    if (rightKeywords.some(kw => lowerLine.includes(kw))) {
+      currentSide = 'right'
+      // 제목 추출
+      const match = line.match(/([A-Z]{2,}|[가-힣]+)/i)
+      if (match) rightTitle = match[1]
+      return
+    }
+
+    // 항목 추가
+    const cleanLine = line.replace(/^(\d+\.|[-*•])\s*/, '').trim()
+    if (cleanLine && currentSide === 'left') {
+      leftItems.push(cleanLine)
+    } else if (cleanLine && currentSide === 'right') {
+      rightItems.push(cleanLine)
+    }
+  })
+
+  // 최소한의 데이터가 없으면 폴백
+  if (leftItems.length === 0 && rightItems.length === 0) {
+    return renderStandardSection(text)
+  }
+
+  try {
+    const diagramHTML = generateTwoCircleComparison(
+      {
+        label: leftTitle,
+        sublabel: 'Project Management',
+        items: leftItems.length > 0 ? leftItems : ['프로젝트 관리 시스템']
+      },
+      {
+        label: rightTitle,
+        sublabel: 'Goal Management',
+        items: rightItems.length > 0 ? rightItems : ['목표 관리 시스템']
+      }
+    )
+    return diagramHTML
+  } catch (error) {
+    console.error('❌ 원형 비교 렌더링 실패:', error)
+    return renderStandardSection(text)
+  }
+}
+
+/**
+ * 수평 타임라인 섹션 렌더링 (단계별 수평 박스)
+ *
+ * Phase 1 → Phase 2 → Phase 3 스타일
+ */
+function renderHorizontalTimelineSection(title: string, text: string): string {
+  console.log(`  ➡️ 수평 타임라인 렌더링: "${title}"`)
+
+  const lines = text.split('\n').filter(line => line.trim())
+
+  // Phase/단계 추출
+  const phases: Array<{ title: string; duration?: string; items: string[] }> = []
+  let currentPhase: { title: string; duration?: string; items: string[] } | null = null
+
+  lines.forEach(line => {
+    // Phase 제목 감지 (예: "1단계:", "Phase 1:", "**1Q:**")
+    const phaseMatch = line.match(/^(\d+단계|\d+Q|Phase\s*\d+|Step\s*\d+)[:：\s]/i)
+
+    if (phaseMatch) {
+      // 이전 Phase 저장
+      if (currentPhase && currentPhase.items.length > 0) {
+        phases.push(currentPhase)
+      }
+
+      // 새 Phase 시작
+      currentPhase = {
+        title: phaseMatch[1],
+        items: []
+      }
+
+      // 제목 라인의 나머지 부분을 첫 번째 항목으로
+      const remainder = line.substring(phaseMatch[0].length).trim()
+      if (remainder) {
+        currentPhase.items.push(remainder)
+      }
+    } else if (currentPhase) {
+      // 현재 Phase에 항목 추가
+      const cleanLine = line.replace(/^(\d+\.|[-*•])\s*/, '').trim()
+      if (cleanLine) {
+        currentPhase.items.push(cleanLine)
+      }
+    } else {
+      // Phase 없이 시작된 경우 첫 Phase 생성
+      if (phases.length === 0) {
+        currentPhase = {
+          title: '1단계',
+          items: [line.replace(/^(\d+\.|[-*•])\s*/, '').trim()]
+        }
+      }
+    }
+  })
+
+  // 마지막 Phase 저장 (명시적 타입 단언)
+  if (currentPhase) {
+    const finalPhase: { title: string; duration?: string; items: string[] } = currentPhase
+    if (finalPhase.items.length > 0) {
+      phases.push(finalPhase)
+    }
+  }
+
+  // Phase가 없으면 폴백
+  if (phases.length === 0) {
+    return renderStandardSection(text)
+  }
+
+  try {
+    const diagramHTML = generateHorizontalTimeline(phases)
+    return diagramHTML
+  } catch (error) {
+    console.error('❌ 수평 타임라인 렌더링 실패:', error)
+    return renderStandardSection(text)
+  }
 }
