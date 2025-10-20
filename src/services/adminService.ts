@@ -364,7 +364,7 @@ export class AdminService {
         .from('projects')
         .select(`
           *,
-          owner:profiles!projects_owner_id_fkey(*)
+          owner:profiles!projects_created_by_fkey(*)
         `, { count: 'exact' })
         .order('updated_at', { ascending: false })
         .range(from, to)
