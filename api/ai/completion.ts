@@ -2,10 +2,100 @@
 // 프론트엔드에서 직접 API 키에 접근할 수 없으므로 서버사이드에서 처리
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { createClient } from '@supabase/supabase-js'
 
 // 🔥 Vercel Serverless Function 최대 실행 시간 설정 (초 단위)
 export const config = {
   maxDuration: 180, // 3분 (큰 문서 분석을 위한 충분한 시간)
+}
+
+// Supabase Service Client 생성 함수 (사용량 기록용)
+function createSupabaseServiceClient() {
+  const supabaseUrl = process.env['SUPABASE_URL']
+  const supabaseServiceKey = process.env['SUPABASE_SERVICE_ROLE_KEY']
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    console.warn('⚠️ Supabase 환경 변수가 설정되지 않았습니다. API 사용량 기록을 건너뜁니다.')
+    return null
+  }
+
+  return createClient(supabaseUrl, supabaseServiceKey)
+}
+
+// userId 추출 함수 (Authorization 헤더에서)
+async function extractUserId(authHeader: string | undefined, supabase: any): Promise<string | null> {
+  if (!authHeader || !authHeader.startsWith('Bearer ') || !supabase) {
+    return null
+  }
+
+  try {
+    const token = authHeader.substring(7)
+    const { data: { user }, error } = await supabase.auth.getUser(token)
+
+    if (error || !user) {
+      console.warn('⚠️ 인증 토큰 검증 실패:', error?.message)
+      return null
+    }
+
+    return user.id
+  } catch (error) {
+    console.error('❌ userId 추출 오류:', error)
+    return null
+  }
+}
+
+// API 사용량 기록 함수
+async function recordApiUsage(
+  userId: string,
+  provider: string,
+  model: string,
+  inputTokens: number,
+  outputTokens: number,
+  cost: number
+) {
+  try {
+    const supabase = createSupabaseServiceClient()
+    if (!supabase) {
+      console.warn('⚠️ Supabase 클라이언트 없음. API 사용량 기록 건너뜀.')
+      return
+    }
+
+    const now = new Date()
+    const date = now.toISOString().split('T')[0]
+    const hour = now.getHours()
+
+    const { error } = await supabase
+      .from('user_api_usage')
+      .insert({
+        user_id: userId,
+        api_provider: provider,
+        date: date,
+        hour: hour,
+        model: model,
+        request_count: 1,
+        input_tokens: inputTokens,
+        output_tokens: outputTokens,
+        total_tokens: inputTokens + outputTokens,
+        cost: cost,
+        response_time_ms: 0, // 응답 시간은 별도로 측정 가능
+        success: true,
+        endpoint: '/api/ai/completion',
+        created_at: now.toISOString()
+      })
+
+    if (error) {
+      console.error('❌ API 사용량 기록 오류:', error)
+    } else {
+      console.log('✅ API 사용량 기록 성공:', {
+        userId,
+        model,
+        cost: cost.toFixed(6),
+        tokens: inputTokens + outputTokens
+      })
+    }
+  } catch (error) {
+    console.error('❌ API 사용량 기록 중 예외:', error)
+  }
 }
 
 interface CompletionRequest {
@@ -58,8 +148,13 @@ export default async function handler(
       userAgent: req.headers['user-agent'],
       hasBody: !!req.body,
       contentType: req.headers['content-type'],
-      bodySize: req.body ? JSON.stringify(req.body).length : 0
+      bodySize: req.body ? JSON.stringify(req.body).length : 0,
+      hasAuth: !!req.headers.authorization
     })
+
+    // 🔥 userId 추출 (API 사용량 기록을 위해)
+    const supabase = createSupabaseServiceClient()
+    const userId = await extractUserId(req.headers.authorization, supabase)
 
     const { provider, model, prompt, maxTokens, temperature, topP }: CompletionRequest = req.body
 
@@ -139,6 +234,21 @@ export default async function handler(
     }
 
     console.log(`✅ [Vercel API] AI 응답 완료: ${response.usage.totalTokens} 토큰, $${response.cost.totalCost.toFixed(4)}`)
+
+    // 🔥 API 사용량 기록 (userId가 있는 경우에만)
+    if (userId) {
+      await recordApiUsage(
+        userId,
+        provider,
+        model,
+        response.usage.inputTokens,
+        response.usage.outputTokens,
+        response.cost.totalCost
+      )
+    } else {
+      console.warn('⚠️ userId가 없어 API 사용량을 기록하지 못했습니다. Authorization 헤더를 확인하세요.')
+    }
+
     return res.status(200).json(response)
 
   } catch (error) {

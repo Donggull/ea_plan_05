@@ -84,12 +84,24 @@ export class ProposalEnhancementService {
       // 2. 보강 프롬프트 생성
       const enhancementPrompt = this.generateEnhancementPrompt(params)
 
-      // 3. AI API 호출
+      // 3. AI API 호출 (Authorization 헤더 포함)
+      // 🔥 현재 사용자의 JWT 토큰 가져오기
+      const { data: { session } } = await supabase.auth.getSession()
+      const authToken = session?.access_token
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+      }
+
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`
+      } else {
+        console.warn('⚠️ Authorization 토큰이 없습니다. API 사용량이 기록되지 않을 수 있습니다.')
+      }
+
       const response = await fetch('/api/ai/completion', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers,
         body: JSON.stringify({
           prompt: enhancementPrompt,
           provider: params.aiProvider || 'anthropic',

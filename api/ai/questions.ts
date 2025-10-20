@@ -4,6 +4,95 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 
+// Supabase Service Client 생성 함수 (사용량 기록용)
+function createSupabaseServiceClient() {
+  const supabaseUrl = process.env['SUPABASE_URL']
+  const supabaseServiceKey = process.env['SUPABASE_SERVICE_ROLE_KEY']
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    console.warn('⚠️ Supabase 환경 변수가 설정되지 않았습니다. API 사용량 기록을 건너뜁니다.')
+    return null
+  }
+
+  return createClient(supabaseUrl, supabaseServiceKey)
+}
+
+// userId 추출 함수 (Authorization 헤더에서)
+async function extractUserId(authHeader: string | undefined, supabase: any): Promise<string | null> {
+  if (!authHeader || !authHeader.startsWith('Bearer ') || !supabase) {
+    return null
+  }
+
+  try {
+    const token = authHeader.substring(7)
+    const { data: { user }, error } = await supabase.auth.getUser(token)
+
+    if (error || !user) {
+      console.warn('⚠️ 인증 토큰 검증 실패:', error?.message)
+      return null
+    }
+
+    return user.id
+  } catch (error) {
+    console.error('❌ userId 추출 오류:', error)
+    return null
+  }
+}
+
+// API 사용량 기록 함수
+async function recordApiUsage(
+  userId: string,
+  provider: string,
+  model: string,
+  inputTokens: number,
+  outputTokens: number,
+  cost: number
+) {
+  try {
+    const supabase = createSupabaseServiceClient()
+    if (!supabase) {
+      console.warn('⚠️ Supabase 클라이언트 없음. API 사용량 기록 건너뜀.')
+      return
+    }
+
+    const now = new Date()
+    const date = now.toISOString().split('T')[0]
+    const hour = now.getHours()
+
+    const { error } = await supabase
+      .from('user_api_usage')
+      .insert({
+        user_id: userId,
+        api_provider: provider,
+        date: date,
+        hour: hour,
+        model: model,
+        request_count: 1,
+        input_tokens: inputTokens,
+        output_tokens: outputTokens,
+        total_tokens: inputTokens + outputTokens,
+        cost: cost,
+        response_time_ms: 0,
+        success: true,
+        endpoint: '/api/ai/questions',
+        created_at: now.toISOString()
+      })
+
+    if (error) {
+      console.error('❌ API 사용량 기록 오류:', error)
+    } else {
+      console.log('✅ API 사용량 기록 성공:', {
+        userId,
+        model,
+        cost: cost.toFixed(6),
+        tokens: inputTokens + outputTokens
+      })
+    }
+  } catch (error) {
+    console.error('❌ API 사용량 기록 중 예외:', error)
+  }
+}
+
 interface QuestionRequest {
   provider: 'openai' | 'anthropic' | 'google'
   model: string
@@ -116,6 +205,10 @@ export default async function handler(
   }
 
   try {
+    // 🔥 userId 추출 (API 사용량 기록을 위해)
+    const supabase = createSupabaseServiceClient()
+    const userId = await extractUserId(req.headers.authorization, supabase)
+
     // 인증 토큰 추출 및 검증
     const authHeader = req.headers.authorization
     let authToken: string | undefined
@@ -126,8 +219,8 @@ export default async function handler(
 
       try {
         // Supabase 클라이언트로 인증 검증
-        const supabase = createServerSupabaseClient(authToken)
-        const { data: { user }, error } = await supabase.auth.getUser()
+        const supabaseAuth = createServerSupabaseClient(authToken)
+        const { data: { user }, error } = await supabaseAuth.auth.getUser()
 
         if (error || !user) {
           console.error('인증 검증 실패:', error)
@@ -227,6 +320,21 @@ export default async function handler(
     }
 
     console.log(`✅ [AI Questions API] 질문 생성 완료: ${questions.length}개 질문, $${response.cost.totalCost.toFixed(4)}`)
+
+    // 🔥 API 사용량 기록 (userId가 있는 경우에만)
+    if (userId) {
+      await recordApiUsage(
+        userId,
+        requestBody.provider,
+        requestBody.model,
+        aiResponse.usage.inputTokens,
+        aiResponse.usage.outputTokens,
+        aiResponse.cost.totalCost
+      )
+    } else {
+      console.warn('⚠️ userId가 없어 API 사용량을 기록하지 못했습니다. Authorization 헤더를 확인하세요.')
+    }
+
     return res.status(200).json(response)
 
   } catch (error) {
