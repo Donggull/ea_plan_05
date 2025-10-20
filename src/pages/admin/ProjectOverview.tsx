@@ -292,7 +292,7 @@ function ProjectOverviewPage() {
           <table className="w-full">
             <thead className="border-b border-border-secondary">
               <tr>
-                <th className="text-left p-4">
+                <th className="text-left p-4 w-12">
                   <input
                     type="checkbox"
                     checked={selectedProjects.length === projects.length && projects.length > 0}
@@ -306,13 +306,13 @@ function ProjectOverviewPage() {
                     className="rounded"
                   />
                 </th>
-                <th className="text-left p-4 text-text-secondary font-medium">프로젝트</th>
-                <th className="text-left p-4 text-text-secondary font-medium">소유자</th>
-                <th className="text-left p-4 text-text-secondary font-medium">상태</th>
-                <th className="text-left p-4 text-text-secondary font-medium">유형</th>
-                <th className="text-left p-4 text-text-secondary font-medium">멤버/문서</th>
-                <th className="text-left p-4 text-text-secondary font-medium">마지막 활동</th>
-                <th className="text-right p-4 text-text-secondary font-medium">작업</th>
+                <th className="text-left p-4 text-text-secondary font-medium min-w-[250px]">프로젝트</th>
+                <th className="text-left p-4 text-text-secondary font-medium w-[180px]">소유자</th>
+                <th className="text-left p-4 text-text-secondary font-medium w-[100px]">상태</th>
+                <th className="text-left p-4 text-text-secondary font-medium w-[100px]">유형</th>
+                <th className="text-left p-4 text-text-secondary font-medium w-[100px]">멤버/문서</th>
+                <th className="text-left p-4 text-text-secondary font-medium w-[120px]">마지막 활동</th>
+                <th className="text-right p-4 text-text-secondary font-medium w-[180px]">작업</th>
               </tr>
             </thead>
             <tbody>
@@ -339,7 +339,7 @@ function ProjectOverviewPage() {
                   const typeInfo = getProjectTypeInfo(project.project_types?.[0] || 'other')
                   return (
                     <tr key={project.id} className="border-b border-border-secondary hover:bg-bg-secondary">
-                      <td className="p-4">
+                      <td className="p-4 w-12">
                         <input
                           type="checkbox"
                           checked={selectedProjects.includes(project.id)}
@@ -353,24 +353,24 @@ function ProjectOverviewPage() {
                           className="rounded"
                         />
                       </td>
-                      <td className="p-4">
+                      <td className="p-4 min-w-[250px]">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 bg-primary-500 rounded-lg flex items-center justify-center text-white font-medium">
                             {typeInfo.icon}
                           </div>
-                          <div>
-                            <div className="font-medium text-text-primary">{project.name}</div>
-                            <div className="text-sm text-text-secondary">{project.description}</div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-text-primary truncate">{project.name}</div>
+                            <div className="text-sm text-text-secondary truncate">{project.description}</div>
                           </div>
                         </div>
                       </td>
-                      <td className="p-4">
+                      <td className="p-4 w-[180px]">
                         <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 bg-primary-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                          <div className="w-8 h-8 bg-primary-500 rounded-full flex items-center justify-center text-white text-sm font-medium flex-shrink-0">
                             {project.owner.full_name?.charAt(0) || project.owner.email.charAt(0).toUpperCase()}
                           </div>
-                          <div>
-                            <div className="text-sm font-medium text-text-primary">
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-text-primary truncate">
                               {project.owner.full_name || '이름 없음'}
                             </div>
                             <UserRoleBadge
@@ -381,32 +381,32 @@ function ProjectOverviewPage() {
                           </div>
                         </div>
                       </td>
-                      <td className="p-4">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>
+                      <td className="p-4 w-[100px]">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${statusInfo.color}`}>
                           {statusInfo.label}
                         </span>
                       </td>
-                      <td className="p-4">
-                        <span className="text-sm text-text-primary">
+                      <td className="p-4 w-[100px]">
+                        <span className="text-sm text-text-primary whitespace-nowrap">
                           {typeInfo.label}
                         </span>
                       </td>
-                      <td className="p-4">
+                      <td className="p-4 w-[100px]">
                         <div className="text-sm text-text-primary space-y-1">
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1 whitespace-nowrap">
                             <Users className="w-3 h-3 text-text-tertiary" />
                             {project.member_count}명
                           </div>
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1 whitespace-nowrap">
                             <FileText className="w-3 h-3 text-text-tertiary" />
                             {project.document_count}개
                           </div>
                         </div>
                       </td>
-                      <td className="p-4 text-sm text-text-secondary">
+                      <td className="p-4 w-[120px] text-sm text-text-secondary whitespace-nowrap">
                         {project.last_activity ? formatDate(project.last_activity) : '-'}
                       </td>
-                      <td className="p-4">
+                      <td className="p-4 w-[180px]">
                         <div className="flex items-center gap-2 justify-end">
                           <Button size="sm" variant="secondary">
                             <Eye className="w-4 h-4" />
