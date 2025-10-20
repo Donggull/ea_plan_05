@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { UserService } from '@/services/userService'
 import { UserRoleBadge } from '@/components/common/UserRoleBadge'
 import { ApiUsageProgress } from '@/components/common/ApiUsageProgress'
+import { UserRoleEditModal } from '@/components/admin/UserRoleEditModal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card } from '@/components/ui/Card'
@@ -35,6 +36,8 @@ function UserManagementPage() {
     isActive: ''
   })
   const [stats, setStats] = useState<Record<string, number>>({})
+  const [editModalOpen, setEditModalOpen] = useState(false)
+  const [selectedUser, setSelectedUser] = useState<Profile | null>(null)
 
   const pageSize = 20
 
@@ -90,6 +93,22 @@ function UserManagementPage() {
       fetchStats()
     } catch (error) {
       console.error('Error bulk updating roles:', error)
+    }
+  }
+
+  const handleEditUser = (user: Profile) => {
+    setSelectedUser(user)
+    setEditModalOpen(true)
+  }
+
+  const handleSaveUserRole = async (userId: string, role: UserRole, level: UserLevel | null) => {
+    try {
+      await UserService.updateUserRole(userId, role, level)
+      await fetchUsers()
+      await fetchStats()
+    } catch (error) {
+      console.error('Error updating user role:', error)
+      throw error
     }
   }
 
@@ -374,13 +393,18 @@ function UserManagementPage() {
                     </td>
                     <td className="p-4">
                       <div className="flex items-center gap-2 justify-end">
-                        <Button size="sm" variant="secondary">
+                        <Button size="sm" variant="secondary" title="상세 보기">
                           <Eye className="w-4 h-4" />
                         </Button>
-                        <Button size="sm" variant="secondary">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => handleEditUser(user)}
+                          title="등급 수정"
+                        >
                           <Edit className="w-4 h-4" />
                         </Button>
-                        <Button size="sm" variant="secondary">
+                        <Button size="sm" variant="secondary" title="더보기">
                           <MoreVertical className="w-4 h-4" />
                         </Button>
                       </div>
@@ -422,6 +446,17 @@ function UserManagementPage() {
           </div>
         )}
       </Card>
+
+      {/* 등급 수정 모달 */}
+      <UserRoleEditModal
+        isOpen={editModalOpen}
+        onClose={() => {
+          setEditModalOpen(false)
+          setSelectedUser(null)
+        }}
+        user={selectedUser}
+        onSave={handleSaveUserRole}
+      />
     </div>
   )
 }
