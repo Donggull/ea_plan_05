@@ -160,16 +160,22 @@ export class AdminService {
         throw new Error('Supabase client not initialized')
       }
 
-      // 이번 달 시작일
+      // 이번 달 시작일과 다음 달 시작일 (범위 쿼리용)
       const firstDayOfMonth = new Date()
       firstDayOfMonth.setDate(1)
+      firstDayOfMonth.setHours(0, 0, 0, 0)
       const monthStart = firstDayOfMonth.toISOString().split('T')[0]
+
+      const nextMonth = new Date(firstDayOfMonth)
+      nextMonth.setMonth(nextMonth.getMonth() + 1)
+      const monthEnd = nextMonth.toISOString().split('T')[0]
 
       // 이번 달 API 사용량 데이터 조회
       const { data: usageData, error: usageError } = await supabase
         .from('user_api_usage')
         .select('cost')
         .gte('date', monthStart)
+        .lt('date', monthEnd)
 
       if (usageError) {
         console.warn('API usage data query failed:', usageError)
@@ -262,16 +268,22 @@ export class AdminService {
         throw new Error('Supabase client not initialized')
       }
 
-      // 이번 달 시작일
+      // 이번 달 시작일과 다음 달 시작일 (범위 쿼리용)
       const firstDayOfMonth = new Date()
       firstDayOfMonth.setDate(1)
+      firstDayOfMonth.setHours(0, 0, 0, 0)
       const monthStart = firstDayOfMonth.toISOString().split('T')[0]
+
+      const nextMonth = new Date(firstDayOfMonth)
+      nextMonth.setMonth(nextMonth.getMonth() + 1)
+      const monthEnd = nextMonth.toISOString().split('T')[0]
 
       // 이번 달 사용된 AI 모델 데이터 조회
       const { data: usageData, error: usageError } = await supabase
         .from('user_api_usage')
         .select('model, cost, total_tokens')
         .gte('date', monthStart)
+        .lt('date', monthEnd)
 
       if (usageError) throw usageError
 

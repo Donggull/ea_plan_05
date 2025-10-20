@@ -53,11 +53,18 @@ export class ApiQuotaService {
     }
 
     // 월간 사용량 조회
+    // date 타입 컬럼이므로 LIKE 대신 범위 쿼리 사용
+    const monthStart = `${currentMonth}-01` // 예: '2025-09-01'
+    const nextMonthDate = new Date(monthStart)
+    nextMonthDate.setMonth(nextMonthDate.getMonth() + 1)
+    const monthEnd = nextMonthDate.toISOString().split('T')[0] // 예: '2025-10-01'
+
     const { data: monthlyUsage, error: monthlyError } = await supabase
       .from('user_api_usage')
       .select('request_count, total_tokens, cost')
       .eq('user_id', userId)
-      .like('date', `${currentMonth}%`)
+      .gte('date', monthStart)
+      .lt('date', monthEnd)
 
     if (monthlyError) {
       console.error('Error fetching monthly usage:', monthlyError)
