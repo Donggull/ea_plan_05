@@ -436,10 +436,23 @@ export class ProposalDataManager {
         }
       }
 
-      // 전체 진행률 계산
-      const totalSteps = steps.length
-      const completedSteps = Object.values(stepResults).filter((s: any) => s.status === 'completed').length
-      const overallProgress = (completedSteps / totalSteps) * 100
+      // 🔥 수정: 실제로 진행 중이거나 완료된 단계만 진행률 계산에 포함
+      // 질문이 생성되었어도 답변이 하나도 없으면 사용자가 스킵하려는 단계로 간주
+      // 따라서 답변이 있거나 분석이 완료된 단계만 활성 단계로 간주
+      const activeSteps = steps.filter(step => {
+        const result = stepResults[step]
+        // 답변이 하나라도 있거나, 분석이 완료된 단계만 활성 단계로 간주
+        return result.questionsAnswered > 0 || result.hasAnalysis
+      })
+
+      // 전체 진행률 계산 - 활성 단계만을 기준으로 계산
+      const completedSteps = Object.entries(stepResults)
+        .filter(([step]) => activeSteps.includes(step as WorkflowStep))
+        .filter(([_, result]: any) => result.status === 'completed').length
+
+      const overallProgress = activeSteps.length > 0
+        ? (completedSteps / activeSteps.length) * 100
+        : 0
 
       // 현재 단계 계산
       const currentStep = steps.find(step => stepResults[step].status === 'in_progress') ||

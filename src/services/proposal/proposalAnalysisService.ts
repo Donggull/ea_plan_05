@@ -2054,10 +2054,34 @@ export class ProposalAnalysisService {
 
       for (const step of allSteps) {
         const completion = await ProposalDataManager.getStepCompletionStatus(projectId, step)
-        const analysis = await ProposalDataManager.getAnalysis(projectId, step, 'integrated_analysis')
+
+        // 🔥 수정: 단계별로 적절한 analysis_type 확인
+        let analysis: any[]
+        let analysisCompleted = false
+
+        if (step === 'proposal') {
+          // 제안서 단계는 proposal_draft 또는 template_proposal이 완료되면 완료로 간주
+          const proposalDraft = await ProposalDataManager.getAnalysis(projectId, step, 'proposal_draft')
+          const templateProposal = await ProposalDataManager.getAnalysis(projectId, step, 'template_proposal')
+
+          // proposal_draft가 있으면 우선, 없으면 template_proposal 사용
+          if (proposalDraft.length > 0 && proposalDraft[0].status === 'completed') {
+            analysis = proposalDraft
+            analysisCompleted = true
+          } else if (templateProposal.length > 0 && templateProposal[0].status === 'completed') {
+            analysis = templateProposal
+            analysisCompleted = true
+          } else {
+            analysis = []
+            analysisCompleted = false
+          }
+        } else {
+          // 다른 단계는 기존처럼 integrated_analysis 확인
+          analysis = await ProposalDataManager.getAnalysis(projectId, step, 'integrated_analysis')
+          analysisCompleted = analysis.length > 0
+        }
 
         const questionsCompleted = completion.isCompleted
-        const analysisCompleted = analysis.length > 0
 
         stepDetails[step] = {
           questionsCompleted,
@@ -2070,6 +2094,20 @@ export class ProposalAnalysisService {
         }
       }
 
+      // 🔥 수정: 실제로 진행 중이거나 완료된 단계만 진행률 계산에 포함
+      // 질문이 생성되었어도 답변이 하나도 없으면 사용자가 스킵하려는 단계로 간주
+      // 따라서 답변이 있거나 분석이 완료된 단계만 활성 단계로 간주
+      const activeSteps: WorkflowStep[] = []
+      for (const step of allSteps) {
+        const completion = await ProposalDataManager.getStepCompletionStatus(projectId, step)
+        const analysis = await ProposalDataManager.getAnalysis(projectId, step)
+
+        // 답변이 하나라도 있거나, 분석이 완료된 단계만 활성 단계로 간주
+        if (completion.answeredQuestions > 0 || analysis.length > 0) {
+          activeSteps.push(step)
+        }
+      }
+
       const currentStep = allSteps.find(step =>
         stepDetails[step].questionsCompleted && !stepDetails[step].analysisCompleted
       ) || allSteps.find(step => !stepDetails[step].questionsCompleted)
@@ -2077,7 +2115,11 @@ export class ProposalAnalysisService {
       const nextStepIndex = completedSteps.length
       const nextStep = nextStepIndex < allSteps.length ? allSteps[nextStepIndex] : null
 
-      const overallProgress = (completedSteps.length / allSteps.length) * 100
+      // 🔥 수정: 활성 단계만을 기준으로 진행률 계산
+      // activeSteps가 0이면 (아직 질문 생성 전) 0%로 표시
+      const overallProgress = activeSteps.length > 0
+        ? (completedSteps.length / activeSteps.length) * 100
+        : 0
 
       return {
         currentStep: currentStep || null,
