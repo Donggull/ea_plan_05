@@ -471,6 +471,26 @@ export class ProposalTemplateService {
     content: string,
     sectionType: string
   ): string {
+    // 🔥 수정: 이미 구조화된 HTML이면 그대로 사용
+    // template_proposal 데이터는 이미 프레젠테이션용 HTML 구조를 가지고 있음
+    const hasStructuredHtml = content.includes('class="') && (
+      content.includes('problem-section') ||
+      content.includes('solution-grid') ||
+      content.includes('enhanced-list') ||
+      content.includes('stats-container') ||
+      content.includes('timeline') ||
+      content.includes('tech-stack') ||
+      content.includes('comparison-section') ||
+      content.includes('category-groups') ||
+      content.includes('numbered-process') ||
+      content.includes('priority-list')
+    )
+
+    if (hasStructuredHtml) {
+      console.log('✅ 이미 구조화된 HTML 감지 - 그대로 사용')
+      return content
+    }
+
     // HTML 태그 제거 및 텍스트 추출
     const textContent = content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
 
