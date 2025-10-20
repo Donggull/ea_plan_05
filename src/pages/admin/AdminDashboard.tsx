@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { withPermission } from '@/lib/middleware/permissionCheck'
+import { AdminService, type AdminDashboardStats } from '@/services/adminService'
 import {
   Users,
   Folder,
@@ -17,41 +18,8 @@ import {
   Eye
 } from 'lucide-react'
 
-interface DashboardStats {
-  users: {
-    total: number
-    active: number
-    newThisMonth: number
-    adminCount: number
-  }
-  projects: {
-    total: number
-    active: number
-    newThisWeek: number
-    totalDocuments: number
-  }
-  apiUsage: {
-    totalRequests: number
-    totalCost: number
-    quotaExceeded: number
-    avgResponseTime: number
-  }
-  mcpServers: {
-    total: number
-    running: number
-    errors: number
-    totalRequests: number
-  }
-  aiModels: {
-    total: number
-    active: number
-    totalCost: number
-    totalTokens: number
-  }
-}
-
 function AdminDashboardPage() {
-  const [stats, setStats] = useState<DashboardStats>({
+  const [stats, setStats] = useState<AdminDashboardStats>({
     users: { total: 0, active: 0, newThisMonth: 0, adminCount: 0 },
     projects: { total: 0, active: 0, newThisWeek: 0, totalDocuments: 0 },
     apiUsage: { totalRequests: 0, totalCost: 0, quotaExceeded: 0, avgResponseTime: 0 },
@@ -67,43 +35,12 @@ function AdminDashboardPage() {
   const fetchDashboardStats = async () => {
     try {
       setLoading(true)
-      // Mock 데이터 - 실제로는 각 서비스에서 통계를 가져와야 함
-      const mockStats: DashboardStats = {
-        users: {
-          total: 245,
-          active: 198,
-          newThisMonth: 23,
-          adminCount: 8
-        },
-        projects: {
-          total: 67,
-          active: 45,
-          newThisWeek: 5,
-          totalDocuments: 432
-        },
-        apiUsage: {
-          totalRequests: 12450,
-          totalCost: 156.78,
-          quotaExceeded: 12,
-          avgResponseTime: 2.3
-        },
-        mcpServers: {
-          total: 6,
-          running: 4,
-          errors: 1,
-          totalRequests: 8934
-        },
-        aiModels: {
-          total: 8,
-          active: 6,
-          totalCost: 342.56,
-          totalTokens: 2456789
-        }
-      }
-
-      setStats(mockStats)
+      // ✅ 실제 DB에서 통계 데이터 조회
+      const dashboardStats = await AdminService.getDashboardStats()
+      setStats(dashboardStats)
+      console.log('✅ 대시보드 통계 조회 완료:', dashboardStats)
     } catch (error) {
-      console.error('Error fetching dashboard stats:', error)
+      console.error('❌ Error fetching dashboard stats:', error)
     } finally {
       setLoading(false)
     }

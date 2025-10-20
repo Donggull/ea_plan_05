@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card } from '@/components/ui/Card'
 import { withPermission } from '@/lib/middleware/permissionCheck'
+import { AdminService } from '@/services/adminService'
 import {
   Search,
   Folder,
@@ -57,87 +58,13 @@ function ProjectOverviewPage() {
   const fetchProjects = async () => {
     try {
       setLoading(true)
-      // 실제 프로젝트 데이터를 가져오는 API 호출
-      // 현재는 mock 데이터로 대체
-      const mockProjects: ProjectWithDetails[] = [
-        {
-          id: '1',
-          name: 'AI 챗봇 개발 프로젝트',
-          description: '고객 서비스용 AI 챗봇 개발',
-          status: 'active',
-          project_types: ['development'],
-          owner_id: 'user1',
-          created_at: '2024-01-15T10:00:00Z',
-          updated_at: '2024-01-20T15:30:00Z',
-          settings: {},
-          metadata: {},
-          budget_info: null,
-          client_info: null,
-          current_workflow_step: null,
-          end_date: null,
-          start_date: null,
-          workflow_config: null,
-          workflow_progress: 65,
-          owner: {
-            id: 'user1',
-            email: 'john@example.com',
-            full_name: '김철수',
-            role: 'admin',
-            user_level: 5,
-            is_active: true,
-            created_at: '2024-01-10T10:00:00Z',
-            updated_at: '2024-01-20T15:30:00Z',
-            metadata: {},
-            avatar_url: null,
-            last_login_at: null,
-            username: null
-          },
-          member_count: 5,
-          document_count: 12,
-          last_activity: '2024-01-20T15:30:00Z'
-        },
-        {
-          id: '2',
-          name: '웹사이트 리뉴얼',
-          description: '회사 홈페이지 전면 리뉴얼',
-          status: 'planning',
-          project_types: ['design'],
-          owner_id: 'user2',
-          created_at: '2024-01-18T14:00:00Z',
-          updated_at: '2024-01-22T09:15:00Z',
-          settings: {},
-          metadata: {},
-          budget_info: null,
-          client_info: null,
-          current_workflow_step: null,
-          end_date: null,
-          start_date: null,
-          workflow_config: null,
-          workflow_progress: 25,
-          owner: {
-            id: 'user2',
-            email: 'jane@example.com',
-            full_name: '이영희',
-            role: 'user',
-            user_level: 3,
-            is_active: true,
-            created_at: '2024-01-12T10:00:00Z',
-            updated_at: '2024-01-22T09:15:00Z',
-            metadata: {},
-            avatar_url: null,
-            last_login_at: null,
-            username: null
-          },
-          member_count: 3,
-          document_count: 8,
-          last_activity: '2024-01-22T09:15:00Z'
-        }
-      ]
-
-      setProjects(mockProjects)
-      setTotalCount(mockProjects.length)
+      // ✅ 실제 DB에서 프로젝트 데이터 조회 (소유자 정보 포함)
+      const result = await AdminService.getAllProjectsWithDetails(currentPage, pageSize)
+      setProjects(result.projects as any)
+      setTotalCount(result.totalCount)
+      console.log('✅ 프로젝트 조회 완료:', result.projects.length, '개')
     } catch (error) {
-      console.error('Error fetching projects:', error)
+      console.error('❌ Error fetching projects:', error)
     } finally {
       setLoading(false)
     }
@@ -145,15 +72,12 @@ function ProjectOverviewPage() {
 
   const fetchStats = async () => {
     try {
-      // 프로젝트 통계 가져오기
-      setStats({
-        totalProjects: 25,
-        activeProjects: 18,
-        totalMembers: 87,
-        totalDocuments: 234
-      })
+      // ✅ 실제 DB에서 프로젝트 통계 가져오기
+      const projectStats = await AdminService.getProjectStatsForAdmin()
+      setStats(projectStats)
+      console.log('✅ 프로젝트 통계 조회 완료:', projectStats)
     } catch (error) {
-      console.error('Error fetching stats:', error)
+      console.error('❌ Error fetching stats:', error)
     }
   }
 
