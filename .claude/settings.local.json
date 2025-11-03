@@ -18,7 +18,9 @@
       "Bash(npx tsc:*)",
       "mcp__supabase__apply_migration",
       "mcp__github-mcp__git-add-all",
-      "Bash(npm run dev)"
+      "Bash(npm run dev)",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__get-library-docs"
     ],
     "deny": [],
     "ask": []

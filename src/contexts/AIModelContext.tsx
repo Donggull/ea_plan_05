@@ -166,8 +166,8 @@ export function AIModelProvider({ children }: { children: React.ReactNode }) {
       }
 
       // 3. 저장된 모델이 없거나 유효하지 않으면 기본 모델 선택
-      // 1순위: Claude 4 Sonnet (claude-sonnet-4-20250514)
-      let defaultModel = models.find(m => m.model_id === 'claude-sonnet-4-20250514')
+      // 1순위: Claude Sonnet 4.5 (claude-sonnet-4-5-20250929)
+      let defaultModel = models.find(m => m.model_id === 'claude-sonnet-4-5-20250929')
 
       // 2순위: Claude 3 Sonnet (claude-3-5-sonnet-20241022)
       if (!defaultModel) {

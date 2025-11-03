@@ -190,34 +190,34 @@ export const anthropicLatestModels: LatestModelInfo[] = [
       context_window: 1000000
     }
   },
-  // Claude 4 Sonnet - Context7 MCP에서 확인한 균형잡힌 최신 모델
+  // Claude Sonnet 4.5 - Context7 MCP에서 확인한 최신 모델 (2025-09-29)
   {
-    id: 'anthropic-claude-sonnet-4',
-    name: 'Claude 4 Sonnet',
+    id: 'anthropic-claude-sonnet-4-5',
+    name: 'Claude Sonnet 4.5',
     provider: 'anthropic',
-    model_id: 'claude-sonnet-4-20250514',
+    model_id: 'claude-sonnet-4-5-20250929',
     status: 'active',
-    max_tokens: 1000000,  // 1M token context window
+    max_tokens: 200000,  // 200K token context window
     cost_per_input_token: 3 / 1000000,    // $3 per 1M tokens (표준)
     cost_per_output_token: 15 / 1000000,  // $15 per 1M tokens (표준)
-    capabilities: ['text', 'vision', 'function_calling', 'analysis', 'coding', 'extended_thinking'],
+    capabilities: ['text', 'vision', 'function_calling', 'analysis', 'coding', 'extended_thinking', 'latest_generation'],
     characteristics: {
-      speed: 'medium',
+      speed: 'fast',
       cost: 'medium',
       performance: 'excellent'
     },
     rate_limits: {
       requests_per_minute: 50,   // Context7에서 확인한 Tier 1 제한
-      tokens_per_minute: 30000   // ITPM 제한
+      tokens_per_minute: 40000   // ITPM 제한
     },
     metadata: {
-      description: 'Balanced Claude 4 model with extended thinking capabilities',
-      release_date: '2025-05-14',
+      description: 'Latest Claude Sonnet 4.5 model with best-in-class performance',
+      release_date: '2025-09-29',
       vision_capable: true,
       function_calling: true,
       coding_capability: 'excellent',
       extended_thinking: true,
-      context_window: 1000000,
+      context_window: 200000,
       latest_generation: true
     }
   },
@@ -484,6 +484,6 @@ export const getRecommendedModels = (): {
     fastest: allLatestModels.find(m => m.id === 'anthropic-claude-haiku-3-5') || allLatestModels[0],  // 가장 빠른 응답
     cheapest: allLatestModels.find(m => m.id === 'anthropic-claude-haiku-3') || allLatestModels[0],   // 가장 저렴한 비용
     best_performance: allLatestModels.find(m => m.id === 'anthropic-claude-opus-4') || allLatestModels[0], // 최고 성능
-    balanced: allLatestModels.find(m => m.id === 'anthropic-claude-sonnet-4') || allLatestModels[0]   // 균형잡힌 성능/비용
+    balanced: allLatestModels.find(m => m.id === 'anthropic-claude-sonnet-4-5') || allLatestModels[0]   // 균형잡힌 성능/비용
   }
 }

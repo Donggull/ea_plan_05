@@ -1552,7 +1552,7 @@ export class PreAnalysisService {
 
     // 기본 설정 (catch 블록에서도 접근 가능하도록 함수 시작 부분에 정의)
     let settings = {
-      aiModel: 'claude-sonnet-4-20250514',
+      aiModel: 'claude-sonnet-4-5-20250929',
       aiProvider: 'anthropic' as string
     };
 
@@ -3250,7 +3250,7 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
           const getPricing = (): { inputCost: number; outputCost: number } => {
             if (provider === 'anthropic') {
               const pricing: Record<string, { inputCost: number; outputCost: number }> = {
-                'claude-sonnet-4-20250514': { inputCost: 3, outputCost: 15 },
+                'claude-sonnet-4-5-20250929': { inputCost: 3, outputCost: 15 },
                 'claude-3-5-sonnet-20241022': { inputCost: 3, outputCost: 15 },
                 'claude-3-haiku-20240307': { inputCost: 0.25, outputCost: 1.25 }
               }

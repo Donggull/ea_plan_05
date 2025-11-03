@@ -601,7 +601,7 @@ function estimateTokens(text: string, provider: string): number {
 // 가격 정보 함수들
 function getAnthropicPricing(model: string): { inputCost: number; outputCost: number } {
   const pricing: Record<string, { inputCost: number; outputCost: number }> = {
-    'claude-sonnet-4-20250514': { inputCost: 3, outputCost: 15 },
+    'claude-sonnet-4-5-20250929': { inputCost: 3, outputCost: 15 },
     'claude-3-5-sonnet-20241022': { inputCost: 3, outputCost: 15 },
     'claude-3-5-haiku-20241022': { inputCost: 0.8, outputCost: 4 },
     'claude-3-opus-20240229': { inputCost: 15, outputCost: 75 },

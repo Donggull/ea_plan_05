@@ -295,14 +295,14 @@ export class AnthropicProvider extends AIProvider {
   async getModels(): Promise<AIModel[]> {
     return [
       {
-        id: 'anthropic-claude-4-sonnet',
-        name: 'Claude 4 Sonnet',
+        id: 'anthropic-claude-sonnet-4-5',
+        name: 'Claude Sonnet 4.5',
         provider: 'anthropic',
-        model_id: 'claude-sonnet-4-20250514',
+        model_id: 'claude-sonnet-4-5-20250929',
         cost_per_input_token: 0.003,
         cost_per_output_token: 0.015,
         status: 'active',
-        capabilities: ['text', 'analysis', 'reasoning', 'coding', 'latest_generation'],
+        capabilities: ['text', 'analysis', 'reasoning', 'coding', 'latest_generation', 'extended_thinking'],
         max_tokens: 200000,
         available: true
       },
@@ -335,7 +335,7 @@ export class AnthropicProvider extends AIProvider {
 
   private getModelPricing(model: string): { inputCost: number; outputCost: number } {
     const pricing: Record<string, { inputCost: number; outputCost: number }> = {
-      'claude-sonnet-4-20250514': { inputCost: 3, outputCost: 15 },
+      'claude-sonnet-4-5-20250929': { inputCost: 3, outputCost: 15 },
       'claude-3-5-sonnet-20241022': { inputCost: 3, outputCost: 15 },
       'claude-3-opus-20240229': { inputCost: 15, outputCost: 75 },
       'claude-3-haiku-20240307': { inputCost: 0.25, outputCost: 1.25 }

@@ -544,7 +544,7 @@ export const PreAnalysisPanel = forwardRef<PreAnalysisPanelRef, PreAnalysisPanel
                           )}
                         </div>
                         <p className="text-text-secondary text-sm mb-3">
-                          {selectedModel?.provider || 'anthropic'} • {selectedModel?.model_id || 'claude-sonnet-4-20250514'}
+                          {selectedModel?.provider || 'anthropic'} • {selectedModel?.model_id || 'claude-sonnet-4-5-20250929'}
                         </p>
                         {selectedModel?.metadata?.['description'] && (
                           <p className="text-text-muted text-xs">

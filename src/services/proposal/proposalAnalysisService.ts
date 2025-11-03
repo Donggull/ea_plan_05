@@ -855,7 +855,7 @@ export class ProposalAnalysisService {
       console.log('⚠️ 모델이 선택되지 않음, 기본 모델 사용')
       return {
         provider: 'anthropic',
-        model_id: 'claude-sonnet-4-20250514'
+        model_id: 'claude-sonnet-4-5-20250929'
       }
 
     } catch (error) {
@@ -1513,7 +1513,7 @@ export class ProposalAnalysisService {
           const getPricing = (): { inputCost: number; outputCost: number } => {
             if (provider === 'anthropic') {
               const pricing: Record<string, { inputCost: number; outputCost: number }> = {
-                'claude-sonnet-4-20250514': { inputCost: 3, outputCost: 15 },
+                'claude-sonnet-4-5-20250929': { inputCost: 3, outputCost: 15 },
                 'claude-3-5-sonnet-20241022': { inputCost: 3, outputCost: 15 },
                 'claude-3-5-haiku-20241022': { inputCost: 0.8, outputCost: 4 },
                 'claude-3-opus-20240229': { inputCost: 15, outputCost: 75 },
