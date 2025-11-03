@@ -1808,7 +1808,7 @@ ${content}
 
 다음 JSON 형식으로 **정확하게** 출력하세요.
 
-\`\`\`json
+\\\`\\\`\\\`json
 {
   "summary": "문서 전체 요약 (최소 200자 이상, 프로젝트명, 목적, 범위, 핵심 특징, 기대효과 포함)",
 
@@ -1856,9 +1856,33 @@ ${content}
     "일정 정보 1 (구체적 날짜/기간, 예: '기획 2주(2025.3.1~3.14), 디자인 3주(3.15~4.4)')",
     "일정 정보 2 (예: '개발 8주(4.5~5.30), QA 2주(6.1~6.14), 오픈 6.15')",
     "최소 2개 이상. 없으면 '일정 정보 미확인 - 목표 오픈일 및 마일스톤 질문 필요'"
+  ],
+
+  "additionalInfoNeeded": [
+    {
+      "field": "technicalStack",
+      "currentInfo": "React 18 사용 확인됨",
+      "neededInfo": "상태관리 라이브러리(Zustand/Redux/Recoil), 라우터(React Router), 스타일링(Tailwind/Emotion/Styled-components), 빌드 도구(Vite/Webpack)",
+      "priority": "high",
+      "reason": "개발 아키텍처 설계 및 공수 산정에 필수"
+    },
+    {
+      "field": "timeline",
+      "currentInfo": "2025년 상반기 오픈 목표",
+      "neededInfo": "구체적 오픈 날짜(월/일), 기획/디자인/개발/QA 단계별 일정, 주요 마일스톤",
+      "priority": "high",
+      "reason": "프로젝트 일정 수립 및 인력 배치 계획에 필수"
+    }
   ]
 }
-\`\`\`
+\\\`\\\`\\\`
+
+**🔥 \`additionalInfoNeeded\` 필드 작성 가이드:**
+- **목적**: 문서에서 일부 확인되었으나 **상세 정보가 부족한 항목** 표시
+- **작성 조건**: 정보가 일부만 있거나 모호할 때만 포함
+- **우선순위**: high(필수), medium(권장), low(선택)
+- **field**: keyRequirements, stakeholders, constraints, risks, opportunities, technicalStack, timeline 중 하나
+- **필수 아님**: 모든 정보가 충분하면 빈 배열 [] 반환 가능
 
 ---
 
@@ -1886,6 +1910,17 @@ ${content}
 문서에 정보가 부족해도 **최소 개수는 반드시 채워야 합니다**.
 - ✅ 좋은 예: "예산 정보 미확인 - 예산 범위 및 배분 우선순위 질문 필요"
 - ❌ 나쁜 예: "미확인"
+
+### 5. 🔥 추가 보강 필요 항목 처리 (additionalInfoNeeded)
+**핵심 원칙**: 문서에서 일부 확인되었으나 **상세 정보가 부족한 경우** 반드시 표시
+- ✅ **완전 누락**: 기존 필드에 "미확인 - 질문 필요" 형태로 작성
+- ✅ **부분 정보**: additionalInfoNeeded 배열에 객체로 추가
+- ✅ **충분한 정보**: additionalInfoNeeded에 포함하지 않음 (빈 배열 가능)
+
+**작성 예시:**
+- ✅ 좋은 예: technicalStack에 "React 18" 있음 → additionalInfoNeeded에 상태관리/라우터 등 추가 필요 표시
+- ✅ 좋은 예: timeline에 "상반기" 있음 → additionalInfoNeeded에 구체적 날짜/단계별 일정 추가 필요 표시
+- ❌ 나쁜 예: 완전 누락된 정보를 additionalInfoNeeded에 표시 (기존 필드에 "미확인" 작성이 맞음)
 
 위 지침을 **모두 준수**하여 **JSON 형식으로만** 분석 결과를 출력하세요.`;
   }
@@ -3480,14 +3515,36 @@ ${documentContext.map((doc, index) =>
 `;
     }
 
-    // 🔥 미확인 항목이 있으면 우선 질문으로 추가
-    if (unclearItems.length > 0) {
-      prompt += `## ⚠️ 문서 분석에서 확인 필요한 항목 (${unclearItems.length}개)
-다음 항목들은 문서에서 명확하지 않아 반드시 질문으로 확인해야 합니다:
+    // 🔥 미확인 항목과 추가 보강 필요 항목 분리
+    const missingItems = unclearItems.filter(item => item.type === 'missing');
+    const incompleteItems = unclearItems.filter(item => item.type === 'incomplete');
 
-${unclearItems.map((item, index) => `${index + 1}. **${item.field}**: ${item.value}`).join('\n')}
+    if (missingItems.length > 0) {
+      prompt += `## ⚠️ 문서 분석에서 확인되지 않은 항목 (${missingItems.length}개)
+다음 항목들은 문서에서 **전혀 확인되지 않아** 반드시 질문으로 확인해야 합니다:
 
-→ **이 항목들에 대한 질문을 우선적으로 생성하세요.**
+${missingItems.map((item, index) =>
+  `${index + 1}. **${item.field}**: ${item.neededInfo}${item.reason ? ` (이유: ${item.reason})` : ''}`
+).join('\n')}
+
+→ **우선순위 1: 이 항목들에 대한 질문을 반드시 생성하세요.**
+
+`;
+    }
+
+    if (incompleteItems.length > 0) {
+      prompt += `## 🔍 추가 보강이 필요한 항목 (${incompleteItems.length}개)
+다음 항목들은 문서에서 **일부 확인**되었으나 상세 정보가 부족합니다:
+
+${incompleteItems.map((item, index) =>
+  `${index + 1}. **${item.field}**
+   - 현재 확인된 정보: ${item.currentInfo}
+   - 추가 필요 정보: ${item.neededInfo}
+   - 우선순위: ${item.priority}
+   ${item.reason ? `- 이유: ${item.reason}` : ''}`
+).join('\n\n')}
+
+→ **우선순위 2: 이 항목들의 상세 정보를 확인하는 질문을 생성하세요.**
 
 `;
     }
@@ -3556,8 +3613,10 @@ ${unclearItems.map((item, index) => `${index + 1}. **${item.field}**: ${item.val
 
 ## ⚠️ 필수 준수 지침
 
-### 1. 미확인 항목 우선 처리
-${unclearItems.length > 0 ? `- **최우선**: 위에 나열된 ${unclearItems.length}개 미확인 항목에 대한 질문 필수 생성` : '- 문서 분석 결과에서 누락된 정보를 확인하는 질문 생성'}
+### 1. 우선순위 기반 질문 생성
+${missingItems.length > 0 ? `- **우선순위 1 (필수)**: 위에 나열된 ${missingItems.length}개 확인되지 않은 항목에 대한 질문 필수 생성` : ''}
+${incompleteItems.length > 0 ? `- **우선순위 2 (권장)**: 위에 나열된 ${incompleteItems.length}개 추가 보강 필요 항목에 대한 상세 질문 생성` : ''}
+${missingItems.length === 0 && incompleteItems.length === 0 ? '- 문서 분석 결과에서 누락되거나 불충분한 정보를 확인하는 질문 생성' : ''}
 
 ### 2. 질문 품질 기준
 - ✅ **구체성**: 모호한 질문 금지 (예: "요구사항은?" ❌ → "회원가입 시 이메일 인증이 필요한가요?" ✅)
@@ -3589,17 +3648,32 @@ ${unclearItems.length > 0 ? `- **최우선**: 위에 나열된 ${unclearItems.le
   }
 
   /**
-   * 분석 결과에서 "미확인" 항목 추출
+   * 분석 결과에서 "미확인" 및 "추가 보강 필요" 항목 추출
    */
-  private extractUnclearItemsFromAnalyses(analyses: any[]): Array<{ field: string; value: string }> {
-    const unclearItems: Array<{ field: string; value: string }> = [];
+  private extractUnclearItemsFromAnalyses(analyses: any[]): Array<{
+    field: string;
+    type: 'missing' | 'incomplete';
+    currentInfo?: string;
+    neededInfo: string;
+    priority: 'high' | 'medium' | 'low';
+    reason?: string;
+  }> {
+    const items: Array<{
+      field: string;
+      type: 'missing' | 'incomplete';
+      currentInfo?: string;
+      neededInfo: string;
+      priority: 'high' | 'medium' | 'low';
+      reason?: string;
+    }> = [];
+
     const unclearKeywords = ['미확인', '없음', '명시되지 않음', '정보 없음', '질문 필요'];
 
     analyses.forEach(analysis => {
       const result = analysis.analysis_result;
       if (!result) return;
 
-      // 각 필드 검사
+      // 🔥 1단계: 완전히 누락된 정보 추출 (기존 로직)
       const fieldsToCheck = [
         { key: 'stakeholders', label: '이해관계자' },
         { key: 'constraints', label: '제약사항' },
@@ -3613,18 +3687,54 @@ ${unclearItems.length > 0 ? `- **최우선**: 위에 나열된 ${unclearItems.le
         const values = Array.isArray(result[key]) ? result[key] : [];
 
         values.forEach((value: string) => {
-          // 미확인 키워드가 포함되어 있으면 추가
+          // 미확인 키워드가 포함되어 있으면 추가 (완전 누락)
           if (unclearKeywords.some(keyword => value.includes(keyword))) {
-            unclearItems.push({
+            items.push({
               field: label,
-              value: value
+              type: 'missing',
+              neededInfo: value,
+              priority: 'high'
             });
           }
         });
       });
+
+      // 🔥 2단계: 추가 보강 필요 항목 추출 (신규)
+      if (result.additionalInfoNeeded && Array.isArray(result.additionalInfoNeeded)) {
+        result.additionalInfoNeeded.forEach((item: any) => {
+          if (item.field && item.neededInfo) {
+            // field를 한글 라벨로 매핑
+            const fieldMapping: Record<string, string> = {
+              'stakeholders': '이해관계자',
+              'constraints': '제약사항',
+              'risks': '위험 요소',
+              'opportunities': '기회 요소',
+              'technicalStack': '기술 스택',
+              'timeline': '일정 정보',
+              'keyRequirements': '핵심 요구사항',
+              'budget': '예산 정보'
+            };
+
+            items.push({
+              field: fieldMapping[item.field] || item.field,
+              type: 'incomplete',
+              currentInfo: item.currentInfo,
+              neededInfo: item.neededInfo,
+              priority: item.priority || 'medium',
+              reason: item.reason
+            });
+          }
+        });
+      }
     });
 
-    return unclearItems;
+    console.log('📊 추출된 미확인/보강필요 항목:', {
+      total: items.length,
+      missing: items.filter(item => item.type === 'missing').length,
+      incomplete: items.filter(item => item.type === 'incomplete').length
+    });
+
+    return items;
   }
 
   /**
