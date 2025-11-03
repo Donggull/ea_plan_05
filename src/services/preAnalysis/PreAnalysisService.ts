@@ -1699,14 +1699,14 @@ export class PreAnalysisService {
   private generateAnalysisPrompt(content: string, category?: DocumentCategory): string {
     const categoryContext = category ? `이 문서는 "${category}" 카테고리에 속하며, 해당 관점을 중심으로 분석해야 합니다.` : '';
 
-    return `# 📄 웹에이전시 엘루오씨앤씨 - 문서 분석
+    return `# 📄 웹에이전시 엘루오씨앤씨 - 문서 심층 분석
 
-당신은 **웹에이전시 엘루오씨앤씨**의 전문 문서 분석가입니다.
+당신은 **웹에이전시 엘루오씨앤씨**의 수석 프로젝트 분석가입니다.
 
 ## 🏢 회사 정보
 - **담당 업무**: 웹사이트 기획, UI/UX 디자인, 퍼블리싱 (HTML/CSS), 프론트엔드/백엔드 개발
 - **분석 목표**: 프로젝트 실행에 필요한 사실 기반 정보를 문서에서 최대한 상세히 추출
-- **핵심 원칙**: 사실만 추출, 추측 금지, 구체적 작성
+- **핵심 원칙**: 사실만 추출, 추측 금지, 구체적 작성, 실무 용어 사용
 
 ## 📋 문서 정보
 ${categoryContext}
@@ -1720,82 +1720,174 @@ ${content}
 
 ---
 
-## 🎯 분석 지침
+## 🎯 웹에이전시 실무 분석 체크리스트
 
-### 역할 정의
-웹에이전시 관점에서 다음 4가지 측면을 고려하여 분석하세요:
-1. **기획 관점**: 요구사항, 비즈니스 목표, 사용자 시나리오
-2. **디자인 관점**: UI/UX, 디자인 시스템, 브랜딩
-3. **퍼블리싱 관점**: 브라우저 호환성, 반응형, 접근성
-4. **개발 관점**: 기술 스택, 아키텍처, 보안/성능
+문서 분석 시 다음 4가지 관점을 **반드시** 체크하여 정보를 추출하세요:
 
-### 추출 원칙
-- ✅ **사실만 추출**: 문서에 명시된 내용만 추출
-- ❌ **추측 금지**: 명시되지 않은 내용은 작성하지 말 것
-- ❌ **판단 금지**: 좋다/나쁘다, 추천/비추천 등 평가 제외
-- ✅ **구체적 작성**: 일반론 대신 구체적 내용 작성
+### 1. 기획 관점 ✅
+- ✅ **사용자 페르소나**: 타겟 사용자 특성, 연령대, 직군, 사용 목적
+- ✅ **정보구조도(IA)**: 사이트 구조, 메뉴 구성, 페이지 계층
+- ✅ **핵심 기능**: 회원가입/로그인, 결제, 검색, 알림 등 주요 기능
+- ✅ **콘텐츠 유형**: 텍스트, 이미지, 동영상, 파일 다운로드 등
+- ✅ **비즈니스 목표**: KPI, 전환율 목표, 매출 목표 등
+
+### 2. 디자인 관점 🎨
+- ✅ **디자인 시스템**: 디자인 가이드, 컬러 팔레트, 타이포그래피
+- ✅ **UI/UX 요구사항**: 사용성, 인터랙션, 애니메이션
+- ✅ **반응형 중단점**: Mobile (320px~), Tablet (768px~), Desktop (1024px~)
+- ✅ **브랜드 아이덴티티**: 로고, 컬러, 폰트, 이미지 스타일
+- ✅ **디자인 산출물**: 와이어프레임, 목업, 프로토타입 여부
+
+### 3. 퍼블리싱 관점 💻
+- ✅ **지원 브라우저**: Chrome, Safari, Firefox, Edge 버전
+- ✅ **반응형 웹**: Mobile-first, Desktop-first 전략
+- ✅ **접근성 등급**: WCAG 2.1 AA 이상 준수 여부
+- ✅ **다국어 지원**: 언어 종류, 번역 범위
+- ✅ **SEO 최적화**: 메타 태그, Open Graph, Schema.org
+- ✅ **크로스브라우징**: IE11 지원 여부, 폴리필 필요성
+
+### 4. 개발 관점 ⚙️
+- ✅ **프론트엔드**: React/Vue/Angular, TypeScript, 상태관리
+- ✅ **백엔드**: Node.js/Django/Spring, API 명세(REST/GraphQL)
+- ✅ **데이터베이스**: MySQL/PostgreSQL/MongoDB, ERD
+- ✅ **인증/권한**: JWT, OAuth, Session, RBAC
+- ✅ **배포 환경**: AWS/GCP/Azure, CI/CD, Docker
+- ✅ **보안/성능**: HTTPS, CORS, 응답시간 목표, 동시접속자 수
+
+---
+
+## 📊 좋은 분석 결과 예시
+
+### ✅ 예시 1: keyRequirements (좋은 예)
+\`\`\`json
+[
+  "회원가입/로그인 기능 구현 (이메일, 카카오, 네이버 소셜 로그인 3종)",
+  "상품 검색 및 필터링 기능 (카테고리, 가격대, 평점, 브랜드별)",
+  "반응형 웹 디자인 적용 (Mobile 320px, Tablet 768px, Desktop 1024px 중단점)",
+  "관리자 페이지 구축 (상품 관리, 주문 관리, 통계 대시보드)",
+  "결제 모듈 연동 (토스페이먼츠, 카카오페이, 네이버페이)"
+]
+\`\`\`
+**포인트**: 구체적 숫자, 브랜드명, 기술 용어 포함
+
+### ✅ 예시 2: technicalStack (좋은 예)
+\`\`\`json
+[
+  "프론트엔드: React 18 + TypeScript 5 + Vite 5",
+  "상태관리: Zustand 4 + React Query",
+  "백엔드: Node.js 20 + Express.js + PostgreSQL 15",
+  "배포: Vercel (프론트엔드) + AWS EC2 (백엔드)",
+  "기타: Supabase (인증/DB), Tailwind CSS 3"
+]
+\`\`\`
+**포인트**: 버전 정보, 구체적 기술명 명시
+
+### ❌ 나쁜 분석 결과 예시
+
+### ❌ 예시 1: keyRequirements (나쁜 예)
+\`\`\`json
+[
+  "다양한 기능 필요",
+  "사용자 편의성 개선",
+  "기술 스택 미확인"
+]
+\`\`\`
+**문제점**: 모호함, 구체성 부족, "미확인" 남발
+
+### ❌ 예시 2: timeline (나쁜 예)
+\`\`\`json
+[
+  "일정 정보 미확인"
+]
+\`\`\`
+**문제점**: 문서에서 암시적 일정 정보도 찾지 못함
 
 ---
 
 ## 📤 출력 형식 (JSON)
 
-다음 JSON 형식으로 **정확하게** 출력하세요. **JSON 외 다른 텍스트는 포함하지 마세요.**
+다음 JSON 형식으로 **정확하게** 출력하세요.
 
 \`\`\`json
 {
-  "summary": "문서 전체 요약 (200자 이상, 프로젝트 목적, 범위, 핵심 특징 포함)",
+  "summary": "문서 전체 요약 (최소 200자 이상, 프로젝트명, 목적, 범위, 핵심 특징, 기대효과 포함)",
 
   "keyRequirements": [
-    "주요 요구사항 1 (구체적으로 작성, 예: '모바일 앱 iOS/Android 지원')",
-    "주요 요구사항 2",
-    "주요 요구사항 3 (최소 3개 이상)"
+    "핵심 기능 요구사항 1 (최소 50자, 구체적 숫자/기술명 포함, 예: 'React 18 기반 SPA 구축')",
+    "핵심 기능 요구사항 2 (예: '회원 1만명 동시 접속 지원, 응답시간 1초 이하')",
+    "핵심 기능 요구사항 3",
+    "핵심 기능 요구사항 4",
+    "핵심 기능 요구사항 5 (최소 5개 이상, 문서에서 최대한 추출)"
   ],
 
   "stakeholders": [
-    "이해관계자명 또는 역할 (예: '김철수 PM - 프로젝트 총괄')",
-    "이해관계자명 또는 역할 (예: '디자인팀 리더 - UI/UX 책임')",
-    "이해관계자명 또는 역할 (최소 2개 이상, 문서에 없으면 '미확인')"
+    "이해관계자 이름/역할 (예: '홍길동 - 프로젝트 오너, 최종 의사결정권자')",
+    "이해관계자 이름/역할 (예: '김철수 - 기획팀장, 요구사항 정의 담당')",
+    "최소 2개 이상. 문서에 명시되지 않았다면 '프로젝트 오너 정보 미확인 - 질문 필요'"
   ],
 
   "constraints": [
-    "제약사항 1 (예: '2025년 3월 31일까지 완료', '예산 5천만원 이내')",
-    "제약사항 2 (기술적/비즈니스적/일정/예산 제약 모두 포함)",
-    "제약사항 3 (문서에 없으면 '명시된 제약사항 없음')"
+    "제약사항 1 (구체적 날짜/금액 포함, 예: '2025년 6월 30일까지 완료 필수')",
+    "제약사항 2 (예: '예산 5,000만원 이내, 인력 3명 이하')",
+    "제약사항 3 (기술적/일정/예산/법적 제약 모두 포함)",
+    "최소 3개 이상. 없으면 '명시된 제약사항 없음 - 예산/일정 확인 질문 필요'"
   ],
 
   "risks": [
-    "위험 요소 1 (문서에 명시된 리스크만, 예: '외부 API 연동 불확실성')",
-    "위험 요소 2 (문서에 없으면 '문서에 명시된 리스크 없음')"
+    "위험 요소 1 (문서에서 추출 또는 암시된 리스크, 예: 'API 연동 대상 시스템 불안정성 언급')",
+    "위험 요소 2 (예: '타이트한 일정으로 인한 품질 저하 우려')",
+    "최소 2개 이상. 없으면 '명시된 리스크 없음 - 기술적/일정 리스크 질문 필요'"
   ],
 
   "opportunities": [
-    "기회 요소 1 (문서에서 추출, 예: '기존 고객 데이터 활용 가능')",
-    "기회 요소 2 (문서에 없으면 '문서에 명시된 기회 없음')"
+    "기회 요소 1 (문서에서 추출, 예: '기존 시스템 사용자 5만명 데이터 활용 가능')",
+    "기회 요소 2 (예: '경쟁사 대비 차별화 포인트: AI 추천 기능')",
+    "최소 2개 이상. 없으면 '명시된 기회 요소 없음 - 비즈니스 가치 확인 질문 필요'"
   ],
 
   "technicalStack": [
-    "기술 스택 1 (문서에 명시된 기술만, 예: 'React, Node.js, PostgreSQL')",
-    "기술 스택 2 (문서에 없으면 '기술 스택 미확인')"
+    "기술 스택 1 (구체적 기술명+버전, 예: 'React 18 + TypeScript 5 + Vite')",
+    "기술 스택 2 (예: 'Node.js 20 + Express + PostgreSQL 15')",
+    "기술 스택 3 (프론트엔드, 백엔드, DB, 인프라 모두 포함)",
+    "최소 3개 이상. 없으면 '기술 스택 미확인 - 선호 기술 및 제약사항 질문 필요'"
   ],
 
   "timeline": [
-    "일정 정보 1 (문서에 명시된 일정만, 예: '기획 2주, 디자인 3주, 개발 8주')",
-    "일정 정보 2 (문서에 없으면 '일정 정보 미확인')"
+    "일정 정보 1 (구체적 날짜/기간, 예: '기획 2주(2025.3.1~3.14), 디자인 3주(3.15~4.4)')",
+    "일정 정보 2 (예: '개발 8주(4.5~5.30), QA 2주(6.1~6.14), 오픈 6.15')",
+    "최소 2개 이상. 없으면 '일정 정보 미확인 - 목표 오픈일 및 마일스톤 질문 필요'"
   ]
 }
 \`\`\`
 
 ---
 
-## ⚠️ 중요 지침
+## ⚠️ 필수 준수 지침
 
-1. **JSON 형식 엄수**: 반드시 유효한 JSON 형태로 출력하세요. 마크다운 설명 추가 금지.
-2. **사실만 작성**: 문서에 없는 내용은 "미확인", "명시되지 않음" 등으로 표시하세요.
-3. **구체적 작성**: "다양한 요구사항", "여러 기술" 등 모호한 표현 금지. 구체적으로 작성.
-4. **최소 개수**: 각 항목마다 최소 개수를 충족하세요. 정보가 부족해도 "미확인"으로라도 채워주세요.
-5. **배열 형태 유지**: 모든 항목은 문자열 배열로 작성 (객체 사용 금지).
+### 1. 품질 기준
+- ✅ **summary**: 최소 200자, 프로젝트 전체 그림 파악 가능하도록
+- ✅ **keyRequirements**: 각 항목 최소 50자, 구체적 숫자/기술명 포함
+- ✅ **모든 배열**: 최소 개수 준수 (keyRequirements 5개, stakeholders 2개 등)
+- ✅ **"미확인" 사용 시**: 반드시 "질문 필요" 추가하여 후속 질문 유도
 
-위 지침을 따라 **JSON 형식으로만** 분석 결과를 출력하세요.`;
+### 2. 실무 용어 사용
+- ✅ 반응형 중단점: "Mobile 320px, Tablet 768px, Desktop 1024px"
+- ✅ 인증: "JWT 토큰 기반 인증, OAuth 2.0 소셜 로그인"
+- ✅ API: "REST API", "GraphQL", "gRPC"
+- ✅ 배포: "CI/CD 파이프라인", "Docker 컨테이너", "AWS EC2"
+
+### 3. JSON 형식 엄수
+- ❌ 마크다운 코드 블록 밖에 설명 추가 금지
+- ✅ 순수 JSON 객체만 반환 ({ 로 시작, } 로 끝)
+- ✅ 모든 문자열은 큰따옴표(") 사용
+- ✅ 배열 형태 유지 (객체 사용 금지)
+
+### 4. 정보 부족 시 대응
+문서에 정보가 부족해도 **최소 개수는 반드시 채워야 합니다**.
+- ✅ 좋은 예: "예산 정보 미확인 - 예산 범위 및 배분 우선순위 질문 필요"
+- ❌ 나쁜 예: "미확인"
+
+위 지침을 **모두 준수**하여 **JSON 형식으로만** 분석 결과를 출력하세요.`;
   }
 
   private parseAnalysisResponse(response: string, category?: DocumentCategory): any {
@@ -3352,17 +3444,35 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
     analyses: any[],
     maxQuestions: number = 15
   ): string {
-    let prompt = `당신은 전문 프로젝트 컨설턴트입니다. 사전 분석 단계에서 프로젝트 이해를 위한 핵심 질문들을 생성해주세요.
+    // 분석 결과에서 "미확인" 항목 추출
+    const unclearItems = this.extractUnclearItemsFromAnalyses(analyses);
 
-프로젝트 정보:
-- 프로젝트명: ${projectName || '미정'}
-- 프로젝트 설명: ${projectDescription || '미정'}
-- 프로젝트 유형: ${projectTypes.length > 0 ? projectTypes.join(', ') : '미정'}
+    // 🔥 분석 결과 기반 문서 복잡도 계산
+    const complexityScore = this.calculateDocumentComplexity(documentContext, analyses);
+    const questionRange = this.calculateQuestionRange(complexityScore, maxQuestions);
+
+    console.log('📊 질문 생성 컨텍스트:', {
+      complexityScore,
+      questionRange,
+      documentsCount: documentContext.length,
+      analysesCount: analyses.length,
+      unclearItemsCount: unclearItems.length
+    });
+
+    let prompt = `# 🎯 웹에이전시 엘루오씨앤씨 - 프로젝트 핵심 질문 생성
+
+당신은 **웹에이전시 엘루오씨앤씨**의 수석 프로젝트 컨설턴트입니다.
+문서 분석 결과를 바탕으로 프로젝트 실행에 필요한 **구체적이고 실무적인 질문**을 생성하세요.
+
+## 📋 프로젝트 정보
+- **프로젝트명**: ${projectName || '미정'}
+- **프로젝트 설명**: ${projectDescription || '미정'}
+- **프로젝트 유형**: ${projectTypes.length > 0 ? projectTypes.join(', ') : '미정'}
 
 `;
 
     if (documentContext.length > 0) {
-      prompt += `업로드된 문서 분석 결과:
+      prompt += `## 📄 업로드된 문서 분석 결과 (${documentContext.length}개)
 ${documentContext.map((doc, index) =>
   `${index + 1}. ${doc.name}${doc.summary ? ` - ${doc.summary}` : ''}`
 ).join('\n')}
@@ -3370,56 +3480,151 @@ ${documentContext.map((doc, index) =>
 `;
     }
 
-    // 🔥 분석 결과 기반 문서 복잡도 계산
-    const complexityScore = this.calculateDocumentComplexity(documentContext, analyses);
-    const questionRange = this.calculateQuestionRange(complexityScore, maxQuestions);
+    // 🔥 미확인 항목이 있으면 우선 질문으로 추가
+    if (unclearItems.length > 0) {
+      prompt += `## ⚠️ 문서 분석에서 확인 필요한 항목 (${unclearItems.length}개)
+다음 항목들은 문서에서 명확하지 않아 반드시 질문으로 확인해야 합니다:
 
-    console.log('📊 문서 복잡도 분석:', {
-      complexityScore,
-      questionRange,
-      documentsCount: documentContext.length,
-      analysesCount: analyses.length
-    });
+${unclearItems.map((item, index) => `${index + 1}. **${item.field}**: ${item.value}`).join('\n')}
 
-    prompt += `요구사항:
-1. 프로젝트 분석 결과를 기반으로 **최소 ${questionRange.min}개에서 최대 ${questionRange.max}개 사이의 질문**을 생성하세요.
-   - 문서 복잡도: ${complexityScore}/100점
-   - 권장 범위: ${questionRange.min}-${questionRange.max}개
-   - 복잡도가 높을수록(상세한 요구사항, 기술스택, 이해관계자가 많을수록) 더 많은 심화 질문 생성 (범위 상한)
-   - 복잡도가 낮으면 핵심적인 필수 질문만 생성 (범위 하한)
-   - 동일한 문서라도 분석 관점에 따라 다른 질문을 생성할 수 있습니다
+→ **이 항목들에 대한 질문을 우선적으로 생성하세요.**
 
-2. 다양한 관점을 포함하세요: 기술적 요구사항, 비즈니스 목표, 일정, 예산, 위험 요소, 이해관계자, 디자인 등
-3. 각 질문은 구체적이고 실행 가능한 답변을 유도해야 합니다.
-4. 업로드된 문서가 있다면 해당 내용을 반영한 질문을 포함하세요.
-5. 질문이 부족하면 프로젝트 관리 일반론적인 질문으로 보충하세요.
+`;
+    }
 
-**중요: category 필드는 반드시 다음 값 중 하나만 사용하세요:**
-- technical: 기술적 요구사항, 기술 스택, 아키텍처 관련
-- business: 비즈니스 목표, 프로젝트 개요, 사업 요구사항
-- timeline: 일정, 스케줄, 마일스톤 관련
-- budget: 예산, 비용, 자원 계획 관련
-- risks: 위험 요소, 리스크 관리 관련
-- stakeholders: 이해관계자, 팀 구성, 역할 관련
-- design: 디자인, UI/UX, 사용자 경험 관련
+    prompt += `## 🎯 질문 생성 전략
 
-출력 형식 (JSON):
+### 📊 문서 복잡도: ${complexityScore}/100점
+- **권장 질문 개수**: 최소 ${questionRange.min}개 ~ 최대 ${questionRange.max}개
+- **생성 전략**:
+  - 복잡도가 높을수록 → 더 많은 심화 질문 생성 (범위 상한 활용)
+  - 복잡도가 낮을수록 → 핵심 필수 질문만 생성 (범위 하한 활용)
+
+### 🔥 웹에이전시 실무 질문 가이드
+
+#### 1. 기획 관점 질문 (business, stakeholders)
+- ✅ **사용자 페르소나**: "주요 타겟 사용자는 누구이며, 연령대/직군/사용 목적은?"
+- ✅ **정보구조도(IA)**: "사이트 메뉴 구성과 주요 페이지 계층은 어떻게 구성하실 계획인가요?"
+- ✅ **핵심 기능**: "회원가입/로그인 방식은? (이메일, 소셜 로그인 등)"
+- ✅ **비즈니스 목표**: "프로젝트 성공을 측정할 KPI는? (전환율, MAU, 매출 등)"
+
+#### 2. 디자인 관점 질문 (design)
+- ✅ **디자인 시스템**: "기존 디자인 가이드나 브랜드 컬러가 있나요?"
+- ✅ **반응형 중단점**: "모바일/태블릿/데스크톱 각각의 디자인이 필요한가요?"
+- ✅ **디자인 산출물**: "와이어프레임/목업/프로토타입 중 어디까지 필요한가요?"
+- ✅ **브랜드 아이덴티티**: "로고, 폰트, 이미지 스타일 등 브랜드 가이드가 있나요?"
+
+#### 3. 퍼블리싱 관점 질문 (technical)
+- ✅ **지원 브라우저**: "지원해야 할 브라우저와 버전은? (IE11 포함 여부)"
+- ✅ **접근성**: "웹 접근성 WCAG 2.1 AA 등급 준수가 필요한가요?"
+- ✅ **다국어**: "다국어 지원이 필요한가요? (언어 종류와 범위)"
+- ✅ **SEO**: "검색엔진 최적화(SEO)가 중요한 프로젝트인가요?"
+
+#### 4. 개발 관점 질문 (technical, risks)
+- ✅ **프론트엔드**: "선호하는 프론트엔드 기술 스택은? (React/Vue/Angular)"
+- ✅ **백엔드**: "백엔드 API는 자체 구축인가요, 외부 서비스 연동인가요?"
+- ✅ **인증/권한**: "사용자 인증 방식은? (JWT, OAuth, 세션)"
+- ✅ **배포 환경**: "배포 환경은 어디인가요? (AWS, GCP, Azure, 자체 서버)"
+- ✅ **보안/성능**: "예상 동시 접속자 수와 응답 시간 목표는?"
+
+#### 5. 일정/예산 관점 질문 (timeline, budget)
+- ✅ **목표 일정**: "프로젝트 오픈 희망 일자와 주요 마일스톤은?"
+- ✅ **단계별 출시**: "MVP 먼저 출시 후 단계적 기능 추가 계획이 있나요?"
+- ✅ **예산 범위**: "프로젝트 예산 범위와 우선순위는?"
+- ✅ **인력 계획**: "프로젝트 참여 인력 구성은? (내부팀/외주)"
+
+---
+
+## 📤 출력 형식 (JSON)
+
+\`\`\`json
 {
   "questions": [
     {
-      "category": "technical|business|timeline|budget|risks|stakeholders|design",
-      "question": "구체적인 질문 내용",
-      "context": "질문의 배경이나 도움말",
-      "required": true|false,
-      "expectedFormat": "text|textarea|select|number",
-      "confidenceScore": 0.0-1.0
+      "category": "business|technical|design|timeline|budget|risks|stakeholders",
+      "question": "구체적이고 실무적인 질문 (50자 이상, 예시: '지원해야 할 브라우저와 최소 버전은 무엇인가요? IE11 지원이 필요한가요?')",
+      "context": "질문 배경 설명 (왜 이 질문이 중요한지, 예시: '구형 브라우저 지원은 개발 공수와 비용에 큰 영향을 미칩니다')",
+      "required": true,
+      "expectedFormat": "textarea",
+      "confidenceScore": 0.9
     }
   ]
 }
+\`\`\`
 
-정확한 JSON 형식만 반환하고 다른 설명은 포함하지 마세요.`;
+---
+
+## ⚠️ 필수 준수 지침
+
+### 1. 미확인 항목 우선 처리
+${unclearItems.length > 0 ? `- **최우선**: 위에 나열된 ${unclearItems.length}개 미확인 항목에 대한 질문 필수 생성` : '- 문서 분석 결과에서 누락된 정보를 확인하는 질문 생성'}
+
+### 2. 질문 품질 기준
+- ✅ **구체성**: 모호한 질문 금지 (예: "요구사항은?" ❌ → "회원가입 시 이메일 인증이 필요한가요?" ✅)
+- ✅ **실무 용어**: 웹에이전시 실무 용어 사용 (예: "반응형 중단점", "크로스브라우징")
+- ✅ **최소 길이**: 각 질문 최소 50자 이상
+- ✅ **실행 가능성**: 명확한 답변을 유도하는 질문
+
+### 3. 카테고리 분배
+- ✅ **균형**: 7개 카테고리를 골고루 포함 (한 카테고리 집중 금지)
+- ✅ **우선순위**: business(30%), technical(25%), design(15%), timeline(10%), budget(10%), stakeholders(5%), risks(5%)
+
+### 4. 필수 필드
+- ✅ **category**: 반드시 지정된 7개 중 하나 (business, technical, design, timeline, budget, risks, stakeholders)
+- ✅ **question**: 질문 본문 (최소 50자)
+- ✅ **context**: 질문 배경 설명 (최소 30자)
+- ✅ **required**: 필수 여부 (미확인 항목 관련 질문은 반드시 true)
+- ✅ **expectedFormat**: textarea (기본값)
+- ✅ **confidenceScore**: 0.7~0.9 (미확인 항목은 0.9 이상)
+
+### 5. JSON 형식
+- ❌ 마크다운 코드 블록 밖에 설명 추가 금지
+- ✅ 순수 JSON 객체만 반환 ({ 로 시작, } 로 끝)
+
+---
+
+위 지침을 **모두 준수**하여 **최소 ${questionRange.min}개, 최대 ${questionRange.max}개**의 실무적 질문을 생성하세요.`;
 
     return prompt;
+  }
+
+  /**
+   * 분석 결과에서 "미확인" 항목 추출
+   */
+  private extractUnclearItemsFromAnalyses(analyses: any[]): Array<{ field: string; value: string }> {
+    const unclearItems: Array<{ field: string; value: string }> = [];
+    const unclearKeywords = ['미확인', '없음', '명시되지 않음', '정보 없음', '질문 필요'];
+
+    analyses.forEach(analysis => {
+      const result = analysis.analysis_result;
+      if (!result) return;
+
+      // 각 필드 검사
+      const fieldsToCheck = [
+        { key: 'stakeholders', label: '이해관계자' },
+        { key: 'constraints', label: '제약사항' },
+        { key: 'risks', label: '위험 요소' },
+        { key: 'opportunities', label: '기회 요소' },
+        { key: 'technicalStack', label: '기술 스택' },
+        { key: 'timeline', label: '일정 정보' }
+      ];
+
+      fieldsToCheck.forEach(({ key, label }) => {
+        const values = Array.isArray(result[key]) ? result[key] : [];
+
+        values.forEach((value: string) => {
+          // 미확인 키워드가 포함되어 있으면 추가
+          if (unclearKeywords.some(keyword => value.includes(keyword))) {
+            unclearItems.push({
+              field: label,
+              value: value
+            });
+          }
+        });
+      });
+    });
+
+    return unclearItems;
   }
 
   /**
