@@ -620,7 +620,8 @@ export class PreAnalysisService {
         analysisResult = await this.performAIAnalysis(
           textContent,
           category,
-          sessionId
+          sessionId,
+          document.file_name // 🆕 파일명 추가 (플랫폼 타입 감지용)
         );
       } catch (analysisError) {
         console.error('AI 분석 수행 실패:', analysisError);
@@ -1546,7 +1547,8 @@ export class PreAnalysisService {
   private async performAIAnalysis(
     content: string,
     category: DocumentCategory | undefined,
-    sessionId: string
+    sessionId: string,
+    fileName: string = '' // 🆕 파일명 추가 (플랫폼 타입 감지용)
   ): Promise<any> {
     const startTime = Date.now();
 
@@ -1604,10 +1606,11 @@ export class PreAnalysisService {
 
         try {
           // 분석 프롬프트 생성 (시도마다 동일)
-          const analysisPrompt = this.generateAnalysisPrompt(content, category);
+          const analysisPrompt = this.generateAnalysisPrompt(content, category, fileName);
           console.log('📝 분석 프롬프트 생성 완료', {
             contentLength: content.length,
             category,
+            fileName: fileName.substring(0, 50),
             promptLength: analysisPrompt.length,
             attempt
           });
@@ -1669,11 +1672,14 @@ export class PreAnalysisService {
             attempt
           });
 
-          // 🆕 JSON 검증 - additionalInfoNeeded 확인
-          const hasAdditionalInfoNeeded = 'additionalInfoNeeded' in analysis;
+          // 🆕 강화된 JSON 검증 - Fallback 모드 감지
+          const validation = this.validateAnalysisQuality(analysis);
 
-          if (hasAdditionalInfoNeeded) {
-            console.log(`✅ [시도 ${attempt}] JSON 파싱 성공 - additionalInfoNeeded 필드 존재`);
+          if (validation.isValid) {
+            console.log(`✅ [시도 ${attempt}] JSON 파싱 성공 - 품질 검증 통과`, {
+              hasAdditionalInfoNeeded: validation.hasAdditionalInfoNeeded,
+              hasValidContent: validation.hasValidContent
+            });
 
             // 성공 시 즉시 반환
             const processingTime = Date.now() - startTime;
@@ -1694,7 +1700,12 @@ export class PreAnalysisService {
               cost: cumulativeCost,
             };
           } else {
-            console.warn(`⚠️ [시도 ${attempt}] additionalInfoNeeded 필드 누락 - 재시도 필요`);
+            console.warn(`⚠️ [시도 ${attempt}] JSON 품질 검증 실패 - 재시도 필요`, {
+              isFallbackMode: validation.isFallbackMode,
+              hasAdditionalInfoNeeded: validation.hasAdditionalInfoNeeded,
+              hasValidContent: validation.hasValidContent,
+              failureReasons: validation.failureReasons
+            });
 
             if (attempt < MAX_RETRIES) {
               // 지수 백오프 대기
@@ -1784,8 +1795,16 @@ export class PreAnalysisService {
     }
   }
 
-  private generateAnalysisPrompt(content: string, category?: DocumentCategory): string {
+  private generateAnalysisPrompt(content: string, category?: DocumentCategory, fileName: string = ''): string {
     const categoryContext = category ? `이 문서는 "${category}" 카테고리에 속하며, 해당 관점을 중심으로 분석해야 합니다.` : '';
+
+    // 🆕 플랫폼 타입 감지
+    const platformType = this.detectPlatformType(content, fileName);
+    const platformContext = platformType === 'app'
+      ? '이 문서는 **모바일 앱(APP) 개발** 프로젝트입니다. 웹 브라우저 관련 질문은 생성하지 마세요.'
+      : platformType === 'web'
+      ? '이 문서는 **웹사이트(WEB) 개발** 프로젝트입니다. 모바일 앱스토어 관련 질문은 생성하지 마세요.'
+      : '이 문서는 **웹 또는 앱** 프로젝트입니다. 문서 내용을 바탕으로 플랫폼에 맞는 분석을 수행하세요.';
 
     return `🚨 **CRITICAL: JSON 형식만 반환하세요** 🚨
 
@@ -1808,6 +1827,9 @@ export class PreAnalysisService {
 
 ## 📋 문서 정보
 ${categoryContext}
+
+## 🎯 플랫폼 타입 (중요!)
+${platformContext}
 
 ---
 
@@ -1836,21 +1858,32 @@ ${content}
 - ✅ **브랜드 아이덴티티**: 로고, 컬러, 폰트, 이미지 스타일
 - ✅ **디자인 산출물**: 와이어프레임, 목업, 프로토타입 여부
 
-### 3. 퍼블리싱 관점 💻
+### 3. ${platformType === 'app' ? 'UI/UX 구현' : '퍼블리싱'} 관점 💻${platformType === 'app' ? `
+- ✅ **지원 OS**: iOS (최소 버전), Android (최소 버전), 하이브리드 여부
+- ✅ **디바이스 대응**: 스마트폰, 태블릿 지원 범위, 화면 크기 대응
+- ✅ **접근성**: VoiceOver, TalkBack 지원, 시각/청각 장애인 대응
+- ✅ **다국어 지원**: 언어 종류, 번역 범위, RTL 지원
+- ✅ **앱 권한**: 카메라, 위치, 알림, 파일 접근 등 필요 권한` : `
 - ✅ **지원 브라우저**: Chrome, Safari, Firefox, Edge 버전
 - ✅ **반응형 웹**: Mobile-first, Desktop-first 전략
 - ✅ **접근성 등급**: WCAG 2.1 AA 이상 준수 여부
 - ✅ **다국어 지원**: 언어 종류, 번역 범위
 - ✅ **SEO 최적화**: 메타 태그, Open Graph, Schema.org
-- ✅ **크로스브라우징**: IE11 지원 여부, 폴리필 필요성
+- ✅ **크로스브라우징**: IE11 지원 여부, 폴리필 필요성`}
 
-### 4. 개발 관점 ⚙️
+### 4. 개발 관점 ⚙️${platformType === 'app' ? `
+- ✅ **프론트엔드**: React Native/Flutter/Swift/Kotlin, 상태관리
+- ✅ **백엔드**: Node.js/Django/Spring, API 명세(REST/GraphQL)
+- ✅ **데이터베이스**: MySQL/PostgreSQL/MongoDB, ERD
+- ✅ **인증/권한**: JWT, OAuth, 생체인증, RBAC
+- ✅ **배포 환경**: App Store, Google Play Store, 인하우스 배포
+- ✅ **보안/성능**: HTTPS, 암호화, 앱 시작 시간, 배터리 소모` : `
 - ✅ **프론트엔드**: React/Vue/Angular, TypeScript, 상태관리
 - ✅ **백엔드**: Node.js/Django/Spring, API 명세(REST/GraphQL)
 - ✅ **데이터베이스**: MySQL/PostgreSQL/MongoDB, ERD
 - ✅ **인증/권한**: JWT, OAuth, Session, RBAC
 - ✅ **배포 환경**: AWS/GCP/Azure, CI/CD, Docker
-- ✅ **보안/성능**: HTTPS, CORS, 응답시간 목표, 동시접속자 수
+- ✅ **보안/성능**: HTTPS, CORS, 응답시간 목표, 동시접속자 수`}
 
 ---
 
@@ -2064,6 +2097,120 @@ ${content}
     return { valid, missingFields };
   }
 
+  /**
+   * 🆕 분석 품질 검증 메서드 (Fallback 모드 감지 포함)
+   * JSON 파싱 성공 여부와 내용 품질을 종합적으로 검증
+   */
+  private validateAnalysisQuality(analysis: any): {
+    isValid: boolean;
+    isFallbackMode: boolean;
+    hasAdditionalInfoNeeded: boolean;
+    hasValidContent: boolean;
+    failureReasons: string[];
+  } {
+    const failureReasons: string[] = [];
+
+    // 1. Fallback 모드 감지 (summary에 "JSON 파싱 실패" 포함)
+    const isFallbackMode =
+      analysis.summary &&
+      typeof analysis.summary === 'string' &&
+      (analysis.summary.includes('JSON 파싱 실패') ||
+       analysis.summary.includes('텍스트 분석 수행'));
+
+    if (isFallbackMode) {
+      failureReasons.push('Fallback 모드 감지: AI가 JSON 형식을 반환하지 않음');
+    }
+
+    // 2. additionalInfoNeeded 필드 검증
+    const hasAdditionalInfoNeeded =
+      'additionalInfoNeeded' in analysis &&
+      Array.isArray(analysis.additionalInfoNeeded);
+
+    if (!hasAdditionalInfoNeeded) {
+      failureReasons.push('additionalInfoNeeded 필드 누락 또는 잘못된 타입');
+    }
+
+    // 3. 필수 필드 내용 품질 검증
+    const requiredFields = [
+      'summary',
+      'keyRequirements',
+      'stakeholders',
+      'constraints',
+      'risks',
+      'opportunities',
+      'technicalStack',
+      'timeline'
+    ];
+
+    let hasValidContent = true;
+    const fallbackKeywords = ['분석 정보 추출 실패', '미확인 - 질문 필요', '정보 부족', '확인 필요'];
+
+    for (const field of requiredFields) {
+      if (!analysis[field]) {
+        failureReasons.push(`${field} 필드 누락`);
+        hasValidContent = false;
+        continue;
+      }
+
+      // 배열 필드 검증
+      if (Array.isArray(analysis[field])) {
+        if (analysis[field].length === 0) {
+          failureReasons.push(`${field} 배열이 비어있음`);
+          hasValidContent = false;
+        } else {
+          // 모든 항목이 Fallback 키워드를 포함하는지 확인
+          const allFallback = analysis[field].every((item: any) =>
+            typeof item === 'string' &&
+            fallbackKeywords.some(keyword => item.includes(keyword))
+          );
+
+          if (allFallback) {
+            failureReasons.push(`${field} 배열의 모든 항목이 Fallback 키워드 포함`);
+            hasValidContent = false;
+          }
+        }
+      }
+
+      // 문자열 필드 검증 (summary)
+      if (typeof analysis[field] === 'string') {
+        if (analysis[field].trim().length === 0) {
+          failureReasons.push(`${field} 문자열이 비어있음`);
+          hasValidContent = false;
+        } else if (analysis[field].length < 50 && field === 'summary') {
+          failureReasons.push(`${field} 문자열이 너무 짧음 (최소 50자 필요)`);
+          hasValidContent = false;
+        }
+      }
+    }
+
+    // 4. 최종 검증 결과
+    const isValid =
+      !isFallbackMode &&
+      hasAdditionalInfoNeeded &&
+      hasValidContent &&
+      failureReasons.length === 0;
+
+    if (!isValid) {
+      console.warn('⚠️ 분석 품질 검증 실패:', {
+        isFallbackMode,
+        hasAdditionalInfoNeeded,
+        hasValidContent,
+        failureCount: failureReasons.length,
+        failureReasons: failureReasons.slice(0, 3) // 처음 3개만 로깅
+      });
+    } else {
+      console.log('✅ 분석 품질 검증 성공: 모든 기준 충족');
+    }
+
+    return {
+      isValid,
+      isFallbackMode,
+      hasAdditionalInfoNeeded,
+      hasValidContent,
+      failureReasons
+    };
+  }
+
   private parseAnalysisResponse(response: string, category?: DocumentCategory): any {
     try {
       // Step 1: JSON 코드 블록 추출 시도 (```json ... ```)
@@ -2117,6 +2264,10 @@ ${content}
 
     // 🔥 기존 폴백 로직 완전 보존 - JSON 파싱 실패 시 텍스트 분석
     console.log('🔄 폴백 모드: 텍스트 기반 정보 추출 시작');
+
+    // 🆕 additionalInfoNeeded 추출 시도
+    const additionalInfoNeeded = this.extractAdditionalInfoNeeded(response);
+
     return {
       summary: `${category || '문서'} 분석 완료 (JSON 파싱 실패로 텍스트 분석 수행)`,
       keyRequirements: this.extractListFromText(response, '요구사항'),
@@ -2126,7 +2277,7 @@ ${content}
       opportunities: this.extractListFromText(response, '기회'),
       technicalStack: this.extractListFromText(response, '기술'),
       timeline: this.extractListFromText(response, '일정'),
-      additionalInfoNeeded: [] // 빈 배열 추가
+      additionalInfoNeeded // 🆕 추출된 배열 사용
     };
   }
 
@@ -2141,6 +2292,145 @@ ${content}
     }
 
     return relevant.slice(0, 5); // 최대 5개까지만
+  }
+
+  /**
+   * 🆕 Fallback 모드에서 additionalInfoNeeded 추출 시도
+   * AI 응답에 포함된 additionalInfoNeeded 배열을 찾아 파싱
+   */
+  private extractAdditionalInfoNeeded(text: string): Array<{
+    field: string;
+    currentInfo: string;
+    neededInfo: string;
+    priority: string;
+    reason: string;
+  }> {
+    try {
+      // 1. "additionalInfoNeeded" 키워드 찾기
+      const additionalInfoPattern = /"additionalInfoNeeded"\s*:\s*\[([\s\S]*?)\]/;
+      const match = text.match(additionalInfoPattern);
+
+      if (!match) {
+        console.log('⚠️ Fallback 모드: additionalInfoNeeded 패턴을 찾을 수 없음');
+        return [];
+      }
+
+      const arrayContent = match[1];
+      console.log('✅ Fallback 모드: additionalInfoNeeded 패턴 발견, 파싱 시도');
+
+      // 2. 배열 내용을 JSON으로 파싱 시도
+      try {
+        const parsed = JSON.parse(`[${arrayContent}]`);
+
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          console.log(`✅ Fallback 모드: ${parsed.length}개의 additionalInfoNeeded 항목 추출 성공`);
+
+          // 3. 유효성 검증 - 필수 필드가 있는 항목만 반환
+          const validItems = parsed.filter((item: any) => {
+            return (
+              item &&
+              typeof item === 'object' &&
+              item.field &&
+              item.neededInfo &&
+              item.priority &&
+              item.reason
+            );
+          });
+
+          console.log(`✅ Fallback 모드: ${validItems.length}개의 유효한 항목 검증 완료`);
+          return validItems;
+        }
+      } catch (parseError) {
+        console.warn('⚠️ Fallback 모드: additionalInfoNeeded JSON 파싱 실패', parseError);
+      }
+
+      // 4. 정규식으로 개별 항목 추출 시도 (JSON 파싱 실패 시)
+      console.log('🔄 Fallback 모드: 정규식으로 개별 항목 추출 시도');
+      const items: Array<any> = [];
+      const itemPattern = /\{[\s\S]*?"field"\s*:\s*"([^"]+)"[\s\S]*?"neededInfo"\s*:\s*"([^"]+)"[\s\S]*?"priority"\s*:\s*"([^"]+)"[\s\S]*?"reason"\s*:\s*"([^"]+)"[\s\S]*?\}/g;
+
+      let itemMatch;
+      while ((itemMatch = itemPattern.exec(arrayContent)) !== null) {
+        items.push({
+          field: itemMatch[1],
+          currentInfo: '', // regex로는 추출 어려움
+          neededInfo: itemMatch[2],
+          priority: itemMatch[3],
+          reason: itemMatch[4]
+        });
+      }
+
+      if (items.length > 0) {
+        console.log(`✅ Fallback 모드: 정규식으로 ${items.length}개 항목 추출 성공`);
+        return items;
+      }
+
+    } catch (error) {
+      console.error('❌ Fallback 모드: additionalInfoNeeded 추출 중 오류', error);
+    }
+
+    console.log('⚠️ Fallback 모드: additionalInfoNeeded 추출 실패, 빈 배열 반환');
+    return [];
+  }
+
+  /**
+   * 🆕 문서 내용에서 플랫폼 타입 감지 (웹/앱/하이브리드)
+   */
+  private detectPlatformType(content: string, fileName: string = ''): 'web' | 'app' | 'hybrid' {
+    const lowerContent = content.toLowerCase();
+    const lowerFileName = fileName.toLowerCase();
+
+    // 키워드 기반 점수 계산
+    const appKeywords = [
+      'app', '앱', 'application', '어플리케이션', 'mobile', '모바일',
+      'ios', 'android', 'flutter', 'react native', 'swift', 'kotlin',
+      '앱스토어', 'app store', 'play store', '플레이스토어', 'apk', 'ipa'
+    ];
+
+    const webKeywords = [
+      'website', '웹사이트', 'web', '웹', 'homepage', '홈페이지',
+      'browser', '브라우저', 'chrome', 'safari', 'firefox',
+      'responsive', '반응형', 'seo', 'domain', '도메인', 'url'
+    ];
+
+    let appScore = 0;
+    let webScore = 0;
+
+    // 파일명 검사 (가중치 2배)
+    appKeywords.forEach(keyword => {
+      if (lowerFileName.includes(keyword)) appScore += 2;
+    });
+    webKeywords.forEach(keyword => {
+      if (lowerFileName.includes(keyword)) webScore += 2;
+    });
+
+    // 내용 검사
+    appKeywords.forEach(keyword => {
+      const matches = (lowerContent.match(new RegExp(keyword, 'g')) || []).length;
+      appScore += matches;
+    });
+    webKeywords.forEach(keyword => {
+      const matches = (lowerContent.match(new RegExp(keyword, 'g')) || []).length;
+      webScore += matches;
+    });
+
+    console.log('🔍 플랫폼 타입 감지 결과:', {
+      appScore,
+      webScore,
+      fileName: fileName.substring(0, 50)
+    });
+
+    // 점수 기반 판단
+    if (appScore > webScore * 1.5) {
+      console.log('✅ 감지된 플랫폼: APP (앱 개발)');
+      return 'app';
+    } else if (webScore > appScore * 1.5) {
+      console.log('✅ 감지된 플랫폼: WEB (웹사이트)');
+      return 'web';
+    } else {
+      console.log('✅ 감지된 플랫폼: HYBRID (웹+앱 또는 불명확)');
+      return 'hybrid';
+    }
   }
 
   private detectDocumentCategory(fileName: string): DocumentCategory {
