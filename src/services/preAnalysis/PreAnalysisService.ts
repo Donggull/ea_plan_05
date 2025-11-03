@@ -1806,6 +1806,9 @@ export class PreAnalysisService {
       ? '이 문서는 **웹사이트(WEB) 개발** 프로젝트입니다. 모바일 앱스토어 관련 질문은 생성하지 마세요.'
       : '이 문서는 **웹 또는 앱** 프로젝트입니다. 문서 내용을 바탕으로 플랫폼에 맞는 분석을 수행하세요.';
 
+    // 🆕 플랫폼별 체크리스트 생성
+    const platformChecklist = this.generatePlatformChecklist(platformType);
+
     return `🚨 **CRITICAL: JSON 형식만 반환하세요** 🚨
 
 **절대 규칙**:
@@ -1858,32 +1861,7 @@ ${content}
 - ✅ **브랜드 아이덴티티**: 로고, 컬러, 폰트, 이미지 스타일
 - ✅ **디자인 산출물**: 와이어프레임, 목업, 프로토타입 여부
 
-### 3. ${platformType === 'app' ? 'UI/UX 구현' : '퍼블리싱'} 관점 💻${platformType === 'app' ? `
-- ✅ **지원 OS**: iOS (최소 버전), Android (최소 버전), 하이브리드 여부
-- ✅ **디바이스 대응**: 스마트폰, 태블릿 지원 범위, 화면 크기 대응
-- ✅ **접근성**: VoiceOver, TalkBack 지원, 시각/청각 장애인 대응
-- ✅ **다국어 지원**: 언어 종류, 번역 범위, RTL 지원
-- ✅ **앱 권한**: 카메라, 위치, 알림, 파일 접근 등 필요 권한` : `
-- ✅ **지원 브라우저**: Chrome, Safari, Firefox, Edge 버전
-- ✅ **반응형 웹**: Mobile-first, Desktop-first 전략
-- ✅ **접근성 등급**: WCAG 2.1 AA 이상 준수 여부
-- ✅ **다국어 지원**: 언어 종류, 번역 범위
-- ✅ **SEO 최적화**: 메타 태그, Open Graph, Schema.org
-- ✅ **크로스브라우징**: IE11 지원 여부, 폴리필 필요성`}
-
-### 4. 개발 관점 ⚙️${platformType === 'app' ? `
-- ✅ **프론트엔드**: React Native/Flutter/Swift/Kotlin, 상태관리
-- ✅ **백엔드**: Node.js/Django/Spring, API 명세(REST/GraphQL)
-- ✅ **데이터베이스**: MySQL/PostgreSQL/MongoDB, ERD
-- ✅ **인증/권한**: JWT, OAuth, 생체인증, RBAC
-- ✅ **배포 환경**: App Store, Google Play Store, 인하우스 배포
-- ✅ **보안/성능**: HTTPS, 암호화, 앱 시작 시간, 배터리 소모` : `
-- ✅ **프론트엔드**: React/Vue/Angular, TypeScript, 상태관리
-- ✅ **백엔드**: Node.js/Django/Spring, API 명세(REST/GraphQL)
-- ✅ **데이터베이스**: MySQL/PostgreSQL/MongoDB, ERD
-- ✅ **인증/권한**: JWT, OAuth, Session, RBAC
-- ✅ **배포 환경**: AWS/GCP/Azure, CI/CD, Docker
-- ✅ **보안/성능**: HTTPS, CORS, 응답시간 목표, 동시접속자 수`}
+${platformChecklist}
 
 ---
 
@@ -2371,6 +2349,45 @@ ${content}
 
     console.log('⚠️ Fallback 모드: additionalInfoNeeded 추출 실패, 빈 배열 반환');
     return [];
+  }
+
+  /**
+   * 🆕 플랫폼별 체크리스트 생성
+   */
+  private generatePlatformChecklist(platformType: 'web' | 'app' | 'hybrid'): string {
+    if (platformType === 'app') {
+      return `### 3. UI/UX 구현 관점 💻
+- ✅ **지원 OS**: iOS (최소 버전), Android (최소 버전), 하이브리드 여부
+- ✅ **디바이스 대응**: 스마트폰, 태블릿 지원 범위, 화면 크기 대응
+- ✅ **접근성**: VoiceOver, TalkBack 지원, 시각/청각 장애인 대응
+- ✅ **다국어 지원**: 언어 종류, 번역 범위, RTL 지원
+- ✅ **앱 권한**: 카메라, 위치, 알림, 파일 접근 등 필요 권한
+
+### 4. 개발 관점 ⚙️
+- ✅ **프론트엔드**: React Native/Flutter/Swift/Kotlin, 상태관리
+- ✅ **백엔드**: Node.js/Django/Spring, API 명세(REST/GraphQL)
+- ✅ **데이터베이스**: MySQL/PostgreSQL/MongoDB, ERD
+- ✅ **인증/권한**: JWT, OAuth, 생체인증, RBAC
+- ✅ **배포 환경**: App Store, Google Play Store, 인하우스 배포
+- ✅ **보안/성능**: HTTPS, 암호화, 앱 시작 시간, 배터리 소모`;
+    } else {
+      // web 또는 hybrid
+      return `### 3. 퍼블리싱 관점 💻
+- ✅ **지원 브라우저**: Chrome, Safari, Firefox, Edge 버전
+- ✅ **반응형 웹**: Mobile-first, Desktop-first 전략
+- ✅ **접근성 등급**: WCAG 2.1 AA 이상 준수 여부
+- ✅ **다국어 지원**: 언어 종류, 번역 범위
+- ✅ **SEO 최적화**: 메타 태그, Open Graph, Schema.org
+- ✅ **크로스브라우징**: IE11 지원 여부, 폴리필 필요성
+
+### 4. 개발 관점 ⚙️
+- ✅ **프론트엔드**: React/Vue/Angular, TypeScript, 상태관리
+- ✅ **백엔드**: Node.js/Django/Spring, API 명세(REST/GraphQL)
+- ✅ **데이터베이스**: MySQL/PostgreSQL/MongoDB, ERD
+- ✅ **인증/권한**: JWT, OAuth, Session, RBAC
+- ✅ **배포 환경**: AWS/GCP/Azure, CI/CD, Docker
+- ✅ **보안/성능**: HTTPS, CORS, 응답시간 목표, 동시접속자 수`;
+    }
   }
 
   /**
