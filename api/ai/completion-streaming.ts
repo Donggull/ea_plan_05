@@ -126,8 +126,7 @@ async function handleAnthropicStreaming(
   model: string,
   prompt: string,
   maxTokens = 3000,
-  temperature = 0.3,
-  topP = 1
+  temperature = 0.3
 ) {
   const startTime = Date.now()
 
@@ -144,7 +143,7 @@ async function handleAnthropicStreaming(
       model,
       max_tokens: maxTokens,
       temperature,
-      top_p: topP,
+      // top_p 제거: Claude Sonnet 4.5는 temperature와 top_p 동시 사용 불가
       messages: [{ role: 'user', content: prompt }],
       stream: true, // 🔥 스트리밍 활성화
     })

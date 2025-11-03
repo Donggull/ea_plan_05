@@ -303,8 +303,7 @@ async function handleAnthropicRequest(
   model: string,
   prompt: string,
   maxTokens = 2000,
-  temperature = 0.7,
-  topP = 1
+  temperature = 0.7
 ): Promise<CompletionResponse> {
   const startTime = Date.now()
 
@@ -323,7 +322,7 @@ async function handleAnthropicRequest(
         model,
         max_tokens: maxTokens,
         temperature,
-        top_p: topP,
+        // top_p 제거: Claude Sonnet 4.5는 temperature와 top_p 동시 사용 불가
         messages: [{ role: 'user', content: prompt }]
       }),
       signal: controller.signal

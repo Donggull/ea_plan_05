@@ -2817,10 +2817,10 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
               console.log('✅ 문서 분석 상태 업데이트 완료:', { id: existingAnalysis.id, status: update.status });
             }
           } else {
-            // 기존 레코드가 없으면 insert (상태만 저장하는 간단한 레코드)
-            const { error: insertError } = await supabase
+            // 기존 레코드가 없으면 upsert (중복 방지)
+            const { error: upsertError } = await supabase
               .from('document_analyses')
-              .insert({
+              .upsert({
                 session_id: update.sessionId,
                 document_id: update.documentId,
                 status: update.status,
@@ -2829,8 +2829,8 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
                 mcp_enrichment: {} // 기본값
               });
 
-            if (insertError) {
-              console.error('❌ 문서 분석 상태 저장 오류:', insertError);
+            if (upsertError) {
+              console.error('❌ 문서 분석 상태 저장 오류:', upsertError);
             } else {
               console.log('✅ 문서 분석 상태 저장 완료:', analysisData);
             }
