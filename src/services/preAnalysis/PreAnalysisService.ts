@@ -1592,62 +1592,150 @@ export class PreAnalysisService {
         aiProvider: session.ai_provider
       };
 
-      // 분석 프롬프트 생성
-      const analysisPrompt = this.generateAnalysisPrompt(content, category);
-      console.log('📝 분석 프롬프트 생성 완료', {
-        contentLength: content.length,
-        category,
-        promptLength: analysisPrompt.length
-      });
+      // 🆕 재시도 메커니즘 구현 (최대 3회 시도)
+      const MAX_RETRIES = 3;
+      let lastAnalysis: any = null;
+      let cumulativeInputTokens = 0;
+      let cumulativeOutputTokens = 0;
+      let cumulativeCost = 0;
 
-      // Vercel API 라우트를 통한 AI 호출 (프로덕션 환경 지원)
-      console.log('🤖 AI 호출 시작 (Vercel API 라우트)', {
-        model: settings.aiModel,
-        provider: settings.aiProvider,
-        maxTokens: 4000,
-        temperature: 0.3,
-        promptPreview: analysisPrompt.substring(0, 200) + '...',
-        sessionId
-      });
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        console.log(`\n🔄 [시도 ${attempt}/${MAX_RETRIES}] JSON 파싱 안정화 재시도 시작`);
 
-      console.log('🔗 callAICompletionAPI 호출 전 환경 체크:', {
-        isDev: import.meta.env.DEV,
-        mode: import.meta.env.MODE,
-        apiUrl: import.meta.env.DEV
-          ? 'https://ea-plan-05.vercel.app/api/ai/completion'
-          : '/api/ai/completion'
-      });
+        try {
+          // 분석 프롬프트 생성 (시도마다 동일)
+          const analysisPrompt = this.generateAnalysisPrompt(content, category);
+          console.log('📝 분석 프롬프트 생성 완료', {
+            contentLength: content.length,
+            category,
+            promptLength: analysisPrompt.length,
+            attempt
+          });
 
-      const response = await this.callAICompletionAPI(
-        settings.aiProvider,
-        settings.aiModel,
-        analysisPrompt,
-        4000,
-        0.3
-      );
+          // Vercel API 라우트를 통한 AI 호출 (프로덕션 환경 지원)
+          console.log('🤖 AI 호출 시작 (Vercel API 라우트)', {
+            model: settings.aiModel,
+            provider: settings.aiProvider,
+            maxTokens: 4000,
+            temperature: 0.3,
+            promptPreview: analysisPrompt.substring(0, 200) + '...',
+            sessionId,
+            attempt
+          });
 
-      console.log('🔗 callAICompletionAPI 호출 후 응답 확인:', {
-        hasResponse: !!response,
-        hasContent: !!response?.content,
-        hasUsage: !!response?.usage,
-        hasCost: !!response?.cost
-      });
+          console.log('🔗 callAICompletionAPI 호출 전 환경 체크:', {
+            isDev: import.meta.env.DEV,
+            mode: import.meta.env.MODE,
+            apiUrl: import.meta.env.DEV
+              ? 'https://ea-plan-05.vercel.app/api/ai/completion'
+              : '/api/ai/completion'
+          });
 
-      console.log('✅ AI 응답 수신 완료', {
-        responseLength: response.content.length,
-        inputTokens: response.usage.inputTokens,
-        outputTokens: response.usage.outputTokens,
-        totalCost: response.cost.totalCost
-      });
+          const response = await this.callAICompletionAPI(
+            settings.aiProvider,
+            settings.aiModel,
+            analysisPrompt,
+            4000,
+            0.3
+          );
 
-      // 응답을 파싱하여 구조화된 분석 결과 생성
-      const analysis = this.parseAnalysisResponse(response.content, category);
-      console.log('📊 분석 결과 파싱 완료', { analysisKeys: Object.keys(analysis) });
+          console.log('🔗 callAICompletionAPI 호출 후 응답 확인:', {
+            hasResponse: !!response,
+            hasContent: !!response?.content,
+            hasUsage: !!response?.usage,
+            hasCost: !!response?.cost,
+            attempt
+          });
+
+          console.log('✅ AI 응답 수신 완료', {
+            responseLength: response.content.length,
+            inputTokens: response.usage.inputTokens,
+            outputTokens: response.usage.outputTokens,
+            totalCost: response.cost.totalCost,
+            attempt
+          });
+
+          // 비용 누적
+          cumulativeInputTokens += response.usage.inputTokens;
+          cumulativeOutputTokens += response.usage.outputTokens;
+          cumulativeCost += response.cost.totalCost;
+
+          // 응답을 파싱하여 구조화된 분석 결과 생성
+          const analysis = this.parseAnalysisResponse(response.content, category);
+          lastAnalysis = analysis;
+
+          console.log('📊 분석 결과 파싱 완료', {
+            analysisKeys: Object.keys(analysis),
+            attempt
+          });
+
+          // 🆕 JSON 검증 - additionalInfoNeeded 확인
+          const hasAdditionalInfoNeeded = 'additionalInfoNeeded' in analysis;
+
+          if (hasAdditionalInfoNeeded) {
+            console.log(`✅ [시도 ${attempt}] JSON 파싱 성공 - additionalInfoNeeded 필드 존재`);
+
+            // 성공 시 즉시 반환
+            const processingTime = Date.now() - startTime;
+            return {
+              analysis,
+              mcpEnrichment: {
+                similarProjects: [],
+                marketInsights: {},
+                competitorAnalysis: [],
+                technologyTrends: [],
+              },
+              confidenceScore: 0.85,
+              processingTime,
+              aiModel: settings.aiModel,
+              aiProvider: settings.aiProvider,
+              inputTokens: cumulativeInputTokens,
+              outputTokens: cumulativeOutputTokens,
+              cost: cumulativeCost,
+            };
+          } else {
+            console.warn(`⚠️ [시도 ${attempt}] additionalInfoNeeded 필드 누락 - 재시도 필요`);
+
+            if (attempt < MAX_RETRIES) {
+              // 지수 백오프 대기
+              const waitMs = 1000 * attempt;
+              console.log(`⏳ ${waitMs}ms 대기 후 재시도...`);
+              await new Promise(resolve => setTimeout(resolve, waitMs));
+            }
+          }
+
+        } catch (attemptError) {
+          console.error(`❌ [시도 ${attempt}] AI 호출 또는 파싱 실패:`, attemptError);
+
+          if (attempt < MAX_RETRIES) {
+            const waitMs = 1000 * attempt;
+            console.log(`⏳ ${waitMs}ms 대기 후 재시도...`);
+            await new Promise(resolve => setTimeout(resolve, waitMs));
+          } else {
+            console.error(`❌ 최대 재시도 횟수 도달 - 마지막 결과 사용`);
+          }
+        }
+      }
+
+      // 🆕 모든 재시도 실패 시 마지막 결과 반환 (또는 기본 구조)
+      console.warn(`⚠️ ${MAX_RETRIES}회 재시도 모두 실패 - 마지막 결과로 진행`);
+
+      const finalAnalysis = lastAnalysis || {
+        summary: `${category || '문서'} 분석 완료 (JSON 검증 실패)`,
+        keyRequirements: ['분석 정보 추출 실패 - 문서 확인 필요'],
+        stakeholders: ['이해관계자 정보 미확인 - 질문 필요'],
+        constraints: ['제약사항 미확인 - 질문 필요'],
+        risks: ['위험 요소 미확인 - 질문 필요'],
+        opportunities: ['기회 요소 미확인 - 질문 필요'],
+        technicalStack: ['기술 스택 미확인 - 질문 필요'],
+        timeline: ['일정 정보 미확인 - 질문 필요'],
+        additionalInfoNeeded: []
+      };
 
       const processingTime = Date.now() - startTime;
 
       return {
-        analysis,
+        analysis: finalAnalysis,
         mcpEnrichment: {
           similarProjects: [],
           marketInsights: {},
@@ -1658,9 +1746,9 @@ export class PreAnalysisService {
         processingTime,
         aiModel: settings.aiModel,
         aiProvider: settings.aiProvider,
-        inputTokens: response.usage.inputTokens,
-        outputTokens: response.usage.outputTokens,
-        cost: response.cost.totalCost,
+        inputTokens: cumulativeInputTokens,
+        outputTokens: cumulativeOutputTokens,
+        cost: cumulativeCost,
       };
     } catch (error) {
       const processingTime = Date.now() - startTime;
@@ -1699,7 +1787,17 @@ export class PreAnalysisService {
   private generateAnalysisPrompt(content: string, category?: DocumentCategory): string {
     const categoryContext = category ? `이 문서는 "${category}" 카테고리에 속하며, 해당 관점을 중심으로 분석해야 합니다.` : '';
 
-    return `# 📄 웹에이전시 엘루오씨앤씨 - 문서 심층 분석
+    return `🚨 **CRITICAL: JSON 형식만 반환하세요** 🚨
+
+**절대 규칙**:
+1. ❌ 설명 텍스트, 마크다운, 주석 **절대 금지**
+2. ❌ 코드 블록 백틱(\`\`\`json) **절대 금지**
+3. ✅ 순수 JSON만 반환 (첫 글자는 {, 마지막 글자는 })
+4. ✅ 모든 필수 필드 반드시 포함 (summary, keyRequirements, stakeholders, constraints, risks, opportunities, technicalStack, timeline, additionalInfoNeeded)
+
+---
+
+# 📄 웹에이전시 엘루오씨앤씨 - 문서 심층 분석
 
 당신은 **웹에이전시 엘루오씨앤씨**의 수석 프로젝트 분석가입니다.
 
@@ -1925,6 +2023,47 @@ ${content}
 위 지침을 **모두 준수**하여 **JSON 형식으로만** 분석 결과를 출력하세요.`;
   }
 
+  /**
+   * 🆕 JSON 파싱 결과 검증 메서드
+   * 필수 필드가 모두 존재하고 유효한 값인지 확인
+   */
+  private isValidAnalysisJSON(parsedData: any): { valid: boolean; missingFields: string[] } {
+    const requiredFields = [
+      'summary',
+      'keyRequirements',
+      'stakeholders',
+      'constraints',
+      'risks',
+      'opportunities',
+      'technicalStack',
+      'timeline'
+    ];
+
+    const missingFields: string[] = [];
+
+    for (const field of requiredFields) {
+      if (!parsedData[field]) {
+        missingFields.push(field);
+      } else if (Array.isArray(parsedData[field]) && parsedData[field].length === 0) {
+        // 빈 배열도 누락으로 간주
+        missingFields.push(field);
+      } else if (typeof parsedData[field] === 'string' && parsedData[field].trim().length === 0) {
+        // 빈 문자열도 누락으로 간주
+        missingFields.push(field);
+      }
+    }
+
+    const valid = missingFields.length === 0;
+
+    if (!valid) {
+      console.warn(`⚠️ JSON 검증 실패: ${missingFields.length}개 필드 누락`, missingFields);
+    } else {
+      console.log('✅ JSON 검증 성공: 모든 필수 필드 존재');
+    }
+
+    return { valid, missingFields };
+  }
+
   private parseAnalysisResponse(response: string, category?: DocumentCategory): any {
     try {
       // Step 1: JSON 코드 블록 추출 시도 (```json ... ```)
@@ -1953,21 +2092,20 @@ ${content}
         stakeholdersCount: parsedResponse.stakeholders?.length || 0
       });
 
-      // Step 3: 필수 필드 검증 (선택적 - 기존 동작 유지)
-      const requiredFields = ['summary', 'keyRequirements', 'stakeholders', 'constraints', 'risks', 'opportunities', 'technicalStack', 'timeline'];
-      const missingFields = requiredFields.filter(field => !parsedResponse[field]);
+      // Step 3: 🆕 필수 필드 검증 (강화됨)
+      const validation = this.isValidAnalysisJSON(parsedResponse);
 
-      if (missingFields.length > 0) {
-        console.warn(`⚠️ 일부 필드 누락 (${missingFields.length}개):`, missingFields);
-
-        // 누락된 필드에 기본값 설정 (기존 동작 보존)
-        missingFields.forEach(field => {
+      if (!validation.valid) {
+        // 필수 필드 누락 시 기본값 설정 (기존 동작 보존)
+        validation.missingFields.forEach(field => {
           if (field === 'summary') {
             parsedResponse[field] = `${category || '문서'} 분석 완료 (요약 정보 부족)`;
           } else {
-            parsedResponse[field] = [`${field} 정보 미확인`];
+            parsedResponse[field] = [`${field} 정보 미확인 - 질문 필요`];
           }
         });
+
+        console.log('🔧 누락된 필드에 기본값 설정 완료');
       }
 
       return parsedResponse;
@@ -1988,6 +2126,7 @@ ${content}
       opportunities: this.extractListFromText(response, '기회'),
       technicalStack: this.extractListFromText(response, '기술'),
       timeline: this.extractListFromText(response, '일정'),
+      additionalInfoNeeded: [] // 빈 배열 추가
     };
   }
 
@@ -3479,6 +3618,9 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
     analyses: any[],
     maxQuestions: number = 15
   ): string {
+    // 🆕 분석 결과에서 "확인된 정보" 추출 (중복 질문 방지)
+    const confirmedInfo = this.extractConfirmedInfo(analyses);
+
     // 분석 결과에서 "미확인" 항목 추출
     const unclearItems = this.extractUnclearItemsFromAnalyses(analyses);
 
@@ -3491,6 +3633,7 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
       questionRange,
       documentsCount: documentContext.length,
       analysesCount: analyses.length,
+      confirmedInfoCount: confirmedInfo.length,
       unclearItemsCount: unclearItems.length
     });
 
@@ -3511,6 +3654,23 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
 ${documentContext.map((doc, index) =>
   `${index + 1}. ${doc.name}${doc.summary ? ` - ${doc.summary}` : ''}`
 ).join('\n')}
+
+`;
+    }
+
+    // 🆕 확인된 정보 섹션 추가 (중복 질문 방지)
+    if (confirmedInfo.length > 0) {
+      prompt += `## ✅ 문서에서 이미 확인된 정보 (질문 생성 제외)
+
+다음 항목들은 문서에서 **명확히 확인**되었으므로 **질문을 생성하지 마세요**:
+
+${confirmedInfo.map((info, index) =>
+  `${index + 1}. **${info.field}**: ${info.value}`
+).join('\n')}
+
+⚠️ **중요**: 위 항목들에 대해서는 절대 질문을 생성하지 마세요. 이미 문서에 답이 있습니다.
+
+---
 
 `;
     }
@@ -3645,6 +3805,80 @@ ${missingItems.length === 0 && incompleteItems.length === 0 ? '- 문서 분석 �
 위 지침을 **모두 준수**하여 **최소 ${questionRange.min}개, 최대 ${questionRange.max}개**의 실무적 질문을 생성하세요.`;
 
     return prompt;
+  }
+
+  /**
+   * 🆕 분석 결과에서 "확인된 정보" 추출 (중복 질문 방지용)
+   */
+  private extractConfirmedInfo(analyses: any[]): Array<{
+    field: string;
+    value: string;
+  }> {
+    const confirmedInfo: Array<{ field: string; value: string }> = [];
+    const unclearKeywords = ['미확인', '정보 없음', '명시되지 않음', '확인 필요', '질문 필요'];
+
+    analyses.forEach(analysis => {
+      const result = analysis.analysis_result;
+      if (!result || typeof result !== 'object') return;
+
+      // 필드 매핑
+      const fieldMapping: Record<string, string> = {
+        projectGoals: '프로젝트 목표',
+        targetAudience: '타겟 사용자',
+        functionalRequirements: '핵심 기능 요구사항',
+        stakeholders: '이해관계자',
+        constraints: '제약사항',
+        risks: '위험 요소',
+        opportunities: '기회 요소',
+        technicalStack: '기술 스택',
+        timeline: '일정 정보',
+        budget: '예산 정보'
+      };
+
+      for (const [key, label] of Object.entries(fieldMapping)) {
+        const value = result[key];
+
+        if (!value) continue;
+
+        // 배열인 경우
+        if (Array.isArray(value)) {
+          const validValues = value.filter((item: any) => {
+            if (typeof item !== 'string') return false;
+            if (item.length < 10) return false; // 너무 짧은 값 제외
+            // "미확인" 키워드가 없으면 유효한 정보
+            return !unclearKeywords.some(keyword => item.includes(keyword));
+          });
+
+          if (validValues.length > 0) {
+            // 최대 2개까지만 표시 (프롬프트 길이 제한)
+            const displayValue = validValues.slice(0, 2).join(', ');
+            const suffix = validValues.length > 2 ? ` 외 ${validValues.length - 2}개` : '';
+            confirmedInfo.push({
+              field: label,
+              value: displayValue + suffix
+            });
+          }
+        }
+        // 문자열인 경우
+        else if (typeof value === 'string') {
+          if (value.length >= 10 && !unclearKeywords.some(keyword => value.includes(keyword))) {
+            // 너무 긴 값은 잘라서 표시
+            const displayValue = value.length > 150 ? value.substring(0, 150) + '...' : value;
+            confirmedInfo.push({
+              field: label,
+              value: displayValue
+            });
+          }
+        }
+      }
+    });
+
+    console.log('✅ 추출된 확인된 정보:', {
+      total: confirmedInfo.length,
+      fields: confirmedInfo.map(info => info.field)
+    });
+
+    return confirmedInfo;
   }
 
   /**
