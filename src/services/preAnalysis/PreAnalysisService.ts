@@ -3974,57 +3974,39 @@ ${incompleteItems.map((item, index) =>
 
 ---
 
-## 📤 출력 형식 (JSON)
+---
 
-\`\`\`json
+🚨 **출력 형식: 순수 JSON만 반환** 🚨
+
+설명 없이 { 로 시작하는 순수 JSON만 반환하세요.
+코드 블록(\`\`\`json) 절대 사용 금지!
+
 {
   "questions": [
     {
-      "category": "business|technical|design|timeline|budget|risks|stakeholders",
-      "question": "구체적이고 실무적인 질문 (50자 이상, 예시: '지원해야 할 브라우저와 최소 버전은 무엇인가요? IE11 지원이 필요한가요?')",
-      "context": "질문 배경 설명 (왜 이 질문이 중요한지, 예시: '구형 브라우저 지원은 개발 공수와 비용에 큰 영향을 미칩니다')",
+      "category": "business",
+      "question": "Question text here (minimum 50 characters)",
+      "context": "Context explanation here (minimum 30 characters)",
       "required": true,
       "expectedFormat": "textarea",
       "confidenceScore": 0.9
     }
   ]
 }
-\`\`\`
 
 ---
 
-## ⚠️ 필수 준수 지침
+📋 필수 지침:
 
-### 1. 우선순위 기반 질문 생성
-${missingItems.length > 0 ? `- **우선순위 1 (필수)**: 위에 나열된 ${missingItems.length}개 확인되지 않은 항목에 대한 질문 필수 생성` : ''}
-${incompleteItems.length > 0 ? `- **우선순위 2 (권장)**: 위에 나열된 ${incompleteItems.length}개 추가 보강 필요 항목에 대한 상세 질문 생성` : ''}
-${missingItems.length === 0 && incompleteItems.length === 0 ? '- 문서 분석 결과에서 누락되거나 불충분한 정보를 확인하는 질문 생성' : ''}
+1. 카테고리: business, technical, design, timeline, budget, risks, stakeholders 중 하나
+2. 질문 최소 50자, context 최소 30자
+3. ${missingItems.length > 0 ? `위에 나열된 ${missingItems.length}개 확인되지 않은 항목 우선 질문` : ''}${incompleteItems.length > 0 ? `, ${incompleteItems.length}개 보강 필요 항목 상세 질문` : ''}
+4. 최소 ${questionRange.min}개, 최대 ${questionRange.max}개 생성
 
-### 2. 질문 품질 기준
-- ✅ **구체성**: 모호한 질문 금지 (예: "요구사항은?" ❌ → "회원가입 시 이메일 인증이 필요한가요?" ✅)
-- ✅ **실무 용어**: 웹에이전시 실무 용어 사용 (예: "반응형 중단점", "크로스브라우징")
-- ✅ **최소 길이**: 각 질문 최소 50자 이상
-- ✅ **실행 가능성**: 명확한 답변을 유도하는 질문
-
-### 3. 카테고리 분배
-- ✅ **균형**: 7개 카테고리를 골고루 포함 (한 카테고리 집중 금지)
-- ✅ **우선순위**: business(30%), technical(25%), design(15%), timeline(10%), budget(10%), stakeholders(5%), risks(5%)
-
-### 4. 필수 필드
-- ✅ **category**: 반드시 지정된 7개 중 하나 (business, technical, design, timeline, budget, risks, stakeholders)
-- ✅ **question**: 질문 본문 (최소 50자)
-- ✅ **context**: 질문 배경 설명 (최소 30자)
-- ✅ **required**: 필수 여부 (미확인 항목 관련 질문은 반드시 true)
-- ✅ **expectedFormat**: textarea (기본값)
-- ✅ **confidenceScore**: 0.7~0.9 (미확인 항목은 0.9 이상)
-
-### 5. JSON 형식
-- ❌ 마크다운 코드 블록 밖에 설명 추가 금지
-- ✅ 순수 JSON 객체만 반환 ({ 로 시작, } 로 끝)
-
----
-
-위 지침을 **모두 준수**하여 **최소 ${questionRange.min}개, 최대 ${questionRange.max}개**의 실무적 질문을 생성하세요.`;
+⚠️ 다시 한번 강조:
+- 설명 없이 JSON만 반환
+- 첫 글자 {, 마지막 글자 }
+- 코드 블록 절대 사용 금지`;
 
     return prompt;
   }
