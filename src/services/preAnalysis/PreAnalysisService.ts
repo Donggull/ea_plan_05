@@ -3859,10 +3859,29 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
       unclearItemsCount: unclearItems.length
     });
 
-    let prompt = `# 🎯 웹에이전시 엘루오씨앤씨 - 프로젝트 핵심 질문 생성
+    // ========== 상단: JSON 형식 극도 강조 (15줄) ==========
+    let prompt = `🚨 CRITICAL: JSON 형식만 반환하세요 🚨
 
-당신은 **웹에이전시 엘루오씨앤씨**의 수석 프로젝트 컨설턴트입니다.
-문서 분석 결과를 바탕으로 프로젝트 실행에 필요한 **구체적이고 실무적인 질문**을 생성하세요.
+설명 없이 { 로 시작하는 순수 JSON만 반환하세요.
+코드 블록(\`\`\`json), 마크다운, 설명 텍스트 절대 금지!
+
+필수 JSON 형식:
+{
+  "questions": [
+    {
+      "category": "business",
+      "question": "주요 타겟 사용자는 누구이며, 연령대와 사용 목적은 무엇인가요?",
+      "context": "사용자 페르소나 정의는 UX 설계와 기능 우선순위 결정에 필수적입니다.",
+      "required": true,
+      "expectedFormat": "textarea",
+      "confidenceScore": 0.9
+    }
+  ]
+}
+
+---
+
+# 웹에이전시 엘루오씨앤씨 - 프로젝트 질문 생성
 
 ## 📋 프로젝트 정보
 - **프로젝트명**: ${projectName || '미정'}
@@ -3931,82 +3950,49 @@ ${incompleteItems.map((item, index) =>
 `;
     }
 
-    prompt += `## 🎯 질문 생성 전략
+    // ========== 중단: 필수 컨텍스트 + 핵심 가이드 (80줄) ==========
+    prompt += `## 🎯 질문 생성 가이드
 
 ### 📊 문서 복잡도: ${complexityScore}/100점
-- **권장 질문 개수**: 최소 ${questionRange.min}개 ~ 최대 ${questionRange.max}개
-- **생성 전략**:
-  - 복잡도가 높을수록 → 더 많은 심화 질문 생성 (범위 상한 활용)
-  - 복잡도가 낮을수록 → 핵심 필수 질문만 생성 (범위 하한 활용)
+- 권장 질문 개수: 최소 ${questionRange.min}개 ~ 최대 ${questionRange.max}개
 
-### 🔥 웹에이전시 실무 질문 가이드
+### 💡 카테고리별 핵심 예시 (참고용)
 
-#### 1. 기획 관점 질문 (business, stakeholders)
-- ✅ **사용자 페르소나**: "주요 타겟 사용자는 누구이며, 연령대/직군/사용 목적은?"
-- ✅ **정보구조도(IA)**: "사이트 메뉴 구성과 주요 페이지 계층은 어떻게 구성하실 계획인가요?"
-- ✅ **핵심 기능**: "회원가입/로그인 방식은? (이메일, 소셜 로그인 등)"
-- ✅ **비즈니스 목표**: "프로젝트 성공을 측정할 KPI는? (전환율, MAU, 매출 등)"
+**business**: "주요 타겟 사용자는 누구이며, 연령대/직군/사용 목적은 무엇인가요?"
+- context: "사용자 페르소나 정의는 UX 설계와 기능 우선순위 결정에 필수적입니다."
 
-#### 2. 디자인 관점 질문 (design)
-- ✅ **디자인 시스템**: "기존 디자인 가이드나 브랜드 컬러가 있나요?"
-- ✅ **반응형 중단점**: "모바일/태블릿/데스크톱 각각의 디자인이 필요한가요?"
-- ✅ **디자인 산출물**: "와이어프레임/목업/프로토타입 중 어디까지 필요한가요?"
-- ✅ **브랜드 아이덴티티**: "로고, 폰트, 이미지 스타일 등 브랜드 가이드가 있나요?"
+**technical**: "선호하는 프론트엔드 기술 스택은 무엇인가요? (React/Vue/Angular/기타)"
+- context: "기술 스택 결정은 개발 공수, 유지보수성, 팀 역량에 큰 영향을 미칩니다."
 
-#### 3. 퍼블리싱 관점 질문 (technical)
-- ✅ **지원 브라우저**: "지원해야 할 브라우저와 버전은? (IE11 포함 여부)"
-- ✅ **접근성**: "웹 접근성 WCAG 2.1 AA 등급 준수가 필요한가요?"
-- ✅ **다국어**: "다국어 지원이 필요한가요? (언어 종류와 범위)"
-- ✅ **SEO**: "검색엔진 최적화(SEO)가 중요한 프로젝트인가요?"
+**design**: "기존 브랜드 가이드(컬러, 폰트, 로고)가 있나요? 있다면 공유 가능한가요?"
+- context: "브랜드 일관성 유지를 위해 기존 가이드 확인이 필요합니다."
 
-#### 4. 개발 관점 질문 (technical, risks)
-- ✅ **프론트엔드**: "선호하는 프론트엔드 기술 스택은? (React/Vue/Angular)"
-- ✅ **백엔드**: "백엔드 API는 자체 구축인가요, 외부 서비스 연동인가요?"
-- ✅ **인증/권한**: "사용자 인증 방식은? (JWT, OAuth, 세션)"
-- ✅ **배포 환경**: "배포 환경은 어디인가요? (AWS, GCP, Azure, 자체 서버)"
-- ✅ **보안/성능**: "예상 동시 접속자 수와 응답 시간 목표는?"
+**timeline**: "프로젝트 오픈 희망 일자와 주요 마일스톤(기획/디자인/개발 완료)은 언제인가요?"
+- context: "일정 계획 수립과 리소스 배분을 위해 명확한 일정 확인이 필요합니다."
 
-#### 5. 일정/예산 관점 질문 (timeline, budget)
-- ✅ **목표 일정**: "프로젝트 오픈 희망 일자와 주요 마일스톤은?"
-- ✅ **단계별 출시**: "MVP 먼저 출시 후 단계적 기능 추가 계획이 있나요?"
-- ✅ **예산 범위**: "프로젝트 예산 범위와 우선순위는?"
-- ✅ **인력 계획**: "프로젝트 참여 인력 구성은? (내부팀/외주)"
+**budget**: "프로젝트 예산 범위는 어느 정도이며, 기능 우선순위는 어떻게 되나요?"
+- context: "예산 범위에 따라 MVP 범위와 단계적 출시 계획을 조정해야 합니다."
 
 ---
 
----
+🚨 다시 한번: JSON만 반환하세요 🚨
 
-🚨 **출력 형식: 순수 JSON만 반환** 🚨
+설명 텍스트, 마크다운 코드 블록, 주석 절대 금지!
+순수 JSON 객체만 반환: { "questions": [...] }
 
-설명 없이 { 로 시작하는 순수 JSON만 반환하세요.
-코드 블록(\`\`\`json) 절대 사용 금지!
+필수 조건:
+- category: business, technical, design, timeline, budget, risks, stakeholders 중 하나
+- question: 최소 50자 이상
+- context: 최소 30자 이상
+- required: true (미확인 항목), false (보강 항목)
+- confidenceScore: 0.7~0.9${missingItems.length > 0 ? `\n- 우선순위 1: ${missingItems.length}개 확인되지 않은 항목 필수 질문` : ''}${incompleteItems.length > 0 ? `\n- 우선순위 2: ${incompleteItems.length}개 보강 필요 항목 상세 질문` : ''}
+- 총 질문 개수: ${questionRange.min}개 이상, ${questionRange.max}개 이하
 
-{
-  "questions": [
-    {
-      "category": "business",
-      "question": "Question text here (minimum 50 characters)",
-      "context": "Context explanation here (minimum 30 characters)",
-      "required": true,
-      "expectedFormat": "textarea",
-      "confidenceScore": 0.9
-    }
-  ]
-}
-
----
-
-📋 필수 지침:
-
-1. 카테고리: business, technical, design, timeline, budget, risks, stakeholders 중 하나
-2. 질문 최소 50자, context 최소 30자
-3. ${missingItems.length > 0 ? `위에 나열된 ${missingItems.length}개 확인되지 않은 항목 우선 질문` : ''}${incompleteItems.length > 0 ? `, ${incompleteItems.length}개 보강 필요 항목 상세 질문` : ''}
-4. 최소 ${questionRange.min}개, 최대 ${questionRange.max}개 생성
-
-⚠️ 다시 한번 강조:
-- 설명 없이 JSON만 반환
-- 첫 글자 {, 마지막 글자 }
-- 코드 블록 절대 사용 금지`;
+⚠️⚠️⚠️ 최종 확인 ⚠️⚠️⚠️
+첫 글자: {
+마지막 글자: }
+코드 블록 없음
+설명 없음`;
 
     return prompt;
   }
