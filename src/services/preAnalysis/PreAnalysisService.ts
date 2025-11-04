@@ -1795,243 +1795,59 @@ export class PreAnalysisService {
     }
   }
 
-  private generateAnalysisPrompt(content: string, category?: DocumentCategory, fileName: string = ''): string {
-    const categoryContext = category ? `이 문서는 "${category}" 카테고리에 속하며, 해당 관점을 중심으로 분석해야 합니다.` : '';
-
-    // 🆕 플랫폼 타입 감지
+  private generateAnalysisPrompt(content: string, _category?: DocumentCategory, fileName: string = ''): string {
+    // 플랫폼 타입 감지
     const platformType = this.detectPlatformType(content, fileName);
-    const platformContext = platformType === 'app'
-      ? '이 문서는 **모바일 앱(APP) 개발** 프로젝트입니다. 웹 브라우저 관련 질문은 생성하지 마세요.'
+    const platformHint = platformType === 'app'
+      ? '(모바일 앱 프로젝트: iOS/Android 관련 정보 우선 추출)'
       : platformType === 'web'
-      ? '이 문서는 **웹사이트(WEB) 개발** 프로젝트입니다. 모바일 앱스토어 관련 질문은 생성하지 마세요.'
-      : '이 문서는 **웹 또는 앱** 프로젝트입니다. 문서 내용을 바탕으로 플랫폼에 맞는 분석을 수행하세요.';
+      ? '(웹사이트 프로젝트: 브라우저/SEO 관련 정보 우선 추출)'
+      : '';
 
-    // 🆕 플랫폼별 체크리스트 생성
-    const platformChecklist = this.generatePlatformChecklist(platformType);
+    return `🚨 JSON만 반환 🚨
+설명 없이 { 로 시작하는 순수 JSON만 반환하세요.
+코드 블록(\`\`\`json) 절대 사용 금지!
 
-    return `🚨 **CRITICAL: JSON 형식만 반환하세요** 🚨
+아래 JSON 스키마를 정확히 따르세요:
 
-**절대 규칙**:
-1. ❌ 설명 텍스트, 마크다운, 주석 **절대 금지**
-2. ❌ 코드 블록 백틱(\`\`\`json) **절대 금지**
-3. ✅ 순수 JSON만 반환 (첫 글자는 {, 마지막 글자는 })
-4. ✅ 모든 필수 필드 반드시 포함 (summary, keyRequirements, stakeholders, constraints, risks, opportunities, technicalStack, timeline, additionalInfoNeeded)
-
----
-
-# 📄 웹에이전시 엘루오씨앤씨 - 문서 심층 분석
-
-당신은 **웹에이전시 엘루오씨앤씨**의 수석 프로젝트 분석가입니다.
-
-## 🏢 회사 정보
-- **담당 업무**: 웹사이트 기획, UI/UX 디자인, 퍼블리싱 (HTML/CSS), 프론트엔드/백엔드 개발
-- **분석 목표**: 프로젝트 실행에 필요한 사실 기반 정보를 문서에서 최대한 상세히 추출
-- **핵심 원칙**: 사실만 추출, 추측 금지, 구체적 작성, 실무 용어 사용
-
-## 📋 문서 정보
-${categoryContext}
-
-## 🎯 플랫폼 타입 (중요!)
-${platformContext}
+{
+  "summary": "프로젝트 전체 요약 (200자 이상)",
+  "keyRequirements": ["핵심 요구사항 1", "핵심 요구사항 2", "..."],
+  "stakeholders": ["이해관계자명 - 역할", "..."],
+  "constraints": ["제약사항 (예산/일정/기술) 1", "..."],
+  "risks": ["위험 요소 1", "..."],
+  "opportunities": ["기회 요소 1", "..."],
+  "technicalStack": ["기술 스택 (버전 포함) 1", "..."],
+  "timeline": ["일정 정보 (날짜 포함) 1", "..."],
+  "additionalInfoNeeded": [
+    {
+      "field": "technicalStack",
+      "currentInfo": "React 사용 확인",
+      "neededInfo": "상태관리 라이브러리, 라우터, 스타일링 도구",
+      "priority": "high",
+      "reason": "아키텍처 설계 및 공수 산정에 필수"
+    }
+  ]
+}
 
 ---
 
-## 📝 문서 내용
+문서 내용 ${platformHint}:
 """
 ${content}
 """
 
 ---
 
-## 🎯 웹에이전시 실무 분석 체크리스트
+분석 가이드:
+1. 문서에서 **명시된 사실만** 추출 (추측 금지)
+2. 구체적 숫자, 날짜, 기술명, 버전 포함
+3. "미확인" 항목은 additionalInfoNeeded에 반드시 추가
+4. 각 배열은 최소 2개 이상 항목 포함
 
-문서 분석 시 다음 4가지 관점을 **반드시** 체크하여 정보를 추출하세요:
-
-### 1. 기획 관점 ✅
-- ✅ **사용자 페르소나**: 타겟 사용자 특성, 연령대, 직군, 사용 목적
-- ✅ **정보구조도(IA)**: 사이트 구조, 메뉴 구성, 페이지 계층
-- ✅ **핵심 기능**: 회원가입/로그인, 결제, 검색, 알림 등 주요 기능
-- ✅ **콘텐츠 유형**: 텍스트, 이미지, 동영상, 파일 다운로드 등
-- ✅ **비즈니스 목표**: KPI, 전환율 목표, 매출 목표 등
-
-### 2. 디자인 관점 🎨
-- ✅ **디자인 시스템**: 디자인 가이드, 컬러 팔레트, 타이포그래피
-- ✅ **UI/UX 요구사항**: 사용성, 인터랙션, 애니메이션
-- ✅ **반응형 중단점**: Mobile (320px~), Tablet (768px~), Desktop (1024px~)
-- ✅ **브랜드 아이덴티티**: 로고, 컬러, 폰트, 이미지 스타일
-- ✅ **디자인 산출물**: 와이어프레임, 목업, 프로토타입 여부
-
-${platformChecklist}
-
----
-
-## 📊 좋은 분석 결과 예시
-
-### ✅ 예시 1: keyRequirements (좋은 예)
-\`\`\`json
-[
-  "회원가입/로그인 기능 구현 (이메일, 카카오, 네이버 소셜 로그인 3종)",
-  "상품 검색 및 필터링 기능 (카테고리, 가격대, 평점, 브랜드별)",
-  "반응형 웹 디자인 적용 (Mobile 320px, Tablet 768px, Desktop 1024px 중단점)",
-  "관리자 페이지 구축 (상품 관리, 주문 관리, 통계 대시보드)",
-  "결제 모듈 연동 (토스페이먼츠, 카카오페이, 네이버페이)"
-]
-\`\`\`
-**포인트**: 구체적 숫자, 브랜드명, 기술 용어 포함
-
-### ✅ 예시 2: technicalStack (좋은 예)
-\`\`\`json
-[
-  "프론트엔드: React 18 + TypeScript 5 + Vite 5",
-  "상태관리: Zustand 4 + React Query",
-  "백엔드: Node.js 20 + Express.js + PostgreSQL 15",
-  "배포: Vercel (프론트엔드) + AWS EC2 (백엔드)",
-  "기타: Supabase (인증/DB), Tailwind CSS 3"
-]
-\`\`\`
-**포인트**: 버전 정보, 구체적 기술명 명시
-
-### ❌ 나쁜 분석 결과 예시
-
-### ❌ 예시 1: keyRequirements (나쁜 예)
-\`\`\`json
-[
-  "다양한 기능 필요",
-  "사용자 편의성 개선",
-  "기술 스택 미확인"
-]
-\`\`\`
-**문제점**: 모호함, 구체성 부족, "미확인" 남발
-
-### ❌ 예시 2: timeline (나쁜 예)
-\`\`\`json
-[
-  "일정 정보 미확인"
-]
-\`\`\`
-**문제점**: 문서에서 암시적 일정 정보도 찾지 못함
-
----
-
-## 📤 출력 형식 (JSON)
-
-다음 JSON 형식으로 **정확하게** 출력하세요.
-
-\\\`\\\`\\\`json
-{
-  "summary": "문서 전체 요약 (최소 200자 이상, 프로젝트명, 목적, 범위, 핵심 특징, 기대효과 포함)",
-
-  "keyRequirements": [
-    "핵심 기능 요구사항 1 (최소 50자, 구체적 숫자/기술명 포함, 예: 'React 18 기반 SPA 구축')",
-    "핵심 기능 요구사항 2 (예: '회원 1만명 동시 접속 지원, 응답시간 1초 이하')",
-    "핵심 기능 요구사항 3",
-    "핵심 기능 요구사항 4",
-    "핵심 기능 요구사항 5 (최소 5개 이상, 문서에서 최대한 추출)"
-  ],
-
-  "stakeholders": [
-    "이해관계자 이름/역할 (예: '홍길동 - 프로젝트 오너, 최종 의사결정권자')",
-    "이해관계자 이름/역할 (예: '김철수 - 기획팀장, 요구사항 정의 담당')",
-    "최소 2개 이상. 문서에 명시되지 않았다면 '프로젝트 오너 정보 미확인 - 질문 필요'"
-  ],
-
-  "constraints": [
-    "제약사항 1 (구체적 날짜/금액 포함, 예: '2025년 6월 30일까지 완료 필수')",
-    "제약사항 2 (예: '예산 5,000만원 이내, 인력 3명 이하')",
-    "제약사항 3 (기술적/일정/예산/법적 제약 모두 포함)",
-    "최소 3개 이상. 없으면 '명시된 제약사항 없음 - 예산/일정 확인 질문 필요'"
-  ],
-
-  "risks": [
-    "위험 요소 1 (문서에서 추출 또는 암시된 리스크, 예: 'API 연동 대상 시스템 불안정성 언급')",
-    "위험 요소 2 (예: '타이트한 일정으로 인한 품질 저하 우려')",
-    "최소 2개 이상. 없으면 '명시된 리스크 없음 - 기술적/일정 리스크 질문 필요'"
-  ],
-
-  "opportunities": [
-    "기회 요소 1 (문서에서 추출, 예: '기존 시스템 사용자 5만명 데이터 활용 가능')",
-    "기회 요소 2 (예: '경쟁사 대비 차별화 포인트: AI 추천 기능')",
-    "최소 2개 이상. 없으면 '명시된 기회 요소 없음 - 비즈니스 가치 확인 질문 필요'"
-  ],
-
-  "technicalStack": [
-    "기술 스택 1 (구체적 기술명+버전, 예: 'React 18 + TypeScript 5 + Vite')",
-    "기술 스택 2 (예: 'Node.js 20 + Express + PostgreSQL 15')",
-    "기술 스택 3 (프론트엔드, 백엔드, DB, 인프라 모두 포함)",
-    "최소 3개 이상. 없으면 '기술 스택 미확인 - 선호 기술 및 제약사항 질문 필요'"
-  ],
-
-  "timeline": [
-    "일정 정보 1 (구체적 날짜/기간, 예: '기획 2주(2025.3.1~3.14), 디자인 3주(3.15~4.4)')",
-    "일정 정보 2 (예: '개발 8주(4.5~5.30), QA 2주(6.1~6.14), 오픈 6.15')",
-    "최소 2개 이상. 없으면 '일정 정보 미확인 - 목표 오픈일 및 마일스톤 질문 필요'"
-  ],
-
-  "additionalInfoNeeded": [
-    {
-      "field": "technicalStack",
-      "currentInfo": "React 18 사용 확인됨",
-      "neededInfo": "상태관리 라이브러리(Zustand/Redux/Recoil), 라우터(React Router), 스타일링(Tailwind/Emotion/Styled-components), 빌드 도구(Vite/Webpack)",
-      "priority": "high",
-      "reason": "개발 아키텍처 설계 및 공수 산정에 필수"
-    },
-    {
-      "field": "timeline",
-      "currentInfo": "2025년 상반기 오픈 목표",
-      "neededInfo": "구체적 오픈 날짜(월/일), 기획/디자인/개발/QA 단계별 일정, 주요 마일스톤",
-      "priority": "high",
-      "reason": "프로젝트 일정 수립 및 인력 배치 계획에 필수"
-    }
-  ]
-}
-\\\`\\\`\\\`
-
-**🔥 \`additionalInfoNeeded\` 필드 작성 가이드:**
-- **목적**: 문서에서 일부 확인되었으나 **상세 정보가 부족한 항목** 표시
-- **작성 조건**: 정보가 일부만 있거나 모호할 때만 포함
-- **우선순위**: high(필수), medium(권장), low(선택)
-- **field**: keyRequirements, stakeholders, constraints, risks, opportunities, technicalStack, timeline 중 하나
-- **필수 아님**: 모든 정보가 충분하면 빈 배열 [] 반환 가능
-
----
-
-## ⚠️ 필수 준수 지침
-
-### 1. 품질 기준
-- ✅ **summary**: 최소 200자, 프로젝트 전체 그림 파악 가능하도록
-- ✅ **keyRequirements**: 각 항목 최소 50자, 구체적 숫자/기술명 포함
-- ✅ **모든 배열**: 최소 개수 준수 (keyRequirements 5개, stakeholders 2개 등)
-- ✅ **"미확인" 사용 시**: 반드시 "질문 필요" 추가하여 후속 질문 유도
-
-### 2. 실무 용어 사용
-- ✅ 반응형 중단점: "Mobile 320px, Tablet 768px, Desktop 1024px"
-- ✅ 인증: "JWT 토큰 기반 인증, OAuth 2.0 소셜 로그인"
-- ✅ API: "REST API", "GraphQL", "gRPC"
-- ✅ 배포: "CI/CD 파이프라인", "Docker 컨테이너", "AWS EC2"
-
-### 3. JSON 형식 엄수
-- ❌ 마크다운 코드 블록 밖에 설명 추가 금지
-- ✅ 순수 JSON 객체만 반환 ({ 로 시작, } 로 끝)
-- ✅ 모든 문자열은 큰따옴표(") 사용
-- ✅ 배열 형태 유지 (객체 사용 금지)
-
-### 4. 정보 부족 시 대응
-문서에 정보가 부족해도 **최소 개수는 반드시 채워야 합니다**.
-- ✅ 좋은 예: "예산 정보 미확인 - 예산 범위 및 배분 우선순위 질문 필요"
-- ❌ 나쁜 예: "미확인"
-
-### 5. 🔥 추가 보강 필요 항목 처리 (additionalInfoNeeded)
-**핵심 원칙**: 문서에서 일부 확인되었으나 **상세 정보가 부족한 경우** 반드시 표시
-- ✅ **완전 누락**: 기존 필드에 "미확인 - 질문 필요" 형태로 작성
-- ✅ **부분 정보**: additionalInfoNeeded 배열에 객체로 추가
-- ✅ **충분한 정보**: additionalInfoNeeded에 포함하지 않음 (빈 배열 가능)
-
-**작성 예시:**
-- ✅ 좋은 예: technicalStack에 "React 18" 있음 → additionalInfoNeeded에 상태관리/라우터 등 추가 필요 표시
-- ✅ 좋은 예: timeline에 "상반기" 있음 → additionalInfoNeeded에 구체적 날짜/단계별 일정 추가 필요 표시
-- ❌ 나쁜 예: 완전 누락된 정보를 additionalInfoNeeded에 표시 (기존 필드에 "미확인" 작성이 맞음)
-
-위 지침을 **모두 준수**하여 **JSON 형식으로만** 분석 결과를 출력하세요.`;
+⚠️ 다시 한번 강조: 설명 없이 JSON만 반환!
+⚠️ 첫 글자 {, 마지막 글자 }로 시작/종료
+⚠️ additionalInfoNeeded는 필수! 정보 부족 시 반드시 포함`;
   }
 
   /**
@@ -2099,13 +1915,19 @@ ${platformChecklist}
       failureReasons.push('Fallback 모드 감지: AI가 JSON 형식을 반환하지 않음');
     }
 
-    // 2. additionalInfoNeeded 필드 검증
+    // 2. additionalInfoNeeded 필드 검증 (🆕 빈 배열 거부 추가)
     const hasAdditionalInfoNeeded =
       'additionalInfoNeeded' in analysis &&
-      Array.isArray(analysis.additionalInfoNeeded);
+      Array.isArray(analysis.additionalInfoNeeded) &&
+      analysis.additionalInfoNeeded.length > 0; // 🆕 최소 1개 이상 필요
 
-    if (!hasAdditionalInfoNeeded) {
-      failureReasons.push('additionalInfoNeeded 필드 누락 또는 잘못된 타입');
+    if (!('additionalInfoNeeded' in analysis)) {
+      failureReasons.push('additionalInfoNeeded 필드 누락');
+    } else if (!Array.isArray(analysis.additionalInfoNeeded)) {
+      failureReasons.push('additionalInfoNeeded 필드가 배열이 아님');
+    } else if (analysis.additionalInfoNeeded.length === 0) {
+      // 🆕 빈 배열 거부: 최종 보고서 작성을 위해 반드시 추가 정보 필요 항목이 있어야 함
+      failureReasons.push('additionalInfoNeeded 배열이 비어있음 (최소 1개 이상 필요)');
     }
 
     // 3. 필수 필드 내용 품질 검증
@@ -2347,47 +2169,140 @@ ${platformChecklist}
       console.error('❌ Fallback 모드: additionalInfoNeeded 추출 중 오류', error);
     }
 
-    console.log('⚠️ Fallback 모드: additionalInfoNeeded 추출 실패, 빈 배열 반환');
+    // 5. 🆕 텍스트 기반 추출: 키워드 감지 및 필수 필드 검증
+    console.log('🔄 Fallback 모드: 텍스트 기반 추출 시작');
+    const textBasedItems = this.extractFromTextContent(text);
+
+    if (textBasedItems.length > 0) {
+      console.log(`✅ Fallback 모드: 텍스트 기반으로 ${textBasedItems.length}개 항목 추출 성공`);
+      return textBasedItems;
+    }
+
+    console.log('⚠️ Fallback 모드: 모든 추출 방법 실패, 빈 배열 반환');
     return [];
   }
 
   /**
-   * 🆕 플랫폼별 체크리스트 생성
+   * 🆕 텍스트 내용 분석으로 additionalInfoNeeded 항목 생성
+   * JSON 파싱 실패 시 텍스트 분석을 통해 누락된 정보 감지
    */
-  private generatePlatformChecklist(platformType: 'web' | 'app' | 'hybrid'): string {
-    if (platformType === 'app') {
-      return `### 3. UI/UX 구현 관점 💻
-- ✅ **지원 OS**: iOS (최소 버전), Android (최소 버전), 하이브리드 여부
-- ✅ **디바이스 대응**: 스마트폰, 태블릿 지원 범위, 화면 크기 대응
-- ✅ **접근성**: VoiceOver, TalkBack 지원, 시각/청각 장애인 대응
-- ✅ **다국어 지원**: 언어 종류, 번역 범위, RTL 지원
-- ✅ **앱 권한**: 카메라, 위치, 알림, 파일 접근 등 필요 권한
+  private extractFromTextContent(text: string): Array<{
+    field: string;
+    currentInfo: string;
+    neededInfo: string;
+    priority: string;
+    reason: string;
+  }> {
+    const items: Array<any> = [];
+    const lowerText = text.toLowerCase();
 
-### 4. 개발 관점 ⚙️
-- ✅ **프론트엔드**: React Native/Flutter/Swift/Kotlin, 상태관리
-- ✅ **백엔드**: Node.js/Django/Spring, API 명세(REST/GraphQL)
-- ✅ **데이터베이스**: MySQL/PostgreSQL/MongoDB, ERD
-- ✅ **인증/권한**: JWT, OAuth, 생체인증, RBAC
-- ✅ **배포 환경**: App Store, Google Play Store, 인하우스 배포
-- ✅ **보안/성능**: HTTPS, 암호화, 앱 시작 시간, 배터리 소모`;
-    } else {
-      // web 또는 hybrid
-      return `### 3. 퍼블리싱 관점 💻
-- ✅ **지원 브라우저**: Chrome, Safari, Firefox, Edge 버전
-- ✅ **반응형 웹**: Mobile-first, Desktop-first 전략
-- ✅ **접근성 등급**: WCAG 2.1 AA 이상 준수 여부
-- ✅ **다국어 지원**: 언어 종류, 번역 범위
-- ✅ **SEO 최적화**: 메타 태그, Open Graph, Schema.org
-- ✅ **크로스브라우징**: IE11 지원 여부, 폴리필 필요성
+    // 1. 키워드 기반 감지 ("미확인", "질문 필요", "확인 필요", "불명확", "명시되지 않음")
+    const uncertainKeywords = ['미확인', '질문 필요', '확인 필요', '불명확', '명시되지 않음', '정보 부족', '추가 확인', '불분명'];
+    const lines = text.split('\n');
 
-### 4. 개발 관점 ⚙️
-- ✅ **프론트엔드**: React/Vue/Angular, TypeScript, 상태관리
-- ✅ **백엔드**: Node.js/Django/Spring, API 명세(REST/GraphQL)
-- ✅ **데이터베이스**: MySQL/PostgreSQL/MongoDB, ERD
-- ✅ **인증/권한**: JWT, OAuth, Session, RBAC
-- ✅ **배포 환경**: AWS/GCP/Azure, CI/CD, Docker
-- ✅ **보안/성능**: HTTPS, CORS, 응답시간 목표, 동시접속자 수`;
+    for (const line of lines) {
+      for (const keyword of uncertainKeywords) {
+        if (line.includes(keyword)) {
+          // 해당 라인에서 필드명 추출 시도
+          const fieldMatch = line.match(/(기술|일정|예산|인력|목표|범위|제약|요구사항)/);
+          if (fieldMatch) {
+            items.push({
+              field: this.mapKoreanFieldToEnglish(fieldMatch[1]),
+              currentInfo: line.substring(0, 50).trim(),
+              neededInfo: `${fieldMatch[1]} 관련 구체적 정보 필요`,
+              priority: 'high',
+              reason: `문서에 "${keyword}" 표시됨`
+            });
+          }
+        }
+      }
     }
+
+    // 2. 필수 필드 규칙 기반 검증
+    const essentialFields = [
+      { field: 'technicalStack', keyword: ['기술', 'tech', 'stack', 'framework', '프레임워크'], neededInfo: '사용 기술 스택 및 버전' },
+      { field: 'timeline', keyword: ['일정', 'schedule', 'timeline', 'deadline', '기한'], neededInfo: '프로젝트 일정 및 마일스톤' },
+      { field: 'budget', keyword: ['예산', 'budget', 'cost', '비용'], neededInfo: '프로젝트 예산 규모' },
+      { field: 'stakeholders', keyword: ['담당자', 'stakeholder', '이해관계자', '팀', 'team'], neededInfo: '주요 이해관계자 및 역할' },
+      { field: 'requirements', keyword: ['요구사항', 'requirement', '필요', 'need'], neededInfo: '구체적 기능 요구사항' }
+    ];
+
+    for (const essential of essentialFields) {
+      const hasKeyword = essential.keyword.some(kw => lowerText.includes(kw.toLowerCase()));
+      const alreadyAdded = items.some(item => item.field === essential.field);
+
+      if (!hasKeyword && !alreadyAdded) {
+        // 문서에 해당 키워드가 전혀 없는 경우 = 누락
+        items.push({
+          field: essential.field,
+          currentInfo: '정보 없음',
+          neededInfo: essential.neededInfo,
+          priority: 'high',
+          reason: '문서에 해당 정보가 명시되지 않음'
+        });
+      }
+    }
+
+    // 3. 최소 3개 항목 보장
+    if (items.length < 3) {
+      const defaultItems = [
+        {
+          field: 'technicalStack',
+          currentInfo: '부분적 정보',
+          neededInfo: '상세 기술 스택 및 버전 정보',
+          priority: 'high',
+          reason: '아키텍처 설계 및 공수 산정에 필수'
+        },
+        {
+          field: 'timeline',
+          currentInfo: '부분적 정보',
+          neededInfo: '구체적 일정 및 마일스톤',
+          priority: 'high',
+          reason: '프로젝트 계획 수립에 필수'
+        },
+        {
+          field: 'constraints',
+          currentInfo: '부분적 정보',
+          neededInfo: '예산, 일정, 기술적 제약사항',
+          priority: 'medium',
+          reason: '리스크 분석 및 대응 계획 수립에 필요'
+        }
+      ];
+
+      // 이미 추가된 field는 제외하고 추가
+      for (const defaultItem of defaultItems) {
+        if (items.length >= 3) break;
+        const alreadyAdded = items.some(item => item.field === defaultItem.field);
+        if (!alreadyAdded) {
+          items.push(defaultItem);
+        }
+      }
+    }
+
+    // 중복 제거 (field 기준)
+    const uniqueItems = items.filter((item, index, self) =>
+      index === self.findIndex(t => t.field === item.field)
+    );
+
+    return uniqueItems.slice(0, 10); // 최대 10개까지
+  }
+
+  /**
+   * 🆕 한글 필드명을 영문 필드명으로 매핑
+   */
+  private mapKoreanFieldToEnglish(koreanField: string): string {
+    const mapping: Record<string, string> = {
+      '기술': 'technicalStack',
+      '일정': 'timeline',
+      '예산': 'budget',
+      '인력': 'stakeholders',
+      '목표': 'keyRequirements',
+      '범위': 'keyRequirements',
+      '제약': 'constraints',
+      '요구사항': 'keyRequirements'
+    };
+
+    return mapping[koreanField] || 'keyRequirements';
   }
 
   /**
@@ -4208,39 +4123,55 @@ ${missingItems.length === 0 && incompleteItems.length === 0 ? '- 문서 분석 �
       reason?: string;
     }> = [];
 
-    const unclearKeywords = ['미확인', '없음', '명시되지 않음', '정보 없음', '질문 필요'];
+    const unclearKeywords = ['미확인', '없음', '명시되지 않음', '정보 없음', '질문 필요', '확인 필요', '불명확', '부족'];
 
     analyses.forEach(analysis => {
       const result = analysis.analysis_result;
       if (!result) return;
 
-      // 🔥 1단계: 완전히 누락된 정보 추출 (기존 로직)
+      // 🔥 1단계: 완전히 누락된 정보 추출 (🆕 더 많은 필드 추가)
       const fieldsToCheck = [
+        { key: 'keyRequirements', label: '핵심 요구사항' }, // 🆕 추가
         { key: 'stakeholders', label: '이해관계자' },
         { key: 'constraints', label: '제약사항' },
         { key: 'risks', label: '위험 요소' },
         { key: 'opportunities', label: '기회 요소' },
         { key: 'technicalStack', label: '기술 스택' },
-        { key: 'timeline', label: '일정 정보' }
+        { key: 'timeline', label: '일정 정보' },
+        { key: 'summary', label: '프로젝트 요약' } // 🆕 추가
       ];
 
       fieldsToCheck.forEach(({ key, label }) => {
-        const values = Array.isArray(result[key]) ? result[key] : [];
-
-        values.forEach((value: string) => {
-          // 미확인 키워드가 포함되어 있으면 추가 (완전 누락)
+        // 배열 필드 처리
+        if (Array.isArray(result[key])) {
+          const values = result[key];
+          values.forEach((value: string) => {
+            // 미확인 키워드가 포함되어 있으면 추가 (완전 누락)
+            if (unclearKeywords.some(keyword => value.includes(keyword))) {
+              items.push({
+                field: label,
+                type: 'missing',
+                neededInfo: value.replace(/미확인|없음|명시되지 않음|정보 없음|질문 필요|확인 필요|불명확|부족/g, '').trim() || `${label} 정보 필요`,
+                priority: 'high'
+              });
+            }
+          });
+        }
+        // 문자열 필드 처리 (summary)
+        else if (typeof result[key] === 'string' && result[key]) {
+          const value = result[key];
           if (unclearKeywords.some(keyword => value.includes(keyword))) {
             items.push({
               field: label,
               type: 'missing',
-              neededInfo: value,
+              neededInfo: `${label} 상세 정보 필요`,
               priority: 'high'
             });
           }
-        });
+        }
       });
 
-      // 🔥 2단계: 추가 보강 필요 항목 추출 (신규)
+      // 🔥 2단계: 추가 보강 필요 항목 추출 (additionalInfoNeeded 우선)
       if (result.additionalInfoNeeded && Array.isArray(result.additionalInfoNeeded)) {
         result.additionalInfoNeeded.forEach((item: any) => {
           if (item.field && item.neededInfo) {
@@ -4253,7 +4184,9 @@ ${missingItems.length === 0 && incompleteItems.length === 0 ? '- 문서 분석 �
               'technicalStack': '기술 스택',
               'timeline': '일정 정보',
               'keyRequirements': '핵심 요구사항',
-              'budget': '예산 정보'
+              'budget': '예산 정보',
+              'requirements': '기능 요구사항', // 🆕 추가
+              'design': '디자인 요구사항' // 🆕 추가
             };
 
             items.push({
@@ -4269,13 +4202,75 @@ ${missingItems.length === 0 && incompleteItems.length === 0 ? '- 문서 분석 �
       }
     });
 
+    // 🆕 3단계: 중복 제거 (field + neededInfo 기준)
+    const uniqueItems = items.filter((item, index, self) =>
+      index === self.findIndex(t =>
+        t.field === item.field && t.neededInfo === item.neededInfo
+      )
+    );
+
+    // 🆕 4단계: 최소 5개 항목 보장
+    if (uniqueItems.length < 5) {
+      const defaultItems = [
+        {
+          field: '기술 스택',
+          type: 'incomplete' as const,
+          currentInfo: '부분적 정보',
+          neededInfo: '프론트엔드/백엔드 상세 기술 스택 및 버전',
+          priority: 'high' as const,
+          reason: '아키텍처 설계 및 개발 공수 산정에 필수'
+        },
+        {
+          field: '일정 정보',
+          type: 'incomplete' as const,
+          currentInfo: '부분적 정보',
+          neededInfo: '프로젝트 시작/종료 일정 및 주요 마일스톤',
+          priority: 'high' as const,
+          reason: '프로젝트 일정 계획 수립에 필수'
+        },
+        {
+          field: '예산 정보',
+          type: 'missing' as const,
+          neededInfo: '프로젝트 예산 범위 및 비용 제약사항',
+          priority: 'high' as const,
+          reason: '제안서 작성 및 리소스 계획에 필수'
+        },
+        {
+          field: '이해관계자',
+          type: 'incomplete' as const,
+          currentInfo: '부분적 정보',
+          neededInfo: '프로젝트 주요 이해관계자 및 의사결정권자',
+          priority: 'medium' as const,
+          reason: '커뮤니케이션 계획 수립에 필요'
+        },
+        {
+          field: '핵심 요구사항',
+          type: 'incomplete' as const,
+          currentInfo: '부분적 정보',
+          neededInfo: '필수 기능 및 우선순위',
+          priority: 'high' as const,
+          reason: '기능 범위 정의 및 MVP 계획에 필수'
+        }
+      ];
+
+      // 이미 추가된 field는 제외하고 추가
+      for (const defaultItem of defaultItems) {
+        if (uniqueItems.length >= 5) break;
+        const alreadyAdded = uniqueItems.some(item => item.field === defaultItem.field);
+        if (!alreadyAdded) {
+          uniqueItems.push(defaultItem);
+        }
+      }
+    }
+
     console.log('📊 추출된 미확인/보강필요 항목:', {
-      total: items.length,
-      missing: items.filter(item => item.type === 'missing').length,
-      incomplete: items.filter(item => item.type === 'incomplete').length
+      total: uniqueItems.length,
+      missing: uniqueItems.filter(item => item.type === 'missing').length,
+      incomplete: uniqueItems.filter(item => item.type === 'incomplete').length,
+      duplicatesRemoved: items.length - uniqueItems.length
     });
 
-    return items;
+    return uniqueItems;
   }
 
   /**
