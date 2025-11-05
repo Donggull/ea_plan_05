@@ -2431,7 +2431,7 @@ ${content}
 
   // 🔥 NEW: 2단계 생성 방식으로 완전히 재작성
   private async generateAIReport(sessionId: string, sessionData: any, _options: ReportGenerationOptions): Promise<any> {
-    console.log('🤖 [2-Phase Generation] generateAIReport 메서드 시작');
+    console.log('🤖 [4-Phase Generation] generateAIReport 메서드 시작');
     const startTime = Date.now();
 
     try {
@@ -2450,7 +2450,7 @@ ${content}
       }
 
       // ========================================
-      // Phase 1: 핵심 비즈니스 분석 생성
+      // Phase 1: 핵심 비즈니스 분석 생성 (40-55%)
       // ========================================
       console.log('🚀 [Phase 1] 핵심 비즈니스 분석 시작...');
       const phase1Prompt = this.generateReportPhase1Prompt(analyses, questions, answers);
@@ -2469,11 +2469,11 @@ ${content}
         aiProvider,
         aiModel,
         phase1Prompt,
-        8000, // Phase 1: 핵심 분석만 생성 (충분한 공간)
+        8000, // Phase 1: 핵심 분석 생성
         0.2,
         (_chunk, fullContent) => {
           const charCount = fullContent.length;
-          const progress = Math.min(70, 40 + Math.floor(charCount / 300));
+          const progress = Math.min(55, 40 + Math.floor(charCount / 500));
           console.log(`📊 [Phase 1 Streaming] ${charCount} chars, ${progress}%`);
 
           this.emitProgressUpdate({
@@ -2497,7 +2497,7 @@ ${content}
       });
 
       // ========================================
-      // Phase 2: 기초 데이터 생성
+      // Phase 2: 기초 데이터 생성 (55-70%)
       // ========================================
       console.log('🚀 [Phase 2] 기초 데이터 구조화 시작...');
       const phase2Prompt = this.generateReportPhase2Prompt(analyses, questions, answers, phase1Content);
@@ -2507,7 +2507,7 @@ ${content}
         sessionId,
         stage: 'report_generation',
         status: 'processing',
-        progress: 70,
+        progress: 55,
         message: 'Phase 2: 기초 데이터 구조화 중...',
         timestamp: new Date(),
       }).catch(() => {});
@@ -2516,11 +2516,11 @@ ${content}
         aiProvider,
         aiModel,
         phase2Prompt,
-        4000, // Phase 2: 기초 데이터만 생성 (더 적은 토큰)
+        4000, // Phase 2: 기초 데이터 생성
         0.2,
         (_chunk, fullContent) => {
           const charCount = fullContent.length;
-          const progress = Math.min(95, 70 + Math.floor(charCount / 200));
+          const progress = Math.min(70, 55 + Math.floor(charCount / 300));
           console.log(`📊 [Phase 2 Streaming] ${charCount} chars, ${progress}%`);
 
           this.emitProgressUpdate({
@@ -2545,27 +2545,125 @@ ${content}
       });
 
       // ========================================
-      // 두 Phase 결과 병합
+      // Phase 3: 웹에이전시 상세 분석 (70-85%)
       // ========================================
-      console.log('🔗 [Merge] Phase 1 + Phase 2 병합 중...');
+      console.log('🚀 [Phase 3] 웹에이전시 상세 분석 시작...');
+      const phase3Prompt = this.generateReportPhase3Prompt(analyses, questions, answers, phase1Content, phase2Content);
+      console.log('📝 [Phase 3] 프롬프트 길이:', phase3Prompt.length);
+
+      this.emitProgressUpdate({
+        sessionId,
+        stage: 'report_generation',
+        status: 'processing',
+        progress: 70,
+        message: 'Phase 3: 웹에이전시 상세 분석 중 (수익성, 경쟁력)...',
+        timestamp: new Date(),
+      }).catch(() => {});
+
+      const phase3Response = await this.callAICompletionAPIStreaming(
+        aiProvider,
+        aiModel,
+        phase3Prompt,
+        6000, // Phase 3: 상세 분석 생성
+        0.2,
+        (_chunk, fullContent) => {
+          const charCount = fullContent.length;
+          const progress = Math.min(85, 70 + Math.floor(charCount / 400));
+          console.log(`📊 [Phase 3 Streaming] ${charCount} chars, ${progress}%`);
+
+          this.emitProgressUpdate({
+            sessionId,
+            stage: 'report_generation',
+            status: 'processing',
+            progress,
+            message: `Phase 3 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
+            timestamp: new Date(),
+          }).catch(() => {});
+        }
+      );
+
+      console.log('✅ [Phase 3] 응답 완료:', { length: phase3Response.content?.length });
+      const phase3Content = this.parseReportResponse(phase3Response.content, analyses, answers);
+      console.log('✅ [Phase 3] 파싱 완료:', {
+        hasAgencyDetailedAnalysis: !!phase3Content.agencyDetailedAnalysis,
+        hasProfitability: !!phase3Content.agencyDetailedAnalysis?.profitability,
+        hasCompetitiveness: !!phase3Content.agencyDetailedAnalysis?.competitiveness,
+        hasFinalDecision: !!phase3Content.agencyDetailedAnalysis?.finalDecision
+      });
+
+      // ========================================
+      // Phase 4: 실행 계획 및 제안서 초안 (85-100%)
+      // ========================================
+      console.log('🚀 [Phase 4] 실행 계획 및 제안서 초안 시작...');
+      const phase4Prompt = this.generateReportPhase4Prompt(analyses, questions, answers, phase1Content, phase2Content, phase3Content);
+      console.log('📝 [Phase 4] 프롬프트 길이:', phase4Prompt.length);
+
+      this.emitProgressUpdate({
+        sessionId,
+        stage: 'report_generation',
+        status: 'processing',
+        progress: 85,
+        message: 'Phase 4: 실행 계획 및 제안서 초안 작성 중...',
+        timestamp: new Date(),
+      }).catch(() => {});
+
+      const phase4Response = await this.callAICompletionAPIStreaming(
+        aiProvider,
+        aiModel,
+        phase4Prompt,
+        6000, // Phase 4: 실행 계획 생성
+        0.2,
+        (_chunk, fullContent) => {
+          const charCount = fullContent.length;
+          const progress = Math.min(100, 85 + Math.floor(charCount / 400));
+          console.log(`📊 [Phase 4 Streaming] ${charCount} chars, ${progress}%`);
+
+          this.emitProgressUpdate({
+            sessionId,
+            stage: 'report_generation',
+            status: 'processing',
+            progress,
+            message: `Phase 4 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
+            timestamp: new Date(),
+          }).catch(() => {});
+        }
+      );
+
+      console.log('✅ [Phase 4] 응답 완료:', { length: phase4Response.content?.length });
+      const phase4Content = this.parseReportResponse(phase4Response.content, analyses, answers);
+      console.log('✅ [Phase 4] 파싱 완료:', {
+        hasExecutionPlan: !!phase4Content.executionPlan,
+        hasWBS: !!phase4Content.executionPlan?.wbs,
+        hasResourcePlan: !!phase4Content.executionPlan?.resourcePlan,
+        hasProposalOutline: !!phase4Content.executionPlan?.proposalOutline
+      });
+
+      // ========================================
+      // 4개 Phase 결과 병합
+      // ========================================
+      console.log('🔗 [Merge] Phase 1 + Phase 2 + Phase 3 + Phase 4 병합 중...');
       const mergedReport = {
         ...phase1Content,
         baselineData: phase2Content.baselineData || phase1Content.baselineData || {},
+        agencyDetailedAnalysis: phase3Content.agencyDetailedAnalysis || {},
+        executionPlan: phase4Content.executionPlan || {},
       };
 
       console.log('✅ [Merge] 병합 완료:', {
         hasSummary: !!mergedReport.summary,
         hasAgencyPerspective: !!mergedReport.agencyPerspective,
         hasBaselineData: !!mergedReport.baselineData,
+        hasAgencyDetailedAnalysis: !!mergedReport.agencyDetailedAnalysis,
+        hasExecutionPlan: !!mergedReport.executionPlan,
         keyInsightsCount: mergedReport.keyInsights?.length,
         recommendationsCount: mergedReport.recommendations?.length,
         requirementsCount: mergedReport.baselineData?.requirements?.length || 0
       });
 
       const processingTime = Date.now() - startTime;
-      const totalCost = phase1Response.cost.totalCost + phase2Response.cost.totalCost;
-      const totalInputTokens = phase1Response.usage.inputTokens + phase2Response.usage.inputTokens;
-      const totalOutputTokens = phase1Response.usage.outputTokens + phase2Response.usage.outputTokens;
+      const totalCost = phase1Response.cost.totalCost + phase2Response.cost.totalCost + phase3Response.cost.totalCost + phase4Response.cost.totalCost;
+      const totalInputTokens = phase1Response.usage.inputTokens + phase2Response.usage.inputTokens + phase3Response.usage.inputTokens + phase4Response.usage.inputTokens;
+      const totalOutputTokens = phase1Response.usage.outputTokens + phase2Response.usage.outputTokens + phase3Response.usage.outputTokens + phase4Response.usage.outputTokens;
 
       console.log('⏱️ [Complete] 총 처리 시간:', processingTime, 'ms');
       console.log('💰 [Complete] 총 비용:', totalCost);
@@ -2579,7 +2677,7 @@ ${content}
         outputTokens: totalOutputTokens,
       };
     } catch (error) {
-      console.error('❌ [2-Phase Generation] 오류 발생:', error);
+      console.error('❌ [4-Phase Generation] 오류 발생:', error);
       throw error;
     }
   }
@@ -2858,6 +2956,631 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
 - ✅ 오직 순수 JSON 객체만 반환 ({ 로 시작, } 로 끝)
 
 위 JSON 형식을 **정확히 준수**하여 **Phase 2 기초 데이터**를 완성해주세요.`;
+  }
+
+  // 🔥 NEW: Phase 3 프롬프트 생성 - 웹에이전시 상세 분석 (수익성, 경쟁력, 최종 결정)
+  private generateReportPhase3Prompt(
+    _analyses: any[],
+    _questions: any[],
+    _answers: any[],
+    phase1Result: any,
+    phase2Result: any
+  ): string {
+
+    // Phase 1 핵심 정보 요약
+    const phase1Summary = {
+      recommendation: phase1Result.agencyPerspective?.projectDecision?.recommendation || 'N/A',
+      confidence: phase1Result.agencyPerspective?.projectDecision?.confidence || 0,
+      planningFeasibility: phase1Result.agencyPerspective?.perspectives?.planning?.feasibility || 0,
+      designComplexity: phase1Result.agencyPerspective?.perspectives?.design?.complexity || 'N/A',
+      publishingComplexity: phase1Result.agencyPerspective?.perspectives?.publishing?.responsiveComplexity || 'N/A',
+      techComplexity: phase1Result.agencyPerspective?.perspectives?.development?.technicalComplexity || 'N/A',
+    };
+
+    return `# 🎯 웹에이전시 엘루오씨앤씨 - 상세 분석 및 수익성 검토 (Phase 3)
+
+당신은 **웹에이전시 엘루오씨앤씨**의 **수석 프로젝트 전략가**입니다.
+이 단계에서는 **웹에이전시 관점의 상세 분석**, **수익성 분석**, **경쟁력 분석**, **최종 수주 결정**을 수행합니다.
+
+## 📋 이전 단계 분석 결과
+
+### Phase 1 핵심 분석:
+- **수락 권장**: ${phase1Summary.recommendation}
+- **확신도**: ${phase1Summary.confidence}%
+- **기획 실행 가능성**: ${phase1Summary.planningFeasibility}%
+- **디자인 복잡도**: ${phase1Summary.designComplexity}
+- **퍼블리싱 복잡도**: ${phase1Summary.publishingComplexity}
+- **개발 복잡도**: ${phase1Summary.techComplexity}
+
+### Phase 2 기초 데이터:
+- **핵심 요구사항 수**: ${phase2Result.baselineData?.requirements?.length || 0}개
+- **이해관계자 수**: ${phase2Result.baselineData?.stakeholders?.length || 0}개
+- **제약사항 수**: ${phase2Result.baselineData?.constraints?.length || 0}개
+- **기술 스택**: ${phase2Result.baselineData?.technicalStack?.slice(0, 3).join(', ') || 'N/A'}
+
+---
+
+## 🎨 Phase 3 작성 지침
+
+### 역할 및 목표:
+- **회사**: 웹에이전시 엘루오씨앤씨
+- **직무**: 기획/디자인/퍼블리싱/개발 전 영역 담당
+- **목표**:
+  1. 각 영역별 **상세 공수 및 비용 산정**
+  2. **수익성 분석** (매출, 비용, 이익률, ROI)
+  3. **경쟁력 분석** (우리의 강점/약점, 차별화 요소)
+  4. **최종 수주 결정** (accept/conditional_accept/decline)
+
+### 분석 관점:
+1. **기획 관점**: 상세 범위, 공수, 비용, 산출물, 리스크
+2. **디자인 관점**: 상세 범위, 공수, 비용, 산출물, 리스크
+3. **퍼블리싱 관점**: 상세 범위, 공수, 비용, 산출물, 리스크
+4. **개발 관점**: 상세 범위, 공수, 비용, 산출물, 리스크
+
+---
+
+## 📝 Phase 3 출력 형식 (JSON)
+
+**⚠️ 이 단계에서는 웹에이전시 상세 분석 정보만 생성합니다.**
+
+다음 JSON 형식으로 **상세 분석**을 작성하세요:
+
+\`\`\`json
+{
+  "agencyDetailedAnalysis": {
+    "detailedPerspectives": {
+      "planning": {
+        "scope": "기획 업무 범위 상세 설명 (100자 이상)",
+        "complexity": "low|medium|high|very_high",
+        "estimatedEffort": "2주 (80시간)",
+        "estimatedCost": 8000000,
+        "keyDeliverables": [
+          "요구사항 정의서",
+          "화면 설계서",
+          "업무 프로세스 정의",
+          "기능 명세서"
+        ],
+        "challenges": [
+          "기획 단계의 구체적 어려움 3개",
+          "요구사항 불명확, 이해관계자 조율 등"
+        ],
+        "risks": [
+          "기획 리스크 2개 (범위 변경, 일정 지연 등)"
+        ],
+        "opportunities": [
+          "기획 단계에서 발견한 기회 요소 2개"
+        ]
+      },
+      "design": {
+        "scope": "디자인 업무 범위 상세 설명 (100자 이상)",
+        "complexity": "low|medium|high|very_high",
+        "estimatedEffort": "3주 (120시간)",
+        "estimatedCost": 12000000,
+        "keyDeliverables": [
+          "UI/UX 디자인",
+          "디자인 시스템",
+          "반응형 디자인",
+          "프로토타입"
+        ],
+        "challenges": [
+          "디자인 어려움 3개 (UI 복잡도, 브랜딩 작업 등)"
+        ],
+        "risks": [
+          "디자인 리스크 2개 (고객 피드백 반복, 디자인 변경 등)"
+        ],
+        "opportunities": [
+          "디자인 기회 요소 2개"
+        ]
+      },
+      "publishing": {
+        "scope": "퍼블리싱 업무 범위 상세 설명 (100자 이상)",
+        "complexity": "low|medium|high",
+        "estimatedEffort": "2주 (80시간)",
+        "estimatedCost": 6000000,
+        "keyDeliverables": [
+          "HTML/CSS 마크업",
+          "반응형 구현",
+          "크로스브라우징",
+          "접근성 준수"
+        ],
+        "challenges": [
+          "퍼블리싱 어려움 3개 (크로스브라우징, 반응형 복잡도 등)"
+        ],
+        "risks": [
+          "퍼블리싱 리스크 2개 (브라우저 호환성, 디바이스 대응 등)"
+        ],
+        "opportunities": [
+          "퍼블리싱 기회 요소 2개"
+        ]
+      },
+      "development": {
+        "scope": "개발 업무 범위 상세 설명 (개발 불필요 시 '개발 불필요 - 우리가 처리할 영역 아님' 명시)",
+        "complexity": "low|medium|high|very_high",
+        "estimatedEffort": "8주 (4인월)",
+        "estimatedCost": 40000000,
+        "keyDeliverables": [
+          "프론트엔드 개발",
+          "백엔드 API",
+          "데이터베이스 설계",
+          "배포 환경 구축"
+        ],
+        "challenges": [
+          "개발 어려움 3개 (기술 난이도, 외부 연동 등, 개발 없으면 '해당없음')"
+        ],
+        "risks": [
+          "개발 리스크 2개 (기술 불확실성, 일정 지연 등, 개발 없으면 '해당없음')"
+        ],
+        "opportunities": [
+          "개발 기회 요소 2개 (개발 없으면 빈 배열)"
+        ]
+      }
+    },
+
+    "profitability": {
+      "totalEstimatedRevenue": 85000000,
+      "costBreakdown": {
+        "planning": 8000000,
+        "design": 12000000,
+        "publishing": 6000000,
+        "development": 40000000,
+        "overhead": 5000000,
+        "buffer": 6000000
+      },
+      "totalEstimatedCost": 77000000,
+      "totalProfit": 8000000,
+      "profitMargin": 9.4,
+      "roi": 10.4,
+      "paybackPeriod": "3개월",
+      "analysis": "수익성 분석 설명 (100자 이상): 이익률, ROI, 회수 기간 평가"
+    },
+
+    "competitiveness": {
+      "ourStrengths": [
+        "우리 회사의 강점 3개 (이 프로젝트 수행에 유리한 점)",
+        "기술 역량, 유사 프로젝트 경험, 팀 전문성 등"
+      ],
+      "ourWeaknesses": [
+        "우리 회사의 약점 2개 (이 프로젝트 수행에 불리한 점)",
+        "부족한 역량, 리소스 제약 등"
+      ],
+      "differentiators": [
+        "경쟁사 대비 차별화 요소 3개",
+        "독특한 접근법, 특화 기술, 서비스 품질 등"
+      ],
+      "competitiveAdvantage": "종합 경쟁 우위 평가 (100자 이상)"
+    },
+
+    "finalDecision": {
+      "recommendation": "accept|conditional_accept|decline",
+      "confidence": 85,
+      "reasoning": "최종 결정 근거 (200자 이상): 수익성, 경쟁력, 리스크, 전략적 가치 종합 고려",
+      "conditions": [
+        "조건부 수락 시 필요 조건 (2개 이상, 없으면 빈 배열)",
+        "예산 조정, 일정 연장, 리소스 확보 등"
+      ],
+      "strategicValue": {
+        "portfolioValue": 0-100,
+        "brandValue": 0-100,
+        "futureOpportunities": 0-100,
+        "customerRelationship": 0-100,
+        "analysis": "전략적 가치 설명 (100자 이상)"
+      }
+    }
+  }
+}
+\`\`\`
+
+**⚠️ Phase 3 필수 작성 필드**:
+1. ✅ **detailedPerspectives** - 4가지 관점 (planning, design, publishing, development)
+   * 각 관점: scope, complexity, estimatedEffort, estimatedCost, keyDeliverables (최소 3개), challenges (3개), risks (2개), opportunities (2개)
+2. ✅ **profitability** - 수익성 분석
+   * totalEstimatedRevenue, costBreakdown, totalEstimatedCost, totalProfit, profitMargin, roi, paybackPeriod, analysis
+3. ✅ **competitiveness** - 경쟁력 분석
+   * ourStrengths (3개), ourWeaknesses (2개), differentiators (3개), competitiveAdvantage
+4. ✅ **finalDecision** - 최종 수주 결정
+   * recommendation, confidence, reasoning (200자 이상), conditions, strategicValue
+
+**출력 형식 규칙**:
+- ❌ 설명문 없이
+- ❌ 마크다운 코드 블록 없이
+- ✅ 오직 순수 JSON 객체만 반환 ({ 로 시작, } 로 끝)
+
+위 JSON 형식을 **정확히 준수**하여 **Phase 3 상세 분석**을 완성해주세요.`;
+  }
+
+  // 🔥 NEW: Phase 4 프롬프트 생성 - 실행 계획 및 제안서 초안
+  private generateReportPhase4Prompt(
+    _analyses: any[],
+    _questions: any[],
+    _answers: any[],
+    _phase1Result: any,
+    phase2Result: any,
+    phase3Result: any
+  ): string {
+    // Phase 3 핵심 정보 요약
+    const phase3Summary = {
+      finalRecommendation: phase3Result.agencyDetailedAnalysis?.finalDecision?.recommendation || 'N/A',
+      confidence: phase3Result.agencyDetailedAnalysis?.finalDecision?.confidence || 0,
+      totalRevenue: phase3Result.agencyDetailedAnalysis?.profitability?.totalEstimatedRevenue || 0,
+      totalCost: phase3Result.agencyDetailedAnalysis?.profitability?.totalEstimatedCost || 0,
+      profitMargin: phase3Result.agencyDetailedAnalysis?.profitability?.profitMargin || 0,
+      roi: phase3Result.agencyDetailedAnalysis?.profitability?.roi || 0,
+    };
+
+    return `# 🎯 웹에이전시 엘루오씨앤씨 - 실행 계획 및 제안서 초안 (Phase 4)
+
+당신은 **웹에이전시 엘루오씨앤씨**의 **프로젝트 매니저**입니다.
+이 단계에서는 **실행 계획 수립**, **WBS 작성**, **리소스 계획**, **제안서 초안 작성**을 수행합니다.
+
+## 📋 이전 단계 분석 결과
+
+### Phase 3 상세 분석:
+- **최종 권장**: ${phase3Summary.finalRecommendation}
+- **확신도**: ${phase3Summary.confidence}%
+- **예상 매출**: ${(phase3Summary.totalRevenue / 1000000).toFixed(1)}백만원
+- **예상 비용**: ${(phase3Summary.totalCost / 1000000).toFixed(1)}백만원
+- **이익률**: ${phase3Summary.profitMargin.toFixed(1)}%
+- **ROI**: ${phase3Summary.roi.toFixed(1)}%
+
+### Phase 2 기초 데이터:
+- **핵심 요구사항**: ${phase2Result.baselineData?.requirements?.length || 0}개
+- **제약사항**: ${phase2Result.baselineData?.constraints?.length || 0}개
+- **기술 스택**: ${phase2Result.baselineData?.technicalStack?.slice(0, 3).join(', ') || 'N/A'}
+
+---
+
+## 🎨 Phase 4 작성 지침
+
+### 역할 및 목표:
+- **회사**: 웹에이전시 엘루오씨앤씨
+- **직무**: 프로젝트 매니저 / 제안 담당
+- **목표**:
+  1. **WBS (Work Breakdown Structure)** 작성 - 작업 분해 구조
+  2. **리소스 계획** 수립 - 팀 구성 및 인월 배정
+  3. **제안서 개요** 작성 - 고객에게 제출할 제안서 핵심 내용
+  4. **프레젠테이션 구성** - 제안 발표 자료 구성안
+  5. **다음 단계 액션 아이템** - 즉시 실행 가능한 태스크
+
+---
+
+## 📝 Phase 4 출력 형식 (JSON)
+
+**⚠️ 이 단계에서는 실행 계획 정보만 생성합니다.**
+
+다음 JSON 형식으로 **실행 계획 및 제안서 초안**을 작성하세요:
+
+\`\`\`json
+{
+  "executionPlan": {
+    "wbs": [
+      {
+        "id": "1",
+        "task": "기획 단계",
+        "description": "요구사항 정의 및 화면 설계",
+        "subtasks": [
+          {
+            "id": "1.1",
+            "task": "요구사항 정의서 작성",
+            "estimatedHours": 40,
+            "assignee": "기획자",
+            "deliverable": "요구사항 정의서 (RFP)",
+            "dependencies": []
+          },
+          {
+            "id": "1.2",
+            "task": "화면 설계서 작성",
+            "estimatedHours": 40,
+            "assignee": "기획자",
+            "deliverable": "화면 설계서 (WireFrame)",
+            "dependencies": ["1.1"]
+          }
+        ],
+        "totalHours": 80,
+        "duration": "2주",
+        "startDate": "2025-01-15",
+        "endDate": "2025-01-28"
+      },
+      {
+        "id": "2",
+        "task": "디자인 단계",
+        "description": "UI/UX 디자인 및 프로토타입",
+        "subtasks": [
+          {
+            "id": "2.1",
+            "task": "UI/UX 디자인",
+            "estimatedHours": 80,
+            "assignee": "디자이너",
+            "deliverable": "디자인 시안 (Figma)",
+            "dependencies": ["1.2"]
+          },
+          {
+            "id": "2.2",
+            "task": "디자인 시스템 구축",
+            "estimatedHours": 40,
+            "assignee": "디자이너",
+            "deliverable": "디자인 시스템 (컴포넌트 라이브러리)",
+            "dependencies": ["2.1"]
+          }
+        ],
+        "totalHours": 120,
+        "duration": "3주",
+        "startDate": "2025-01-29",
+        "endDate": "2025-02-18"
+      }
+    ],
+
+    "resourcePlan": {
+      "teamComposition": [
+        {
+          "role": "프로젝트 매니저",
+          "count": 1,
+          "allocation": "50%",
+          "manMonths": 0.5,
+          "responsibilities": ["프로젝트 총괄", "일정 관리", "이해관계자 커뮤니케이션"],
+          "requiredSkills": ["프로젝트 관리", "커뮤니케이션", "리스크 관리"]
+        },
+        {
+          "role": "기획자",
+          "count": 1,
+          "allocation": "100%",
+          "manMonths": 1.0,
+          "responsibilities": ["요구사항 정의", "화면 설계", "기능 명세"],
+          "requiredSkills": ["UI/UX 기획", "요구사항 분석", "와이어프레임"]
+        },
+        {
+          "role": "디자이너",
+          "count": 1,
+          "allocation": "100%",
+          "manMonths": 1.5,
+          "responsibilities": ["UI/UX 디자인", "디자인 시스템 구축", "프로토타입"],
+          "requiredSkills": ["Figma", "디자인 시스템", "반응형 디자인"]
+        },
+        {
+          "role": "퍼블리셔",
+          "count": 1,
+          "allocation": "100%",
+          "manMonths": 1.0,
+          "responsibilities": ["HTML/CSS 마크업", "반응형 구현", "접근성 준수"],
+          "requiredSkills": ["HTML5", "CSS3", "반응형 웹", "크로스브라우징"]
+        },
+        {
+          "role": "프론트엔드 개발자",
+          "count": 2,
+          "allocation": "100%",
+          "manMonths": 3.0,
+          "responsibilities": ["프론트엔드 개발", "API 연동", "상태 관리"],
+          "requiredSkills": ["React", "TypeScript", "REST API", "상태 관리"]
+        },
+        {
+          "role": "백엔드 개발자",
+          "count": 1,
+          "allocation": "100%",
+          "manMonths": 2.0,
+          "responsibilities": ["백엔드 API", "데이터베이스 설계", "인증/권한"],
+          "requiredSkills": ["Node.js", "PostgreSQL", "RESTful API", "인증"]
+        }
+      ],
+      "totalManMonths": 9.0,
+      "totalCost": 90000000,
+      "timeline": "4개월"
+    },
+
+    "proposalOutline": {
+      "title": "프로젝트명 - 웹사이트 구축 제안서",
+      "sections": [
+        {
+          "section": "1. 제안 개요",
+          "content": "프로젝트 배경, 목적, 범위 요약 (200자 이상)",
+          "keyPoints": [
+            "프로젝트 배경 및 필요성",
+            "프로젝트 목표 및 기대효과",
+            "제안 범위 (기획, 디자인, 개발, 배포)"
+          ]
+        },
+        {
+          "section": "2. 현황 분석",
+          "content": "고객 현황 분석 및 문제점 도출 (150자 이상)",
+          "keyPoints": [
+            "현재 시스템/서비스 문제점",
+            "개선 필요 사항",
+            "시장 트렌드 및 경쟁사 분석"
+          ]
+        },
+        {
+          "section": "3. 제안 솔루션",
+          "content": "우리가 제안하는 솔루션 및 접근법 (200자 이상)",
+          "keyPoints": [
+            "솔루션 개요",
+            "핵심 기능 및 특징",
+            "기술 스택 및 아키텍처",
+            "차별화 포인트"
+          ]
+        },
+        {
+          "section": "4. 수행 계획",
+          "content": "프로젝트 수행 방법론 및 일정 (150자 이상)",
+          "keyPoints": [
+            "프로젝트 수행 방법론 (Agile, Waterfall 등)",
+            "단계별 산출물",
+            "일정 계획 (Gantt Chart)",
+            "품질 관리 계획"
+          ]
+        },
+        {
+          "section": "5. 팀 구성",
+          "content": "투입 인력 및 역할 (100자 이상)",
+          "keyPoints": [
+            "팀 구성 및 역할",
+            "핵심 인력 소개",
+            "유사 프로젝트 수행 경험"
+          ]
+        },
+        {
+          "section": "6. 예산 및 비용",
+          "content": "상세 비용 산출 내역 (100자 이상)",
+          "keyPoints": [
+            "비용 산출 근거",
+            "단계별 비용 배분",
+            "총 프로젝트 비용"
+          ]
+        },
+        {
+          "section": "7. 기대효과",
+          "content": "프로젝트 완료 후 기대효과 (150자 이상)",
+          "keyPoints": [
+            "비즈니스 측면 기대효과",
+            "기술적 측면 개선사항",
+            "사용자 경험 향상",
+            "ROI 예측"
+          ]
+        },
+        {
+          "section": "8. 회사 소개",
+          "content": "엘루오씨앤씨 소개 및 강점 (100자 이상)",
+          "keyPoints": [
+            "회사 개요 및 비전",
+            "핵심 역량 및 강점",
+            "주요 프로젝트 실적",
+            "수상 경력 및 인증"
+          ]
+        }
+      ],
+      "appendix": [
+        "참고 자료 - 포트폴리오",
+        "참고 자료 - 유사 프로젝트 사례",
+        "참고 자료 - 기술 백서"
+      ]
+    },
+
+    "presentationOutline": [
+      {
+        "slideNumber": 1,
+        "title": "표지",
+        "content": "프로젝트명, 제안사, 날짜"
+      },
+      {
+        "slideNumber": 2,
+        "title": "목차",
+        "content": "프레젠테이션 구성"
+      },
+      {
+        "slideNumber": 3,
+        "title": "제안 개요",
+        "content": "프로젝트 배경 및 목적",
+        "talkingPoints": ["고객 요구사항 이해", "프로젝트 목표 명확화"]
+      },
+      {
+        "slideNumber": 4,
+        "title": "현황 분석",
+        "content": "고객 현황 및 문제점",
+        "talkingPoints": ["현재 시스템 문제점", "개선 필요 사항"]
+      },
+      {
+        "slideNumber": 5,
+        "title": "제안 솔루션",
+        "content": "우리의 솔루션 및 접근법",
+        "talkingPoints": ["솔루션 개요", "핵심 기능", "차별화 포인트"]
+      },
+      {
+        "slideNumber": 6,
+        "title": "수행 계획",
+        "content": "일정 및 산출물",
+        "talkingPoints": ["단계별 일정", "주요 마일스톤"]
+      },
+      {
+        "slideNumber": 7,
+        "title": "팀 구성",
+        "content": "투입 인력 및 역할",
+        "talkingPoints": ["팀 구성", "핵심 인력 소개"]
+      },
+      {
+        "slideNumber": 8,
+        "title": "예산 및 비용",
+        "content": "상세 비용 산출",
+        "talkingPoints": ["비용 산출 근거", "총 프로젝트 비용"]
+      },
+      {
+        "slideNumber": 9,
+        "title": "기대효과",
+        "content": "프로젝트 완료 후 기대효과",
+        "talkingPoints": ["비즈니스 가치", "ROI 예측"]
+      },
+      {
+        "slideNumber": 10,
+        "title": "Q&A",
+        "content": "질의응답"
+      }
+    ],
+
+    "nextSteps": [
+      {
+        "step": 1,
+        "action": "제안서 최종 검토 및 승인",
+        "owner": "프로젝트 매니저",
+        "deadline": "제안 발표 3일 전",
+        "status": "pending"
+      },
+      {
+        "step": 2,
+        "action": "제안 발표 자료 준비",
+        "owner": "프로젝트 매니저 + 디자이너",
+        "deadline": "제안 발표 2일 전",
+        "status": "pending"
+      },
+      {
+        "step": 3,
+        "action": "리허설 진행",
+        "owner": "전체 팀",
+        "deadline": "제안 발표 1일 전",
+        "status": "pending"
+      },
+      {
+        "step": 4,
+        "action": "제안 발표",
+        "owner": "프로젝트 매니저",
+        "deadline": "제안 발표일",
+        "status": "pending"
+      },
+      {
+        "step": 5,
+        "action": "고객 피드백 수집 및 대응",
+        "owner": "프로젝트 매니저",
+        "deadline": "제안 발표 후 3일 이내",
+        "status": "pending"
+      },
+      {
+        "step": 6,
+        "action": "계약 체결 및 킥오프 미팅 준비",
+        "owner": "프로젝트 매니저",
+        "deadline": "계약 체결 후 1주일 이내",
+        "status": "pending"
+      }
+    ]
+  }
+}
+\`\`\`
+
+**⚠️ Phase 4 필수 작성 필드**:
+1. ✅ **wbs** - Work Breakdown Structure (최소 4단계: 기획, 디자인, 퍼블리싱, 개발)
+   * 각 단계: id, task, description, subtasks (최소 2개), totalHours, duration, startDate, endDate
+   * 각 subtask: id, task, estimatedHours, assignee, deliverable, dependencies
+2. ✅ **resourcePlan** - 리소스 계획
+   * teamComposition (최소 4개 역할), totalManMonths, totalCost, timeline
+   * 각 역할: role, count, allocation, manMonths, responsibilities (최소 2개), requiredSkills (최소 2개)
+3. ✅ **proposalOutline** - 제안서 개요
+   * title, sections (최소 8개 섹션), appendix
+   * 각 섹션: section, content (최소 100자), keyPoints (최소 2개)
+4. ✅ **presentationOutline** - 프레젠테이션 구성 (최소 10슬라이드)
+   * 각 슬라이드: slideNumber, title, content, talkingPoints (선택)
+5. ✅ **nextSteps** - 다음 단계 액션 아이템 (최소 5개)
+   * 각 액션: step, action, owner, deadline, status
+
+**출력 형식 규칙**:
+- ❌ 설명문 없이
+- ❌ 마크다운 코드 블록 없이
+- ✅ 오직 순수 JSON 객체만 반환 ({ 로 시작, } 로 끝)
+
+위 JSON 형식을 **정확히 준수**하여 **Phase 4 실행 계획**을 완성해주세요.`;
   }
 
   // 🔥 DEPRECATED: 기존 generateReportPrompt 메서드는 제거됨 (2단계 생성 방식으로 대체)

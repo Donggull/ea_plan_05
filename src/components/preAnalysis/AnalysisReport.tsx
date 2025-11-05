@@ -20,6 +20,7 @@ import {
   ThumbsUp,
   ThumbsDown,
   Clock,
+  Workflow,
 } from 'lucide-react';
 import { AnalysisReport as AnalysisReportType } from '../../types/preAnalysis';
 import { supabase } from '../../lib/supabase';
@@ -43,7 +44,7 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'summary' | 'insights' | 'risks' | 'recommendations' | 'baseline' | 'agency'>('summary');
+  const [activeTab, setActiveTab] = useState<'summary' | 'insights' | 'risks' | 'recommendations' | 'baseline' | 'agency' | 'profitability' | 'execution'>('summary');
   const [progressMessage, setProgressMessage] = useState<string>('보고서 생성 준비 중...');
   const [progressPercent, setProgressPercent] = useState<number>(80);
 
@@ -486,6 +487,8 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
           {[
             { id: 'summary', label: '요약', icon: FileText },
             { id: 'agency', label: '웹에이전시 관점', icon: Briefcase },
+            { id: 'profitability', label: '수익성 분석', icon: DollarSign },
+            { id: 'execution', label: '실행 계획', icon: Workflow },
             { id: 'insights', label: '주요 인사이트', icon: Lightbulb },
             { id: 'risks', label: '위험 분석', icon: AlertTriangle },
             { id: 'recommendations', label: '권장사항', icon: CheckCircle },
@@ -904,6 +907,149 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
                   <p className="text-gray-300">{recommendation}</p>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'profitability' && report.agencyDetailedAnalysis && (
+          <div className="space-y-6">
+            {/* 수익성 분석 */}
+            <div className="p-6 bg-gray-800 rounded-lg border border-gray-700">
+              <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <DollarSign className="w-5 h-5 text-green-400" />
+                수익성 분석
+              </h4>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div className="p-4 bg-gray-900 rounded">
+                  <p className="text-sm text-gray-400">예상 매출</p>
+                  <p className="text-xl font-bold text-green-400">
+                    {(report.agencyDetailedAnalysis.profitability.totalEstimatedRevenue / 1000000).toFixed(1)}백만원
+                  </p>
+                </div>
+                <div className="p-4 bg-gray-900 rounded">
+                  <p className="text-sm text-gray-400">예상 비용</p>
+                  <p className="text-xl font-bold text-orange-400">
+                    {(report.agencyDetailedAnalysis.profitability.totalEstimatedCost / 1000000).toFixed(1)}백만원
+                  </p>
+                </div>
+                <div className="p-4 bg-gray-900 rounded">
+                  <p className="text-sm text-gray-400">예상 이익</p>
+                  <p className="text-xl font-bold text-blue-400">
+                    {(report.agencyDetailedAnalysis.profitability.totalProfit / 1000000).toFixed(1)}백만원
+                  </p>
+                </div>
+                <div className="p-4 bg-gray-900 rounded">
+                  <p className="text-sm text-gray-400">이익률</p>
+                  <p className="text-xl font-bold text-purple-400">
+                    {report.agencyDetailedAnalysis.profitability.profitMargin.toFixed(1)}%
+                  </p>
+                </div>
+                <div className="p-4 bg-gray-900 rounded">
+                  <p className="text-sm text-gray-400">ROI</p>
+                  <p className="text-xl font-bold text-cyan-400">
+                    {report.agencyDetailedAnalysis.profitability.roi.toFixed(1)}%
+                  </p>
+                </div>
+                <div className="p-4 bg-gray-900 rounded">
+                  <p className="text-sm text-gray-400">회수 기간</p>
+                  <p className="text-xl font-bold text-indigo-400">
+                    {report.agencyDetailedAnalysis.profitability.paybackPeriod}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* 최종 결정 */}
+            <div className="p-6 bg-gray-800 rounded-lg border border-gray-700">
+              <h4 className="text-lg font-semibold text-white mb-4">최종 수주 결정</h4>
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <span className={`px-3 py-1 rounded text-sm font-semibold ${
+                    report.agencyDetailedAnalysis.finalDecision.recommendation === 'accept'
+                      ? 'bg-green-900 text-green-300'
+                      : report.agencyDetailedAnalysis.finalDecision.recommendation === 'conditional_accept'
+                      ? 'bg-yellow-900 text-yellow-300'
+                      : 'bg-red-900 text-red-300'
+                  }`}>
+                    {report.agencyDetailedAnalysis.finalDecision.recommendation === 'accept' && '수락 권장'}
+                    {report.agencyDetailedAnalysis.finalDecision.recommendation === 'conditional_accept' && '조건부 수락'}
+                    {report.agencyDetailedAnalysis.finalDecision.recommendation === 'decline' && '거절 권장'}
+                  </span>
+                  <span className="text-gray-400">확신도: {report.agencyDetailedAnalysis.finalDecision.confidence}%</span>
+                </div>
+                <p className="text-gray-300">{report.agencyDetailedAnalysis.finalDecision.reasoning}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'execution' && report.executionPlan && (
+          <div className="space-y-6">
+            {/* 리소스 계획 */}
+            <div className="p-6 bg-gray-800 rounded-lg border border-gray-700">
+              <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <Users className="w-5 h-5 text-blue-400" />
+                리소스 계획
+              </h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                <div className="p-4 bg-gray-900 rounded">
+                  <p className="text-sm text-gray-400">총 인월</p>
+                  <p className="text-xl font-bold text-blue-400">
+                    {report.executionPlan.resourcePlan.totalManMonths}인월
+                  </p>
+                </div>
+                <div className="p-4 bg-gray-900 rounded">
+                  <p className="text-sm text-gray-400">총 비용</p>
+                  <p className="text-xl font-bold text-green-400">
+                    {(report.executionPlan.resourcePlan.totalCost / 1000000).toFixed(1)}백만원
+                  </p>
+                </div>
+                <div className="p-4 bg-gray-900 rounded">
+                  <p className="text-sm text-gray-400">예상 기간</p>
+                  <p className="text-xl font-bold text-purple-400">
+                    {report.executionPlan.resourcePlan.timeline}
+                  </p>
+                </div>
+                <div className="p-4 bg-gray-900 rounded">
+                  <p className="text-sm text-gray-400">팀 구성</p>
+                  <p className="text-xl font-bold text-cyan-400">
+                    {report.executionPlan.resourcePlan.teamComposition.length}명
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                {report.executionPlan.resourcePlan.teamComposition.map((member, index) => (
+                  <div key={index} className="p-3 bg-gray-900 rounded flex justify-between items-center">
+                    <div>
+                      <p className="text-white font-semibold">{member.role}</p>
+                      <p className="text-sm text-gray-400">{member.count}명 · {member.allocation} · {member.manMonths}인월</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* WBS */}
+            <div className="p-6 bg-gray-800 rounded-lg border border-gray-700">
+              <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <Workflow className="w-5 h-5 text-purple-400" />
+                작업 분해 구조 (WBS)
+              </h4>
+              <div className="space-y-4">
+                {report.executionPlan.wbs.map((phase, index) => (
+                  <div key={index} className="p-4 bg-gray-900 rounded">
+                    <div className="flex justify-between items-start mb-2">
+                      <h5 className="text-white font-semibold">{phase.task}</h5>
+                      <span className="text-sm text-gray-400">{phase.duration}</span>
+                    </div>
+                    <p className="text-sm text-gray-400 mb-2">{phase.description}</p>
+                    <div className="flex gap-4 text-xs text-gray-500">
+                      <span>{phase.totalHours}시간</span>
+                      <span>{phase.startDate} ~ {phase.endDate}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}

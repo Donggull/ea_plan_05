@@ -314,6 +314,144 @@ export interface AnalysisReport {
     integrationPoints: string[];
   };
 
+  // 🔥 Phase 3: 웹에이전시 상세 분석 (수익성, 경쟁력, 최종 결정)
+  agencyDetailedAnalysis?: {
+    detailedPerspectives: {
+      planning: {
+        scope: string;
+        complexity: 'low' | 'medium' | 'high' | 'very_high';
+        estimatedEffort: string;
+        estimatedCost: number;
+        keyDeliverables: string[];
+        challenges: string[];
+        risks: string[];
+        opportunities: string[];
+      };
+      design: {
+        scope: string;
+        complexity: 'low' | 'medium' | 'high' | 'very_high';
+        estimatedEffort: string;
+        estimatedCost: number;
+        keyDeliverables: string[];
+        challenges: string[];
+        risks: string[];
+        opportunities: string[];
+      };
+      publishing: {
+        scope: string;
+        complexity: 'low' | 'medium' | 'high';
+        estimatedEffort: string;
+        estimatedCost: number;
+        keyDeliverables: string[];
+        challenges: string[];
+        risks: string[];
+        opportunities: string[];
+      };
+      development: {
+        scope: string;
+        complexity: 'low' | 'medium' | 'high' | 'very_high';
+        estimatedEffort: string;
+        estimatedCost: number;
+        keyDeliverables: string[];
+        challenges: string[];
+        risks: string[];
+        opportunities: string[];
+      };
+    };
+    profitability: {
+      totalEstimatedRevenue: number;
+      costBreakdown: {
+        planning: number;
+        design: number;
+        publishing: number;
+        development: number;
+        overhead: number;
+        buffer: number;
+      };
+      totalEstimatedCost: number;
+      totalProfit: number;
+      profitMargin: number;
+      roi: number;
+      paybackPeriod: string;
+      analysis: string;
+    };
+    competitiveness: {
+      ourStrengths: string[];
+      ourWeaknesses: string[];
+      differentiators: string[];
+      competitiveAdvantage: string;
+    };
+    finalDecision: {
+      recommendation: 'accept' | 'conditional_accept' | 'decline';
+      confidence: number;
+      reasoning: string;
+      conditions: string[];
+      strategicValue: {
+        portfolioValue: number;
+        brandValue: number;
+        futureOpportunities: number;
+        customerRelationship: number;
+        analysis: string;
+      };
+    };
+  };
+
+  // 🔥 Phase 4: 실행 계획 및 제안서 초안
+  executionPlan?: {
+    wbs: {
+      id: string;
+      task: string;
+      description: string;
+      subtasks: {
+        id: string;
+        task: string;
+        estimatedHours: number;
+        assignee: string;
+        deliverable: string;
+        dependencies: string[];
+      }[];
+      totalHours: number;
+      duration: string;
+      startDate: string;
+      endDate: string;
+    }[];
+    resourcePlan: {
+      teamComposition: {
+        role: string;
+        count: number;
+        allocation: string;
+        manMonths: number;
+        responsibilities: string[];
+        requiredSkills: string[];
+      }[];
+      totalManMonths: number;
+      totalCost: number;
+      timeline: string;
+    };
+    proposalOutline: {
+      title: string;
+      sections: {
+        section: string;
+        content: string;
+        keyPoints: string[];
+      }[];
+      appendix: string[];
+    };
+    presentationOutline: {
+      slideNumber: number;
+      title: string;
+      content: string;
+      talkingPoints?: string[];
+    }[];
+    nextSteps: {
+      step: number;
+      action: string;
+      owner: string;
+      deadline: string;
+      status: string;
+    }[];
+  };
+
   // 차트 및 시각화 데이터
   visualizationData: Record<string, any>;
 
