@@ -299,7 +299,7 @@ export const auth = {
   resetPassword: (email: string) => {
     const client = getSupabaseClient()
     return client.auth.resetPasswordForEmail(email, {
-      redirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/reset-password`
+      redirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/auth/callback`
     })
   }
 }

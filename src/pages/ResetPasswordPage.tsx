@@ -29,16 +29,36 @@ export function ResetPasswordPage() {
   })
   const [errors, setErrors] = useState<FormErrors>({})
 
-  // URL에서 토큰과 타입 확인
-  const accessToken = searchParams.get('access_token')
-  const refreshToken = searchParams.get('refresh_token')
-  const type = searchParams.get('type')
+  // URL에서 토큰과 타입 확인 (Query Parameter 또는 Hash에서)
+  // Supabase는 토큰을 Hash(#)로 전달하지만, 호환성을 위해 둘 다 확인
+  const getTokenFromUrl = () => {
+    // 1. Query Parameter에서 먼저 확인 (AuthCallbackPage에서 리다이렉트된 경우)
+    let accessToken = searchParams.get('access_token')
+    let refreshToken = searchParams.get('refresh_token')
+    let type = searchParams.get('type')
+
+    // 2. Query Parameter에 없으면 Hash에서 확인 (Supabase 직접 리다이렉트인 경우)
+    if (!accessToken && window.location.hash) {
+      const hashParams = new URLSearchParams(window.location.hash.substring(1))
+      accessToken = hashParams.get('access_token')
+      refreshToken = hashParams.get('refresh_token')
+      type = hashParams.get('type')
+    }
+
+    return { accessToken, refreshToken, type }
+  }
+
+  const { accessToken, refreshToken, type } = getTokenFromUrl()
 
   useEffect(() => {
     // 토큰이 없거나 타입이 recovery가 아니면 리다이렉트
     if (!accessToken || type !== 'recovery') {
-      toast.error('유효하지 않은 비밀번호 재설정 링크입니다')
-      navigate('/forgot-password')
+      toast.error('유효하지 않은 비밀번호 재설정 링크입니다', {
+        description: '비밀번호 재설정을 다시 요청해주세요'
+      })
+      setTimeout(() => {
+        navigate('/forgot-password')
+      }, 2000)
       return
     }
 
@@ -47,6 +67,16 @@ export function ResetPasswordPage() {
       supabase.auth.setSession({
         access_token: accessToken,
         refresh_token: refreshToken
+      }).then(({ error }) => {
+        if (error) {
+          console.error('세션 설정 오류:', error)
+          toast.error('세션 설정에 실패했습니다', {
+            description: '비밀번호 재설정을 다시 요청해주세요'
+          })
+          setTimeout(() => {
+            navigate('/forgot-password')
+          }, 2000)
+        }
       })
     }
   }, [accessToken, refreshToken, type, navigate])
