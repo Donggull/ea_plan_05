@@ -79,6 +79,24 @@ export function AuthCallbackPage() {
           console.log('Access Token:', accessToken ? 'Present' : 'Missing')
           console.log('Refresh Token:', refreshToken ? 'Present' : 'Missing')
 
+          // 먼저 세션을 설정
+          const { error: sessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          })
+
+          if (sessionError) {
+            console.error('❌ Session setting failed:', sessionError)
+            setStatus('error')
+            setMessage('세션 설정에 실패했습니다. 다시 시도해주세요.')
+            toast.error('세션 설정 실패', {
+              description: '비밀번호 재설정을 다시 요청해주세요'
+            })
+            return
+          }
+
+          console.log('✅ Session set successfully in AuthCallback')
+
           setStatus('success')
           setMessage('비밀번호 재설정 링크가 확인되었습니다')
 
@@ -86,10 +104,10 @@ export function AuthCallbackPage() {
             description: '비밀번호 설정 페이지로 이동합니다'
           })
 
+          // 세션이 설정되었으므로 토큰 없이 리다이렉트
           setTimeout(() => {
-            const resetUrl = `/reset-password?access_token=${accessToken}&refresh_token=${refreshToken}&type=recovery`
-            console.log('🔄 Navigating to:', resetUrl)
-            navigate(resetUrl, { replace: true })
+            console.log('🔄 Navigating to /reset-password')
+            navigate('/reset-password', { replace: true })
           }, 1000)
         } else {
           // 일반적인 로그인 콜백 처리

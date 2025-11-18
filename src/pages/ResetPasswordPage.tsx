@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card } from '@/components/ui/Card'
@@ -19,7 +19,6 @@ interface FormErrors {
 
 export function ResetPasswordPage() {
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
@@ -29,85 +28,73 @@ export function ResetPasswordPage() {
   })
   const [errors, setErrors] = useState<FormErrors>({})
 
-  // URL에서 토큰과 타입 확인 (Query Parameter 또는 Hash에서)
-  // Supabase는 토큰을 Hash(#)로 전달하지만, 호환성을 위해 둘 다 확인
-  const getTokenFromUrl = () => {
-    // 1. Query Parameter에서 먼저 확인 (AuthCallbackPage에서 리다이렉트된 경우)
-    let accessToken = searchParams.get('access_token')
-    let refreshToken = searchParams.get('refresh_token')
-    let type = searchParams.get('type')
-
-    // 2. Query Parameter에 없으면 Hash에서 확인 (Supabase 직접 리다이렉트인 경우)
-    if (!accessToken && window.location.hash) {
-      const hashParams = new URLSearchParams(window.location.hash.substring(1))
-      accessToken = hashParams.get('access_token')
-      refreshToken = hashParams.get('refresh_token')
-      type = hashParams.get('type')
-    }
-
-    return { accessToken, refreshToken, type }
-  }
-
-  const { accessToken, refreshToken, type } = getTokenFromUrl()
   const [isValidating, setIsValidating] = useState(true)
+  const [hasValidSession, setHasValidSession] = useState(false)
 
   useEffect(() => {
-    const validateTokens = async () => {
-      console.log('🔍 ResetPasswordPage - Validating tokens...')
-      console.log('Access Token:', accessToken ? `${accessToken.substring(0, 20)}...` : 'Missing')
-      console.log('Refresh Token:', refreshToken ? 'Present' : 'Missing')
-      console.log('Type:', type)
-      console.log('URL Hash:', window.location.hash)
-      console.log('URL Search:', window.location.search)
+    const validateSession = async () => {
+      console.log('🔍 ResetPasswordPage - Checking session...')
 
-      // 토큰이 없거나 타입이 recovery가 아니면 리다이렉트
-      if (!accessToken || type !== 'recovery') {
-        console.error('❌ Invalid tokens or type')
-        toast.error('유효하지 않은 비밀번호 재설정 링크입니다', {
-          description: '비밀번호 재설정을 다시 요청해주세요'
-        })
+      if (!supabase) {
+        console.error('❌ Supabase client not initialized')
+        toast.error('서비스 연결에 문제가 있습니다')
         setTimeout(() => {
           navigate('/forgot-password')
         }, 3000)
         return
       }
 
-      // Supabase 세션 설정
-      if (supabase && refreshToken) {
-        try {
-          console.log('⚙️ Setting Supabase session...')
-          const { error } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken
+      try {
+        // 현재 세션 확인
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+
+        console.log('Session check result:', {
+          hasSession: !!session,
+          error: sessionError?.message
+        })
+
+        if (sessionError) {
+          console.error('❌ Session error:', sessionError)
+          throw sessionError
+        }
+
+        if (!session) {
+          console.error('❌ No active session found')
+          toast.error('유효하지 않은 비밀번호 재설정 링크입니다', {
+            description: '비밀번호 재설정을 다시 요청해주세요'
           })
-
-          if (error) {
-            console.error('❌ 세션 설정 오류:', error)
-            toast.error('세션 설정에 실패했습니다', {
-              description: '비밀번호 재설정을 다시 요청해주세요'
-            })
-            setTimeout(() => {
-              navigate('/forgot-password')
-            }, 3000)
-            return
-          }
-
-          console.log('✅ Session set successfully')
-          setIsValidating(false)
-        } catch (error) {
-          console.error('❌ Session setting error:', error)
-          toast.error('세션 설정 중 오류가 발생했습니다')
           setTimeout(() => {
             navigate('/forgot-password')
           }, 3000)
+          return
         }
-      } else {
+
+        // 세션이 있으면 사용자 정보 확인
+        const { data: { user }, error: userError } = await supabase.auth.getUser()
+
+        if (userError || !user) {
+          console.error('❌ User verification failed:', userError)
+          toast.error('사용자 인증에 실패했습니다')
+          setTimeout(() => {
+            navigate('/forgot-password')
+          }, 3000)
+          return
+        }
+
+        console.log('✅ Valid session found for user:', user.email)
+        setHasValidSession(true)
         setIsValidating(false)
+      } catch (error: any) {
+        console.error('❌ Session validation error:', error)
+        toast.error('세션 확인 중 오류가 발생했습니다')
+        setTimeout(() => {
+          navigate('/forgot-password')
+        }, 3000)
       }
     }
 
-    validateTokens()
-  }, [accessToken, refreshToken, type, navigate])
+    validateSession()
+  }, [navigate])
 
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {}
@@ -211,20 +198,20 @@ export function ResetPasswordPage() {
 
   const passwordStrength = getPasswordStrength(formData.password)
 
-  // 토큰 검증 중이면 로딩 표시
+  // 세션 검증 중이면 로딩 표시
   if (isValidating) {
     return (
       <div className="min-h-screen bg-bg-primary flex items-center justify-center">
         <div className="flex flex-col items-center space-y-4">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
-          <p className="text-text-secondary text-sm">비밀번호 재설정 링크를 확인하는 중...</p>
+          <p className="text-text-secondary text-sm">세션을 확인하는 중...</p>
         </div>
       </div>
     )
   }
 
-  // 토큰이 없으면 로딩 표시 (리다이렉트 대기)
-  if (!accessToken || type !== 'recovery') {
+  // 유효한 세션이 없으면 로딩 표시 (리다이렉트 대기)
+  if (!hasValidSession) {
     return (
       <div className="min-h-screen bg-bg-primary flex items-center justify-center">
         <div className="flex flex-col items-center space-y-4">
