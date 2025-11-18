@@ -49,36 +49,64 @@ export function ResetPasswordPage() {
   }
 
   const { accessToken, refreshToken, type } = getTokenFromUrl()
+  const [isValidating, setIsValidating] = useState(true)
 
   useEffect(() => {
-    // 토큰이 없거나 타입이 recovery가 아니면 리다이렉트
-    if (!accessToken || type !== 'recovery') {
-      toast.error('유효하지 않은 비밀번호 재설정 링크입니다', {
-        description: '비밀번호 재설정을 다시 요청해주세요'
-      })
-      setTimeout(() => {
-        navigate('/forgot-password')
-      }, 2000)
-      return
-    }
+    const validateTokens = async () => {
+      console.log('🔍 ResetPasswordPage - Validating tokens...')
+      console.log('Access Token:', accessToken ? `${accessToken.substring(0, 20)}...` : 'Missing')
+      console.log('Refresh Token:', refreshToken ? 'Present' : 'Missing')
+      console.log('Type:', type)
+      console.log('URL Hash:', window.location.hash)
+      console.log('URL Search:', window.location.search)
 
-    // Supabase 세션 설정
-    if (supabase && refreshToken) {
-      supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken
-      }).then(({ error }) => {
-        if (error) {
-          console.error('세션 설정 오류:', error)
-          toast.error('세션 설정에 실패했습니다', {
-            description: '비밀번호 재설정을 다시 요청해주세요'
+      // 토큰이 없거나 타입이 recovery가 아니면 리다이렉트
+      if (!accessToken || type !== 'recovery') {
+        console.error('❌ Invalid tokens or type')
+        toast.error('유효하지 않은 비밀번호 재설정 링크입니다', {
+          description: '비밀번호 재설정을 다시 요청해주세요'
+        })
+        setTimeout(() => {
+          navigate('/forgot-password')
+        }, 3000)
+        return
+      }
+
+      // Supabase 세션 설정
+      if (supabase && refreshToken) {
+        try {
+          console.log('⚙️ Setting Supabase session...')
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
           })
+
+          if (error) {
+            console.error('❌ 세션 설정 오류:', error)
+            toast.error('세션 설정에 실패했습니다', {
+              description: '비밀번호 재설정을 다시 요청해주세요'
+            })
+            setTimeout(() => {
+              navigate('/forgot-password')
+            }, 3000)
+            return
+          }
+
+          console.log('✅ Session set successfully')
+          setIsValidating(false)
+        } catch (error) {
+          console.error('❌ Session setting error:', error)
+          toast.error('세션 설정 중 오류가 발생했습니다')
           setTimeout(() => {
             navigate('/forgot-password')
-          }, 2000)
+          }, 3000)
         }
-      })
+      } else {
+        setIsValidating(false)
+      }
     }
+
+    validateTokens()
   }, [accessToken, refreshToken, type, navigate])
 
   const validateForm = (): boolean => {
@@ -183,11 +211,26 @@ export function ResetPasswordPage() {
 
   const passwordStrength = getPasswordStrength(formData.password)
 
-  // 토큰이 없으면 로딩 표시
+  // 토큰 검증 중이면 로딩 표시
+  if (isValidating) {
+    return (
+      <div className="min-h-screen bg-bg-primary flex items-center justify-center">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+          <p className="text-text-secondary text-sm">비밀번호 재설정 링크를 확인하는 중...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // 토큰이 없으면 로딩 표시 (리다이렉트 대기)
   if (!accessToken || type !== 'recovery') {
     return (
       <div className="min-h-screen bg-bg-primary flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+        <div className="flex flex-col items-center space-y-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+          <p className="text-text-secondary text-sm">리다이렉트 중...</p>
+        </div>
       </div>
     )
   }

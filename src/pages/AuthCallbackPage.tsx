@@ -75,13 +75,21 @@ export function AuthCallbackPage() {
           }, 2000)
         } else if (type === 'recovery' && accessToken && refreshToken) {
           // 비밀번호 재설정 처리
+          console.log('🔐 Recovery flow detected')
+          console.log('Access Token:', accessToken ? 'Present' : 'Missing')
+          console.log('Refresh Token:', refreshToken ? 'Present' : 'Missing')
+
           setStatus('success')
           setMessage('비밀번호 재설정 링크가 확인되었습니다')
 
+          toast.success('비밀번호 재설정 준비 완료', {
+            description: '비밀번호 설정 페이지로 이동합니다'
+          })
+
           setTimeout(() => {
-            navigate(`/reset-password?access_token=${accessToken}&refresh_token=${refreshToken}&type=recovery`, {
-              replace: true
-            })
+            const resetUrl = `/reset-password?access_token=${accessToken}&refresh_token=${refreshToken}&type=recovery`
+            console.log('🔄 Navigating to:', resetUrl)
+            navigate(resetUrl, { replace: true })
           }, 1000)
         } else {
           // 일반적인 로그인 콜백 처리
