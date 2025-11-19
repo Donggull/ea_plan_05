@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { Mail, Lock, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react'
+import { logError } from '@/utils/errorLogger'
 
 export function LoginPage() {
   const navigate = useNavigate()
@@ -20,8 +21,9 @@ export function LoginPage() {
       await signIn(formData.email, formData.password)
       navigate('/dashboard')
     } catch (err: any) {
-      console.error('로그인 오류:', err)
-      // AuthContext에서 에러 관리하므로 별도 처리 불필요
+      // 개발 환경에서만 콘솔에 에러 출력
+      logError('로그인 오류:', err)
+      // AuthContext에서 에러 관리하므로 UI에만 에러 표시
     }
   }
 

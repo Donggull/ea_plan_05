@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/Input'
 import { Card } from '@/components/ui/Card'
 import { Mail, Lock, User, AlertCircle, CheckCircle, Eye, EyeOff } from 'lucide-react'
 import { toast } from 'sonner'
+import { logError } from '@/utils/errorLogger'
 
 interface FormData {
   email: string
@@ -112,7 +113,8 @@ export function SignupPage() {
         state: { email: formData.email }
       })
     } catch (error: any) {
-      console.error('Signup error:', error)
+      // 개발 환경에서만 콘솔에 에러 출력
+      logError('회원가입 오류:', error)
 
       let errorMessage = '회원가입 중 오류가 발생했습니다'
 

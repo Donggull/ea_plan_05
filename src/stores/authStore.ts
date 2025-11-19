@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { User, Session } from '@supabase/supabase-js'
 import { getSupabaseClient } from '@/lib/supabase'
 import type { Database } from '@/types/supabase'
+import { logError, logInfo, logWarn } from '@/utils/errorLogger'
 
 type Profile = Database['public']['Tables']['profiles']['Row']
 
@@ -150,7 +151,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     // 초기화 중이면 refreshSession 생략 (중복 호출 방지)
     if (currentState.isInitializing) {
-      console.log('⚠️ RefreshSession skipped - initialization in progress')
+      logWarn('RefreshSession 건너뜀 - 초기화 진행 중')
       return
     }
 
@@ -184,13 +185,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             isAuthenticated: true,
             error: null // 성공 시 에러 클리어
           })
-          console.log('✅ Session refresh successful')
+          logInfo('세션 갱신 성공')
         } else {
-          console.log('⚡ Session refresh skipped - no token changes')
+          logInfo('세션 갱신 건너뜀 - 토큰 변경 없음')
         }
       }
     } catch (error: any) {
-      console.error('❌ Session refresh error:', error)
+      logError('세션 갱신 오류:', error)
       // 세션 갱신 실패시 에러 상태만 설정, 로그아웃은 하지 않음
       set({ error: error.message })
     }
@@ -236,7 +237,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         .single()
 
       if (error && error.code !== 'PGRST116') { // 데이터 없음 에러가 아닌 경우
-        console.error('Profile load error:', error)
+        logError('프로필 로드 오류:', error)
         return
       }
 
@@ -258,7 +259,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
       }
     } catch (error) {
-      console.error('Profile load error:', error)
+      logError('프로필 로드 오류:', error)
     }
   },
 
@@ -267,16 +268,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     // 이미 초기화되었거나 진행 중인 경우 중복 실행 방지
     if (isInitialized) {
-      console.log('🔄 Auth already initialized, skipping...')
+      logInfo('Auth 이미 초기화됨, 건너뜀...')
       return
     }
 
     if (isInitializing) {
-      console.log('🔄 Auth initialization already in progress, skipping...')
+      logInfo('Auth 초기화 이미 진행 중, 건너뜀...')
       return
     }
 
-    console.log('🚀 Starting auth initialization...')
+    logInfo('Auth 초기화 시작...')
     set({ isLoading: true, isInitializing: true, error: null })
 
     try {
@@ -294,7 +295,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       ]) as any
 
       if (error) {
-        console.error('❌ Session get error:', error)
+        logError('세션 가져오기 오류:', error)
         set({
           user: null,
           session: null,
@@ -313,7 +314,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         try {
           await get().loadProfile(session.user.id)
         } catch (profileError) {
-          console.warn('⚠️ Profile load failed, continuing without profile:', profileError)
+          logWarn('프로필 로드 실패, 프로필 없이 계속 진행:', profileError)
         }
       }
 
@@ -327,8 +328,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         error: null // 성공 시 에러 클리어
       })
 
-      console.log('✅ Auth initialization completed successfully')
-      console.log('Auth state:', {
+      logInfo('Auth 초기화 성공적으로 완료')
+      logInfo('Auth 상태:', {
         hasUser: !!session?.user,
         hasSession: !!session,
         isAuthenticated: !!session
@@ -337,17 +338,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Auth 상태 변경 리스너 (클라이언트에서만, 한 번만 설정) - 중복 설정 완전 방지
       if (typeof window !== 'undefined' && !window.__supabaseAuthListenerSet) {
         window.__supabaseAuthListenerSet = true
-        console.log('⚙️ Setting up auth state change listener (once only)')
+        logInfo('Auth 상태 변경 리스너 설정 (한 번만)')
 
         const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
           // 디버그 로그 최소화 - 브라우저 포커스 시 불필요한 메시지 방지
           if (event === 'SIGNED_OUT') {
-            console.log('🚪 Auth state changed: SIGNED_OUT')
+            logInfo('Auth 상태 변경: SIGNED_OUT')
           } else if (event === 'TOKEN_REFRESHED') {
-            console.log('🔄 Auth state changed: TOKEN_REFRESHED')
+            logInfo('Auth 상태 변경: TOKEN_REFRESHED')
           } else {
             // SIGNED_IN 이벤트 로그 최소화 (브라우저 포커스 시 스팸 방지)
-            console.log(`🔐 Auth state changed: ${event}`)
+            logInfo(`Auth 상태 변경: ${event}`)
           }
 
           const currentState = get()
@@ -358,7 +359,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             if (currentState.isAuthenticated &&
                 currentState.user?.id === session?.user?.id &&
                 currentState.profile) {
-              console.log('⚡ SIGNED_IN event skipped - user already authenticated with profile')
+              logInfo('SIGNED_IN 이벤트 건너뜀 - 사용자가 이미 프로필과 함께 인증됨')
               // 세션만 업데이트하고 프로필 재로드는 하지 않음
               set({
                 session,
@@ -370,15 +371,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             // 새로운 사용자이거나 프로필이 없는 경우에만 프로필 로드
             if (session?.user) {
               try {
-                console.log('👤 Loading profile for new user session...')
+                logInfo('새 사용자 세션에 대한 프로필 로딩 중...')
                 await get().loadProfile(session.user.id)
               } catch (error) {
-                console.warn('Profile load failed during auth state change:', error)
+                logWarn('Auth 상태 변경 중 프로필 로드 실패:', error)
               }
             }
           } else if (event === 'TOKEN_REFRESHED') {
             // TOKEN_REFRESHED시에는 프로필 로딩 없이 세션만 업데이트
-            console.log('⚙️ Token refreshed - updating session only (no profile reload)')
+            logInfo('토큰 갱신됨 - 세션만 업데이트 (프로필 재로드 안함)')
           }
 
           if (event === 'SIGNED_OUT') {
@@ -421,7 +422,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 isInitializing: false,
               })
             } else {
-              console.log('⚡ Auth state update skipped - no changes detected')
+              logInfo('Auth 상태 업데이트 건너뜀 - 변경 사항 없음')
             }
           }
         })
@@ -434,7 +435,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
     } catch (error: any) {
-      console.error('❌ Auth initialization error:', error)
+      logError('Auth 초기화 오류:', error)
       set({
         user: null,
         session: null,

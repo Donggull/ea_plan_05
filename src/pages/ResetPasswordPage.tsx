@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/Card'
 import { Lock, AlertCircle, CheckCircle, Eye, EyeOff } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
+import { logError, logInfo } from '@/utils/errorLogger'
 
 interface FormData {
   password: string
@@ -33,10 +34,10 @@ export function ResetPasswordPage() {
 
   useEffect(() => {
     const validateSession = async () => {
-      console.log('🔍 ResetPasswordPage - Checking session...')
+      logInfo('ResetPasswordPage - 세션 확인 중...')
 
       if (!supabase) {
-        console.error('❌ Supabase client not initialized')
+        logError('Supabase 클라이언트가 초기화되지 않음')
         toast.error('서비스 연결에 문제가 있습니다')
         setTimeout(() => {
           navigate('/forgot-password')
@@ -48,18 +49,18 @@ export function ResetPasswordPage() {
         // 현재 세션 확인
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
 
-        console.log('Session check result:', {
+        logInfo('세션 확인 결과:', {
           hasSession: !!session,
           error: sessionError?.message
         })
 
         if (sessionError) {
-          console.error('❌ Session error:', sessionError)
+          logError('세션 오류:', sessionError)
           throw sessionError
         }
 
         if (!session) {
-          console.error('❌ No active session found')
+          logError('활성 세션을 찾을 수 없음')
           toast.error('유효하지 않은 비밀번호 재설정 링크입니다', {
             description: '비밀번호 재설정을 다시 요청해주세요'
           })
@@ -73,7 +74,7 @@ export function ResetPasswordPage() {
         const { data: { user }, error: userError } = await supabase.auth.getUser()
 
         if (userError || !user) {
-          console.error('❌ User verification failed:', userError)
+          logError('사용자 인증 실패:', userError)
           toast.error('사용자 인증에 실패했습니다')
           setTimeout(() => {
             navigate('/forgot-password')
@@ -81,11 +82,11 @@ export function ResetPasswordPage() {
           return
         }
 
-        console.log('✅ Valid session found for user:', user.email)
+        logInfo('유효한 세션 발견:', user.email)
         setHasValidSession(true)
         setIsValidating(false)
       } catch (error: any) {
-        console.error('❌ Session validation error:', error)
+        logError('세션 검증 오류:', error)
         toast.error('세션 확인 중 오류가 발생했습니다')
         setTimeout(() => {
           navigate('/forgot-password')
@@ -166,7 +167,8 @@ export function ResetPasswordPage() {
         state: { message: '비밀번호가 변경되었습니다. 새 비밀번호로 로그인해주세요.' }
       })
     } catch (error: any) {
-      console.error('Password reset error:', error)
+      // 개발 환경에서만 콘솔에 에러 출력
+      logError('비밀번호 재설정 오류:', error)
 
       let errorMessage = '비밀번호 변경 중 오류가 발생했습니다'
 

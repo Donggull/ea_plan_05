@@ -20,7 +20,8 @@
       "mcp__github-mcp__git-add-all",
       "Bash(npm run dev)",
       "mcp__context7__resolve-library-id",
-      "mcp__context7__get-library-docs"
+      "mcp__context7__get-library-docs",
+      "mcp__supabase__get_logs"
     ],
     "deny": [],
     "ask": []

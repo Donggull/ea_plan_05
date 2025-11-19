@@ -18,7 +18,7 @@ git은 Donggull/ea_plan_05의 master 브랜치에 커밋과 푸시를 진행하�
 
 **기존에 적용되어 있는 인증 관련 부분은 동의없이 임의로 절대 수정 변경하지마. 전체 페이지에 적용되어 있는 인증 페이지와 충돌이 발생할 수 있으니 변경이 필요한 경우 반드시 동의를 구하고 진행해야돼.**
 
-- 테스트 계정 : anyoungbabo@gmail.com / TempPass2025!
+- 테스트 계정 : anyoungbabo@gmail.com / 7043kyun
 
 ## 🚀 프로젝트 개요
 

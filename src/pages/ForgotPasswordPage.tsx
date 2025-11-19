@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/Card'
 import { Mail, ArrowLeft, AlertCircle, CheckCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuth } from '@/contexts/AuthContext'
+import { logError } from '@/utils/errorLogger'
 
 export function ForgotPasswordPage() {
   const { resetPassword, isLoading, isInitializing, clearError } = useAuth()
@@ -42,7 +43,8 @@ export function ForgotPasswordPage() {
         description: '이메일을 확인해주세요'
       })
     } catch (error: any) {
-      console.error('Password reset error:', error)
+      // 개발 환경에서만 콘솔에 에러 출력
+      logError('비밀번호 재설정 오류:', error)
 
       let errorMessage = '이메일 전송 중 오류가 발생했습니다'
 

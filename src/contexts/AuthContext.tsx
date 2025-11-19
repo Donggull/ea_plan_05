@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, ReactNode, useState } from 'react
 import { useAuthStore } from '../stores/authStore'
 import { User, Session } from '@supabase/supabase-js'
 import type { Database } from '../lib/database.types'
+import { logError, logInfo } from '@/utils/errorLogger'
 
 type Profile = Database['public']['Tables']['profiles']['Row']
 
@@ -46,7 +47,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     if (!isClient) return
 
-    console.log('🏗️ AuthProvider state update:', {
+    logInfo('AuthProvider 상태 업데이트:', {
       isInitialized,
       isInitializing,
       isLoading,
@@ -68,11 +69,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     // 인증 상태 초기화 - 한 번만 실행되도록 보장
     if (!isInitialized && !isInitializing) {
-      console.log('🔄 AuthContext: Triggering auth initialization...')
+      logInfo('AuthContext: 인증 초기화 시작...')
 
       // Promise 체인으로 초기화 상태 보장 (AuthStore에서 자체적으로 에러 처리함)
       authStore.initialize().catch((error) => {
-        console.error('❌ AuthContext initialization failed:', error)
+        logError('AuthContext 초기화 실패:', error)
         // AuthStore에서 이미 에러 처리하므로 추가 처리는 불필요
       })
     }
@@ -100,10 +101,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (tokenExp && (tokenExp - now) < 1800) {
           isRefreshing = true
           try {
-            console.log('⏰ Background session refresh (token expiring soon)...')
+            logInfo('백그라운드 세션 갱신 (토큰 만료 임박)...')
             await authStore.refreshSession()
           } catch (error) {
-            console.error('Background session refresh failed:', error)
+            logError('백그라운드 세션 갱신 실패:', error)
           } finally {
             isRefreshing = false
           }
@@ -113,20 +114,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     // 브라우저 포커스 시 세션 갱신 로직 완전 제거
     // 사용자 요구사항: "브라우저 이동 후 다시 포커스되어도 인증을 재확인할 필요가 없다"
-    console.log('💡 Focus-based session refresh disabled per user requirements')
+    logInfo('포커스 기반 세션 갱신 비활성화 (사용자 요구사항)')
 
     if (typeof window !== 'undefined') {
       // 전역 참조로 중복 설정 방지 (포커스 핸들러는 제거)
       window.__sessionRefreshTimer = refreshInterval
 
-      console.log('✅ Background session refresh timer initialized (focus refresh disabled)')
+      logInfo('백그라운드 세션 갱신 타이머 초기화 완료 (포커스 갱신 비활성화)')
     }
 
     return () => {
       if (typeof window !== 'undefined') {
         clearInterval(refreshInterval)
         window.__sessionRefreshTimer = null
-        console.log('🧹 Background session refresh timer cleanup')
+        logInfo('백그라운드 세션 갱신 타이머 정리')
       }
     }
   }, [isClient]) // authStore.isAuthenticated 의존성 제거로 무한 루프 완전 방지
@@ -165,7 +166,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
         // 10분 이상 비활성 상태였다면 세션 종료
         if (timeDiff > 10 * 60 * 1000) {
-          console.log('Previous session expired due to inactivity')
+          logInfo('이전 세션이 비활성으로 인해 만료됨')
           authStore.signOut()
         }
 
@@ -194,7 +195,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const handleStorageChange = (event: StorageEvent) => {
       // 다른 탭에서 로그아웃한 경우
       if (event.key === 'auth-logout-signal' && event.newValue) {
-        console.log('Logout detected in another tab')
+        logInfo('다른 탭에서 로그아웃 감지됨')
         authStore.signOut()
         localStorage.removeItem('auth-logout-signal')
       }

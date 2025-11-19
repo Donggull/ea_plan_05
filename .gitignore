@@ -126,3 +126,12 @@ playwright/.cache/
 
 # Local development
 .env.local
+
+# Claude Code settings
+.claude/
+
+# Screenshots and images (temporary files)
+*.png
+*.jpg
+*.jpeg
+*.gif
