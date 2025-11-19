@@ -238,8 +238,8 @@ export interface AnalysisReport {
       conditions?: string[]; // 조건부 수락 시 충족 조건
     };
 
-    // 관점별 상세 분석 (실제 구축 시 예상되는 어려움과 리스크 중심)
-    perspectives: {
+    // 관점별 간단한 분석 (Optional - Phase 1에서 생성 가능)
+    perspectives?: {
       planning: {
         feasibility: number; // 0-100
         estimatedEffort: string;

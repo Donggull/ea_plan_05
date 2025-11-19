@@ -21,7 +21,8 @@
       "Bash(npm run dev)",
       "mcp__context7__resolve-library-id",
       "mcp__context7__get-library-docs",
-      "mcp__supabase__get_logs"
+      "mcp__supabase__get_logs",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "ask": []
