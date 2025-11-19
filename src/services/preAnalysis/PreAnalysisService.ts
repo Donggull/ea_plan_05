@@ -5653,16 +5653,84 @@ ${incompleteItems.map((item, index) =>
     try {
       console.log('🔍 AI 질문 응답 파싱 시작:', { responseLength: response.length });
 
-      // JSON 부분만 추출
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error('JSON 형식을 찾을 수 없습니다.');
+      let parsed: any;
+
+      // 🔥 여러 방법으로 JSON 추출 시도 (순서대로)
+      const extractionMethods = [
+        // 1. 마크다운 코드 블록 제거 후 JSON 추출
+        () => {
+          const cleaned = response.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+          const match = cleaned.match(/\{[\s\S]*"questions"[\s\S]*\}/);
+          return match ? match[0] : null;
+        },
+        // 2. 첫 번째 {부터 괄호 카운팅으로 올바른 }까지 추출
+        () => {
+          const startIndex = response.indexOf('{');
+          if (startIndex === -1) return null;
+
+          let depth = 0;
+          let inString = false;
+          let escapeNext = false;
+
+          for (let i = startIndex; i < response.length; i++) {
+            const char = response[i];
+
+            if (escapeNext) {
+              escapeNext = false;
+              continue;
+            }
+
+            if (char === '\\') {
+              escapeNext = true;
+              continue;
+            }
+
+            if (char === '"') {
+              inString = !inString;
+              continue;
+            }
+
+            if (!inString) {
+              if (char === '{') depth++;
+              if (char === '}') {
+                depth--;
+                if (depth === 0) {
+                  return response.substring(startIndex, i + 1);
+                }
+              }
+            }
+          }
+          return null;
+        },
+        // 3. 기존 방식 (greedy)
+        () => {
+          const match = response.match(/\{[\s\S]*\}/);
+          return match ? match[0] : null;
+        }
+      ];
+
+      // 추출 방법들을 순서대로 시도
+      for (const method of extractionMethods) {
+        try {
+          const jsonString = method();
+          if (jsonString) {
+            parsed = JSON.parse(jsonString);
+            if (parsed.questions && Array.isArray(parsed.questions)) {
+              console.log('✅ JSON 파싱 성공:', {
+                hasQuestions: true,
+                questionsCount: parsed.questions.length,
+                method: extractionMethods.indexOf(method) + 1
+              });
+              break;
+            }
+          }
+        } catch (e) {
+          // 다음 방법 시도
+          continue;
+        }
       }
 
-      const parsed = JSON.parse(jsonMatch[0]);
-      console.log('✅ JSON 파싱 성공:', { hasQuestions: !!parsed.questions, questionsCount: parsed.questions?.length || 0 });
-
-      if (!parsed.questions || !Array.isArray(parsed.questions)) {
+      if (!parsed || !parsed.questions || !Array.isArray(parsed.questions)) {
         throw new Error('questions 배열을 찾을 수 없습니다.');
       }
 
