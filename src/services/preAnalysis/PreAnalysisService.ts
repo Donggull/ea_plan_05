@@ -3011,8 +3011,15 @@ ${content}
           projectDecision: phase1BContent.agencyPerspective?.projectDecision || {},
         },
 
-        // Phase 2: 리스크
-        riskAssessment: phase2Content.riskAssessment || { high: [], medium: [], low: [], overallScore: 0 },
+        // Phase 2: 리스크 (중첩 속성 방어 강화)
+        riskAssessment: {
+          high: phase2Content.riskAssessment?.high || [],
+          medium: phase2Content.riskAssessment?.medium || [],
+          low: phase2Content.riskAssessment?.low || [],
+          overallScore: phase2Content.riskAssessment?.overallScore || 0,
+          mitigation: phase2Content.riskAssessment?.mitigation || [],
+          timeline: phase2Content.riskAssessment?.timeline || {},
+        },
 
         // Phase 3: 권장사항
         recommendations: phase3Content.recommendations || [],
@@ -3028,24 +3035,73 @@ ${content}
           integrationPoints: [],
         },
 
-        // Phase 5A + 5B + Phase 6: 웹에이전시 상세 분석
+        // Phase 5A + 5B + Phase 6: 웹에이전시 상세 분석 (중첩 속성 방어 강화)
         agencyDetailedAnalysis: {
           detailedPerspectives: {
-            planning: phase5AContent.agencyDetailedAnalysis?.detailedPerspectives?.planning || {},
-            design: phase5AContent.agencyDetailedAnalysis?.detailedPerspectives?.design || {},
-            publishing: phase5BContent.agencyDetailedAnalysis?.detailedPerspectives?.publishing || {},
-            development: phase5BContent.agencyDetailedAnalysis?.detailedPerspectives?.development || {},
+            planning: phase5AContent.agencyDetailedAnalysis?.detailedPerspectives?.planning || {
+              scope: {},
+              timeline: {},
+              resources: {},
+              risks: [],
+              successFactors: [],
+            },
+            design: phase5AContent.agencyDetailedAnalysis?.detailedPerspectives?.design || {
+              uxStrategy: {},
+              designSystem: {},
+              responsiveApproach: {},
+              accessibility: [],
+              deliverables: [],
+            },
+            publishing: phase5BContent.agencyDetailedAnalysis?.detailedPerspectives?.publishing || {
+              hostingStrategy: {},
+              domainSetup: {},
+              seoStrategy: {},
+              performanceTargets: {},
+              launchChecklist: [],
+            },
+            development: phase5BContent.agencyDetailedAnalysis?.detailedPerspectives?.development || {
+              architecture: {},
+              techStack: [],
+              apiIntegration: [],
+              qualityAssurance: {},
+              deploymentStrategy: {},
+            },
           },
-          profitability: phase6Content.agencyDetailedAnalysis?.profitability || {},
-          competitiveness: phase6Content.agencyDetailedAnalysis?.competitiveness || {},
-          finalDecision: phase6Content.agencyDetailedAnalysis?.finalDecision || {},
+          profitability: phase6Content.agencyDetailedAnalysis?.profitability || {
+            costAnalysis: {},
+            revenueProjection: {},
+            roi: {},
+            breakEven: {},
+          },
+          competitiveness: phase6Content.agencyDetailedAnalysis?.competitiveness || {
+            marketPosition: {},
+            strengths: [],
+            weaknesses: [],
+            opportunities: [],
+            threats: [],
+          },
+          finalDecision: phase6Content.agencyDetailedAnalysis?.finalDecision || {
+            recommendation: '',
+            rationale: '',
+            conditions: [],
+            nextSteps: [],
+          },
         },
 
-        // Phase 7A + 7B + 8A + 8B: 실행 계획
+        // Phase 7A + 7B + 8A + 8B: 실행 계획 (중첩 속성 방어 강화)
         executionPlan: {
           wbs: phase7AContent.executionPlan?.wbs || [],
-          resourcePlan: phase7BContent.executionPlan?.resourcePlan || {},
-          proposalOutline: phase8AContent.executionPlan?.proposalOutline || {},
+          resourcePlan: phase7BContent.executionPlan?.resourcePlan || {
+            teamComposition: [],
+            totalManMonths: 0,
+            totalCost: 0,
+            timeline: {},
+          },
+          proposalOutline: phase8AContent.executionPlan?.proposalOutline || {
+            title: '',
+            sections: [],
+            appendix: [],
+          },
           presentationOutline: phase8BContent.executionPlan?.presentationOutline || [],
           nextSteps: phase8BContent.executionPlan?.nextSteps || [],
         },
@@ -4232,7 +4288,11 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
 }
 \`\`\`
 
-순수 JSON만 반환하세요 ({ 로 시작, } 로 끝).`;
+⚠️ 출력 형식 엄수:
+- JSON 객체만 반환 ({ 로 시작, } 로 끝)
+- 절대로 \`\`\`를 사용하지 마세요
+- 절대로 마크다운 코드블록을 사용하지 마세요
+- 설명, 주석, 추가 텍스트 일체 금지`;
   }
 
   // 🔥 Phase 7 프롬프트 - WBS + 리소스 계획
@@ -4328,7 +4388,11 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
    * teamComposition (최소 5개 역할)
    * totalManMonths, totalCost, timeline 포함
 
-순수 JSON만 반환하세요 ({ 로 시작, } 로 끝).`;
+⚠️ 출력 형식 엄수:
+- JSON 객체만 반환 ({ 로 시작, } 로 끝)
+- 절대로 \`\`\`를 사용하지 마세요
+- 절대로 마크다운 코드블록을 사용하지 마세요
+- 설명, 주석, 추가 텍스트 일체 금지`;
   }
 
   // 🔥 Phase 8 프롬프트 - 제안서 + 발표자료 + 다음 단계
@@ -4578,7 +4642,11 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
    * 최소 5개 단계
    * 각 단계마다 step, action, owner, deadline, status 포함
 
-순수 JSON만 반환하세요 ({ 로 시작, } 로 끝).`;
+⚠️ 출력 형식 엄수:
+- JSON 객체만 반환 ({ 로 시작, } 로 끝)
+- 절대로 \`\`\`를 사용하지 마세요
+- 절대로 마크다운 코드블록을 사용하지 마세요
+- 설명, 주석, 추가 텍스트 일체 금지`;
   }
 
   private parseReportResponse(response: string, analyses: any[], _answers: any[]): any {
@@ -4586,11 +4654,22 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
     console.log('📏 [parseReportResponse] 응답 길이:', response.length);
     console.log('📝 [parseReportResponse] 응답 미리보기:', response.substring(0, 500));
 
-    // 🔥 NEW: 응답 정제 - 제어 문자, 잘못된 이스케이프 시퀀스 제거
+    // 🔥 STEP 1: 모든 코드블록 마커 제거 (강화)
     let cleanedResponse = response
-      .replace(/[\x00-\x1F\x7F-\x9F]/g, '') // 제어 문자 제거
-      .replace(/\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4})/g, '') // 잘못된 이스케이프 제거
+      // 백틱 코드블록 완전 제거
+      .replace(/```json\s*/g, '')  // ```json 제거
+      .replace(/```\s*/g, '')       // ``` 제거
+      .replace(/`/g, '')            // 단일 백틱 제거
+      // "json" 단어 제거 (코드블록 잔여물)
+      .replace(/^json\s*/i, '')     // 시작 부분의 json 제거
+      // 제어 문자 제거
+      .replace(/[\x00-\x1F\x7F-\x9F]/g, '')
+      // 잘못된 이스케이프 제거
+      .replace(/\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4})/g, '')
       .trim();
+
+    console.log('🧹 [parseReportResponse] 정제 후 길이:', cleanedResponse.length);
+    console.log('🧹 [parseReportResponse] 정제 후 미리보기:', cleanedResponse.substring(0, 300));
 
     // =====================================================
     // 시도 1: ```json ``` 코드 블록에서 JSON 추출
