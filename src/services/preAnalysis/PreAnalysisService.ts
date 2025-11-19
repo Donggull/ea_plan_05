@@ -5118,18 +5118,16 @@ ${incompleteItems.map((item, index) =>
       const result = analysis.analysis_result;
       if (!result || typeof result !== 'object') return;
 
-      // 필드 매핑
+      // 필드 매핑 (실제 analysis_result 구조에 맞게 수정)
       const fieldMapping: Record<string, string> = {
-        projectGoals: '프로젝트 목표',
-        targetAudience: '타겟 사용자',
-        functionalRequirements: '핵심 기능 요구사항',
+        summary: '프로젝트 요약',           // 🔥 추가: 가장 중요한 정보
+        keyRequirements: '핵심 기능 요구사항', // 🔥 수정: functionalRequirements → keyRequirements
         stakeholders: '이해관계자',
         constraints: '제약사항',
         risks: '위험 요소',
         opportunities: '기회 요소',
         technicalStack: '기술 스택',
-        timeline: '일정 정보',
-        budget: '예산 정보'
+        timeline: '일정 정보'
       };
 
       for (const [key, label] of Object.entries(fieldMapping)) {
