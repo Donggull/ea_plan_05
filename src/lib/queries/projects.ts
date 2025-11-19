@@ -43,13 +43,14 @@ export const projectKeys = {
 
 // 사용자의 모든 프로젝트 조회
 export function useProjects(options?: UseQueryOptions<Project[], Error>) {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
 
   return useQuery<Project[], Error>({
     queryKey: projectKeys.user(user?.id || ''),
     queryFn: async () => {
       if (!user) throw new Error('User not authenticated')
-      return ProjectService.getUserProjects(user.id)
+      // 프로필의 role을 전달하여 관리자는 모든 프로젝트 조회
+      return ProjectService.getUserProjects(user.id, profile?.role)
     },
     enabled: !!user,
     staleTime: 5 * 60 * 1000, // 5분
@@ -72,13 +73,14 @@ export function useProject(projectId: string, options?: UseQueryOptions<Project 
 
 // 최근 프로젝트 조회
 export function useRecentProjects(limit: number = 5, options?: UseQueryOptions<Project[], Error>) {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
 
   return useQuery<Project[], Error>({
     queryKey: projectKeys.recent(user?.id || ''),
     queryFn: async () => {
       if (!user) throw new Error('User not authenticated')
-      return ProjectService.getRecentProjects(user.id, limit)
+      // 프로필의 role을 전달하여 관리자는 모든 프로젝트 중 최근 것 조회
+      return ProjectService.getRecentProjects(user.id, limit, profile?.role)
     },
     enabled: !!user,
     staleTime: 2 * 60 * 1000, // 2분
@@ -89,13 +91,14 @@ export function useRecentProjects(limit: number = 5, options?: UseQueryOptions<P
 
 // 상태별 프로젝트 조회
 export function useProjectsByStatus(status: string, options?: UseQueryOptions<Project[], Error>) {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
 
   return useQuery<Project[], Error>({
     queryKey: projectKeys.byStatus(user?.id || '', status),
     queryFn: async () => {
       if (!user) throw new Error('User not authenticated')
-      return ProjectService.getProjectsByStatus(user.id, status)
+      // 프로필의 role을 전달하여 관리자는 모든 프로젝트 조회
+      return ProjectService.getProjectsByStatus(user.id, status, profile?.role)
     },
     enabled: !!user && !!status,
     staleTime: 5 * 60 * 1000, // 5분
@@ -232,13 +235,14 @@ export function useDeleteProject() {
 
 // 프로젝트 활성 개수 조회
 export function useActiveProjectsCount(options?: UseQueryOptions<number, Error>) {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
 
   return useQuery<number, Error>({
     queryKey: [...projectKeys.user(user?.id || ''), 'activeCount'],
     queryFn: async () => {
       if (!user) throw new Error('User not authenticated')
-      return ProjectService.getActiveProjectsCount(user.id)
+      // 프로필의 role을 전달하여 관리자는 모든 활성 프로젝트 수 조회
+      return ProjectService.getActiveProjectsCount(user.id, profile?.role)
     },
     enabled: !!user,
     staleTime: 5 * 60 * 1000, // 5분

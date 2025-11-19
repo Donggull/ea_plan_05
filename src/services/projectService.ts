@@ -29,13 +29,38 @@ interface ProjectUpdate {
 export class ProjectService {
   /**
    * 사용자의 모든 프로젝트 조회
+   * @param userId - 사용자 ID
+   * @param userRole - 사용자 역할 (admin, subadmin, user 등)
+   * @returns 프로젝트 목록
+   *
+   * 관리자(admin, subadmin)는 모든 프로젝트를 조회하고,
+   * 일반 사용자는 자신이 생성한 프로젝트만 조회합니다.
    */
-  static async getUserProjects(userId: string): Promise<Project[]> {
+  static async getUserProjects(userId: string, userRole?: string): Promise<Project[]> {
     try {
       if (!supabase) {
         throw new Error('Supabase client not initialized')
       }
 
+      // 관리자는 모든 프로젝트 조회
+      if (userRole === 'admin' || userRole === 'subadmin') {
+        console.log('👑 관리자 권한으로 전체 프로젝트 조회')
+
+        const { data, error } = await supabase
+          .from('projects')
+          .select('*')
+          .order('updated_at', { ascending: false })
+
+        if (error) {
+          console.error('Failed to fetch all projects (admin):', error)
+          throw error
+        }
+
+        console.log(`✅ 관리자용 전체 프로젝트 ${data?.length || 0}개 조회 완료`)
+        return data || []
+      }
+
+      // 일반 사용자는 자신의 프로젝트만 조회
       const { data, error } = await supabase
         .from('projects')
         .select('*')
@@ -333,18 +358,30 @@ export class ProjectService {
 
   /**
    * 사용자의 활성 프로젝트 수 조회
+   * @param userId - 사용자 ID
+   * @param userRole - 사용자 역할 (선택사항)
+   * @returns 활성 프로젝트 수
+   *
+   * 관리자는 모든 활성 프로젝트 수를,
+   * 일반 사용자는 자신의 활성 프로젝트 수만 조회합니다.
    */
-  static async getActiveProjectsCount(userId: string): Promise<number> {
+  static async getActiveProjectsCount(userId: string, userRole?: string): Promise<number> {
     try {
       if (!supabase) {
         throw new Error('Supabase client not initialized')
       }
 
-      const { count, error } = await supabase
+      let query = supabase
         .from('projects')
         .select('*', { count: 'exact', head: true })
-        .eq('owner_id', userId)
         .eq('status', 'active')
+
+      // 관리자가 아닌 경우에만 owner_id 필터링
+      if (userRole !== 'admin' && userRole !== 'subadmin') {
+        query = query.eq('owner_id', userId)
+      }
+
+      const { count, error } = await query
 
       if (error) {
         console.error('Failed to count active projects:', error)
@@ -360,17 +397,30 @@ export class ProjectService {
 
   /**
    * 최근 업데이트된 프로젝트 조회
+   * @param userId - 사용자 ID
+   * @param limit - 조회할 프로젝트 수
+   * @param userRole - 사용자 역할 (선택사항)
+   * @returns 최근 프로젝트 목록
+   *
+   * 관리자는 모든 프로젝트 중 최근 것을,
+   * 일반 사용자는 자신의 프로젝트 중 최근 것을 조회합니다.
    */
-  static async getRecentProjects(userId: string, limit: number = 5): Promise<Project[]> {
+  static async getRecentProjects(userId: string, limit: number = 5, userRole?: string): Promise<Project[]> {
     try {
       if (!supabase) {
         throw new Error('Supabase client not initialized')
       }
 
-      const { data, error } = await supabase
+      let query = supabase
         .from('projects')
         .select('*')
-        .eq('owner_id', userId)
+
+      // 관리자가 아닌 경우에만 owner_id 필터링
+      if (userRole !== 'admin' && userRole !== 'subadmin') {
+        query = query.eq('owner_id', userId)
+      }
+
+      const { data, error } = await query
         .order('updated_at', { ascending: false })
         .limit(limit)
 
@@ -388,20 +438,34 @@ export class ProjectService {
 
   /**
    * 프로젝트 상태별 조회
+   * @param userId - 사용자 ID
+   * @param status - 프로젝트 상태
+   * @param userRole - 사용자 역할 (선택사항)
+   * @returns 상태별 프로젝트 목록
+   *
+   * 관리자는 모든 프로젝트를,
+   * 일반 사용자는 자신의 프로젝트만 조회합니다.
    */
   static async getProjectsByStatus(
     userId: string,
-    status: string
+    status: string,
+    userRole?: string
   ): Promise<Project[]> {
     try {
       if (!supabase) {
         throw new Error('Supabase client not initialized')
       }
 
-      const { data, error } = await supabase
+      let query = supabase
         .from('projects')
         .select('*')
-        .eq('owner_id', userId)
+
+      // 관리자가 아닌 경우에만 owner_id 필터링
+      if (userRole !== 'admin' && userRole !== 'subadmin') {
+        query = query.eq('owner_id', userId)
+      }
+
+      const { data, error } = await query
         .eq('status', status)
         .order('updated_at', { ascending: false })
 

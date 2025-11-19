@@ -130,7 +130,7 @@ const ProjectContext = createContext<ProjectContextType | undefined>(undefined)
 // 프로바이더 컴포넌트
 export function ProjectProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(projectReducer, initialState)
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
 
   // 사용자 프로젝트 로딩
   const loadUserProjects = async () => {
@@ -140,7 +140,8 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       dispatch({ type: 'SET_LOADING', payload: true })
       dispatch({ type: 'SET_ERROR', payload: null })
 
-      const projects = await ProjectService.getUserProjects(user.id)
+      // 프로필의 role을 전달하여 관리자는 모든 프로젝트 조회
+      const projects = await ProjectService.getUserProjects(user.id, profile?.role)
       dispatch({ type: 'SET_USER_PROJECTS', payload: projects })
 
       // 현재 프로젝트가 설정되지 않았고 프로젝트가 있다면 첫 번째 프로젝트를 선택
@@ -158,7 +159,8 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     if (!user) return
 
     try {
-      const recentProjects = await ProjectService.getRecentProjects(user.id, 5)
+      // 프로필의 role을 전달하여 관리자는 모든 프로젝트 중 최근 것 조회
+      const recentProjects = await ProjectService.getRecentProjects(user.id, 5, profile?.role)
       dispatch({ type: 'SET_RECENT_PROJECTS', payload: recentProjects })
     } catch (error) {
       console.error('Failed to load recent projects:', error)
@@ -240,7 +242,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
 
   // 컴포넌트 마운트 시 사용자 프로젝트 로딩
   useEffect(() => {
-    if (user) {
+    if (user && profile) {
       loadUserProjects()
       loadRecentProjects()
 
@@ -254,10 +256,10 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       } catch (error) {
         console.error('Failed to restore current project from localStorage:', error)
       }
-    } else {
+    } else if (!user) {
       clearProjects()
     }
-  }, [user])
+  }, [user, profile])
 
   // 컨텍스트 값
   const contextValue: ProjectContextType = {
