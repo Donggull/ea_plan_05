@@ -22,7 +22,15 @@
       "mcp__context7__resolve-library-id",
       "mcp__context7__get-library-docs",
       "mcp__supabase__get_logs",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "mcp__github-mcp__git-log",
+      "Bash(gh api:*)",
+      "Bash(tee:*)",
+      "Bash(cat:*)",
+      "Bash(.vercel-deploy-trigger.txt)",
+      "Bash(temp_before_method.ts)",
+      "Bash(temp_after_method.ts)",
+      "Bash(src/services/preAnalysis/PreAnalysisService_NEW.ts)"
     ],
     "deny": [],
     "ask": []
