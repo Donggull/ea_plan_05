@@ -5258,9 +5258,17 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
   }
 
   private parseReportResponse(response: string, analyses: any[], _answers: any[]): any {
-    console.log('🔍 [parseReportResponse] 파싱 시작');
-    console.log('📏 [parseReportResponse] 응답 길이:', response.length);
-    console.log('📝 [parseReportResponse] 응답 미리보기:', response.substring(0, 500));
+    // 🔥 전체를 try-catch로 감싸서 절대 예외를 throw하지 않도록 보장
+    try {
+      console.log('🔍 [parseReportResponse] 파싱 시작');
+      console.log('📏 [parseReportResponse] 응답 길이:', response.length);
+      console.log('📝 [parseReportResponse] 응답 미리보기:', response.substring(0, 500));
+
+      // 🔥 응답이 너무 짧으면 기본 객체 반환
+      if (!response || response.length < 50) {
+        console.warn('⚠️ [parseReportResponse] 응답이 너무 짧음, 기본 객체 반환');
+        return this.getDefaultReportObject();
+      }
 
     // 🔥 STEP 1: 모든 코드블록 마커 제거 (강화)
     let cleanedResponse = response
@@ -5521,17 +5529,25 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
     console.log('📝 [parseReportResponse] 전체 응답 (처음 1000자):', cleanedResponse.substring(0, 1000));
     console.log('📝 [parseReportResponse] 전체 응답 (마지막 1000자):', cleanedResponse.substring(Math.max(0, cleanedResponse.length - 1000)));
 
+    // 🔥 기본 객체와 병합하여 항상 완전한 구조 반환
+    const defaultObject = this.getDefaultReportObject();
+
     return {
+      ...defaultObject,
       summary: this.extractSectionFromText(response, '요약') ||
                this.extractSectionFromText(response, 'summary') ||
+               defaultObject.summary ||
                '프로젝트 분석이 완료되었습니다.',
       executiveSummary: this.extractSectionFromText(response, '경영진') ||
                         this.extractSectionFromText(response, 'executive') ||
+                        defaultObject.executiveSummary ||
                         '프로젝트 추진을 위한 핵심 정보가 준비되었습니다.',
       keyInsights: this.extractListFromTextResponse(response, '인사이트') ||
                    this.extractListFromTextResponse(response, 'insight') ||
+                   defaultObject.keyInsights ||
                    ['분석 결과가 정리되었습니다.'],
       riskAssessment: {
+        ...defaultObject.riskAssessment,
         high: this.extractListFromTextResponse(response, '높은 위험') ||
               this.extractListFromTextResponse(response, 'high risk') || [],
         medium: this.extractListFromTextResponse(response, '중간 위험') ||
@@ -5544,6 +5560,7 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
                         this.extractListFromTextResponse(response, 'recommend') ||
                         ['상세 검토를 권장합니다.'],
       baselineData: {
+        ...defaultObject.baselineData,
         requirements: analyses.flatMap(a => a.analysis_result?.keyRequirements || []),
         stakeholders: analyses.flatMap(a => a.analysis_result?.stakeholders || []),
         constraints: analyses.flatMap(a => a.analysis_result?.constraints || []),
@@ -5551,9 +5568,19 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
         technicalStack: analyses.flatMap(a => a.analysis_result?.technicalStack || []),
         integrationPoints: [],
       },
-      visualizationData: {},
       __parseMethod: 'text_fallback', // 어떤 방법으로 파싱되었는지 표시
+      __originalResponse: response.substring(0, 500) // 디버깅용
     };
+
+    } catch (fatalError) {
+      // 🔥 치명적 오류 발생 시에도 기본 객체 반환 (절대 예외를 throw하지 않음)
+      console.error('❌ [parseReportResponse] 치명적 오류 발생, 기본 객체 반환:', fatalError);
+      return {
+        ...this.getDefaultReportObject(),
+        __parseMethod: 'fatal_error',
+        __error: fatalError instanceof Error ? fatalError.message : String(fatalError)
+      };
+    }
   }
 
   private extractSectionFromText(text: string, keyword: string): string | null {
@@ -6122,8 +6149,8 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
           bufferWasEmpty: !buffer.trim()
         });
 
-        // 🔥 Fallback: fullContent가 있으면 done 이벤트 없이도 처리
-        if (fullContent && fullContent.length > 100) {
+        // 🔥 Fallback: fullContent가 있으면 done 이벤트 없이도 처리 (임계값을 낮춤)
+        if (fullContent && fullContent.length > 50) {  // 🔥 100 → 50으로 낮춤
           console.warn('⚠️ [Streaming] Fallback 모드: fullContent로 최종 데이터 생성 (done 이벤트 누락)');
 
           // 토큰 추정 함수
@@ -7464,6 +7491,59 @@ ${incompleteItems.length > 0 ? `- 우선순위 2: ${incompleteItems.length}개 �
       console.error('❌ buildDocumentContext 오류:', error);
       return [];
     }
+  }
+
+  /**
+   * 기본 보고서 객체 반환 (JSON 파싱 실패 시 사용)
+   */
+  private getDefaultReportObject(): any {
+    console.log('📦 [getDefaultReportObject] 기본 객체 생성');
+    return {
+      summary: '',
+      executiveSummary: '',
+      keyInsights: [],
+      riskAssessment: {
+        high: [],
+        medium: [],
+        low: [],
+        overallScore: 0,
+        mitigation: [],
+        timeline: {}
+      },
+      recommendations: [],
+      baselineData: {
+        requirements: [],
+        stakeholders: [],
+        constraints: [],
+        timeline: [],
+        budgetEstimates: {},
+        technicalStack: [],
+        integrationPoints: []
+      },
+      agencyPerspective: {
+        projectDecision: {}
+      },
+      agencyDetailedAnalysis: {
+        detailedPerspectives: {
+          planning: {},
+          design: {},
+          publishing: {},
+          development: {}
+        },
+        profitability: {},
+        competitiveness: {},
+        finalDecision: {}
+      },
+      executionPlan: {
+        wbs: [],
+        resourcePlan: {},
+        proposalOutline: {},
+        proposalContent: {},
+        presentationOutline: [],
+        nextSteps: []
+      },
+      visualizationData: {}
+    };
   }
 }
 
