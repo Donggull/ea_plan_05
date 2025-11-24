@@ -2940,107 +2940,198 @@ ${content}
       });
 
       // ========================================
-      // Phase 7B: 리소스 계획 (82-88%)
+      // Phase 7B-1: 팀 구성 (82-85%) - NEW
       // ========================================
-      console.log('🚀 [Phase 7B/12] 리소스 계획 작성 시작...');
-      const phase7BPrompt = this.generateReportPhase7Prompt(analyses, questions, answers, phase1AContent, phase2Content, phase3Content, phase4Content, phase5AContent, phase6Content); // 임시로 같은 함수 사용
-      console.log('📝 [Phase 7B/12] 프롬프트 길이:', phase7BPrompt.length);
+      console.log('🚀 [Phase 7B-1/14] 팀 구성 작성 시작...');
+      const phase7B1Prompt = this.generateReportPhase7B1Prompt(analyses, questions, answers, phase4Content, phase5AContent, phase6Content, phase7AContent);
+      console.log('📝 [Phase 7B-1/14] 프롬프트 길이:', phase7B1Prompt.length);
 
       this.emitProgressUpdate({
         sessionId,
         stage: 'report_generation',
         status: 'processing',
         progress: 82,
-        message: 'Phase 7B/12: 리소스 계획 작성 중...',
+        message: 'Phase 7B-1/14: 팀 구성 작성 중...',
         timestamp: new Date(),
       }).catch(() => {});
 
-      const phase7BResponse = await this.callAICompletionAPIStreaming(
+      const phase7B1Response = await this.callAICompletionAPIStreaming(
         aiProvider,
         aiModel,
-        phase7BPrompt,
-        3500, // Phase 7B: 리소스
+        phase7B1Prompt,
+        2000, // Phase 7B-1: 팀 구성
         0.2,
         (_chunk, fullContent) => {
           const charCount = fullContent.length;
-          const progress = Math.min(88, 82 + Math.floor(charCount / 583));
-          console.log(`📊 [Phase 7B/12 Streaming] ${charCount} chars, ${progress}%`);
+          const progress = Math.min(85, 82 + Math.floor(charCount / 667));
+          console.log(`📊 [Phase 7B-1/14 Streaming] ${charCount} chars, ${progress}%`);
 
           this.emitProgressUpdate({
             sessionId,
             stage: 'report_generation',
             status: 'processing',
             progress,
-            message: `Phase 7B/12 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
+            message: `Phase 7B-1/14 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
             timestamp: new Date(),
           }).catch(() => {});
         }
       );
 
-      console.log('✅ [Phase 7B/12] 응답 완료:', { length: phase7BResponse.content?.length });
-      const phase7BContent = this.parseReportResponse(phase7BResponse.content, analyses, answers);
-      console.log('✅ [Phase 7B/12] 파싱 완료:', {
-        hasResourcePlan: !!phase7BContent.executionPlan?.resourcePlan
+      console.log('✅ [Phase 7B-1/14] 응답 완료:', { length: phase7B1Response.content?.length });
+      const phase7B1Content = this.parseReportResponse(phase7B1Response.content, analyses, answers);
+      console.log('✅ [Phase 7B-1/14] 파싱 완료:', {
+        hasTeamComposition: !!phase7B1Content.executionPlan?.resourcePlan?.teamComposition,
+        teamSize: phase7B1Content.executionPlan?.resourcePlan?.teamComposition?.length || 0
       });
 
       // ========================================
-      // Phase 8A: 제안서 초안 (88-94%)
+      // Phase 7B-2: 비용 산정 (85-88%) - NEW
       // ========================================
-      console.log('🚀 [Phase 8A/12] 제안서 초안 작성 시작...');
-      const phase8APrompt = this.generateReportPhase8Prompt(analyses, questions, answers, phase1AContent, phase2Content, phase3Content, phase4Content, phase5AContent, phase6Content, phase7AContent); // 기존 Phase8 재사용
-      console.log('📝 [Phase 8A/12] 프롬프트 길이:', phase8APrompt.length);
+      console.log('🚀 [Phase 7B-2/14] 비용 산정 작성 시작...');
+      const phase7B2Prompt = this.generateReportPhase7B2Prompt(analyses, questions, answers, phase6Content, phase7B1Content);
+      console.log('📝 [Phase 7B-2/14] 프롬프트 길이:', phase7B2Prompt.length);
+
+      this.emitProgressUpdate({
+        sessionId,
+        stage: 'report_generation',
+        status: 'processing',
+        progress: 85,
+        message: 'Phase 7B-2/14: 비용 산정 작성 중...',
+        timestamp: new Date(),
+      }).catch(() => {});
+
+      const phase7B2Response = await this.callAICompletionAPIStreaming(
+        aiProvider,
+        aiModel,
+        phase7B2Prompt,
+        2000, // Phase 7B-2: 비용 산정
+        0.2,
+        (_chunk, fullContent) => {
+          const charCount = fullContent.length;
+          const progress = Math.min(88, 85 + Math.floor(charCount / 667));
+          console.log(`📊 [Phase 7B-2/14 Streaming] ${charCount} chars, ${progress}%`);
+
+          this.emitProgressUpdate({
+            sessionId,
+            stage: 'report_generation',
+            status: 'processing',
+            progress,
+            message: `Phase 7B-2/14 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
+            timestamp: new Date(),
+          }).catch(() => {});
+        }
+      );
+
+      console.log('✅ [Phase 7B-2/14] 응답 완료:', { length: phase7B2Response.content?.length });
+      const phase7B2Content = this.parseReportResponse(phase7B2Response.content, analyses, answers);
+      console.log('✅ [Phase 7B-2/14] 파싱 완료:', {
+        hasCostBreakdown: !!phase7B2Content.executionPlan?.resourcePlan?.costBreakdown,
+        hasPaymentSchedule: !!phase7B2Content.executionPlan?.resourcePlan?.paymentSchedule
+      });
+
+      // ========================================
+      // Phase 8A-1: 제안서 목차 (88-91%) - NEW
+      // ========================================
+      console.log('🚀 [Phase 8A-1/14] 제안서 목차 작성 시작...');
+      const phase8A1Prompt = this.generateReportPhase8A1Prompt(analyses, questions, answers, phase1AContent, phase6Content);
+      console.log('📝 [Phase 8A-1/14] 프롬프트 길이:', phase8A1Prompt.length);
 
       this.emitProgressUpdate({
         sessionId,
         stage: 'report_generation',
         status: 'processing',
         progress: 88,
-        message: 'Phase 8A/12: 제안서 초안 작성 중...',
+        message: 'Phase 8A-1/14: 제안서 목차 작성 중...',
         timestamp: new Date(),
       }).catch(() => {});
 
-      const phase8AResponse = await this.callAICompletionAPIStreaming(
+      const phase8A1Response = await this.callAICompletionAPIStreaming(
         aiProvider,
         aiModel,
-        phase8APrompt,
-        3500, // Phase 8A: 제안서
+        phase8A1Prompt,
+        1500, // Phase 8A-1: 제안서 목차
         0.2,
         (_chunk, fullContent) => {
           const charCount = fullContent.length;
-          const progress = Math.min(94, 88 + Math.floor(charCount / 583));
-          console.log(`📊 [Phase 8A/12 Streaming] ${charCount} chars, ${progress}%`);
+          const progress = Math.min(91, 88 + Math.floor(charCount / 500));
+          console.log(`📊 [Phase 8A-1/14 Streaming] ${charCount} chars, ${progress}%`);
 
           this.emitProgressUpdate({
             sessionId,
             stage: 'report_generation',
             status: 'processing',
             progress,
-            message: `Phase 8A/12 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
+            message: `Phase 8A-1/14 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
             timestamp: new Date(),
           }).catch(() => {});
         }
       );
 
-      console.log('✅ [Phase 8A/12] 응답 완료:', { length: phase8AResponse.content?.length });
-      const phase8AContent = this.parseReportResponse(phase8AResponse.content, analyses, answers);
-      console.log('✅ [Phase 8A/12] 파싱 완료:', {
-        hasExecutionPlan: !!phase8AContent.executionPlan,
-        hasProposalOutline: !!phase8AContent.executionPlan?.proposalOutline
+      console.log('✅ [Phase 8A-1/14] 응답 완료:', { length: phase8A1Response.content?.length });
+      const phase8A1Content = this.parseReportResponse(phase8A1Response.content, analyses, answers);
+      console.log('✅ [Phase 8A-1/14] 파싱 완료:', {
+        hasProposalOutline: !!phase8A1Content.executionPlan?.proposalOutline,
+        sectionsCount: phase8A1Content.executionPlan?.proposalOutline?.sections?.length || 0
+      });
+
+      // ========================================
+      // Phase 8A-2: 제안서 핵심 내용 (91-94%) - NEW
+      // ========================================
+      console.log('🚀 [Phase 8A-2/14] 제안서 핵심 내용 작성 시작...');
+      const phase8A2Prompt = this.generateReportPhase8A2Prompt(analyses, questions, answers, phase4Content, phase5AContent, phase6Content, phase7AContent);
+      console.log('📝 [Phase 8A-2/14] 프롬프트 길이:', phase8A2Prompt.length);
+
+      this.emitProgressUpdate({
+        sessionId,
+        stage: 'report_generation',
+        status: 'processing',
+        progress: 91,
+        message: 'Phase 8A-2/14: 제안서 핵심 내용 작성 중...',
+        timestamp: new Date(),
+      }).catch(() => {});
+
+      const phase8A2Response = await this.callAICompletionAPIStreaming(
+        aiProvider,
+        aiModel,
+        phase8A2Prompt,
+        2500, // Phase 8A-2: 제안서 핵심 내용
+        0.2,
+        (_chunk, fullContent) => {
+          const charCount = fullContent.length;
+          const progress = Math.min(94, 91 + Math.floor(charCount / 833));
+          console.log(`📊 [Phase 8A-2/14 Streaming] ${charCount} chars, ${progress}%`);
+
+          this.emitProgressUpdate({
+            sessionId,
+            stage: 'report_generation',
+            status: 'processing',
+            progress,
+            message: `Phase 8A-2/14 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
+            timestamp: new Date(),
+          }).catch(() => {});
+        }
+      );
+
+      console.log('✅ [Phase 8A-2/14] 응답 완료:', { length: phase8A2Response.content?.length });
+      const phase8A2Content = this.parseReportResponse(phase8A2Response.content, analyses, answers);
+      console.log('✅ [Phase 8A-2/14] 파싱 완료:', {
+        hasProposalContent: !!phase8A2Content.executionPlan?.proposalContent,
+        hasExecutiveSummary: !!phase8A2Content.executionPlan?.proposalContent?.executiveSummary
       });
 
       // ========================================
       // Phase 8B: 발표자료+다음단계 (94-100%)
       // ========================================
-      console.log('🚀 [Phase 8B/12] 발표자료 및 다음 단계 작성 시작...');
+      console.log('🚀 [Phase 8B/14] 발표자료 및 다음 단계 작성 시작...');
       const phase8BPrompt = this.generateReportPhase8Prompt(analyses, questions, answers, phase1AContent, phase2Content, phase3Content, phase4Content, phase5AContent, phase6Content, phase7AContent); // 임시로 같은 함수 사용
-      console.log('📝 [Phase 8B/12] 프롬프트 길이:', phase8BPrompt.length);
+      console.log('📝 [Phase 8B/14] 프롬프트 길이:', phase8BPrompt.length);
 
       this.emitProgressUpdate({
         sessionId,
         stage: 'report_generation',
         status: 'processing',
         progress: 94,
-        message: 'Phase 8B/12: 발표자료 및 다음 단계 작성 중...',
+        message: 'Phase 8B/14: 발표자료 및 다음 단계 작성 중...',
         timestamp: new Date(),
       }).catch(() => {});
 
@@ -3053,31 +3144,31 @@ ${content}
         (_chunk, fullContent) => {
           const charCount = fullContent.length;
           const progress = Math.min(100, 94 + Math.floor(charCount / 500));
-          console.log(`📊 [Phase 8B/12 Streaming] ${charCount} chars, ${progress}%`);
+          console.log(`📊 [Phase 8B/14 Streaming] ${charCount} chars, ${progress}%`);
 
           this.emitProgressUpdate({
             sessionId,
             stage: 'report_generation',
             status: 'processing',
             progress,
-            message: `Phase 8B/12 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
+            message: `Phase 8B/14 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
             timestamp: new Date(),
           }).catch(() => {});
         }
       );
 
-      console.log('✅ [Phase 8B/12] 응답 완료:', { length: phase8BResponse.content?.length });
+      console.log('✅ [Phase 8B/14] 응답 완료:', { length: phase8BResponse.content?.length });
       const phase8BContent = this.parseReportResponse(phase8BResponse.content, analyses, answers);
-      console.log('✅ [Phase 8B/12] 파싱 완료:', {
+      console.log('✅ [Phase 8B/14] 파싱 완료:', {
         hasPresentationOutline: !!phase8BContent.executionPlan?.presentationOutline,
         hasNextSteps: !!phase8BContent.executionPlan?.nextSteps,
         nextStepsCount: phase8BContent.executionPlan?.nextSteps?.length || 0
       });
 
       // ========================================
-      // 12개 Phase 결과 병합
+      // 14개 Phase 결과 병합
       // ========================================
-      console.log('🔗 [Merge] 12개 Phase 병합 시작...');
+      console.log('🔗 [Merge] 14개 Phase 병합 시작...');
       const mergedReport = {
         // Phase 1A: 핵심 비즈니스 분석
         summary: phase1AContent.summary || '',
@@ -3166,19 +3257,31 @@ ${content}
           },
         },
 
-        // Phase 7A + 7B + 8A + 8B: 실행 계획 (중첩 속성 방어 강화)
+        // Phase 7A + 7B-1 + 7B-2 + 8A-1 + 8A-2 + 8B: 실행 계획 (중첩 속성 방어 강화)
         executionPlan: {
           wbs: phase7AContent.executionPlan?.wbs || [],
-          resourcePlan: phase7BContent.executionPlan?.resourcePlan || {
-            teamComposition: [],
-            totalManMonths: 0,
-            totalCost: 0,
-            timeline: {},
+          // 🔥 Phase 7B-1 (teamComposition) + Phase 7B-2 (cost) 병합
+          resourcePlan: {
+            teamComposition: phase7B1Content.executionPlan?.resourcePlan?.teamComposition || [],
+            totalManMonths: phase7B2Content.executionPlan?.resourcePlan?.totalManMonths || 0,
+            totalCost: phase7B2Content.executionPlan?.resourcePlan?.totalCost || 0,
+            timeline: phase7B2Content.executionPlan?.resourcePlan?.timeline || {},
+            costBreakdown: phase7B2Content.executionPlan?.resourcePlan?.costBreakdown || {},
+            paymentSchedule: phase7B2Content.executionPlan?.resourcePlan?.paymentSchedule || [],
           },
-          proposalOutline: phase8AContent.executionPlan?.proposalOutline || {
+          // 🔥 Phase 8A-1 (proposalOutline) + Phase 8A-2 (proposalContent) 병합
+          proposalOutline: phase8A1Content.executionPlan?.proposalOutline || {
             title: '',
             sections: [],
             appendix: [],
+          },
+          proposalContent: phase8A2Content.executionPlan?.proposalContent || {
+            executiveSummary: '',
+            problemStatement: '',
+            proposedSolution: '',
+            keyBenefits: [],
+            differentiators: [],
+            successMetrics: [],
           },
           presentationOutline: phase8BContent.executionPlan?.presentationOutline || [],
           nextSteps: phase8BContent.executionPlan?.nextSteps || [],
@@ -3195,8 +3298,10 @@ ${content}
           ...(phase5BContent.visualizationData || {}),
           ...(phase6Content.visualizationData || {}),
           ...(phase7AContent.visualizationData || {}),
-          ...(phase7BContent.visualizationData || {}),
-          ...(phase8AContent.visualizationData || {}),
+          ...(phase7B1Content.visualizationData || {}),
+          ...(phase7B2Content.visualizationData || {}),
+          ...(phase8A1Content.visualizationData || {}),
+          ...(phase8A2Content.visualizationData || {}),
           ...(phase8BContent.visualizationData || {}),
         },
       };
@@ -3237,8 +3342,10 @@ ${content}
         phase5BResponse.cost.totalCost +
         phase6Response.cost.totalCost +
         phase7AResponse.cost.totalCost +
-        phase7BResponse.cost.totalCost +
-        phase8AResponse.cost.totalCost +
+        phase7B1Response.cost.totalCost +
+        phase7B2Response.cost.totalCost +
+        phase8A1Response.cost.totalCost +
+        phase8A2Response.cost.totalCost +
         phase8BResponse.cost.totalCost;
 
       const totalInputTokens =
@@ -3251,8 +3358,10 @@ ${content}
         phase5BResponse.usage.inputTokens +
         phase6Response.usage.inputTokens +
         phase7AResponse.usage.inputTokens +
-        phase7BResponse.usage.inputTokens +
-        phase8AResponse.usage.inputTokens +
+        phase7B1Response.usage.inputTokens +
+        phase7B2Response.usage.inputTokens +
+        phase8A1Response.usage.inputTokens +
+        phase8A2Response.usage.inputTokens +
         phase8BResponse.usage.inputTokens;
 
       const totalOutputTokens =
@@ -3265,8 +3374,10 @@ ${content}
         phase5BResponse.usage.outputTokens +
         phase6Response.usage.outputTokens +
         phase7AResponse.usage.outputTokens +
-        phase7BResponse.usage.outputTokens +
-        phase8AResponse.usage.outputTokens +
+        phase7B1Response.usage.outputTokens +
+        phase7B2Response.usage.outputTokens +
+        phase8A1Response.usage.outputTokens +
+        phase8A2Response.usage.outputTokens +
         phase8BResponse.usage.outputTokens;
 
       console.log('⏱️ [Complete] 총 처리 시간:', processingTime, 'ms');
@@ -4725,6 +4836,425 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
 - 절대로 \`\`\`를 사용하지 마세요
 - 절대로 마크다운 코드블록을 사용하지 마세요
 - 설명, 주석, 추가 텍스트 일체 금지`;
+  }
+
+  // 🔥 NEW: Phase 7B-1 프롬프트 - 팀 구성 (Team Composition)
+  private generateReportPhase7B1Prompt(
+    _analyses: any[],
+    _questions: any[],
+    _answers: any[],
+    phase4Result: any,
+    _phase5Result: any,
+    phase6Result: any,
+    phase7AResult: any
+  ): string {
+    const phase4Summary = {
+      requirementsCount: phase4Result.baselineData?.requirements?.length || 0,
+      techStack: phase4Result.baselineData?.technicalStack?.slice(0, 3).join(', ') || 'N/A',
+    };
+
+    const phase6Summary = {
+      totalRevenue: phase6Result.agencyDetailedAnalysis?.profitability?.totalEstimatedRevenue || 0,
+    };
+
+    const phase7ASummary = {
+      wbsCount: phase7AResult.executionPlan?.wbs?.length || 0,
+    };
+
+    return `# 🎯 웹에이전시 엘루오씨앤씨 - Phase 7B-1/14: 팀 구성 (Team Composition)
+
+이전 Phase 결과:
+- Phase 4 핵심 요구사항: ${phase4Summary.requirementsCount}개, 기술 스택: ${phase4Summary.techStack}
+- Phase 6 예상 매출: ${(phase6Summary.totalRevenue / 1000000).toFixed(1)}백만원
+- Phase 7A WBS: ${phase7ASummary.wbsCount}개 작업
+
+**⚠️ 이 단계에서는 팀 구성(teamComposition)만 작성합니다.**
+**비용 산정은 Phase 7B-2에서 작성됩니다.**
+
+다음 JSON 형식으로 팀 구성을 작성하세요:
+
+\`\`\`json
+{
+  "executionPlan": {
+    "resourcePlan": {
+      "teamComposition": [
+        {
+          "role": "프로젝트 매니저",
+          "count": 1,
+          "allocation": "50%",
+          "manMonths": 0.5,
+          "responsibilities": ["프로젝트 총괄", "일정 관리", "리스크 관리"],
+          "requiredSkills": ["프로젝트 관리", "커뮤니케이션", "이슈 해결"]
+        },
+        {
+          "role": "기획자",
+          "count": 1,
+          "allocation": "100%",
+          "manMonths": 2.0,
+          "responsibilities": ["요구사항 분석", "화면 설계", "기능 정의"],
+          "requiredSkills": ["UX 기획", "Figma", "문서 작성"]
+        },
+        {
+          "role": "디자이너",
+          "count": 1,
+          "allocation": "100%",
+          "manMonths": 1.5,
+          "responsibilities": ["UI 디자인", "디자인 시스템 구축"],
+          "requiredSkills": ["UI 디자인", "Figma", "디자인 시스템"]
+        },
+        {
+          "role": "퍼블리셔",
+          "count": 1,
+          "allocation": "100%",
+          "manMonths": 1.25,
+          "responsibilities": ["HTML/CSS", "반응형 구현"],
+          "requiredSkills": ["HTML5", "CSS3", "반응형 웹"]
+        },
+        {
+          "role": "프론트엔드 개발자",
+          "count": 2,
+          "allocation": "100%",
+          "manMonths": 4.0,
+          "responsibilities": ["React 개발", "API 연동", "상태 관리"],
+          "requiredSkills": ["React", "TypeScript", "API 연동"]
+        },
+        {
+          "role": "백엔드 개발자",
+          "count": 2,
+          "allocation": "100%",
+          "manMonths": 3.5,
+          "responsibilities": ["API 개발", "데이터베이스 설계", "서버 구축"],
+          "requiredSkills": ["Node.js", "PostgreSQL", "RESTful API"]
+        },
+        {
+          "role": "QA 엔지니어",
+          "count": 1,
+          "allocation": "50%",
+          "manMonths": 0.75,
+          "responsibilities": ["테스트 계획", "품질 검증", "버그 리포팅"],
+          "requiredSkills": ["테스트 자동화", "품질 관리", "이슈 트래킹"]
+        }
+      ]
+    }
+  }
+}
+\`\`\`
+
+**⚠️ Phase 7B-1 필수 작성 필드**:
+1. ✅ **executionPlan.resourcePlan.teamComposition** - 팀 구성 (최소 5개 역할)
+   * 각 역할은 role, count, allocation, manMonths, responsibilities, requiredSkills 포함
+   * responsibilities는 최소 2개, requiredSkills는 최소 2개
+
+⚠️ 출력 형식 엄수:
+- JSON 객체만 반환 ({ 로 시작, } 로 끝)
+- 절대로 \`\`\`를 사용하지 마세요
+- 절대로 마크다운 코드블록을 사용하지 마세요
+- 설명, 주석, 추가 텍스트 일체 금지
+- **최대 2000자 엄수**`;
+  }
+
+  // 🔥 NEW: Phase 7B-2 프롬프트 - 비용 산정 (Cost Estimate)
+  private generateReportPhase7B2Prompt(
+    _analyses: any[],
+    _questions: any[],
+    _answers: any[],
+    phase6Result: any,
+    phase7B1Result: any
+  ): string {
+    const phase6Summary = {
+      totalRevenue: phase6Result.agencyDetailedAnalysis?.profitability?.totalEstimatedRevenue || 0,
+      totalCost: phase6Result.agencyDetailedAnalysis?.profitability?.totalEstimatedCost || 0,
+    };
+
+    const phase7B1Summary = {
+      teamSize: phase7B1Result.executionPlan?.resourcePlan?.teamComposition?.length || 0,
+    };
+
+    return `# 🎯 웹에이전시 엘루오씨앤씨 - Phase 7B-2/14: 비용 산정 (Cost Estimate)
+
+이전 Phase 결과:
+- Phase 6 예상 매출: ${(phase6Summary.totalRevenue / 1000000).toFixed(1)}백만원
+- Phase 6 예상 비용: ${(phase6Summary.totalCost / 1000000).toFixed(1)}백만원
+- Phase 7B-1 팀 구성: ${phase7B1Summary.teamSize}개 역할
+
+**⚠️ 이 단계에서는 비용 산정(totalManMonths, totalCost, timeline)만 작성합니다.**
+
+다음 JSON 형식으로 비용 산정을 작성하세요:
+
+\`\`\`json
+{
+  "executionPlan": {
+    "resourcePlan": {
+      "totalManMonths": 13.5,
+      "totalCost": 135000000,
+      "timeline": "3개월",
+      "costBreakdown": {
+        "planning": 10000000,
+        "design": 15000000,
+        "publishing": 12500000,
+        "frontendDevelopment": 36000000,
+        "backendDevelopment": 31500000,
+        "qa": 7500000,
+        "projectManagement": 12500000,
+        "overhead": 10000000
+      },
+      "paymentSchedule": [
+        {
+          "phase": "계약금",
+          "percentage": 30,
+          "amount": 40500000,
+          "timing": "계약 체결 시"
+        },
+        {
+          "phase": "중도금",
+          "percentage": 40,
+          "amount": 54000000,
+          "timing": "개발 완료 50% 시점"
+        },
+        {
+          "phase": "잔금",
+          "percentage": 30,
+          "amount": 40500000,
+          "timing": "최종 검수 완료 후"
+        }
+      ]
+    }
+  }
+}
+\`\`\`
+
+**⚠️ Phase 7B-2 필수 작성 필드**:
+1. ✅ **executionPlan.resourcePlan.totalManMonths** - 총 맨먼스
+2. ✅ **executionPlan.resourcePlan.totalCost** - 총 비용 (원화)
+3. ✅ **executionPlan.resourcePlan.timeline** - 프로젝트 기간
+4. ✅ **executionPlan.resourcePlan.costBreakdown** - 비용 세부 내역 (최소 6개 항목)
+5. ✅ **executionPlan.resourcePlan.paymentSchedule** - 지급 일정 (3단계)
+
+⚠️ 출력 형식 엄수:
+- JSON 객체만 반환 ({ 로 시작, } 로 끝)
+- 절대로 \`\`\`를 사용하지 마세요
+- 절대로 마크다운 코드블록을 사용하지 마세요
+- 설명, 주석, 추가 텍스트 일체 금지
+- **최대 2000자 엄수**`;
+  }
+
+  // 🔥 NEW: Phase 8A-1 프롬프트 - 제안서 목차 (Proposal Outline)
+  private generateReportPhase8A1Prompt(
+    _analyses: any[],
+    _questions: any[],
+    _answers: any[],
+    phase1Result: any,
+    phase6Result: any
+  ): string {
+    const phase1Summary = {
+      projectName: phase1Result.summary?.substring(0, 50) || '프로젝트',
+    };
+
+    const phase6Summary = {
+      finalRecommendation: phase6Result.agencyDetailedAnalysis?.finalDecision?.recommendation || 'N/A',
+    };
+
+    return `# 🎯 웹에이전시 엘루오씨앤씨 - Phase 8A-1/14: 제안서 목차 (Proposal Outline)
+
+이전 Phase 결과:
+- Phase 1 프로젝트: ${phase1Summary.projectName}
+- Phase 6 최종 권장: ${phase6Summary.finalRecommendation}
+
+**⚠️ 이 단계에서는 제안서 목차(proposalOutline.sections)만 작성합니다.**
+**제안서 핵심 내용은 Phase 8A-2에서 작성됩니다.**
+
+다음 JSON 형식으로 제안서 목차를 작성하세요:
+
+\`\`\`json
+{
+  "executionPlan": {
+    "proposalOutline": {
+      "title": "${phase1Summary.projectName} - 웹사이트/모바일앱 구축 제안서",
+      "sections": [
+        {
+          "section": "1. 제안 개요",
+          "description": "프로젝트 배경, 목적, 범위",
+          "keyPoints": [
+            "프로젝트 배경 및 필요성",
+            "프로젝트 목표 및 기대효과",
+            "프로젝트 범위 - 포함/제외 사항"
+          ]
+        },
+        {
+          "section": "2. 프로젝트 이해",
+          "description": "고객 요구사항 분석 및 우리의 이해도",
+          "keyPoints": [
+            "핵심 요구사항 정리",
+            "기술적 과제 및 해결 방안",
+            "성공 기준 및 KPI"
+          ]
+        },
+        {
+          "section": "3. 제안 솔루션",
+          "description": "기술 아키텍처, 주요 기능, 차별화 포인트",
+          "keyPoints": [
+            "기술 스택 및 아키텍처",
+            "주요 기능 상세 설명",
+            "우리의 강점 및 차별화"
+          ]
+        },
+        {
+          "section": "4. 프로젝트 수행 방안",
+          "description": "개발 방법론, 일정, 리스크 관리",
+          "keyPoints": [
+            "Agile 개발 방법론",
+            "단계별 일정 및 마일스톤",
+            "품질 관리 및 테스트 계획"
+          ]
+        },
+        {
+          "section": "5. 프로젝트 조직 및 투입 인력",
+          "description": "팀 구성, 역할 및 책임",
+          "keyPoints": [
+            "프로젝트 조직도",
+            "주요 인력 프로필",
+            "역할 및 책임"
+          ]
+        },
+        {
+          "section": "6. 프로젝트 비용",
+          "description": "견적 내역, 지급 조건",
+          "keyPoints": [
+            "단계별 비용 내역",
+            "지급 조건",
+            "유지보수 비용"
+          ]
+        },
+        {
+          "section": "7. 레퍼런스 및 포트폴리오",
+          "description": "유사 프로젝트 수행 경험",
+          "keyPoints": [
+            "유사 프로젝트 소개",
+            "고객사 및 성과",
+            "수상 경력"
+          ]
+        }
+      ],
+      "appendix": [
+        "참고 자료 1: 회사 소개서",
+        "참고 자료 2: 포트폴리오 상세",
+        "참고 자료 3: 기술 스택 상세 문서",
+        "참고 자료 4: 계약서 샘플"
+      ]
+    }
+  }
+}
+\`\`\`
+
+**⚠️ Phase 8A-1 필수 작성 필드**:
+1. ✅ **executionPlan.proposalOutline.title** - 제안서 제목
+2. ✅ **executionPlan.proposalOutline.sections** - 제안서 섹션 (최소 7개)
+   * 각 섹션은 section, description, keyPoints 포함
+   * keyPoints는 최소 3개
+3. ✅ **executionPlan.proposalOutline.appendix** - 참고 자료 (최소 4개)
+
+⚠️ 출력 형식 엄수:
+- JSON 객체만 반환 ({ 로 시작, } 로 끝)
+- 절대로 \`\`\`를 사용하지 마세요
+- 절대로 마크다운 코드블록을 사용하지 마세요
+- 설명, 주석, 추가 텍스트 일체 금지
+- **최대 1500자 엄수**`;
+  }
+
+  // 🔥 NEW: Phase 8A-2 프롬프트 - 제안서 핵심 내용 (Key Content)
+  private generateReportPhase8A2Prompt(
+    _analyses: any[],
+    _questions: any[],
+    _answers: any[],
+    phase4Result: any,
+    _phase5Result: any,
+    phase6Result: any,
+    phase7Result: any
+  ): string {
+    const phase4Summary = {
+      requirementsCount: phase4Result.baselineData?.requirements?.length || 0,
+    };
+
+    const phase6Summary = {
+      totalRevenue: phase6Result.agencyDetailedAnalysis?.profitability?.totalEstimatedRevenue || 0,
+    };
+
+    const phase7Summary = {
+      totalManMonths: phase7Result.executionPlan?.resourcePlan?.totalManMonths || 0,
+      timeline: phase7Result.executionPlan?.resourcePlan?.timeline || 'N/A',
+    };
+
+    return `# 🎯 웹에이전시 엘루오씨앤씨 - Phase 8A-2/14: 제안서 핵심 내용 (Key Content)
+
+이전 Phase 결과:
+- Phase 4 핵심 요구사항: ${phase4Summary.requirementsCount}개
+- Phase 6 예상 매출: ${(phase6Summary.totalRevenue / 1000000).toFixed(1)}백만원
+- Phase 7 총 공수: ${phase7Summary.totalManMonths} 맨먼스, 기간: ${phase7Summary.timeline}
+
+**⚠️ 이 단계에서는 제안서 각 섹션의 상세 내용(content)만 작성합니다.**
+
+다음 JSON 형식으로 제안서 핵심 내용을 작성하세요:
+
+\`\`\`json
+{
+  "executionPlan": {
+    "proposalContent": {
+      "executiveSummary": "프로젝트 전체를 한눈에 볼 수 있는 경영진 요약 (300자 이상)",
+      "problemStatement": "고객이 직면한 문제와 해결 필요성 (200자 이상)",
+      "proposedSolution": "우리가 제안하는 솔루션과 접근 방식 (300자 이상)",
+      "keyBenefits": [
+        {
+          "benefit": "비즈니스 효과 1",
+          "description": "구체적인 효과 설명 (100자 이상)",
+          "impact": "높음"
+        },
+        {
+          "benefit": "비즈니스 효과 2",
+          "description": "구체적인 효과 설명 (100자 이상)",
+          "impact": "중간"
+        },
+        {
+          "benefit": "비즈니스 효과 3",
+          "description": "구체적인 효과 설명 (100자 이상)",
+          "impact": "높음"
+        }
+      ],
+      "differentiators": [
+        "경쟁 우위 요소 1",
+        "경쟁 우위 요소 2",
+        "경쟁 우위 요소 3"
+      ],
+      "successMetrics": [
+        {
+          "metric": "성공 지표 1",
+          "target": "목표 값",
+          "measurement": "측정 방법"
+        },
+        {
+          "metric": "성공 지표 2",
+          "target": "목표 값",
+          "measurement": "측정 방법"
+        }
+      ]
+    }
+  }
+}
+\`\`\`
+
+**⚠️ Phase 8A-2 필수 작성 필드**:
+1. ✅ **executionPlan.proposalContent.executiveSummary** - 경영진 요약 (300자 이상)
+2. ✅ **executionPlan.proposalContent.problemStatement** - 문제 정의 (200자 이상)
+3. ✅ **executionPlan.proposalContent.proposedSolution** - 제안 솔루션 (300자 이상)
+4. ✅ **executionPlan.proposalContent.keyBenefits** - 핵심 이점 (최소 3개)
+5. ✅ **executionPlan.proposalContent.differentiators** - 차별화 요소 (최소 3개)
+6. ✅ **executionPlan.proposalContent.successMetrics** - 성공 지표 (최소 2개)
+
+⚠️ 출력 형식 엄수:
+- JSON 객체만 반환 ({ 로 시작, } 로 끝)
+- 절대로 \`\`\`를 사용하지 마세요
+- 절대로 마크다운 코드블록을 사용하지 마세요
+- 설명, 주석, 추가 텍스트 일체 금지
+- **최대 2500자 엄수**`;
   }
 
   private parseReportResponse(response: string, analyses: any[], _answers: any[]): any {
