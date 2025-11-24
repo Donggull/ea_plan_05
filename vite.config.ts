@@ -37,8 +37,10 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
-    minify: 'terser',
+    minify: 'esbuild', // esbuild로 변경 (Vercel 압축과 호환성 향상)
     chunkSizeWarningLimit: 1500,
+    cssCodeSplit: true,
+    assetsInlineLimit: 4096,
     rollupOptions: {
       output: {
         // manualChunks 완전 제거 - Vite 자동 분할 사용
