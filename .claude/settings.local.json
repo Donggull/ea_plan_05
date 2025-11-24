@@ -30,7 +30,8 @@
       "Bash(.vercel-deploy-trigger.txt)",
       "Bash(temp_before_method.ts)",
       "Bash(temp_after_method.ts)",
-      "Bash(src/services/preAnalysis/PreAnalysisService_NEW.ts)"
+      "Bash(src/services/preAnalysis/PreAnalysisService_NEW.ts)",
+      "mcp__github-mcp__git-flow"
     ],
     "deny": [],
     "ask": []

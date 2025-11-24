@@ -1740,7 +1740,44 @@ export class PreAnalysisService {
         opportunities: ['기회 요소 미확인 - 질문 필요'],
         technicalStack: ['기술 스택 미확인 - 질문 필요'],
         timeline: ['일정 정보 미확인 - 질문 필요'],
-        additionalInfoNeeded: []
+        additionalInfoNeeded: [
+          // 🔥 최소한의 필수 정보 항목 보장 (질문 생성을 위해)
+          {
+            field: 'technicalStack',
+            currentInfo: '정보 없음',
+            neededInfo: '프론트엔드, 백엔드, 데이터베이스, 인프라 등 기술 스택 전체',
+            priority: 'high',
+            reason: '개발 아키텍처 설계 및 개발 공수 산정에 필수'
+          },
+          {
+            field: 'timeline',
+            currentInfo: '정보 없음',
+            neededInfo: '프로젝트 시작일, 주요 마일스톤, 최종 완료 목표일',
+            priority: 'high',
+            reason: '프로젝트 일정 계획 수립 및 리소스 배분에 필수'
+          },
+          {
+            field: 'budget',
+            currentInfo: '정보 없음',
+            neededInfo: '총 프로젝트 예산 규모 및 주요 비용 항목',
+            priority: 'high',
+            reason: '프로젝트 범위 결정 및 기술 선택에 영향'
+          },
+          {
+            field: 'requirements',
+            currentInfo: '정보 없음',
+            neededInfo: '주요 기능 요구사항 및 우선순위',
+            priority: 'high',
+            reason: 'MVP 범위 정의 및 개발 계획 수립에 필수'
+          },
+          {
+            field: 'stakeholders',
+            currentInfo: '정보 없음',
+            neededInfo: '프로젝트 주요 의사결정권자 및 담당자 정보',
+            priority: 'medium',
+            reason: '커뮤니케이션 체계 수립 및 승인 프로세스 정의에 필요'
+          }
+        ]
       };
 
       const processingTime = Date.now() - startTime;
@@ -1826,6 +1863,13 @@ export class PreAnalysisService {
       "neededInfo": "상태관리 라이브러리, 라우터, 스타일링 도구",
       "priority": "high",
       "reason": "아키텍처 설계 및 공수 산정에 필수"
+    },
+    {
+      "field": "timeline",
+      "currentInfo": "대략적인 기간만 명시",
+      "neededInfo": "구체적 시작일, 마일스톤 날짜, 최종 완료일",
+      "priority": "high",
+      "reason": "프로젝트 일정 계획 수립에 필수"
     }
   ]
 }
@@ -1844,10 +1888,16 @@ ${content}
 2. 구체적 숫자, 날짜, 기술명, 버전 포함
 3. "미확인" 항목은 additionalInfoNeeded에 반드시 추가
 4. 각 배열은 최소 2개 이상 항목 포함
+5. 🔥 **additionalInfoNeeded는 최소 3개 이상 필수!** 🔥
+   - field: 필드명 (requirements, technicalStack, timeline, budget, stakeholders 등)
+   - currentInfo: 문서에서 확인된 정보 (없으면 "정보 없음")
+   - neededInfo: 추가로 필요한 구체적 정보
+   - priority: high/medium/low
+   - reason: 왜 이 정보가 필요한지 명확한 이유
 
 ⚠️ 다시 한번 강조: 설명 없이 JSON만 반환!
 ⚠️ 첫 글자 {, 마지막 글자 }로 시작/종료
-⚠️ additionalInfoNeeded는 필수! 정보 부족 시 반드시 포함`;
+⚠️ additionalInfoNeeded 최소 3개! 정보 완벽한 문서는 없음!`;
   }
 
   /**
@@ -2066,7 +2116,35 @@ ${content}
     console.log('🔄 폴백 모드: 텍스트 기반 정보 추출 시작');
 
     // 🆕 additionalInfoNeeded 추출 시도
-    const additionalInfoNeeded = this.extractAdditionalInfoNeeded(response);
+    let additionalInfoNeeded = this.extractAdditionalInfoNeeded(response);
+
+    // 🔥 Fallback 모드에서도 최소 1개 이상 보장
+    if (additionalInfoNeeded.length === 0) {
+      console.warn('⚠️ Fallback 모드: additionalInfoNeeded 추출 실패 - 기본 항목 추가');
+      additionalInfoNeeded = [
+        {
+          field: 'requirements',
+          currentInfo: '문서에서 부분적으로만 확인됨',
+          neededInfo: '구체적인 기능 요구사항 및 우선순위',
+          priority: 'high',
+          reason: 'JSON 파싱 실패로 상세 분석 불가 - 추가 확인 필요'
+        },
+        {
+          field: 'technicalStack',
+          currentInfo: '문서에서 부분적으로만 확인됨',
+          neededInfo: '사용 기술 스택, 프레임워크, 라이브러리 및 버전',
+          priority: 'high',
+          reason: 'JSON 파싱 실패로 상세 분석 불가 - 추가 확인 필요'
+        },
+        {
+          field: 'timeline',
+          currentInfo: '문서에서 부분적으로만 확인됨',
+          neededInfo: '프로젝트 일정, 마일스톤, 주요 데드라인',
+          priority: 'high',
+          reason: 'JSON 파싱 실패로 상세 분석 불가 - 추가 확인 필요'
+        }
+      ];
+    }
 
     return {
       summary: `${category || '문서'} 분석 완료 (JSON 파싱 실패로 텍스트 분석 수행)`,
@@ -2077,7 +2155,7 @@ ${content}
       opportunities: this.extractListFromText(response, '기회'),
       technicalStack: this.extractListFromText(response, '기술'),
       timeline: this.extractListFromText(response, '일정'),
-      additionalInfoNeeded // 🆕 추출된 배열 사용
+      additionalInfoNeeded // 🆕 추출된 배열 사용 (최소 1개 보장)
     };
   }
 
