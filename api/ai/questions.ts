@@ -1201,13 +1201,13 @@ function parseQuestions(response: string): GeneratedQuestion[] {
 
     return parsed.questions.map((q: any) => ({
       category: q.category || '기타',
-      text: q.text || '',
-      type: q.type || 'textarea',
+      text: q.text || q.question || '',  // 🔥 question 필드도 허용 (PreAnalysisService 호환)
+      type: q.type || q.expectedFormat || 'textarea',  // 🔥 expectedFormat 필드도 허용
       options: q.options,
       required: q.required || false,
-      helpText: q.helpText || '',
+      helpText: q.helpText || q.context || '',  // 🔥 context 필드도 허용
       priority: q.priority || 'medium',
-      confidence: q.confidence || 0.8
+      confidence: q.confidence || q.confidenceScore || 0.8  // 🔥 confidenceScore 필드도 허용
     })).filter((q: GeneratedQuestion) => q.text.trim() !== '')
 
   } catch (error) {
