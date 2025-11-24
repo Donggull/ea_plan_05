@@ -3,11 +3,87 @@
 ## 📅 프로젝트 개요
 - **목표**: 기존 ELUO 시스템에 사전 분석(Pre-Analysis) 단계 추가
 - **시작일**: 2025-01-27
-- **최신 업데이트**: 2025-11-24 - 12-Phase → 14-Phase 확장 및 JSON 파싱 안정성 개선
-- **현재 상태**: Phase 12 완료 - 사전 분석 보고서 생성 시스템 14-Phase로 확장
+- **최신 업데이트**: 2025-11-24 - Phase 13 완료 - 질문 생성 JSON 파싱 안정성 강화 및 필드명 통일
+- **현재 상태**: Phase 13 완료 - 사전 분석 질문 생성 필드명 불일치 문제 완전 해결
 - **참조 문서**:
   - `docs/pre_analysis_prd.md`
   - `docs/pre_analysis_prompts.md`
+
+---
+
+## 🎉 Phase 13: 질문 생성 JSON 파싱 안정성 강화 및 필드명 통일 ✅ 완료 (2025-11-24)
+
+### 🔍 문제 분석
+- **증상**: 사전 분석 단계에서 질문 생성 후 JSON 파싱 실패 오류 발생
+- **근본 원인**: API 프롬프트와 PreAnalysisService가 기대하는 필드명 불일치
+  - API 프롬프트: `text`, `helpText`, `type`, `confidence`
+  - PreAnalysisService: `question`, `context`, `expectedFormat`, `confidenceScore`
+
+### ✅ 해결 내용
+
+#### 1. API 프롬프트 필드명 통일
+- [x] **api/ai/questions.ts 수정**
+  - [x] 모든 질문 생성 프롬프트의 JSON 형식 변경
+  - [x] 시장 조사 질문 (`requestType: 'market_research_questions'`)
+  - [x] 제안서 질문 (`requestType: 'proposal_questions'`)
+  - [x] 페르소나 질문 (`requestType: 'personas_questions'`)
+  - [x] 사전 분석 질문 (기본 모드)
+
+**변경 사항:**
+```json
+// Before
+{
+  "text": "질문 내용",
+  "type": "textarea",
+  "helpText": "도움말",
+  "confidence": 0.8
+}
+
+// After
+{
+  "question": "질문 내용",
+  "expectedFormat": "textarea",
+  "context": "도움말",
+  "confidenceScore": 0.8
+}
+```
+
+#### 2. parseQuestions 함수 강화
+- [x] **더 유연한 JSON 추출**
+  - [x] 전체 JSON 구조 매칭 실패 시 questions 배열만 추출
+  - [x] 다층 fallback 메커니즘 구현
+
+- [x] **필드명 정규화 로직 개선**
+  - [x] PreAnalysisService 형식 우선 (question, expectedFormat, context, confidenceScore)
+  - [x] 기존 형식 fallback 지원 (text, type, helpText, confidence)
+  - [x] 양방향 호환성 보장
+
+- [x] **상세한 디버깅 로그 추가**
+  - [x] 파싱 각 단계별 로그 출력
+  - [x] 필드 매핑 상태 확인
+  - [x] 오류 발생 시 응답 앞부분 출력
+
+#### 3. 타입 체크 및 테스트
+- [x] `npm run typecheck` 성공적으로 통과
+- [x] 기존 기능 호환성 검증
+- [x] 텐퍼센트 커피 프로젝트 데이터 확인
+
+### 📝 기술적 세부사항
+
+**수정된 파일:**
+- `api/ai/questions.ts` - 프롬프트 필드명 통일 (4개 프롬프트 유형)
+- `api/ai/questions.ts` - parseQuestions 함수 로직 강화
+
+**개선된 기능:**
+- ✅ PreAnalysisService가 기대하는 형식으로 AI 응답 생성
+- ✅ 기존 형식과의 완벽한 하위 호환성 유지
+- ✅ JSON 파싱 실패 시 더 명확한 오류 메시지
+- ✅ 기본 질문 fallback 제공으로 안정성 보장
+
+### 🔧 향후 개선 사항
+- [ ] AI 응답 검증 스키마 추가 (Zod 등 활용)
+- [ ] 질문 생성 실패 시 재시도 로직 개선
+- [ ] 질문 품질 자동 평가 시스템 도입
 
 ---
 

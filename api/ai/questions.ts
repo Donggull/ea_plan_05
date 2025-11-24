@@ -447,13 +447,13 @@ ${documents.map((doc, index) => `${index + 1}. ${doc.name}`).join('\n')}
   "questions": [
     {
       "category": "카테고리명 (예: 시장 규모, 경쟁 분석, 타겟 고객)",
-      "text": "질문 내용",
-      "type": "text|select|multiselect|number|textarea",
+      "question": "질문 내용",
+      "expectedFormat": "text|select|multiselect|number|textarea",
       "options": ["옵션1", "옵션2"] (select/multiselect인 경우만),
       "required": true|false,
-      "helpText": "질문에 대한 구체적인 도움말",
+      "context": "질문에 대한 구체적인 도움말",
       "priority": "high|medium|low",
-      "confidence": 0.0-1.0
+      "confidenceScore": 0.0-1.0
     }
   ]
 }
@@ -751,13 +751,13 @@ JSON 형식:
   "questions": [
     {
       "category": "프로젝트 이해|제안 솔루션|기술 아키텍처|팀 구성|일정 계획|비용 산정|리스크 관리|차별화 요소",
-      "text": "우리 에이전시 팀이 답변할 질문 (주체를 '우리'로 명확히)",
-      "type": "text|select|multiselect|number|textarea",
+      "question": "우리 에이전시 팀이 답변할 질문 (주체를 '우리'로 명확히)",
+      "expectedFormat": "text|select|multiselect|number|textarea",
       "options": ["옵션1", "옵션2"],
       "required": true|false,
-      "helpText": "RFP 분석 결과 인용 + 이 답변이 제안서에 어떻게 활용되는지 설명",
+      "context": "RFP 분석 결과 인용 + 이 답변이 제안서에 어떻게 활용되는지 설명",
       "priority": "high|medium|low",
-      "confidence": 0.0-1.0
+      "confidenceScore": 0.0-1.0
     }
   ]
 }
@@ -985,13 +985,13 @@ JSON 형식:
   "questions": [
     {
       "category": "인구통계|심리특성|행동패턴|목표/동기|Pain Points|소통채널",
-      "text": "프로젝트 맥락이 반영된 구체적 질문",
-      "type": "text|select|multiselect|number|textarea",
+      "question": "프로젝트 맥락이 반영된 구체적 질문",
+      "expectedFormat": "text|select|multiselect|number|textarea",
       "options": ["옵션1", "옵션2"],
       "required": true|false,
-      "helpText": "왜 이 질문이 중요한지 + 답변 가이드",
+      "context": "왜 이 질문이 중요한지 + 답변 가이드",
       "priority": "high|medium|low",
-      "confidence": 0.0-1.0
+      "confidenceScore": 0.0-1.0
     }
   ]
 }
@@ -1028,13 +1028,13 @@ ${documents.map((doc, index) => `${index + 1}. ${doc.name}${doc.summary ? ` - ${
   "questions": [
     {
       "category": "카테고리명",
-      "text": "질문 내용",
-      "type": "text|select|multiselect|number|textarea",
+      "question": "질문 내용",
+      "expectedFormat": "text|select|multiselect|number|textarea",
       "options": ["옵션1", "옵션2"] (select/multiselect인 경우),
       "required": true|false,
-      "helpText": "질문에 대한 도움말",
+      "context": "질문에 대한 도움말",
       "priority": "high|medium|low",
-      "confidence": 0.0-1.0
+      "confidenceScore": 0.0-1.0
     }
   ]
 }
@@ -1187,33 +1187,88 @@ async function callAIForQuestions(
 
 function parseQuestions(response: string): GeneratedQuestion[] {
   try {
-    // JSON 부분만 추출
-    const jsonMatch = response.match(/\{[\s\S]*\}/)
+    console.log('🔍 [parseQuestions] 파싱 시작, 응답 길이:', response.length);
+
+    // 1. JSON 부분만 추출 (더 유연한 매칭)
+    let jsonMatch = response.match(/\{[\s\S]*"questions"[\s\S]*\[[\s\S]*\][\s\S]*\}/);
+
     if (!jsonMatch) {
-      throw new Error('JSON 형식을 찾을 수 없습니다.')
+      console.warn('⚠️ [parseQuestions] 전체 JSON 구조를 찾을 수 없음, questions 배열만 추출 시도');
+      // questions 배열만 추출 시도
+      const questionsArrayMatch = response.match(/"questions"\s*:\s*(\[[\s\S]*\])/);
+      if (questionsArrayMatch) {
+        jsonMatch = [`{"questions": ${questionsArrayMatch[1]}}`];
+        console.log('✅ [parseQuestions] questions 배열 추출 성공');
+      } else {
+        throw new Error('JSON 형식을 찾을 수 없습니다.');
+      }
     }
 
-    const parsed = JSON.parse(jsonMatch[0])
+    const parsed = JSON.parse(jsonMatch[0]);
+    console.log('✅ [parseQuestions] JSON 파싱 성공');
 
     if (!parsed.questions || !Array.isArray(parsed.questions)) {
-      throw new Error('questions 배열을 찾을 수 없습니다.')
+      console.error('❌ [parseQuestions] questions 배열이 없거나 배열이 아님:', {
+        hasQuestions: !!parsed.questions,
+        isArray: Array.isArray(parsed.questions),
+        parsedKeys: Object.keys(parsed)
+      });
+      throw new Error('questions 배열을 찾을 수 없습니다.');
     }
 
-    return parsed.questions.map((q: any) => ({
-      category: q.category || '기타',
-      text: q.text || q.question || '',  // 🔥 question 필드도 허용 (PreAnalysisService 호환)
-      type: q.type || q.expectedFormat || 'textarea',  // 🔥 expectedFormat 필드도 허용
-      options: q.options,
-      required: q.required || false,
-      helpText: q.helpText || q.context || '',  // 🔥 context 필드도 허용
-      priority: q.priority || 'medium',
-      confidence: q.confidence || q.confidenceScore || 0.8  // 🔥 confidenceScore 필드도 허용
-    })).filter((q: GeneratedQuestion) => q.text.trim() !== '')
+    console.log(`📊 [parseQuestions] ${parsed.questions.length}개의 질문 발견`);
+
+    // 2. 필드명 정규화 (두 가지 형식 모두 지원)
+    const normalizedQuestions = parsed.questions.map((q: any, index: number) => {
+      // 🔥 필드명 우선순위: PreAnalysisService 형식 > 기존 형식
+      const normalized = {
+        category: q.category || '기타',
+        // question 필드 우선 (PreAnalysisService가 기대하는 형식)
+        text: q.question || q.text || '',
+        // expectedFormat 필드 우선
+        type: q.expectedFormat || q.type || 'textarea',
+        options: q.options,
+        required: q.required !== undefined ? q.required : false,
+        // context 필드 우선
+        helpText: q.context || q.helpText || '',
+        priority: q.priority || 'medium',
+        // confidenceScore 필드 우선
+        confidence: q.confidenceScore !== undefined ? q.confidenceScore : (q.confidence || 0.8)
+      };
+
+      // 디버깅: 각 질문의 필드 매핑 확인
+      if (index === 0) {
+        console.log('🔍 [parseQuestions] 첫 번째 질문 필드 매핑:', {
+          원본필드: Object.keys(q),
+          정규화필드: Object.keys(normalized),
+          question필드: q.question || q.text,
+          expectedFormat필드: q.expectedFormat || q.type,
+          context필드: q.context || q.helpText,
+          confidenceScore필드: q.confidenceScore || q.confidence
+        });
+      }
+
+      return normalized;
+    }).filter((q: GeneratedQuestion) => q.text.trim() !== '');
+
+    console.log(`✅ [parseQuestions] ${normalizedQuestions.length}개의 유효한 질문 파싱 완료`);
+
+    if (normalizedQuestions.length === 0) {
+      console.warn('⚠️ [parseQuestions] 유효한 질문이 없음, 기본 질문 반환');
+      throw new Error('유효한 질문이 없습니다.');
+    }
+
+    return normalizedQuestions;
 
   } catch (error) {
-    console.error('질문 파싱 실패:', error)
+    console.error('❌ [parseQuestions] 질문 파싱 실패:', {
+      error: error instanceof Error ? error.message : String(error),
+      응답길이: response.length,
+      응답앞부분: response.substring(0, 500)
+    });
 
     // 파싱 실패 시 기본 질문 반환
+    console.log('🔄 [parseQuestions] 기본 질문 반환');
     return [
       {
         category: '프로젝트 개요',
@@ -1242,7 +1297,7 @@ function parseQuestions(response: string): GeneratedQuestion[] {
         priority: 'high',
         confidence: 0.9
       }
-    ]
+    ];
   }
 }
 
