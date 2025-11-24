@@ -7026,21 +7026,86 @@ ${incompleteItems.length > 0 ? `- 우선순위 2: ${incompleteItems.length}개 �
   private parseQuestionResponse(response: string): any[] {
     try {
       console.log('🔍 AI 질문 응답 파싱 시작:', { responseLength: response.length });
+      console.log('🔍 응답 시작 부분 (처음 200자):', response.substring(0, 200));
 
       let parsed: any;
 
+      // 🔥 1단계: 마크다운 제거 - 모든 변형 처리
+      let cleaned = response;
+
+      // 모든 종류의 코드 블록 마커 제거 (`, ```, ````등)
+      cleaned = cleaned.replace(/^`{1,4}json\s*/gm, '');  // 줄 시작의 ```json 제거
+      cleaned = cleaned.replace(/^`{1,4}\s*/gm, '');       // 줄 시작의 ``` 제거
+      cleaned = cleaned.replace(/`{1,4}json\s*/g, '');     // 중간의 ```json 제거
+      cleaned = cleaned.replace(/`{1,4}\s*$/gm, '');       // 줄 끝의 ``` 제거
+      cleaned = cleaned.replace(/`{1,4}/g, '');             // 나머지 모든 백틱 제거
+
+      // 앞뒤 공백 제거
+      cleaned = cleaned.trim();
+
+      console.log('🧹 마크다운 제거 후 시작 부분 (처음 200자):', cleaned.substring(0, 200));
+
       // 🔥 여러 방법으로 JSON 추출 시도 (순서대로)
       const extractionMethods = [
-        // 1. 마크다운 코드 블록 제거 후 JSON 추출
+        // 방법 1: 정제된 문자열에서 완전한 JSON 객체 추출 (괄호 카운팅)
         () => {
-          const cleaned = response.replace(/```json\s*/g, '').replace(/```\s*/g, '');
-          const match = cleaned.match(/\{[\s\S]*"questions"[\s\S]*\}/);
-          return match ? match[0] : null;
+          console.log('📋 방법 1 시도: 괄호 카운팅 (정제된 문자열)');
+          const startIndex = cleaned.indexOf('{');
+          if (startIndex === -1) {
+            console.log('❌ 방법 1 실패: { 를 찾을 수 없음');
+            return null;
+          }
+
+          let depth = 0;
+          let inString = false;
+          let escapeNext = false;
+
+          for (let i = startIndex; i < cleaned.length; i++) {
+            const char = cleaned[i];
+
+            if (escapeNext) {
+              escapeNext = false;
+              continue;
+            }
+
+            if (char === '\\') {
+              escapeNext = true;
+              continue;
+            }
+
+            if (char === '"') {
+              inString = !inString;
+              continue;
+            }
+
+            if (!inString) {
+              if (char === '{') depth++;
+              if (char === '}') {
+                depth--;
+                if (depth === 0) {
+                  const extracted = cleaned.substring(startIndex, i + 1);
+                  console.log('✅ 방법 1 추출 성공:', {
+                    length: extracted.length,
+                    start: extracted.substring(0, 50),
+                    end: extracted.substring(extracted.length - 50)
+                  });
+                  return extracted;
+                }
+              }
+            }
+          }
+          console.log('❌ 방법 1 실패: 짝이 맞는 } 를 찾을 수 없음');
+          return null;
         },
-        // 2. 첫 번째 {부터 괄호 카운팅으로 올바른 }까지 추출
+
+        // 방법 2: 원본 문자열에서 괄호 카운팅
         () => {
+          console.log('📋 방법 2 시도: 괄호 카운팅 (원본 문자열)');
           const startIndex = response.indexOf('{');
-          if (startIndex === -1) return null;
+          if (startIndex === -1) {
+            console.log('❌ 방법 2 실패: { 를 찾을 수 없음');
+            return null;
+          }
 
           let depth = 0;
           let inString = false;
@@ -7069,42 +7134,80 @@ ${incompleteItems.length > 0 ? `- 우선순위 2: ${incompleteItems.length}개 �
               if (char === '}') {
                 depth--;
                 if (depth === 0) {
-                  return response.substring(startIndex, i + 1);
+                  const extracted = response.substring(startIndex, i + 1);
+                  console.log('✅ 방법 2 추출 성공:', {
+                    length: extracted.length,
+                    start: extracted.substring(0, 50)
+                  });
+                  return extracted;
                 }
               }
             }
           }
+          console.log('❌ 방법 2 실패: 짝이 맞는 } 를 찾을 수 없음');
           return null;
         },
-        // 3. 기존 방식 (greedy)
+
+        // 방법 3: "questions" 키워드 기반 정규식 (정제된 문자열)
         () => {
-          const match = response.match(/\{[\s\S]*\}/);
-          return match ? match[0] : null;
+          console.log('📋 방법 3 시도: questions 키워드 기반 정규식');
+          const match = cleaned.match(/\{[\s\S]*?"questions"\s*:\s*\[[\s\S]*?\]\s*\}/);
+          if (match) {
+            console.log('✅ 방법 3 매칭 성공:', {
+              length: match[0].length,
+              start: match[0].substring(0, 50)
+            });
+            return match[0];
+          }
+          console.log('❌ 방법 3 실패: 패턴 매칭 실패');
+          return null;
+        },
+
+        // 방법 4: Greedy 매칭 (최후의 수단)
+        () => {
+          console.log('📋 방법 4 시도: Greedy 매칭');
+          const match = cleaned.match(/\{[\s\S]*\}/);
+          if (match) {
+            console.log('✅ 방법 4 매칭 성공:', {
+              length: match[0].length
+            });
+            return match[0];
+          }
+          console.log('❌ 방법 4 실패');
+          return null;
         }
       ];
 
       // 추출 방법들을 순서대로 시도
-      for (const method of extractionMethods) {
+      let lastError: any = null;
+      for (let i = 0; i < extractionMethods.length; i++) {
         try {
-          const jsonString = method();
+          const jsonString = extractionMethods[i]();
           if (jsonString) {
+            console.log(`🔄 방법 ${i + 1} JSON 파싱 시도...`);
             parsed = JSON.parse(jsonString);
             if (parsed.questions && Array.isArray(parsed.questions)) {
-              console.log('✅ JSON 파싱 성공:', {
+              console.log(`✅ 방법 ${i + 1} JSON 파싱 성공:`, {
                 hasQuestions: true,
-                questionsCount: parsed.questions.length,
-                method: extractionMethods.indexOf(method) + 1
+                questionsCount: parsed.questions.length
               });
               break;
+            } else {
+              console.log(`⚠️ 방법 ${i + 1} 파싱 성공했으나 questions 배열 없음`);
             }
           }
         } catch (e) {
-          // 다음 방법 시도
+          lastError = e;
+          console.log(`❌ 방법 ${i + 1} 파싱 실패:`, e instanceof Error ? e.message : String(e));
           continue;
         }
       }
 
       if (!parsed || !parsed.questions || !Array.isArray(parsed.questions)) {
+        console.error('❌ 모든 추출 방법 실패');
+        if (lastError) {
+          console.error('❌ 마지막 에러:', lastError);
+        }
         throw new Error('questions 배열을 찾을 수 없습니다.');
       }
 
