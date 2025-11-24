@@ -5747,49 +5747,93 @@ ${incompleteItems.map((item, index) =>
 `;
     }
 
-    // ========== 중단: 필수 컨텍스트 + 핵심 가이드 (80줄) ==========
-    prompt += `## 🎯 질문 생성 가이드
+    // ========== 중단: 필수 컨텍스트 + 핵심 가이드 (강화된 버전) ==========
+    prompt += `## 🎯 질문 생성 필수 가이드
 
 ### 📊 문서 복잡도: ${complexityScore}/100점
 - 권장 질문 개수: 최소 ${questionRange.min}개 ~ 최대 ${questionRange.max}개
 
-### 💡 카테고리별 핵심 예시 (참고용)
+---
 
-**business**: "주요 타겟 사용자는 누구이며, 연령대/직군/사용 목적은 무엇인가요?"
-- context: "사용자 페르소나 정의는 UX 설계와 기능 우선순위 결정에 필수적입니다."
-
-**technical**: "선호하는 프론트엔드 기술 스택은 무엇인가요? (React/Vue/Angular/기타)"
-- context: "기술 스택 결정은 개발 공수, 유지보수성, 팀 역량에 큰 영향을 미칩니다."
-
-**design**: "기존 브랜드 가이드(컬러, 폰트, 로고)가 있나요? 있다면 공유 가능한가요?"
-- context: "브랜드 일관성 유지를 위해 기존 가이드 확인이 필요합니다."
-
-**timeline**: "프로젝트 오픈 희망 일자와 주요 마일스톤(기획/디자인/개발 완료)은 언제인가요?"
-- context: "일정 계획 수립과 리소스 배분을 위해 명확한 일정 확인이 필요합니다."
-
-**budget**: "프로젝트 예산 범위는 어느 정도이며, 기능 우선순위는 어떻게 되나요?"
-- context: "예산 범위에 따라 MVP 범위와 단계적 출시 계획을 조정해야 합니다."
+### ⚠️ 절대 금지사항 (중복 질문 방지)
+위에 "✅ 문서에서 이미 확인된 정보" 섹션에 나열된 항목들은 **절대 질문을 생성하지 마세요**.
+이미 문서에서 명확히 파악된 정보입니다.
 
 ---
 
-🚨 다시 한번: JSON만 반환하세요 🚨
+### ✅ 반드시 질문을 생성해야 하는 항목
+
+**우선순위 1: 미확인 항목 (${missingItems.length}개)**
+문서에서 전혀 확인되지 않았으므로 반드시 명확한 정보 수집 질문을 생성하세요.
+${missingItems.length > 0 ? missingItems.slice(0, 3).map((item, index) =>
+`
+${index + 1}. 필요 정보: ${item.neededInfo}
+   - 추천 질문 예시: "${item.neededInfo}에 대해 구체적으로 어떤 계획이나 요구사항이 있으신가요?"
+   - category: "${this.inferCategory(item.field)}"
+   - required: true
+   - 이유: ${item.reason || '프로젝트 진행에 필수적인 정보입니다.'}`
+).join('\n') : '(없음)'}
+
+**우선순위 2: 추가 보강 필요 항목 (${incompleteItems.length}개)**
+문서에서 일부 확인되었으나 상세 정보가 부족하므로 구체적인 추가 정보 확인 질문을 생성하세요.
+${incompleteItems.length > 0 ? incompleteItems.slice(0, 3).map((item, index) =>
+`
+${index + 1}. 현재 확인된 정보: ${item.currentInfo}
+   - 추가 필요 정보: ${item.neededInfo}
+   - 추천 질문 예시: "문서에서 '${item.currentInfo}'가 확인되었습니다. ${item.neededInfo}를 구체적으로 명세해주실 수 있나요?"
+   - category: "${this.inferCategory(item.field)}"
+   - required: ${item.priority === 'high' ? 'true' : 'false'}
+   - 우선순위: ${item.priority}
+   - 이유: ${item.reason || '프로젝트 계획 수립에 필요합니다.'}`
+).join('\n') : '(없음)'}
+
+---
+
+### 📝 질문 생성 원칙
+
+1. **프로젝트 컨텍스트 반영**: 일반적인 질문 대신, 위에 제시된 구체적인 미확인/보강 항목을 기반으로 질문 생성
+2. **이미 확인된 정보 인정**: 문서에서 이미 확인된 정보는 "현재 ~로 확인되었는데, 추가로 ~" 형식으로 질문
+3. **구체성 우선**: "기술 스택은?" (X) → "문서에서 iOS/Android가 언급되었는데, React Native/Flutter 중 선호하시는 프레임워크는?" (O)
+4. **우선순위 준수**: 위의 미확인 항목과 보강 필요 항목을 기반으로 질문 생성
+5. **카테고리 정확도**: business, technical, design, timeline, budget, risks, stakeholders 중 적절한 카테고리 선택
+
+---
+
+### 🚨 다시 한번: JSON만 반환하세요 🚨
 
 설명 텍스트, 마크다운 코드 블록, 주석 절대 금지!
 순수 JSON 객체만 반환: { "questions": [...] }
 
+필수 JSON 형식:
+{
+  "questions": [
+    {
+      "category": "business|technical|design|timeline|budget|risks|stakeholders",
+      "question": "문서 분석 결과를 반영한 구체적 질문 (최소 50자)",
+      "context": "이 질문이 왜 필요한지 설명 (최소 30자)",
+      "required": true|false,
+      "expectedFormat": "text|select|multiselect|number|textarea",
+      "confidenceScore": 0.7~0.9
+    }
+  ]
+}
+
 필수 조건:
-- category: business, technical, design, timeline, budget, risks, stakeholders 중 하나
-- question: 최소 50자 이상
-- context: 최소 30자 이상
+- question: 최소 50자 이상, 문서 분석 내용 반영
+- context: 최소 30자 이상, 질문 필요성 명확히 설명
 - required: true (미확인 항목), false (보강 항목)
-- confidenceScore: 0.7~0.9${missingItems.length > 0 ? `\n- 우선순위 1: ${missingItems.length}개 확인되지 않은 항목 필수 질문` : ''}${incompleteItems.length > 0 ? `\n- 우선순위 2: ${incompleteItems.length}개 보강 필요 항목 상세 질문` : ''}
+- confidenceScore: 0.7~0.9
+${missingItems.length > 0 ? `- 우선순위 1: ${missingItems.length}개 미확인 항목 기반 필수 질문 생성` : ''}
+${incompleteItems.length > 0 ? `- 우선순위 2: ${incompleteItems.length}개 보강 필요 항목 기반 상세 질문 생성` : ''}
 - 총 질문 개수: ${questionRange.min}개 이상, ${questionRange.max}개 이하
 
 ⚠️⚠️⚠️ 최종 확인 ⚠️⚠️⚠️
 첫 글자: {
 마지막 글자: }
 코드 블록 없음
-설명 없음`;
+설명 없음
+일반적 예시 질문 금지
+문서 분석 결과 반영 필수`;
 
     return prompt;
   }
@@ -6034,6 +6078,38 @@ ${incompleteItems.map((item, index) =>
     });
 
     return uniqueItems;
+  }
+
+  /**
+   * 필드 이름을 카테고리로 매핑 (헬퍼 메서드)
+   */
+  private inferCategory(field: string): string {
+    const fieldLower = field.toLowerCase();
+
+    if (fieldLower.includes('기술') || fieldLower.includes('tech') || fieldLower.includes('stack') || fieldLower.includes('아키텍처')) {
+      return 'technical';
+    }
+    if (fieldLower.includes('일정') || fieldLower.includes('timeline') || fieldLower.includes('마일스톤') || fieldLower.includes('기간')) {
+      return 'timeline';
+    }
+    if (fieldLower.includes('예산') || fieldLower.includes('budget') || fieldLower.includes('비용')) {
+      return 'budget';
+    }
+    if (fieldLower.includes('디자인') || fieldLower.includes('design') || fieldLower.includes('ui') || fieldLower.includes('ux')) {
+      return 'design';
+    }
+    if (fieldLower.includes('위험') || fieldLower.includes('risk') || fieldLower.includes('리스크')) {
+      return 'risks';
+    }
+    if (fieldLower.includes('이해관계자') || fieldLower.includes('stakeholder') || fieldLower.includes('의사결정')) {
+      return 'stakeholders';
+    }
+    if (fieldLower.includes('요구사항') || fieldLower.includes('requirement') || fieldLower.includes('기능')) {
+      return 'business';
+    }
+
+    // 기본값
+    return 'business';
   }
 
   /**
