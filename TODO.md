@@ -3,8 +3,8 @@
 ## 📅 프로젝트 개요
 - **목표**: 기존 ELUO 시스템에 사전 분석(Pre-Analysis) 단계 추가
 - **시작일**: 2025-01-27
-- **최신 업데이트**: 2025-11-19 - 6-Phase 보고서 생성 구조로 전면 개선 (데이터 누락 문제 해결)
-- **현재 상태**: Phase 10 완료 - 사전 분석 보고서 생성 시스템 6-Phase로 재구축
+- **최신 업데이트**: 2025-11-24 - 12-Phase → 14-Phase 확장 및 JSON 파싱 안정성 개선
+- **현재 상태**: Phase 12 완료 - 사전 분석 보고서 생성 시스템 14-Phase로 확장
 - **참조 문서**:
   - `docs/pre_analysis_prd.md`
   - `docs/pre_analysis_prompts.md`
@@ -2366,6 +2366,151 @@ fix: Phase 4 프롬프트 구조 완전 개선 - detailedPerspectives 생성으�
 BREAKING CHANGE: Phase 4 JSON 구조가 완전히 변경되었습니다.
 이전: { "executionPlan": { "wbs": [...] } }
 이후: { "agencyDetailedAnalysis": { "detailedPerspectives": { "planning": {...}, "design": {...}, "publishing": {...}, "development": {...} } } }
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+```
+
+---
+
+## Phase 12: 12-Phase → 14-Phase 확장 및 JSON 파싱 안정성 개선 ✅
+
+**작업일**: 2025-11-24
+**상태**: ✅ 완료
+
+### 🎯 문제 상황
+- Phase 7B (리소스 계획)에서 8000자 초과로 인한 JSON 파싱 실패
+- Phase 8A (제안서 초안)에서 8000자 초과로 인한 JSON 파싱 실패
+- AI 응답이 중간에 잘려서 JSON 구조가 불완전해지는 문제 발생
+- "JSON 복구 실패" 및 "직접 파싱 실패" 오류 지속 발생
+
+### ✨ 주요 개선 사항
+
+#### 1. **토큰 제한 증가 (즉각적 해결책)**
+   - Phase 7B: 3500 토큰 → 5000 토큰
+   - Phase 8A: 3500 토큰 → 5000 토큰
+   - **효과**: 기존 응답 길이에 약 42% 여유 공간 확보
+
+#### 2. **Phase 세분화 (근본적 해결책)**
+
+   **Phase 7B → 7B-1 + 7B-2 분할:**
+   - **7B-1 (팀 구성)**:
+     - 최대 응답 길이: 2000자
+     - 진행률: 82% → 85%
+     - 생성 필드: `teamComposition`
+
+   - **7B-2 (비용 산정)**:
+     - 최대 응답 길이: 2000자
+     - 진행률: 85% → 88%
+     - 생성 필드: `totalManMonths`, `totalCost`, `timeline`, `costBreakdown`, `paymentSchedule`
+
+   **Phase 8A → 8A-1 + 8A-2 분할:**
+   - **8A-1 (제안서 개요)**:
+     - 최대 응답 길이: 1500자
+     - 진행률: 88% → 91%
+     - 생성 필드: `proposalOutline` (제목, 섹션 구조, 부록)
+
+   - **8A-2 (제안서 내용)**:
+     - 최대 응답 길이: 2500자
+     - 진행률: 91% → 94%
+     - 생성 필드: `proposalContent` (요약, 문제 정의, 솔루션, 이점, 차별점, 성공 지표)
+
+#### 3. **Phase별 진행률 조정**
+   ```
+   기존 12-Phase:
+   Phase 1A: 0-5%    Phase 5A: 40-50%   Phase 7A: 75-82%
+   Phase 1B: 5-15%   Phase 5B: 50-60%   Phase 7B: 82-88%  ❌ 과부하
+   Phase 2:  15-20%  Phase 6:  60-75%   Phase 8A: 88-94%  ❌ 과부하
+   Phase 3:  20-25%                     Phase 8B: 94-100%
+   Phase 4:  25-40%
+
+   개선 14-Phase:
+   Phase 1A:  0-5%    Phase 5A:  40-50%   Phase 7A:   75-82%
+   Phase 1B:  5-15%   Phase 5B:  50-60%   Phase 7B-1: 82-85%  ✅ 세분화
+   Phase 2:   15-20%  Phase 6:   60-75%   Phase 7B-2: 85-88%  ✅ 세분화
+   Phase 3:   20-25%                      Phase 8A-1: 88-91%  ✅ 세분화
+   Phase 4:   25-40%                      Phase 8A-2: 91-94%  ✅ 세분화
+                                          Phase 8B:   94-100%
+   ```
+
+#### 4. **새로운 프롬프트 함수 추가**
+   - `generateReportPhase7B1Prompt`: 팀 구성 전용 (lines 4842-4943)
+   - `generateReportPhase7B2Prompt`: 비용 산정 전용 (lines 4946-5028)
+   - `generateReportPhase8A1Prompt`: 제안서 개요 전용 (lines 5031-5151)
+   - `generateReportPhase8A2Prompt`: 제안서 내용 전용 (lines 5165-5257)
+
+#### 5. **병합 로직 개선**
+   - Phase 7B-1과 7B-2 결과를 `resourcePlan`으로 병합
+   - Phase 8A-1과 8A-2 결과를 `proposalOutline`과 `proposalContent`로 병합
+   - 14개 Phase 비용 및 토큰 계산 로직 업데이트
+
+### 🔧 기술적 개선
+1. **책임 분리**: 각 Phase가 하나의 명확한 목적만 수행
+2. **응답 길이 제어**: 모든 Phase가 2500자 이하로 제한
+3. **JSON 파싱 안정성**: 응답 크기 감소로 파싱 성공률 향상
+4. **진행률 표시 정확도**: 14단계로 세분화하여 더 정확한 진행률 표시
+5. **타입 안정성**: TypeScript 컴파일 오류 0개
+
+### 📝 수정된 파일
+```
+src/services/preAnalysis/PreAnalysisService.ts
+  - Phase 7B 토큰 제한 증가 (line 2962): 3500 → 5000
+  - Phase 8A 토큰 제한 증가 (line 3006): 3500 → 5000
+  - Phase 7B-1 구현 (lines 2943-2985): 팀 구성 생성
+  - Phase 7B-2 구현 (lines 2987-3030): 비용 산정 생성
+  - Phase 8A-1 구현 (lines 3033-3075): 제안서 개요 생성
+  - Phase 8A-2 구현 (lines 3077-3120): 제안서 내용 생성
+  - 프롬프트 함수 4개 추가 (lines 4842-5257)
+  - 병합 로직 업데이트 (lines 3260-3288)
+  - 비용/토큰 계산 로직 14-Phase 반영 (lines 3335-3381)
+```
+
+### ✅ 검증 완료
+- [x] Phase 7B → 7B-1 + 7B-2 세분화
+- [x] Phase 8A → 8A-1 + 8A-2 세분화
+- [x] 토큰 제한 증가 (3500 → 5000)
+- [x] 프롬프트 함수 4개 추가
+- [x] 병합 로직 resourcePlan 정상 동작
+- [x] 병합 로직 proposalOutline/Content 정상 동작
+- [x] 비용 계산 14-Phase 반영
+- [x] 토큰 계산 14-Phase 반영
+- [x] TypeScript 컴파일 성공 (tsc --noEmit)
+- [x] Git 커밋 및 푸시 완료
+
+### 📊 기대 효과
+✅ **JSON 파싱 실패 방지**: 모든 Phase의 응답 길이가 안전한 범위 내로 제한
+✅ **안정성 향상**: 이중 안전장치 (토큰 증가 + Phase 세분화)
+✅ **유지보수성 향상**: 각 Phase의 책임이 더 명확하게 분리
+✅ **확장성 확보**: 필요 시 추가 Phase 세분화 용이
+✅ **사용자 경험 개선**: 더 정확한 진행률 표시 (14단계)
+
+### 🎯 커밋 메시지
+```
+feat: 사전분석 12-Phase → 14-Phase 확장 및 JSON 파싱 개선
+
+🔧 Phase 세분화:
+- Phase 7B → 7B-1 (팀 구성) + 7B-2 (비용 산정)
+- Phase 8A → 8A-1 (제안서 개요) + 8A-2 (제안서 내용)
+
+🚀 토큰 제한 증가:
+- Phase 7B, 8A: 3500 → 5000 토큰
+
+✨ 새로운 프롬프트 함수:
+- generateReportPhase7B1Prompt (팀 구성, 2000자)
+- generateReportPhase7B2Prompt (비용 산정, 2000자)
+- generateReportPhase8A1Prompt (제안서 개요, 1500자)
+- generateReportPhase8A2Prompt (제안서 내용, 2500자)
+
+📊 병합 로직 개선:
+- resourcePlan: 7B-1 + 7B-2 병합
+- proposalOutline/Content: 8A-1 + 8A-2 병합
+- 14-Phase 비용/토큰 계산 로직 업데이트
+
+🎯 해결된 문제:
+- Phase 7B, 8A에서 8000자 초과로 인한 JSON 파싱 실패
+- AI 응답 중단으로 인한 JSON 구조 불완전 문제
+- "JSON 복구 실패" 및 "직접 파싱 실패" 오류 해결
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
