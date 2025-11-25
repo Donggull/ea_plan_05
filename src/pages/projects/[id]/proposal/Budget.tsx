@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import {
   ArrowLeft,
   Save,
@@ -12,11 +12,15 @@ import {
   Calculator,
   Clock,
   Zap,
-  TrendingUp
+  TrendingUp,
+  RefreshCw
 } from 'lucide-react'
 import { ProposalDataManager, ProposalWorkflowQuestion } from '../../../../services/proposal/dataManager'
 import { ProposalAnalysisService } from '../../../../services/proposal/proposalAnalysisService'
+import { AIQuestionGenerator } from '../../../../services/proposal/aiQuestionGenerator'
 import { useAuth } from '../../../../contexts/AuthContext'
+import { useAIModel } from '../../../../contexts/AIModelContext'
+import { supabase } from '../../../../lib/supabase'
 import { PageContainer, PageHeader, PageContent, Card, Button, Badge, ProgressBar } from '../../../../components/LinearComponents'
 
 interface QuestionFormData {
@@ -33,11 +37,14 @@ interface QuestionCategory {
 export function BudgetPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const { user } = useAuth()
+  const { getSelectedModel } = useAIModel()
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
+  const [regenerating, setRegenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const [questions, setQuestions] = useState<ProposalWorkflowQuestion[]>([])
@@ -157,58 +164,221 @@ export function BudgetPage() {
   ]
 
   // 질문과 응답 로드
-  const loadQuestionsAndResponses = async () => {
+  const loadQuestionsAndResponses = async (forceRegenerate: boolean = false) => {
     if (!id) return
 
     try {
       setLoading(true)
       setError(null)
 
+      console.log('🔍 비용 산정 질문 로딩 시작...')
+
+      // URL 파라미터에서 regenerate 확인
+      const searchParams = new URLSearchParams(location.search)
+      const shouldForceRegenerate = forceRegenerate || searchParams.get('regenerate') === 'true'
+
+      if (shouldForceRegenerate) {
+        console.log('🔄 질문 재생성 요청됨')
+        // URL에서 파라미터 제거 (한 번만 실행되도록)
+        navigate(location.pathname, { replace: true })
+      }
+
+      // 사전 분석 데이터 먼저 조회 (중요!)
+      const preAnalysisData = await ProposalDataManager.getPreAnalysisData(id)
+
+      console.log('📊 사전 분석 상태 확인:', {
+        hasPreAnalysis: preAnalysisData.hasPreAnalysis,
+        reportExists: !!preAnalysisData.report,
+        documentCount: preAnalysisData.documentAnalyses.length
+      })
+
       // 기존 질문 조회 시도
       let loadedQuestions = await ProposalDataManager.getQuestions(id, 'budget')
 
-      // 질문이 없으면 기본 질문 생성 및 저장
-      if (loadedQuestions.length === 0) {
-        console.log('No questions found, creating default questions')
+      console.log('💾 기존 질문 상태:', {
+        count: loadedQuestions.length,
+        hasAIGenerated: loadedQuestions.some(q => q.question_id.includes('_ai_'))
+      })
 
-        const questionObjects = defaultQuestions.map(q => ({
-          id: q.id,
-          category: q.category,
-          text: q.text,
-          type: q.type,
-          required: q.required,
-          order: q.order,
-          helpText: q.helpText,
-          options: q.type === 'select' ? ['낮음', '보통', '높음', '매우 높음'] : [],
-          validation: {},
-          priority: 'medium' as const,
-          confidence: 0.8,
-          aiGenerated: false
-        }))
+      // 질문 재생성 조건:
+      // 1. 강제 재생성 요청이 있거나
+      // 2. 기존 질문이 없거나
+      // 3. 사전 분석 데이터가 있으면서 기존 질문이 AI 생성이 아닌 경우 (기본 질문)
+      const shouldRegenerateQuestions =
+        shouldForceRegenerate ||
+        loadedQuestions.length === 0 ||
+        (preAnalysisData.hasPreAnalysis && loadedQuestions.every(q => !q.question_id.includes('_ai_')))
 
+      if (shouldRegenerateQuestions) {
+        console.log('🤖 질문 재생성 조건 충족! AI 질문을 새로 생성합니다.')
+
+        // 강제 재생성인 경우 기존 질문과 답변 삭제
+        if (shouldForceRegenerate && loadedQuestions.length > 0) {
+          console.log('🗑️ 기존 질문 및 답변 삭제 중...')
+
+          // 기존 답변 삭제
+          const { error: deleteResponsesError } = await supabase!
+            .from('proposal_workflow_responses')
+            .delete()
+            .eq('project_id', id)
+            .eq('workflow_step', 'budget')
+
+          if (deleteResponsesError) {
+            console.error('답변 삭제 오류:', deleteResponsesError)
+          }
+
+          // 기존 질문 삭제
+          const { error: deleteQuestionsError } = await supabase!
+            .from('proposal_workflow_questions')
+            .delete()
+            .eq('project_id', id)
+            .eq('workflow_step', 'budget')
+
+          if (deleteQuestionsError) {
+            console.error('질문 삭제 오류:', deleteQuestionsError)
+          }
+
+          console.log('✅ 기존 질문 및 답변 삭제 완료')
+        }
+
+        // 사전 분석 데이터를 활용하여 AI 질문 생성
         try {
-          await ProposalDataManager.saveQuestions(id, 'budget', questionObjects)
-          loadedQuestions = await ProposalDataManager.getQuestions(id, 'budget')
-        } catch (saveError) {
-          console.warn('Failed to save default questions, using local questions:', saveError)
-          // 저장 실패 시 임시로 로컬 데이터 사용
-          loadedQuestions = defaultQuestions.map((q, index) => ({
-            id: `temp_${index}`,
-            project_id: id,
-            workflow_step: 'budget' as const,
-            question_id: q.id,
+          console.log('🔍 사전 분석 데이터를 조회하여 AI 질문을 생성합니다...')
+
+          // 프로젝트 정보 조회 (projects 테이블에서 직접 조회)
+          const { data: projectData, error: projectError } = await supabase!
+            .from('projects')
+            .select('name, description, project_types, client_info')
+            .eq('id', id)
+            .single()
+
+          if (projectError) {
+            console.error('❌ 프로젝트 정보 조회 실패:', projectError)
+            throw new Error('프로젝트 정보를 조회할 수 없습니다.')
+          }
+
+          console.log('✅ 프로젝트 정보 조회 완료:', {
+            name: projectData.name,
+            hasDescription: !!projectData.description
+          })
+
+          // 프로젝트 문서 조회
+          const projectDocuments = await ProposalDataManager.getProjectDocuments(id)
+          console.log(`📄 프로젝트 문서 ${projectDocuments.length}개 조회`)
+
+          // Left 사이드바에서 선택된 AI 모델 가져오기
+          const selectedModelForQuestions = getSelectedModel()
+
+          // ai_models 테이블에서 실제 UUID 조회
+          let questionModelId: string | undefined = undefined
+
+          if (selectedModelForQuestions) {
+            try {
+              const { data: dbModel, error: dbError } = await supabase!
+                .from('ai_models')
+                .select('id')
+                .eq('provider', selectedModelForQuestions.provider)
+                .eq('model_id', selectedModelForQuestions.model_id)
+                .eq('status', 'active')
+                .single()
+
+              if (!dbError && dbModel) {
+                questionModelId = dbModel.id
+                console.log('✅ 질문 생성용 모델 UUID 조회:', questionModelId)
+              } else {
+                console.warn('⚠️ 질문 생성용 모델을 DB에서 찾을 수 없음:', dbError)
+              }
+            } catch (dbQueryError) {
+              console.error('❌ 질문 생성용 모델 조회 실패:', dbQueryError)
+            }
+          }
+
+          // AI 질문 생성
+          const aiQuestions = await AIQuestionGenerator.generateAIQuestions(
+            'budget',
+            id,
+            {
+              projectName: projectData.name,
+              projectDescription: projectData.description || '',
+              industry: (projectData.client_info as any)?.industry || '',
+              documents: projectDocuments.map(doc => ({
+                name: doc.file_name,
+                content: doc.document_content?.[0]?.processed_text || doc.document_content?.[0]?.raw_text
+              })),
+              preAnalysisData
+            },
+            user?.id,
+            questionModelId
+          )
+
+          console.log(`✅ AI 질문 ${aiQuestions.length}개 생성 완료`)
+
+          // 질문을 데이터베이스에 저장
+          const questionsToSave = aiQuestions.map(q => ({
+            id: q.id,
             category: q.category,
-            question_text: q.text,
-            question_type: q.type,
-            options: q.type === 'select' ? ['낮음', '보통', '높음', '매우 높음'] : [],
-            is_required: q.required,
-            display_order: q.order,
-            help_text: q.helpText,
-            validation_rules: {},
-            is_dynamic: false,
-            created_at: new Date().toISOString(),
-            metadata: {}
+            text: q.text,
+            type: q.type,
+            options: q.options || [],
+            required: q.required,
+            order: q.order,
+            helpText: q.helpText,
+            priority: q.priority,
+            confidence: q.confidence,
+            aiGenerated: q.aiGenerated
           }))
+
+          loadedQuestions = await ProposalDataManager.saveQuestions(
+            id,
+            'budget',
+            questionsToSave
+          )
+
+          console.log('💾 질문 저장 완료')
+        } catch (aiError) {
+          console.error('❌ AI 질문 생성 실패:', aiError)
+          setError('AI 질문 생성에 실패했습니다. 기본 질문을 사용합니다.')
+
+          // AI 질문 생성 실패 시 기본 질문 사용
+          const questionObjects = defaultQuestions.map(q => ({
+            id: q.id,
+            category: q.category,
+            text: q.text,
+            type: q.type,
+            required: q.required,
+            order: q.order,
+            helpText: q.helpText,
+            options: q.type === 'select' ? ['낮음', '보통', '높음', '매우 높음'] : [],
+            validation: {},
+            priority: 'medium' as const,
+            confidence: 0.8,
+            aiGenerated: false
+          }))
+
+          try {
+            await ProposalDataManager.saveQuestions(id, 'budget', questionObjects)
+            loadedQuestions = await ProposalDataManager.getQuestions(id, 'budget')
+          } catch (saveError) {
+            console.warn('Failed to save default questions, using local questions:', saveError)
+            // 저장 실패 시 임시로 로컬 데이터 사용
+            loadedQuestions = defaultQuestions.map((q, index) => ({
+              id: `temp_${index}`,
+              project_id: id,
+              workflow_step: 'budget' as const,
+              question_id: q.id,
+              category: q.category,
+              question_text: q.text,
+              question_type: q.type,
+              options: q.type === 'select' ? ['낮음', '보통', '높음', '매우 높음'] : [],
+              is_required: q.required,
+              display_order: q.order,
+              help_text: q.helpText,
+              validation_rules: {},
+              is_dynamic: false,
+              created_at: new Date().toISOString(),
+              metadata: {}
+            }))
+          }
         }
       }
 
@@ -443,6 +613,45 @@ export function BudgetPage() {
     }
   }
 
+  // 질문 재생성
+  const handleRegenerateQuestions = async () => {
+    if (!id) return
+
+    // 확인 없이 바로 재생성하지 않고, 사용자 확인 필요
+    const hasAnswers = Object.keys(formData).length > 0
+
+    if (hasAnswers) {
+      const confirmed = window.confirm(
+        '질문을 재생성하면 현재 작성한 모든 답변이 삭제됩니다.\n계속하시겠습니까?'
+      )
+
+      if (!confirmed) {
+        return
+      }
+    }
+
+    try {
+      setRegenerating(true)
+      setError(null)
+
+      console.log('🔄 비용 산정 질문 재생성 시작...')
+
+      // 폼 데이터 초기화
+      setFormData({})
+
+      // 질문 재생성
+      await loadQuestionsAndResponses(true)
+
+      console.log('✅ 비용 산정 질문 재생성 완료')
+
+    } catch (err) {
+      console.error('Failed to regenerate questions:', err)
+      setError('질문 재생성에 실패했습니다.')
+    } finally {
+      setRegenerating(false)
+    }
+  }
+
   useEffect(() => {
     loadQuestionsAndResponses()
   }, [id])
@@ -487,6 +696,20 @@ export function BudgetPage() {
               <DollarSign className="w-3 h-3 mr-1" />
               {Math.round(completionStatus.completionRate)}% 완료
             </Badge>
+
+            <button
+              onClick={handleRegenerateQuestions}
+              disabled={regenerating || loading}
+              className="flex items-center space-x-2 px-3 py-2 text-text-secondary hover:text-text-primary border border-border-primary rounded-lg hover:bg-bg-tertiary transition-colors disabled:opacity-50"
+              title="사전 분석 데이터를 기반으로 질문을 다시 생성합니다"
+            >
+              {regenerating ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4" />
+              )}
+              <span>질문 재생성</span>
+            </button>
 
             <button
               onClick={() => handleSave(true)}
