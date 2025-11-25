@@ -1022,7 +1022,7 @@ export class PreAnalysisService {
           session.ai_provider,
           session.ai_model,
           questionPrompt,
-          3000,
+          4000, // 🔥 3000 → 4000: 긴 질문 목록도 완전히 생성되도록 토큰 증가
           0.9 // 높은 temperature로 더 창의적이고 다양한 질문 생성
         );
 
@@ -7048,12 +7048,119 @@ ${incompleteItems.length > 0 ? `- 우선순위 2: ${incompleteItems.length}개 �
   }
 
   /**
+   * 불완전한 JSON을 복구 시도
+   */
+  private tryRepairJson(jsonString: string): string | null {
+    try {
+      console.log('🔧 JSON 복구 시도 시작...');
+
+      let repaired = jsonString;
+
+      // 1. 마지막에 닫히지 않은 배열/객체 완성
+      const openBraces = (repaired.match(/\{/g) || []).length;
+      const closeBraces = (repaired.match(/\}/g) || []).length;
+      const openBrackets = (repaired.match(/\[/g) || []).length;
+      const closeBrackets = (repaired.match(/\]/g) || []).length;
+
+      console.log('🔧 괄호 상태:', { openBraces, closeBraces, openBrackets, closeBrackets });
+
+      // 2. 불완전한 마지막 객체 제거 (중간에 잘린 경우)
+      // 마지막 완전한 객체를 찾기 위해 역방향으로 검색
+      const lastCompleteObject = this.findLastCompleteObject(repaired);
+      if (lastCompleteObject) {
+        repaired = lastCompleteObject;
+        console.log('🔧 마지막 완전한 객체까지 잘라냄 (길이: ' + repaired.length + ')');
+      }
+
+      // 3. 배열/객체 닫기
+      if (openBrackets > closeBrackets) {
+        const missing = openBrackets - closeBrackets;
+        repaired += ']'.repeat(missing);
+        console.log('🔧 배열 닫는 괄호 ' + missing + '개 추가');
+      }
+
+      if (openBraces > closeBraces) {
+        const missing = openBraces - closeBraces;
+        repaired += '}'.repeat(missing);
+        console.log('🔧 객체 닫는 괄호 ' + missing + '개 추가');
+      }
+
+      // 4. 후행 쉼표 제거 (JSON에서는 허용되지 않음)
+      repaired = repaired.replace(/,\s*([}\]])/g, '$1');
+      console.log('🔧 후행 쉼표 제거');
+
+      // 5. 이스케이프되지 않은 줄바꿈 제거 (문자열 내부)
+      repaired = repaired.replace(/([^\\])\n/g, '$1\\n');
+
+      console.log('🔧 JSON 복구 완료:', {
+        원본길이: jsonString.length,
+        복구길이: repaired.length,
+        차이: repaired.length - jsonString.length
+      });
+
+      // 복구된 JSON이 원본과 다른 경우에만 반환
+      if (repaired !== jsonString) {
+        return repaired;
+      }
+
+      return null;
+    } catch (error) {
+      console.error('❌ JSON 복구 실패:', error);
+      return null;
+    }
+  }
+
+  /**
+   * 문자열에서 마지막 완전한 JSON 객체를 찾음
+   */
+  private findLastCompleteObject(jsonString: string): string | null {
+    try {
+      // questions 배열 내에서 마지막 완전한 객체를 찾기
+      const questionsMatch = jsonString.match(/"questions"\s*:\s*\[/);
+      if (!questionsMatch || questionsMatch.index === undefined) {
+        return null;
+      }
+
+      const arrayStart = questionsMatch.index + questionsMatch[0].length;
+      let depth = 0;
+      let lastCompleteIndex = -1;
+
+      for (let i = arrayStart; i < jsonString.length; i++) {
+        const char = jsonString[i];
+
+        if (char === '{') {
+          depth++;
+        } else if (char === '}') {
+          depth--;
+          if (depth === 0) {
+            // 완전한 객체 하나를 찾음
+            lastCompleteIndex = i;
+          }
+        }
+      }
+
+      if (lastCompleteIndex > -1) {
+        // 마지막 완전한 객체까지의 문자열 + 배열과 최상위 객체 닫기
+        const result = jsonString.substring(0, lastCompleteIndex + 1) + ']}';
+        console.log('🔧 마지막 완전한 객체 위치:', lastCompleteIndex);
+        return result;
+      }
+
+      return null;
+    } catch (error) {
+      console.error('❌ 마지막 완전한 객체 찾기 실패:', error);
+      return null;
+    }
+  }
+
+  /**
    * AI 응답에서 질문 배열 파싱
    */
   private parseQuestionResponse(response: string): any[] {
     try {
       console.log('🔍 AI 질문 응답 파싱 시작:', { responseLength: response.length });
       console.log('🔍 응답 시작 부분 (처음 200자):', response.substring(0, 200));
+      console.log('🔍 응답 끝 부분 (마지막 200자):', response.substring(Math.max(0, response.length - 200)));
 
       let parsed: any;
 
@@ -7071,6 +7178,7 @@ ${incompleteItems.length > 0 ? `- 우선순위 2: ${incompleteItems.length}개 �
       cleaned = cleaned.trim();
 
       console.log('🧹 마크다운 제거 후 시작 부분 (처음 200자):', cleaned.substring(0, 200));
+      console.log('🧹 마크다운 제거 후 끝 부분 (마지막 200자):', cleaned.substring(Math.max(0, cleaned.length - 200)));
 
       // 🔥 여러 방법으로 JSON 추출 시도 (순서대로)
       const extractionMethods = [
@@ -7207,25 +7315,53 @@ ${incompleteItems.length > 0 ? `- 우선순위 2: ${incompleteItems.length}개 �
 
       // 추출 방법들을 순서대로 시도
       let lastError: any = null;
+      let lastAttemptedJson: string | null = null;
+
       for (let i = 0; i < extractionMethods.length; i++) {
         try {
           const jsonString = extractionMethods[i]();
           if (jsonString) {
-            console.log(`🔄 방법 ${i + 1} JSON 파싱 시도...`);
-            parsed = JSON.parse(jsonString);
-            if (parsed.questions && Array.isArray(parsed.questions)) {
-              console.log(`✅ 방법 ${i + 1} JSON 파싱 성공:`, {
-                hasQuestions: true,
-                questionsCount: parsed.questions.length
-              });
-              break;
-            } else {
-              console.log(`⚠️ 방법 ${i + 1} 파싱 성공했으나 questions 배열 없음`);
+            lastAttemptedJson = jsonString;
+            console.log(`🔄 방법 ${i + 1} JSON 파싱 시도... (길이: ${jsonString.length})`);
+
+            try {
+              parsed = JSON.parse(jsonString);
+              if (parsed.questions && Array.isArray(parsed.questions)) {
+                console.log(`✅ 방법 ${i + 1} JSON 파싱 성공:`, {
+                  hasQuestions: true,
+                  questionsCount: parsed.questions.length
+                });
+                break;
+              } else {
+                console.log(`⚠️ 방법 ${i + 1} 파싱 성공했으나 questions 배열 없음`);
+              }
+            } catch (parseError) {
+              // 🔥 JSON 파싱 실패 시 복구 시도
+              console.log(`🔧 방법 ${i + 1} 파싱 실패, JSON 복구 시도 중...`);
+              const repaired = this.tryRepairJson(jsonString);
+              if (repaired) {
+                console.log('🔧 JSON 복구 성공, 다시 파싱 시도...');
+                try {
+                  parsed = JSON.parse(repaired);
+                  if (parsed.questions && Array.isArray(parsed.questions)) {
+                    console.log(`✅ 복구된 JSON 파싱 성공:`, {
+                      hasQuestions: true,
+                      questionsCount: parsed.questions.length
+                    });
+                    break;
+                  }
+                } catch (repairedParseError) {
+                  console.log('❌ 복구된 JSON도 파싱 실패');
+                  lastError = repairedParseError;
+                }
+              } else {
+                lastError = parseError;
+              }
             }
           }
         } catch (e) {
           lastError = e;
-          console.log(`❌ 방법 ${i + 1} 파싱 실패:`, e instanceof Error ? e.message : String(e));
+          console.log(`❌ 방법 ${i + 1} 추출 실패:`, e instanceof Error ? e.message : String(e));
           continue;
         }
       }
@@ -7234,6 +7370,10 @@ ${incompleteItems.length > 0 ? `- 우선순위 2: ${incompleteItems.length}개 �
         console.error('❌ 모든 추출 방법 실패');
         if (lastError) {
           console.error('❌ 마지막 에러:', lastError);
+        }
+        if (lastAttemptedJson) {
+          console.error('❌ 마지막 시도한 JSON (처음 500자):', lastAttemptedJson.substring(0, 500));
+          console.error('❌ 마지막 시도한 JSON (끝 500자):', lastAttemptedJson.substring(Math.max(0, lastAttemptedJson.length - 500)));
         }
         throw new Error('questions 배열을 찾을 수 없습니다.');
       }
