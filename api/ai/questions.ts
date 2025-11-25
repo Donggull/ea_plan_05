@@ -295,8 +295,8 @@ export default async function handler(
       outputTokens: aiResponse.usage.outputTokens
     })
 
-    // 응답 파싱 및 질문 추출
-    const questions = parseQuestions(aiResponse.content)
+    // 응답 파싱 및 질문 추출 (requestType 전달)
+    const questions = parseQuestions(aiResponse.content, requestBody.context?.requestType)
     console.log('📊 [AI Questions API] 질문 파싱 완료:', {
       questionsCount: questions.length,
       categories: [...new Set(questions.map(q => q.category))]
@@ -1302,17 +1302,25 @@ async function callAIForQuestions(
   }
 }
 
-function parseQuestions(response: string): GeneratedQuestion[] {
+function parseQuestions(response: string, requestType?: string): GeneratedQuestion[] {
   try {
-    console.log('🔍 [parseQuestions] 파싱 시작, 응답 길이:', response.length);
+    console.log('🔍 [parseQuestions] 파싱 시작, 응답 길이:', response.length, 'requestType:', requestType);
+
+    // 0. 마크다운 코드 블록 제거 (```json ... ``` 또는 ``` ... ```)
+    let cleanedResponse = response
+      .replace(/```json\s*/gi, '')
+      .replace(/```\s*/g, '')
+      .trim();
+
+    console.log('🧹 [parseQuestions] 마크다운 제거 후 길이:', cleanedResponse.length);
 
     // 1. JSON 부분만 추출 (더 유연한 매칭)
-    let jsonMatch = response.match(/\{[\s\S]*"questions"[\s\S]*\[[\s\S]*\][\s\S]*\}/);
+    let jsonMatch = cleanedResponse.match(/\{[\s\S]*"questions"[\s\S]*\[[\s\S]*\][\s\S]*\}/);
 
     if (!jsonMatch) {
       console.warn('⚠️ [parseQuestions] 전체 JSON 구조를 찾을 수 없음, questions 배열만 추출 시도');
       // questions 배열만 추출 시도
-      const questionsArrayMatch = response.match(/"questions"\s*:\s*(\[[\s\S]*\])/);
+      const questionsArrayMatch = cleanedResponse.match(/"questions"\s*:\s*(\[[\s\S]*\])/);
       if (questionsArrayMatch) {
         jsonMatch = [`{"questions": ${questionsArrayMatch[1]}}`];
         console.log('✅ [parseQuestions] questions 배열 추출 성공');
@@ -1381,36 +1389,212 @@ function parseQuestions(response: string): GeneratedQuestion[] {
     console.error('❌ [parseQuestions] 질문 파싱 실패:', {
       error: error instanceof Error ? error.message : String(error),
       응답길이: response.length,
-      응답앞부분: response.substring(0, 500)
+      응답앞부분: response.substring(0, 500),
+      requestType
     });
 
-    // 파싱 실패 시 기본 질문 반환
-    console.log('🔄 [parseQuestions] 기본 질문 반환');
+    // 파싱 실패 시 requestType에 따라 적절한 기본 질문 반환
+    console.log('🔄 [parseQuestions] 기본 질문 반환, requestType:', requestType);
+
+    // 페르소나 질문 기본값
+    if (requestType === 'personas_questions') {
+      return [
+        {
+          category: '사용자 프로필',
+          text: 'RFP 분석 결과, 프로젝트의 주요 최종 사용자 그룹은 누구로 정의할 것인가?',
+          type: 'textarea',
+          required: true,
+          helpText: '제안서의 "타겟 사용자 정의" 섹션에 활용됩니다. 사용자의 직책, 역할, 조직 내 위치를 포함해주세요.',
+          priority: 'high',
+          confidence: 0.9
+        },
+        {
+          category: 'Pain Points',
+          text: '타겟 사용자가 현재 경험하고 있는 핵심 문제점과 불편함은 무엇인가?',
+          type: 'textarea',
+          required: true,
+          helpText: '제안서의 "문제 정의 및 해결 방안" 섹션에 활용됩니다. 구체적인 업무 상황과 함께 설명해주세요.',
+          priority: 'high',
+          confidence: 0.9
+        },
+        {
+          category: '사용자 니즈',
+          text: '사용자가 이 프로젝트/서비스에서 기대하는 핵심 가치와 목표는 무엇인가?',
+          type: 'textarea',
+          required: true,
+          helpText: '제안서의 "사용자 가치 제안" 섹션에 활용됩니다. 업무 효율성, 비용 절감 등 기대 효과를 포함해주세요.',
+          priority: 'high',
+          confidence: 0.9
+        },
+        {
+          category: '행동 패턴',
+          text: '타겟 사용자의 현재 업무 프로세스와 디지털 도구 사용 습관은 어떠한가?',
+          type: 'textarea',
+          required: true,
+          helpText: '제안서의 "UX 설계 방향" 섹션에 활용됩니다. 일상적인 워크플로우를 설명해주세요.',
+          priority: 'medium',
+          confidence: 0.85
+        },
+        {
+          category: '기술 숙련도',
+          text: '타겟 사용자의 IT/디지털 기술 숙련도 수준은 어느 정도인가?',
+          type: 'select',
+          options: ['초급 (기본 사용만 가능)', '중급 (일반 기능 활용)', '고급 (고급 기능 활용)', '전문가 (기술적 세부사항 이해)'],
+          required: true,
+          helpText: '제안서의 "UI 복잡도 및 온보딩 전략" 섹션에 활용됩니다.',
+          priority: 'medium',
+          confidence: 0.85
+        },
+        {
+          category: '접점/채널',
+          text: '사용자가 주로 사용하는 디바이스와 서비스 접근 환경은 무엇인가?',
+          type: 'multiselect',
+          options: ['데스크톱 PC', '노트북', '태블릿', '스마트폰', '사내 네트워크', '외부 네트워크', '모바일 환경'],
+          required: true,
+          helpText: '제안서의 "멀티채널 전략" 섹션에 활용됩니다.',
+          priority: 'medium',
+          confidence: 0.85
+        }
+      ];
+    }
+
+    // 시장 조사 질문 기본값
+    if (requestType === 'market_research_questions') {
+      return [
+        {
+          category: '시장 규모',
+          text: '클라이언트 산업에서 유사 프로젝트의 시장 규모와 성장 전망은 어떠한가?',
+          type: 'textarea',
+          required: true,
+          helpText: '제안서의 "시장 분석" 섹션에 활용됩니다. 시장 규모, 성장률, 트렌드를 포함해주세요.',
+          priority: 'high',
+          confidence: 0.9
+        },
+        {
+          category: '경쟁 분석',
+          text: '이 RFP에 참여할 것으로 예상되는 경쟁 에이전시와 그들의 강점/약점은?',
+          type: 'textarea',
+          required: true,
+          helpText: '제안서의 "차별화 전략" 섹션에 활용됩니다. 경쟁사 분석과 우리의 우위를 설명해주세요.',
+          priority: 'high',
+          confidence: 0.9
+        },
+        {
+          category: '비즈니스 환경',
+          text: '클라이언트의 비즈니스 환경에서 이 프로젝트가 갖는 전략적 중요성은?',
+          type: 'textarea',
+          required: true,
+          helpText: '클라이언트 입장에서 이 프로젝트의 비즈니스 가치를 분석해주세요.',
+          priority: 'high',
+          confidence: 0.85
+        },
+        {
+          category: '기술 트렌드',
+          text: 'RFP 요구사항에 부합하는 최신 기술 트렌드와 우리의 적용 방안은?',
+          type: 'textarea',
+          required: true,
+          helpText: '업계에서 성공한 기술 솔루션 사례와 우리의 기술 적용 방안을 설명해주세요.',
+          priority: 'medium',
+          confidence: 0.85
+        },
+        {
+          category: '차별화 전략',
+          text: '제안서에서 강조할 수 있는 시장 기회 요소와 ROI 근거 데이터는?',
+          type: 'textarea',
+          required: true,
+          helpText: '수주 가능성을 높일 데이터와 성공 사례를 정리해주세요.',
+          priority: 'high',
+          confidence: 0.85
+        }
+      ];
+    }
+
+    // 제안서 작성 질문 기본값
+    if (requestType === 'proposal_questions') {
+      return [
+        {
+          category: '제안 솔루션',
+          text: 'RFP의 핵심 요구사항을 충족하기 위해 우리가 제안하는 솔루션의 주요 기능과 기술적 접근 방식은?',
+          type: 'textarea',
+          required: true,
+          helpText: '클라이언트 제출용 제안서의 "제안 솔루션" 섹션에 직접 활용됩니다.',
+          priority: 'high',
+          confidence: 0.9
+        },
+        {
+          category: '기술 아키텍처',
+          text: '프로젝트에 우리가 제안하는 기술 스택과 선택 이유는?',
+          type: 'textarea',
+          required: true,
+          helpText: '프론트엔드, 백엔드, DB, 인프라 등 기술 선택과 그 근거를 설명해주세요.',
+          priority: 'high',
+          confidence: 0.9
+        },
+        {
+          category: '팀 구성',
+          text: '프로젝트에 투입할 우리 팀의 구성과 각 역할은?',
+          type: 'textarea',
+          required: true,
+          helpText: 'PM, 개발자, 디자이너 등 역할별 인원과 투입 기간을 명시해주세요.',
+          priority: 'high',
+          confidence: 0.9
+        },
+        {
+          category: '일정 계획',
+          text: '프로젝트를 몇 단계로 나누어 진행하며, 각 단계의 기간과 산출물은?',
+          type: 'textarea',
+          required: true,
+          helpText: '마일스톤, 일정, 주요 산출물을 포함한 개발 계획을 설명해주세요.',
+          priority: 'high',
+          confidence: 0.9
+        },
+        {
+          category: '비용 산정',
+          text: '프로젝트 총 비용과 항목별 상세 내역은?',
+          type: 'textarea',
+          required: true,
+          helpText: '인건비, 인프라, 라이선스 등 항목별 비용 breakdown을 제시해주세요.',
+          priority: 'high',
+          confidence: 0.9
+        },
+        {
+          category: '차별화 요소',
+          text: '경쟁 에이전시 대비 우리만의 차별화 요소는?',
+          type: 'textarea',
+          required: true,
+          helpText: '우리 에이전시의 강점, 유사 프로젝트 경험, 독특한 제안 포인트를 설명해주세요.',
+          priority: 'high',
+          confidence: 0.9
+        }
+      ];
+    }
+
+    // 사전 분석 질문 기본값 (기본)
     return [
       {
-        category: '프로젝트 개요',
-        text: '이 프로젝트의 주요 목표는 무엇입니까?',
+        category: 'RFP 분석',
+        text: 'RFP 분석 결과, 클라이언트의 핵심 요구사항에 대한 우리의 이해는?',
         type: 'textarea',
         required: true,
-        helpText: '프로젝트의 핵심 목적과 기대 효과를 구체적으로 설명해주세요.',
+        helpText: '프로젝트의 핵심 목적과 클라이언트가 중요하게 생각하는 요소를 정리해주세요.',
         priority: 'high',
         confidence: 0.9
       },
       {
-        category: '기술 요구사항',
-        text: '프로젝트에 필요한 주요 기술 스택은 무엇입니까?',
+        category: '경쟁 전략',
+        text: '경쟁사 대비 우리 에이전시만의 차별화된 제안 포인트는?',
         type: 'textarea',
         required: true,
-        helpText: '사용할 프로그래밍 언어, 프레임워크, 데이터베이스 등을 포함해주세요.',
+        helpText: '예상 경쟁 에이전시와 비교하여 우리의 강점을 설명해주세요.',
         priority: 'high',
         confidence: 0.9
       },
       {
-        category: '일정 관리',
-        text: '프로젝트 완료 목표 시점은 언제입니까?',
-        type: 'text',
+        category: '기술 솔루션',
+        text: 'RFP 기술 요구사항을 충족하기 위해 우리가 제안할 기술 스택은?',
+        type: 'textarea',
         required: true,
-        helpText: '예상 완료 날짜나 기간을 입력해주세요.',
+        helpText: '프론트엔드, 백엔드, 데이터베이스 등 기술 선택과 이유를 포함해주세요.',
         priority: 'high',
         confidence: 0.9
       }
