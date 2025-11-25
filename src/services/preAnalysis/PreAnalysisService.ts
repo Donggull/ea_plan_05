@@ -2806,7 +2806,7 @@ ${content}
       // Phase 7/9: 퍼블리싱/개발 관점 (80-87%)
       // ========================================
       console.log('🚀 [Phase 7/9] 퍼블리싱/개발 관점 분석 시작...');
-      const phase5BPrompt = this.generateReportPhase5Prompt(analyses, questions, answers, phase1AContent, phase2Content, phase3Content, phase4Content);
+      const phase5BPrompt = this.generateReportPhase5BPrompt(analyses, questions, answers, phase1AContent, phase2Content, phase3Content, phase4Content);
       console.log('📝 [Phase 7/9] 프롬프트 길이:', phase5BPrompt.length);
 
       this.emitProgressUpdate({
@@ -3419,7 +3419,7 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
 위 JSON 형식을 **정확히 준수**하여 **Phase 4 기초 데이터**를 완성해주세요.`;
   }
 
-  // 🔥 Phase 5 프롬프트 생성 - 4가지 관점 상세 분석 (detailedPerspectives)
+  // 🔥 Phase 5 프롬프트 생성 - 기획/디자인 관점 (간소화)
   private generateReportPhase5Prompt(
     _analyses: any[],
     _questions: any[],
@@ -3429,459 +3429,40 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
     _phase3Result: any,
     phase4Result: any
   ): string {
-    return `# 🎯 웹에이전시 엘루오씨앤씨 - Phase 5/8: 4가지 관점 상세 분석
+    const projectType = phase1Result.agencyPerspective?.projectDecision?.recommendation || '검토중';
+    const reqCount = phase4Result.baselineData?.requirements?.length || 0;
 
-당신은 **웹에이전시 엘루오씨앤씨**의 **수석 프로젝트 전략가**입니다.
-이 단계에서는 **기획/디자인/퍼블리싱/개발** 4가지 관점에서 **상세 분석**을 수행합니다.
+    return `웹에이전시 프로젝트 분석가입니다. 프로젝트: ${projectType}, 요구사항 ${reqCount}개
+## 출력: 순수 JSON만 (마크다운/코드블록 절대 금지)
+{"agencyDetailedAnalysis":{"detailedPerspectives":{"planning":{"scope":{"overview":"기획 범위 설명 80자","keyActivities":["요구사항 정의","화면 설계"]},"complexity":{"level":"중","factors":["복잡도 요인"]},"estimatedEffort":{"hours":160,"manMonths":1,"duration":"4주"},"estimatedCost":{"total":16000000,"currency":"KRW"},"challenges":[{"challenge":"도전과제","impact":"중","mitigation":"대응방안"}],"risks":[{"risk":"리스크","probability":"중","impact":"중"}],"opportunities":[{"opportunity":"기회요소","benefit":"기대효과"}]},"design":{"scope":{"overview":"디자인 범위 설명 80자","keyActivities":["UI 디자인","UX 설계"]},"complexity":{"level":"중","factors":["복잡도 요인"]},"estimatedEffort":{"hours":200,"manMonths":1.2,"duration":"5주"},"estimatedCost":{"total":20000000,"currency":"KRW"},"challenges":[{"challenge":"도전과제","impact":"중","mitigation":"대응방안"}],"risks":[{"risk":"리스크","probability":"중","impact":"중"}],"opportunities":[{"opportunity":"기회요소","benefit":"기대효과"}]},"publishing":{},"development":{}}}}
 
-## 📋 이전 단계 결과
-
-### Phase 1 핵심 분석:
-- 프로젝트 수락: ${phase1Result.agencyPerspective?.projectDecision?.recommendation || 'N/A'}
-- 기획 실행가능성: ${phase1Result.agencyPerspective?.perspectives?.planning?.feasibility || 0}%
-- 디자인 복잡도: ${phase1Result.agencyPerspective?.perspectives?.design?.complexity || 'N/A'}
-- 퍼블리싱 복잡도: ${phase1Result.agencyPerspective?.perspectives?.publishing?.responsiveComplexity || 'N/A'}
-- 개발 복잡도: ${phase1Result.agencyPerspective?.perspectives?.development?.technicalComplexity || 'N/A'}
-
-### Phase 2 리스크:
-- 고위험: ${_phase2Result.riskAssessment?.high?.length || 0}개
-- 중위험: ${_phase2Result.riskAssessment?.medium?.length || 0}개
-
-### Phase 3 권장사항:
-- 실행 권장사항: ${_phase3Result.recommendations?.length || 0}개
-
-### Phase 4 기초 데이터:
-- 핵심 요구사항: ${phase4Result.baselineData?.requirements?.length || 0}개
-- 제약사항: ${phase4Result.baselineData?.constraints?.length || 0}개
-- 기술 스택: ${phase4Result.baselineData?.technicalStack?.slice(0, 3).join(', ') || 'N/A'}
-
----
-
-## 🎨 Phase 5 작성 지침
-
-### 목표:
-- 각 영역별 **상세 범위, 공수, 비용, 산출물** 도출
-- 각 영역별 **어려움(challenges)과 리스크** 식별
-- 각 영역별 **기회 요소(opportunities)** 발견
-
-### 분석 영역:
-1. **기획 (Planning)**: 요구사항 정의, 화면 설계, 프로세스 정의
-2. **디자인 (Design)**: UI/UX 디자인, 디자인 시스템, 프로토타입
-3. **퍼블리싱 (Publishing)**: HTML/CSS, 반응형, 크로스브라우징, 접근성
-4. **개발 (Development)**: 프론트엔드, 백엔드, 데이터베이스, 배포 (개발 없으면 명시)
-
----
-
-## 📝 Phase 5 출력 형식 (JSON)
-
-**⚠️ 이 단계에서는 4가지 관점 상세 분석(detailedPerspectives)만 생성합니다.**
-
-다음 JSON 형식으로 작성하세요:
-
-\`\`\`json
-{
-  "agencyDetailedAnalysis": {
-    "detailedPerspectives": {
-      "planning": {
-        "scope": {
-          "overview": "기획 범위 전반에 대한 상세 설명 (200자 이상)",
-          "keyActivities": [
-            "요구사항 정의서 작성",
-            "화면 설계서 (Wireframe) 작성",
-            "기능 명세서 작성",
-            "프로세스 정의 및 플로우차트"
-          ],
-          "deliverables": [
-            "요구사항 정의서 (RFP)",
-            "화면 설계서 (Wireframe)",
-            "기능 명세서",
-            "프로세스 플로우차트"
-          ]
-        },
-        "complexity": {
-          "level": "중",
-          "factors": [
-            "복잡도 영향 요인 1 (예: 다중 사용자 권한 시스템)",
-            "복잡도 영향 요인 2 (예: 복잡한 비즈니스 로직)"
-          ],
-          "technicalChallenges": [
-            "기술적 난이도 1",
-            "기술적 난이도 2"
-          ]
-        },
-        "estimatedEffort": {
-          "hours": 160,
-          "manMonths": 1.0,
-          "duration": "4주",
-          "breakdown": [
-            { "activity": "요구사항 정의", "hours": 40 },
-            { "activity": "화면 설계", "hours": 60 },
-            { "activity": "기능 명세", "hours": 40 },
-            { "activity": "프로세스 정의", "hours": 20 }
-          ]
-        },
-        "estimatedCost": {
-          "total": 16000000,
-          "breakdown": [
-            { "item": "기획자 인건비", "cost": 12000000 },
-            { "item": "도구 및 라이선스", "cost": 2000000 },
-            { "item": "기타 비용", "cost": 2000000 }
-          ],
-          "currency": "KRW"
-        },
-        "keyDeliverables": [
-          {
-            "name": "요구사항 정의서",
-            "description": "프로젝트 요구사항 상세 문서",
-            "format": "PDF/Word",
-            "estimatedPages": 30
-          },
-          {
-            "name": "화면 설계서",
-            "description": "모든 화면의 Wireframe",
-            "format": "Figma/Sketch",
-            "estimatedScreens": 25
-          }
-        ],
-        "challenges": [
-          {
-            "challenge": "요구사항 불명확성",
-            "impact": "중",
-            "mitigation": "정기적인 고객 미팅 및 프로토타입 검증"
-          },
-          {
-            "challenge": "범위 변경 가능성",
-            "impact": "중",
-            "mitigation": "변경 관리 프로세스 수립 및 우선순위 관리"
-          }
-        ],
-        "risks": [
-          {
-            "risk": "고객 요구사항 변경",
-            "probability": "중",
-            "impact": "중",
-            "mitigation": "Agile 방법론 적용 및 스프린트별 검토"
-          }
-        ],
-        "opportunities": [
-          {
-            "opportunity": "추가 기능 제안",
-            "benefit": "프로젝트 확장 및 매출 증대",
-            "feasibility": "높음"
-          }
-        ]
-      },
-
-      "design": {
-        "scope": {
-          "overview": "디자인 범위 전반에 대한 상세 설명 (200자 이상)",
-          "keyActivities": [
-            "UI/UX 디자인 시안 작성",
-            "디자인 시스템 구축",
-            "프로토타입 제작",
-            "사용자 테스트 및 개선"
-          ],
-          "deliverables": [
-            "디자인 시안 (Figma)",
-            "디자인 시스템 가이드",
-            "인터랙티브 프로토타입",
-            "사용자 테스트 보고서"
-          ]
-        },
-        "complexity": {
-          "level": "중상",
-          "factors": [
-            "복잡도 영향 요인 1 (예: 반응형 디자인 요구)",
-            "복잡도 영향 요인 2 (예: 다크모드 지원)"
-          ],
-          "technicalChallenges": [
-            "크로스 플랫폼 일관성 유지",
-            "접근성(a11y) 준수"
-          ]
-        },
-        "estimatedEffort": {
-          "hours": 240,
-          "manMonths": 1.5,
-          "duration": "6주",
-          "breakdown": [
-            { "activity": "UI/UX 디자인", "hours": 120 },
-            { "activity": "디자인 시스템 구축", "hours": 60 },
-            { "activity": "프로토타입 제작", "hours": 40 },
-            { "activity": "사용자 테스트", "hours": 20 }
-          ]
-        },
-        "estimatedCost": {
-          "total": 24000000,
-          "breakdown": [
-            { "item": "디자이너 인건비", "cost": 18000000 },
-            { "item": "디자인 도구 라이선스", "cost": 3000000 },
-            { "item": "사용자 테스트 비용", "cost": 3000000 }
-          ],
-          "currency": "KRW"
-        },
-        "keyDeliverables": [
-          {
-            "name": "디자인 시안",
-            "description": "모든 화면의 최종 디자인",
-            "format": "Figma",
-            "estimatedScreens": 30
-          },
-          {
-            "name": "디자인 시스템",
-            "description": "재사용 가능한 컴포넌트 라이브러리",
-            "format": "Figma Component Library",
-            "components": 50
-          }
-        ],
-        "challenges": [
-          {
-            "challenge": "브랜드 아이덴티티 일관성",
-            "impact": "중",
-            "mitigation": "디자인 시스템 초기 구축 및 가이드라인 수립"
-          }
-        ],
-        "risks": [
-          {
-            "risk": "디자인 승인 지연",
-            "probability": "중",
-            "impact": "중",
-            "mitigation": "단계별 승인 프로세스 및 빠른 피드백 루프"
-          }
-        ],
-        "opportunities": [
-          {
-            "opportunity": "디자인 시스템 재사용",
-            "benefit": "향후 프로젝트 디자인 기간 단축",
-            "feasibility": "높음"
-          }
-        ]
-      },
-
-      "publishing": {
-        "scope": {
-          "overview": "퍼블리싱 범위 전반에 대한 상세 설명 (200자 이상)",
-          "keyActivities": [
-            "HTML/CSS 마크업",
-            "반응형 웹 구현",
-            "크로스브라우징 대응",
-            "웹 접근성(WCAG 2.1 AA) 준수"
-          ],
-          "deliverables": [
-            "HTML/CSS 정적 페이지",
-            "반응형 레이아웃 (Mobile/Tablet/Desktop)",
-            "크로스브라우징 테스트 보고서",
-            "웹 접근성 검증 보고서"
-          ]
-        },
-        "complexity": {
-          "level": "중",
-          "factors": [
-            "복잡도 영향 요인 1 (예: 다양한 디바이스 지원)",
-            "복잡도 영향 요인 2 (예: 애니메이션 및 인터랙션)"
-          ],
-          "technicalChallenges": [
-            "구형 브라우저 지원",
-            "성능 최적화 (LCP, FID, CLS)"
-          ]
-        },
-        "estimatedEffort": {
-          "hours": 200,
-          "manMonths": 1.25,
-          "duration": "5주",
-          "breakdown": [
-            { "activity": "HTML 마크업", "hours": 80 },
-            { "activity": "CSS 스타일링", "hours": 60 },
-            { "activity": "반응형 구현", "hours": 40 },
-            { "activity": "접근성 준수", "hours": 20 }
-          ]
-        },
-        "estimatedCost": {
-          "total": 18000000,
-          "breakdown": [
-            { "item": "퍼블리셔 인건비", "cost": 15000000 },
-            { "item": "테스트 도구", "cost": 2000000 },
-            { "item": "기타 비용", "cost": 1000000 }
-          ],
-          "currency": "KRW"
-        },
-        "keyDeliverables": [
-          {
-            "name": "정적 HTML 페이지",
-            "description": "모든 화면의 HTML/CSS 마크업",
-            "format": "HTML/CSS/JS",
-            "estimatedPages": 25
-          },
-          {
-            "name": "스타일 가이드",
-            "description": "CSS 컴포넌트 및 사용법",
-            "format": "HTML Documentation",
-            "components": 30
-          }
-        ],
-        "challenges": [
-          {
-            "challenge": "다양한 브라우저 호환성",
-            "impact": "중",
-            "mitigation": "BrowserStack을 활용한 실시간 테스트"
-          }
-        ],
-        "risks": [
-          {
-            "risk": "디자인 변경으로 인한 재작업",
-            "probability": "중",
-            "impact": "중",
-            "mitigation": "디자인 확정 후 퍼블리싱 시작"
-          }
-        ],
-        "opportunities": [
-          {
-            "opportunity": "컴포넌트 라이브러리 구축",
-            "benefit": "향후 프로젝트 퍼블리싱 재사용",
-            "feasibility": "높음"
-          }
-        ]
-      },
-
-      "development": {
-        "scope": {
-          "overview": "개발 범위 전반에 대한 상세 설명 (200자 이상)",
-          "keyActivities": [
-            "프론트엔드 개발 (React/TypeScript)",
-            "백엔드 API 개발 (Node.js)",
-            "데이터베이스 설계 및 구축 (PostgreSQL)",
-            "배포 및 CI/CD 파이프라인 구축"
-          ],
-          "deliverables": [
-            "프론트엔드 애플리케이션",
-            "백엔드 REST API",
-            "데이터베이스 스키마",
-            "배포 파이프라인 및 문서"
-          ]
-        },
-        "complexity": {
-          "level": "상",
-          "factors": [
-            "복잡도 영향 요인 1 (예: 실시간 기능 요구)",
-            "복잡도 영향 요인 2 (예: 외부 API 통합)"
-          ],
-          "technicalChallenges": [
-            "확장 가능한 아키텍처 설계",
-            "보안 및 인증/권한 관리"
-          ]
-        },
-        "estimatedEffort": {
-          "hours": 800,
-          "manMonths": 5.0,
-          "duration": "12주",
-          "breakdown": [
-            { "activity": "프론트엔드 개발", "hours": 320 },
-            { "activity": "백엔드 API 개발", "hours": 280 },
-            { "activity": "데이터베이스 설계", "hours": 120 },
-            { "activity": "배포 및 CI/CD", "hours": 80 }
-          ]
-        },
-        "estimatedCost": {
-          "total": 80000000,
-          "breakdown": [
-            { "item": "프론트엔드 개발자 인건비", "cost": 36000000 },
-            { "item": "백엔드 개발자 인건비", "cost": 28000000 },
-            { "item": "인프라 비용", "cost": 10000000 },
-            { "item": "라이선스 및 도구", "cost": 6000000 }
-          ],
-          "currency": "KRW"
-        },
-        "keyDeliverables": [
-          {
-            "name": "프론트엔드 애플리케이션",
-            "description": "React 기반 SPA",
-            "format": "Web Application",
-            "features": 30
-          },
-          {
-            "name": "백엔드 API",
-            "description": "RESTful API 서버",
-            "format": "Node.js/Express",
-            "endpoints": 50
-          },
-          {
-            "name": "데이터베이스",
-            "description": "PostgreSQL 스키마 및 마이그레이션",
-            "format": "SQL Scripts",
-            "tables": 20
-          }
-        ],
-        "challenges": [
-          {
-            "challenge": "성능 최적화",
-            "impact": "높음",
-            "mitigation": "코드 스플리팅, 캐싱, CDN 활용"
-          },
-          {
-            "challenge": "보안 취약점",
-            "impact": "높음",
-            "mitigation": "정기적인 보안 감사 및 침투 테스트"
-          }
-        ],
-        "risks": [
-          {
-            "risk": "기술 스택 변경 요구",
-            "probability": "낮음",
-            "impact": "높음",
-            "mitigation": "초기 기술 스택 확정 및 고객 승인"
-          },
-          {
-            "risk": "외부 API 의존성",
-            "probability": "중",
-            "impact": "중",
-            "mitigation": "API Fallback 전략 및 에러 핸들링"
-          }
-        ],
-        "opportunities": [
-          {
-            "opportunity": "마이크로서비스 아키텍처 적용",
-            "benefit": "확장성 및 유지보수성 향상",
-            "feasibility": "중"
-          },
-          {
-            "opportunity": "자동화된 테스트 및 CI/CD",
-            "benefit": "배포 속도 및 품질 향상",
-            "feasibility": "높음"
-          }
-        ]
-      }
-    }
-  }
-}
-\`\`\`
-
-**⚠️ Phase 5 필수 작성 필드**:
-1. ✅ **planning** - 기획 관점 상세 분석
-   * scope (overview, keyActivities, deliverables)
-   * complexity (level, factors, technicalChallenges)
-   * estimatedEffort (hours, manMonths, duration, breakdown)
-   * estimatedCost (total, breakdown, currency)
-   * keyDeliverables (최소 2개: name, description, format, 특성 필드)
-   * challenges (최소 2개: challenge, impact, mitigation)
-   * risks (최소 1개: risk, probability, impact, mitigation)
-   * opportunities (최소 1개: opportunity, benefit, feasibility)
-
-2. ✅ **design** - 디자인 관점 상세 분석
-   * scope, complexity, estimatedEffort, estimatedCost, keyDeliverables, challenges, risks, opportunities
-
-3. ✅ **publishing** - 퍼블리싱 관점 상세 분석
-   * scope, complexity, estimatedEffort, estimatedCost, keyDeliverables, challenges, risks, opportunities
-
-4. ✅ **development** - 개발 관점 상세 분석
-   * scope, complexity, estimatedEffort, estimatedCost, keyDeliverables, challenges, risks, opportunities
-**출력 형식 규칙**:
-- ❌ 설명문 없이
-- ❌ 마크다운 코드 블록 없이
-- ✅ 오직 순수 JSON 객체만 반환 ({ 로 시작, } 로 끝)
-
-위 JSON 형식을 **정확히 준수**하여 **Phase 5 상세 분석**을 완성해주세요.`;
+⚠️ 절대 규칙: 1.백틱금지 2.json텍스트금지 3.{로시작}로끝 4.planning+design만상세작성
+위 형식대로 실제 분석 내용을 작성하세요.`;
   }
 
-  // 🔥 6-Phase: Phase 6 프롬프트 - 수익성 + 경쟁력 + 최종 수주 결정
+  // 🔥 Phase 5B 프롬프트 생성 - 퍼블리싱/개발 관점 (간소화)
+  private generateReportPhase5BPrompt(
+    _analyses: any[],
+    _questions: any[],
+    _answers: any[],
+    phase1Result: any,
+    _phase2Result: any,
+    _phase3Result: any,
+    phase4Result: any
+  ): string {
+    const projectType = phase1Result.agencyPerspective?.projectDecision?.recommendation || '검토중';
+    const reqCount = phase4Result.baselineData?.requirements?.length || 0;
+    const techStack = phase4Result.baselineData?.technicalStack?.slice(0, 3).join(', ') || 'React, Node.js';
+
+    return `웹에이전시 프로젝트 분석가입니다. 프로젝트: ${projectType}, 요구사항 ${reqCount}개, 기술스택: ${techStack}
+## 출력: 순수 JSON만 (마크다운/코드블록 절대 금지)
+{"agencyDetailedAnalysis":{"detailedPerspectives":{"planning":{},"design":{},"publishing":{"scope":{"overview":"퍼블리싱 범위 설명 80자","keyActivities":["반응형 마크업","크로스브라우징"]},"complexity":{"level":"중","factors":["복잡도 요인"]},"estimatedEffort":{"hours":120,"manMonths":0.8,"duration":"3주"},"estimatedCost":{"total":12000000,"currency":"KRW"},"challenges":[{"challenge":"도전과제","impact":"중","mitigation":"대응방안"}],"risks":[{"risk":"리스크","probability":"중","impact":"중"}],"opportunities":[{"opportunity":"기회요소","benefit":"기대효과"}]},"development":{"scope":{"overview":"개발 범위 설명 80자","keyActivities":["API 개발","DB 설계"]},"complexity":{"level":"중","factors":["복잡도 요인"]},"estimatedEffort":{"hours":320,"manMonths":2,"duration":"8주"},"estimatedCost":{"total":32000000,"currency":"KRW"},"challenges":[{"challenge":"도전과제","impact":"중","mitigation":"대응방안"}],"risks":[{"risk":"리스크","probability":"중","impact":"중"}],"opportunities":[{"opportunity":"기회요소","benefit":"기대효과"}]}}}}
+
+⚠️ 절대 규칙: 1.백틱금지 2.json텍스트금지 3.{로시작}로끝 4.publishing+development만상세작성
+위 형식대로 실제 분석 내용을 작성하세요.`;
+  }
+
+  // 🔥 Phase 6 프롬프트 - 수익성 + 경쟁력 + 최종 수주 결정 (간소화)
   private generateReportPhase6Prompt(
     _analyses: any[],
     _questions: any[],
@@ -3892,84 +3473,21 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
     phase4Result: any,
     phase5Result: any
   ): string {
-    const phase1Summary = {
-      recommendation: phase1Result.agencyPerspective?.projectDecision?.recommendation || 'N/A',
-      confidence: phase1Result.agencyPerspective?.projectDecision?.confidence || 0,
-    };
+    const recommendation = phase1Result.agencyPerspective?.projectDecision?.recommendation || '검토중';
+    const confidence = phase1Result.agencyPerspective?.projectDecision?.confidence || 0;
+    const reqCount = phase4Result.baselineData?.requirements?.length || 0;
+    const planCost = phase5Result.agencyDetailedAnalysis?.detailedPerspectives?.planning?.estimatedCost?.total || 16000000;
+    const designCost = phase5Result.agencyDetailedAnalysis?.detailedPerspectives?.design?.estimatedCost?.total || 20000000;
 
-    const phase4Summary = {
-      requirementsCount: phase4Result.baselineData?.requirements?.length || 0,
-      techStack: phase4Result.baselineData?.technicalStack?.slice(0, 3).join(', ') || 'N/A',
-    };
+    return `웹에이전시 수익성 분석가입니다. 프로젝트: ${recommendation}(확신도${confidence}%), 요구사항 ${reqCount}개, 기획비용 ${planCost/1000000}백만원, 디자인비용 ${designCost/1000000}백만원
+## 출력: 순수 JSON만 (마크다운/코드블록 절대 금지)
+{"agencyDetailedAnalysis":{"profitability":{"totalEstimatedRevenue":100000000,"costBreakdown":{"planning":16000000,"design":20000000,"publishing":12000000,"development":32000000,"overhead":5000000,"buffer":5000000},"totalEstimatedCost":90000000,"totalProfit":10000000,"profitMargin":10,"roi":11.1,"paybackPeriod":"3개월","analysis":"수익성 분석 100자"},"competitiveness":{"ourStrengths":["강점1","강점2","강점3"],"ourWeaknesses":["약점1","약점2"],"differentiators":["차별화1","차별화2"],"competitiveAdvantage":"경쟁우위 100자"},"finalDecision":{"recommendation":"accept","confidence":85,"reasoning":"최종결정근거 200자","conditions":["조건1","조건2"],"strategicValue":{"portfolioValue":80,"brandValue":75,"futureOpportunities":70,"customerRelationship":85,"analysis":"전략적가치 100자"}}}}
 
-    const phase5Summary = {
-      planningEstimatedEffort: phase5Result.agencyDetailedAnalysis?.detailedPerspectives?.planning?.estimatedEffort || 'N/A',
-      designEstimatedCost: phase5Result.agencyDetailedAnalysis?.detailedPerspectives?.design?.estimatedCost || 0,
-      publishingEstimatedCost: phase5Result.agencyDetailedAnalysis?.detailedPerspectives?.publishing?.estimatedCost || 0,
-      developmentEstimatedCost: phase5Result.agencyDetailedAnalysis?.detailedPerspectives?.development?.estimatedCost || 0,
-    };
-
-    return `# 🎯 웹에이전시 엘루오씨앤씨 - Phase 6/8: 수익성 + 경쟁력 + 최종 결정
-
-이전 Phase 결과:
-- Phase 1 수락 권장: ${phase1Summary.recommendation} (확신도: ${phase1Summary.confidence}%)
-- Phase 4 핵심 요구사항: ${phase4Summary.requirementsCount}개
-- Phase 5 기획 공수: ${phase5Summary.planningEstimatedEffort}
-- Phase 5 예상 비용: 디자인 ${phase5Summary.designEstimatedCost / 1000000}백만원, 퍼블리싱 ${phase5Summary.publishingEstimatedCost / 1000000}백만원, 개발 ${phase5Summary.developmentEstimatedCost / 1000000}백만원
-
-다음 JSON 형식으로 수익성 분석, 경쟁력 분석, 최종 수주 결정을 작성하세요:
-
-\`\`\`json
-{
-  "agencyDetailedAnalysis": {
-    "profitability": {
-      "totalEstimatedRevenue": 100000000,
-      "costBreakdown": {
-        "planning": 10000000,
-        "design": 15000000,
-        "publishing": 8000000,
-        "development": 40000000,
-        "overhead": 7000000,
-        "buffer": 5000000
-      },
-      "totalEstimatedCost": 85000000,
-      "totalProfit": 15000000,
-      "profitMargin": 15.0,
-      "roi": 17.6,
-      "paybackPeriod": "3개월",
-      "analysis": "수익성 분석 설명 (100자 이상)"
-    },
-    "competitiveness": {
-      "ourStrengths": ["우리 회사 강점 3개"],
-      "ourWeaknesses": ["우리 회사 약점 2개"],
-      "differentiators": ["경쟁사 대비 차별화 요소 3개"],
-      "competitiveAdvantage": "종합 경쟁 우위 평가 (100자 이상)"
-    },
-    "finalDecision": {
-      "recommendation": "accept|conditional_accept|decline",
-      "confidence": 85,
-      "reasoning": "최종 결정 근거 (200자 이상)",
-      "conditions": ["조건부 수락 시 필요 조건 (2개 이상, 없으면 빈 배열)"],
-      "strategicValue": {
-        "portfolioValue": 80,
-        "brandValue": 75,
-        "futureOpportunities": 70,
-        "customerRelationship": 85,
-        "analysis": "전략적 가치 설명 (100자 이상)"
-      }
-    }
-  }
-}
-\`\`\`
-
-⚠️ 출력 형식 엄수:
-- JSON 객체만 반환 ({ 로 시작, } 로 끝)
-- 절대로 \`\`\`를 사용하지 마세요
-- 절대로 마크다운 코드블록을 사용하지 마세요
-- 설명, 주석, 추가 텍스트 일체 금지`;
+⚠️ 절대 규칙: 1.백틱금지 2.json텍스트금지 3.{로시작}로끝 4.실제분석내용작성
+위 형식대로 실제 분석 내용을 작성하세요.`;
   }
 
-  // 🔥 Phase 7 프롬프트 - WBS + 리소스 계획
+  // 🔥 Phase 7 프롬프트 - WBS + 리소스 계획 (간소화)
   private generateReportPhase7Prompt(
     _analyses: any[],
     _questions: any[],
@@ -3981,92 +3499,17 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
     phase5Result: any,
     phase6Result: any
   ): string {
-    const phase4Summary = {
-      requirementsCount: phase4Result.baselineData?.requirements?.length || 0,
-      techStack: phase4Result.baselineData?.technicalStack?.slice(0, 3).join(', ') || 'N/A',
-    };
+    const reqCount = phase4Result.baselineData?.requirements?.length || 0;
+    const planHours = phase5Result.agencyDetailedAnalysis?.detailedPerspectives?.planning?.estimatedEffort?.hours || 160;
+    const finalRec = phase6Result.agencyDetailedAnalysis?.finalDecision?.recommendation || 'accept';
+    const totalRevenue = phase6Result.agencyDetailedAnalysis?.profitability?.totalEstimatedRevenue || 100000000;
 
-    const phase5Summary = {
-      planningHours: phase5Result.agencyDetailedAnalysis?.detailedPerspectives?.planning?.estimatedEffort || 'N/A',
-      designHours: phase5Result.agencyDetailedAnalysis?.detailedPerspectives?.design?.estimatedEffort || 'N/A',
-    };
+    return `웹에이전시 WBS 분석가입니다. 요구사항 ${reqCount}개, 기획공수 ${planHours}시간, 최종권장: ${finalRec}, 예상매출 ${totalRevenue/1000000}백만원
+## 출력: 순수 JSON만 (마크다운/코드블록 절대 금지)
+{"executionPlan":{"wbs":[{"id":"1","task":"기획단계","description":"요구사항정의 및 화면설계","subtasks":[{"id":"1.1","task":"요구사항정의서","estimatedHours":40,"assignee":"기획자","deliverable":"요구사항정의서","dependencies":[]}],"totalHours":80,"duration":"2주","startDate":"2025-02-01","endDate":"2025-02-14"},{"id":"2","task":"디자인단계","description":"UI/UX 설계","subtasks":[{"id":"2.1","task":"UI디자인","estimatedHours":60,"assignee":"디자이너","deliverable":"디자인시안","dependencies":["1"]}],"totalHours":100,"duration":"3주","startDate":"2025-02-15","endDate":"2025-03-07"},{"id":"3","task":"퍼블리싱단계","description":"마크업작업","subtasks":[{"id":"3.1","task":"반응형마크업","estimatedHours":80,"assignee":"퍼블리셔","deliverable":"HTML/CSS","dependencies":["2"]}],"totalHours":120,"duration":"3주","startDate":"2025-03-08","endDate":"2025-03-28"},{"id":"4","task":"개발단계","description":"백엔드/프론트엔드개발","subtasks":[{"id":"4.1","task":"API개발","estimatedHours":160,"assignee":"개발자","deliverable":"API","dependencies":["3"]}],"totalHours":320,"duration":"8주","startDate":"2025-03-29","endDate":"2025-05-23"}],"resourcePlan":{"teamComposition":[{"role":"PM","count":1,"allocation":"50%","manMonths":1.5,"responsibilities":["총괄","일정관리"],"requiredSkills":["PM","커뮤니케이션"]},{"role":"기획자","count":1,"allocation":"100%","manMonths":1,"responsibilities":["요구사항","화면설계"],"requiredSkills":["기획","문서화"]},{"role":"디자이너","count":1,"allocation":"100%","manMonths":1.2,"responsibilities":["UI","UX"],"requiredSkills":["Figma","UI설계"]},{"role":"퍼블리셔","count":1,"allocation":"100%","manMonths":0.8,"responsibilities":["마크업","반응형"],"requiredSkills":["HTML","CSS"]},{"role":"개발자","count":2,"allocation":"100%","manMonths":4,"responsibilities":["API","프론트"],"requiredSkills":["React","Node.js"]}],"totalManMonths":8.5,"totalCost":85000000,"timeline":"4개월"}}}
 
-    const phase6Summary = {
-      finalRecommendation: phase6Result.agencyDetailedAnalysis?.finalDecision?.recommendation || 'N/A',
-      confidence: phase6Result.agencyDetailedAnalysis?.finalDecision?.confidence || 0,
-      totalRevenue: phase6Result.agencyDetailedAnalysis?.profitability?.totalEstimatedRevenue || 0,
-      profitMargin: phase6Result.agencyDetailedAnalysis?.profitability?.profitMargin || 0,
-    };
-
-    return `# 🎯 웹에이전시 엘루오씨앤씨 - Phase 7/8: WBS + 리소스 계획
-
-이전 Phase 결과:
-- Phase 4 핵심 요구사항: ${phase4Summary.requirementsCount}개
-- Phase 5 기획 공수: ${phase5Summary.planningHours}, 디자인 공수: ${phase5Summary.designHours}
-- Phase 6 최종 권장: ${phase6Summary.finalRecommendation} (확신도: ${phase6Summary.confidence}%)
-- Phase 6 예상 매출: ${(phase6Summary.totalRevenue / 1000000).toFixed(1)}백만원, 이익률: ${phase6Summary.profitMargin.toFixed(1)}%
-
-**⚠️ 이 단계에서는 WBS(작업 분해 구조)와 리소스 계획만 작성합니다.**
-**제안서와 다음 단계는 Phase 8에서 작성됩니다.**
-
-다음 JSON 형식으로 WBS와 리소스 계획을 작성하세요:
-
-\`\`\`json
-{
-  "executionPlan": {
-    "wbs": [
-      {
-        "id": "1",
-        "task": "기획 단계",
-        "description": "요구사항 정의 및 화면 설계",
-        "subtasks": [
-          {
-            "id": "1.1",
-            "task": "요구사항 정의서 작성",
-            "estimatedHours": 40,
-            "assignee": "기획자",
-            "deliverable": "요구사항 정의서",
-            "dependencies": []
-          }
-        ],
-        "totalHours": 80,
-        "duration": "2주",
-        "startDate": "2025-02-01",
-        "endDate": "2025-02-14"
-      }
-    ],
-    "resourcePlan": {
-      "teamComposition": [
-        {
-          "role": "프로젝트 매니저",
-          "count": 1,
-          "allocation": "50%",
-          "manMonths": 0.5,
-          "responsibilities": ["프로젝트 총괄", "일정 관리"],
-          "requiredSkills": ["프로젝트 관리", "커뮤니케이션"]
-        }
-      ],
-      "totalManMonths": 6.0,
-      "totalCost": 60000000,
-      "timeline": "3개월"
-    }
-  }
-}
-\`\`\`
-
-**⚠️ Phase 7 필수 작성 필드**:
-1. ✅ **executionPlan.wbs** - 작업 분해 구조 (최소 4개 주요 작업)
-   * 각 작업은 id, task, description, subtasks, totalHours, duration, startDate, endDate 포함
-   * 각 subtask는 id, task, estimatedHours, assignee, deliverable, dependencies 포함
-2. ✅ **executionPlan.resourcePlan** - 리소스 계획
-   * teamComposition (최소 5개 역할)
-   * totalManMonths, totalCost, timeline 포함
-
-⚠️ 출력 형식 엄수:
-- JSON 객체만 반환 ({ 로 시작, } 로 끝)
-- 절대로 \`\`\`를 사용하지 마세요
-- 절대로 마크다운 코드블록을 사용하지 마세요
-- 설명, 주석, 추가 텍스트 일체 금지`;
+⚠️ 절대 규칙: 1.백틱금지 2.json텍스트금지 3.{로시작}로끝 4.wbs최소4단계+resourcePlan필수
+위 형식대로 실제 분석 내용을 작성하세요.`;
   }
 
   // 🔥 Phase 8 프롬프트 - 제안서 + 발표자료 + 다음 단계 (현재 사용 안함 - Phase 8 건너뜀)
