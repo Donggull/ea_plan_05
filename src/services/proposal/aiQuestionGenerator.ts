@@ -332,11 +332,14 @@ export class AIQuestionGenerator {
       console.log('🔌 전용 AI 질문 생성 API 엔드포인트 사용');
 
       // AI 모델 선택: selectedModelId가 있으면 사용, 없으면 기본값
+      // 🔧 기본 모델을 최신 Claude Sonnet 4.5로 변경 (claude-3-5-sonnet-20241022 → claude-sonnet-4-5-20250929)
       let selectedProvider = 'anthropic';
-      let selectedModel = 'claude-3-5-sonnet-20241022';
+      let selectedModel = 'claude-sonnet-4-5-20250929';
+
+      console.log('🔍 [AIQuestionGenerator] 모델 선택 시작, selectedModelId:', selectedModelId);
 
       if (selectedModelId) {
-        console.log('🎯 Left 사이드바 선택 모델 사용:', selectedModelId);
+        console.log('🎯 Left 사이드바 선택 모델 UUID:', selectedModelId);
 
         // ai_models 테이블에서 모델 정보 조회
         if (supabase) {
@@ -349,13 +352,27 @@ export class AIQuestionGenerator {
           if (!modelError && modelData) {
             selectedProvider = modelData.provider;
             selectedModel = modelData.model_id;
-            console.log('✅ 선택된 모델 정보:', { provider: selectedProvider, model: selectedModel, name: modelData.name });
+            console.log('✅ [AIQuestionGenerator] 선택된 모델 정보:', {
+              provider: selectedProvider,
+              model: selectedModel,
+              name: modelData.name,
+              uuid: selectedModelId
+            });
           } else {
-            console.warn('⚠️ 선택된 모델 조회 실패, 기본 모델 사용:', modelError);
+            console.warn('⚠️ [AIQuestionGenerator] 선택된 모델 조회 실패, 기본 모델 사용:', {
+              error: modelError,
+              selectedModelId,
+              fallbackModel: selectedModel
+            });
           }
+        } else {
+          console.warn('⚠️ [AIQuestionGenerator] Supabase 클라이언트 없음, 기본 모델 사용');
         }
       } else {
-        console.log('📌 기본 모델 사용:', { provider: selectedProvider, model: selectedModel });
+        console.log('📌 [AIQuestionGenerator] selectedModelId 없음, 기본 모델 사용:', {
+          provider: selectedProvider,
+          model: selectedModel
+        });
       }
 
       // 개발환경에서는 Vercel 프로덕션 API 직접 호출, 프로덕션에서는 상대 경로 사용
