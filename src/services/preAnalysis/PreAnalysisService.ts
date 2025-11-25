@@ -2944,8 +2944,7 @@ ${content}
       // ========================================
       console.log('⏭️ [Skip] 수익성 분석 및 실행 계획 세부 Phase 건너뛰기 (사용자 요청)');
 
-      // 빈 객체 할당 (병합 시 오류 방지)
-      const phase7B1Content = { executionPlan: { resourcePlan: { teamComposition: [] } } };
+      // 빈 객체 할당 (병합 시 오류 방지) - phase7B1Content는 Phase 7A로 통합되어 제거됨
       const phase7B2Content = { executionPlan: { resourcePlan: { totalManMonths: 0, totalCost: 0, timeline: {}, costBreakdown: {}, paymentSchedule: [] } } };
       const phase8A1Content = { executionPlan: { proposalOutline: { title: '', sections: [], appendix: [] } } };
       const phase8A2Content = { executionPlan: { proposalContent: { executiveSummary: '', problemStatement: '', proposedSolution: '', keyBenefits: [], differentiators: [], successMetrics: [] } } };
@@ -3083,12 +3082,13 @@ ${content}
         // Phase 9/9: WBS + 실행 계획 (간소화)
         executionPlan: {
           wbs: phase7AContent.executionPlan?.wbs || [],
-          // 리소스 계획 (기본값)
+          // 리소스 계획 (Phase 7A에서 가져오기 - 간소화된 구조)
           resourcePlan: {
-            teamComposition: phase7B1Content.executionPlan?.resourcePlan?.teamComposition || [],
-            totalManMonths: phase7B2Content.executionPlan?.resourcePlan?.totalManMonths || 0,
-            totalCost: phase7B2Content.executionPlan?.resourcePlan?.totalCost || 0,
-            timeline: phase7B2Content.executionPlan?.resourcePlan?.timeline || {},
+            // 새 간소화 구조: team → teamComposition 변환
+            teamComposition: this.convertTeamToComposition(phase7AContent.executionPlan?.resourcePlan?.team),
+            totalManMonths: phase7AContent.executionPlan?.resourcePlan?.totalMM || phase7AContent.executionPlan?.resourcePlan?.totalManMonths || 0,
+            totalCost: phase7AContent.executionPlan?.resourcePlan?.cost || phase7AContent.executionPlan?.resourcePlan?.totalCost || 0,
+            timeline: phase7AContent.executionPlan?.resourcePlan?.timeline || '미정',
             costBreakdown: phase7B2Content.executionPlan?.resourcePlan?.costBreakdown || {},
             paymentSchedule: phase7B2Content.executionPlan?.resourcePlan?.paymentSchedule || [],
           },
@@ -3514,7 +3514,7 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
 위 형식대로 실제 분석 내용을 작성하세요.`;
   }
 
-  // 🔥 Phase 7 프롬프트 - WBS + 리소스 계획 (간소화)
+  // 🔥 Phase 7 프롬프트 - WBS + 리소스 계획 (초간소화)
   private generateReportPhase7Prompt(
     _analyses: any[],
     _questions: any[],
@@ -3531,12 +3531,10 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
     const finalRec = phase6Result.agencyDetailedAnalysis?.finalDecision?.recommendation || 'accept';
     const totalRevenue = phase6Result.agencyDetailedAnalysis?.profitability?.totalEstimatedRevenue || 100000000;
 
-    return `웹에이전시 WBS 분석가입니다. 요구사항 ${reqCount}개, 기획공수 ${planHours}시간, 최종권장: ${finalRec}, 예상매출 ${totalRevenue/1000000}백만원
-## 출력: 순수 JSON만 (마크다운/코드블록 절대 금지)
-{"executionPlan":{"wbs":[{"id":"1","task":"기획단계","description":"요구사항정의 및 화면설계","subtasks":[{"id":"1.1","task":"요구사항정의서","estimatedHours":40,"assignee":"기획자","deliverable":"요구사항정의서","dependencies":[]}],"totalHours":80,"duration":"2주","startDate":"2025-02-01","endDate":"2025-02-14"},{"id":"2","task":"디자인단계","description":"UI/UX 설계","subtasks":[{"id":"2.1","task":"UI디자인","estimatedHours":60,"assignee":"디자이너","deliverable":"디자인시안","dependencies":["1"]}],"totalHours":100,"duration":"3주","startDate":"2025-02-15","endDate":"2025-03-07"},{"id":"3","task":"퍼블리싱단계","description":"마크업작업","subtasks":[{"id":"3.1","task":"반응형마크업","estimatedHours":80,"assignee":"퍼블리셔","deliverable":"HTML/CSS","dependencies":["2"]}],"totalHours":120,"duration":"3주","startDate":"2025-03-08","endDate":"2025-03-28"},{"id":"4","task":"개발단계","description":"백엔드/프론트엔드개발","subtasks":[{"id":"4.1","task":"API개발","estimatedHours":160,"assignee":"개발자","deliverable":"API","dependencies":["3"]}],"totalHours":320,"duration":"8주","startDate":"2025-03-29","endDate":"2025-05-23"}],"resourcePlan":{"teamComposition":[{"role":"PM","count":1,"allocation":"50%","manMonths":1.5,"responsibilities":["총괄","일정관리"],"requiredSkills":["PM","커뮤니케이션"]},{"role":"기획자","count":1,"allocation":"100%","manMonths":1,"responsibilities":["요구사항","화면설계"],"requiredSkills":["기획","문서화"]},{"role":"디자이너","count":1,"allocation":"100%","manMonths":1.2,"responsibilities":["UI","UX"],"requiredSkills":["Figma","UI설계"]},{"role":"퍼블리셔","count":1,"allocation":"100%","manMonths":0.8,"responsibilities":["마크업","반응형"],"requiredSkills":["HTML","CSS"]},{"role":"개발자","count":2,"allocation":"100%","manMonths":4,"responsibilities":["API","프론트"],"requiredSkills":["React","Node.js"]}],"totalManMonths":8.5,"totalCost":85000000,"timeline":"4개월"}}}
-
-⚠️ 절대 규칙: 1.백틱금지 2.json텍스트금지 3.{로시작}로끝 4.wbs최소4단계+resourcePlan필수
-위 형식대로 실제 분석 내용을 작성하세요.`;
+    return `WBS분석가. 요구사항${reqCount}개, 기획${planHours}h, 권장:${finalRec}, 매출${totalRevenue/1000000}백만
+## 순수JSON만출력(백틱/마크다운금지)
+{"executionPlan":{"wbs":[{"id":"1","task":"기획","hours":80,"duration":"2주"},{"id":"2","task":"디자인","hours":100,"duration":"3주"},{"id":"3","task":"퍼블","hours":120,"duration":"3주"},{"id":"4","task":"개발","hours":320,"duration":"8주"}],"resourcePlan":{"team":[{"role":"PM","mm":1.5},{"role":"기획","mm":1},{"role":"디자인","mm":1.2},{"role":"퍼블","mm":0.8},{"role":"개발","mm":4}],"totalMM":8.5,"cost":85000000,"timeline":"4개월"}}}
+⚠️규칙:백틱금지,{시작}끝,wbs4개+team5개필수`;
   }
 
   // 🔥 Phase 8 프롬프트 - 제안서 + 발표자료 + 다음 단계 (현재 사용 안함 - Phase 8 건너뜀)
@@ -6809,6 +6807,21 @@ ${incompleteItems.length > 0 ? `- 우선순위 2: ${incompleteItems.length}개 �
       if (item.description) return item.description;
       return JSON.stringify(item);
     }).filter(Boolean);
+  }
+
+  /**
+   * 간소화된 team 배열을 teamComposition 구조로 변환
+   */
+  private convertTeamToComposition(team: any[] | undefined): any[] {
+    if (!team || !Array.isArray(team)) return [];
+    return team.map(member => ({
+      role: member.role || '역할',
+      count: member.count || 1,
+      allocation: member.allocation || '100%',
+      manMonths: member.mm || member.manMonths || 0,
+      responsibilities: member.responsibilities || [],
+      requiredSkills: member.requiredSkills || member.skills || [],
+    }));
   }
 }
 
