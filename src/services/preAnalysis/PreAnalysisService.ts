@@ -2940,235 +2940,31 @@ ${content}
       });
 
       // ========================================
-      // Phase 7B-1: 팀 구성 (82-85%) - NEW
+      // Phase 7B-1, 7B-2, 8A-1, 8A-2, 8B: 건너뛰기 (수익성 분석, 실행 계획 제외)
       // ========================================
-      console.log('🚀 [Phase 7B-1/14] 팀 구성 작성 시작...');
-      const phase7B1Prompt = this.generateReportPhase7B1Prompt(analyses, questions, answers, phase4Content, phase5AContent, phase6Content, phase7AContent);
-      console.log('📝 [Phase 7B-1/14] 프롬프트 길이:', phase7B1Prompt.length);
+      console.log('⏭️ [Phase 7B~8B] 수익성 분석 및 실행 계획 Phase 건너뛰기 (사용자 요청)');
 
+      // 빈 객체 할당 (병합 시 오류 방지)
+      const phase7B1Content = { executionPlan: { resourcePlan: { teamComposition: [] } } };
+      const phase7B2Content = { executionPlan: { resourcePlan: { totalManMonths: 0, totalCost: 0, timeline: {}, costBreakdown: {}, paymentSchedule: [] } } };
+      const phase8A1Content = { executionPlan: { proposalOutline: { title: '', sections: [], appendix: [] } } };
+      const phase8A2Content = { executionPlan: { proposalContent: { executiveSummary: '', problemStatement: '', proposedSolution: '', keyBenefits: [], differentiators: [], successMetrics: [] } } };
+      const phase8BContent = { executionPlan: { presentationOutline: [], nextSteps: [] } };
+
+      // 진행률 업데이트 (바로 병합 단계로)
       this.emitProgressUpdate({
         sessionId,
         stage: 'report_generation',
         status: 'processing',
-        progress: 82,
-        message: 'Phase 7B-1/14: 팀 구성 작성 중...',
+        progress: 90,
+        message: '최종 보고서 병합 중...',
         timestamp: new Date(),
       }).catch(() => {});
 
-      const phase7B1Response = await this.callAICompletionAPIStreaming(
-        aiProvider,
-        aiModel,
-        phase7B1Prompt,
-        5000, // Phase 7B-1: 팀 구성 (한글 특성상 토큰 많이 필요)
-        0.2,
-        (_chunk, fullContent) => {
-          const charCount = fullContent.length;
-          const progress = Math.min(85, 82 + Math.floor(charCount / 667));
-          console.log(`📊 [Phase 7B-1/14 Streaming] ${charCount} chars, ${progress}%`);
-
-          this.emitProgressUpdate({
-            sessionId,
-            stage: 'report_generation',
-            status: 'processing',
-            progress,
-            message: `Phase 7B-1/14 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
-            timestamp: new Date(),
-          }).catch(() => {});
-        }
-      );
-
-      console.log('✅ [Phase 7B-1/14] 응답 완료:', { length: phase7B1Response.content?.length });
-      const phase7B1Content = this.parseReportResponse(phase7B1Response.content, analyses, answers);
-      console.log('✅ [Phase 7B-1/14] 파싱 완료:', {
-        hasTeamComposition: !!phase7B1Content.executionPlan?.resourcePlan?.teamComposition,
-        teamSize: phase7B1Content.executionPlan?.resourcePlan?.teamComposition?.length || 0
-      });
-
       // ========================================
-      // Phase 7B-2: 비용 산정 (85-88%) - NEW
+      // 9개 Phase 결과 병합 (간소화됨)
       // ========================================
-      console.log('🚀 [Phase 7B-2/14] 비용 산정 작성 시작...');
-      const phase7B2Prompt = this.generateReportPhase7B2Prompt(analyses, questions, answers, phase6Content, phase7B1Content);
-      console.log('📝 [Phase 7B-2/14] 프롬프트 길이:', phase7B2Prompt.length);
-
-      this.emitProgressUpdate({
-        sessionId,
-        stage: 'report_generation',
-        status: 'processing',
-        progress: 85,
-        message: 'Phase 7B-2/14: 비용 산정 작성 중...',
-        timestamp: new Date(),
-      }).catch(() => {});
-
-      const phase7B2Response = await this.callAICompletionAPIStreaming(
-        aiProvider,
-        aiModel,
-        phase7B2Prompt,
-        5000, // Phase 7B-2: 비용 산정 (한글 특성상 토큰 많이 필요)
-        0.2,
-        (_chunk, fullContent) => {
-          const charCount = fullContent.length;
-          const progress = Math.min(88, 85 + Math.floor(charCount / 667));
-          console.log(`📊 [Phase 7B-2/14 Streaming] ${charCount} chars, ${progress}%`);
-
-          this.emitProgressUpdate({
-            sessionId,
-            stage: 'report_generation',
-            status: 'processing',
-            progress,
-            message: `Phase 7B-2/14 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
-            timestamp: new Date(),
-          }).catch(() => {});
-        }
-      );
-
-      console.log('✅ [Phase 7B-2/14] 응답 완료:', { length: phase7B2Response.content?.length });
-      const phase7B2Content = this.parseReportResponse(phase7B2Response.content, analyses, answers);
-      console.log('✅ [Phase 7B-2/14] 파싱 완료:', {
-        hasCostBreakdown: !!phase7B2Content.executionPlan?.resourcePlan?.costBreakdown,
-        hasPaymentSchedule: !!phase7B2Content.executionPlan?.resourcePlan?.paymentSchedule
-      });
-
-      // ========================================
-      // Phase 8A-1: 제안서 목차 (88-91%) - NEW
-      // ========================================
-      console.log('🚀 [Phase 8A-1/14] 제안서 목차 작성 시작...');
-      const phase8A1Prompt = this.generateReportPhase8A1Prompt(analyses, questions, answers, phase1AContent, phase6Content);
-      console.log('📝 [Phase 8A-1/14] 프롬프트 길이:', phase8A1Prompt.length);
-
-      this.emitProgressUpdate({
-        sessionId,
-        stage: 'report_generation',
-        status: 'processing',
-        progress: 88,
-        message: 'Phase 8A-1/14: 제안서 목차 작성 중...',
-        timestamp: new Date(),
-      }).catch(() => {});
-
-      const phase8A1Response = await this.callAICompletionAPIStreaming(
-        aiProvider,
-        aiModel,
-        phase8A1Prompt,
-        4000, // Phase 8A-1: 제안서 목차 (한글 특성상 토큰 많이 필요)
-        0.2,
-        (_chunk, fullContent) => {
-          const charCount = fullContent.length;
-          const progress = Math.min(91, 88 + Math.floor(charCount / 500));
-          console.log(`📊 [Phase 8A-1/14 Streaming] ${charCount} chars, ${progress}%`);
-
-          this.emitProgressUpdate({
-            sessionId,
-            stage: 'report_generation',
-            status: 'processing',
-            progress,
-            message: `Phase 8A-1/14 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
-            timestamp: new Date(),
-          }).catch(() => {});
-        }
-      );
-
-      console.log('✅ [Phase 8A-1/14] 응답 완료:', { length: phase8A1Response.content?.length });
-      const phase8A1Content = this.parseReportResponse(phase8A1Response.content, analyses, answers);
-      console.log('✅ [Phase 8A-1/14] 파싱 완료:', {
-        hasProposalOutline: !!phase8A1Content.executionPlan?.proposalOutline,
-        sectionsCount: phase8A1Content.executionPlan?.proposalOutline?.sections?.length || 0
-      });
-
-      // ========================================
-      // Phase 8A-2: 제안서 핵심 내용 (91-94%) - NEW
-      // ========================================
-      console.log('🚀 [Phase 8A-2/14] 제안서 핵심 내용 작성 시작...');
-      const phase8A2Prompt = this.generateReportPhase8A2Prompt(analyses, questions, answers, phase4Content, phase5AContent, phase6Content, phase7AContent);
-      console.log('📝 [Phase 8A-2/14] 프롬프트 길이:', phase8A2Prompt.length);
-
-      this.emitProgressUpdate({
-        sessionId,
-        stage: 'report_generation',
-        status: 'processing',
-        progress: 91,
-        message: 'Phase 8A-2/14: 제안서 핵심 내용 작성 중...',
-        timestamp: new Date(),
-      }).catch(() => {});
-
-      const phase8A2Response = await this.callAICompletionAPIStreaming(
-        aiProvider,
-        aiModel,
-        phase8A2Prompt,
-        6000, // Phase 8A-2: 제안서 핵심 내용 (한글 특성상 토큰 많이 필요)
-        0.2,
-        (_chunk, fullContent) => {
-          const charCount = fullContent.length;
-          const progress = Math.min(94, 91 + Math.floor(charCount / 833));
-          console.log(`📊 [Phase 8A-2/14 Streaming] ${charCount} chars, ${progress}%`);
-
-          this.emitProgressUpdate({
-            sessionId,
-            stage: 'report_generation',
-            status: 'processing',
-            progress,
-            message: `Phase 8A-2/14 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
-            timestamp: new Date(),
-          }).catch(() => {});
-        }
-      );
-
-      console.log('✅ [Phase 8A-2/14] 응답 완료:', { length: phase8A2Response.content?.length });
-      const phase8A2Content = this.parseReportResponse(phase8A2Response.content, analyses, answers);
-      console.log('✅ [Phase 8A-2/14] 파싱 완료:', {
-        hasProposalContent: !!phase8A2Content.executionPlan?.proposalContent,
-        hasExecutiveSummary: !!phase8A2Content.executionPlan?.proposalContent?.executiveSummary
-      });
-
-      // ========================================
-      // Phase 8B: 발표자료+다음단계 (94-100%)
-      // ========================================
-      console.log('🚀 [Phase 8B/14] 발표자료 및 다음 단계 작성 시작...');
-      const phase8BPrompt = this.generateReportPhase8Prompt(analyses, questions, answers, phase1AContent, phase2Content, phase3Content, phase4Content, phase5AContent, phase6Content, phase7AContent); // 임시로 같은 함수 사용
-      console.log('📝 [Phase 8B/14] 프롬프트 길이:', phase8BPrompt.length);
-
-      this.emitProgressUpdate({
-        sessionId,
-        stage: 'report_generation',
-        status: 'processing',
-        progress: 94,
-        message: 'Phase 8B/14: 발표자료 및 다음 단계 작성 중...',
-        timestamp: new Date(),
-      }).catch(() => {});
-
-      const phase8BResponse = await this.callAICompletionAPIStreaming(
-        aiProvider,
-        aiModel,
-        phase8BPrompt,
-        6000, // Phase 8B: 발표+다음단계 (한글 특성상 토큰 많이 필요)
-        0.2,
-        (_chunk, fullContent) => {
-          const charCount = fullContent.length;
-          const progress = Math.min(100, 94 + Math.floor(charCount / 500));
-          console.log(`📊 [Phase 8B/14 Streaming] ${charCount} chars, ${progress}%`);
-
-          this.emitProgressUpdate({
-            sessionId,
-            stage: 'report_generation',
-            status: 'processing',
-            progress,
-            message: `Phase 8B/14 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
-            timestamp: new Date(),
-          }).catch(() => {});
-        }
-      );
-
-      console.log('✅ [Phase 8B/14] 응답 완료:', { length: phase8BResponse.content?.length });
-      const phase8BContent = this.parseReportResponse(phase8BResponse.content, analyses, answers);
-      console.log('✅ [Phase 8B/14] 파싱 완료:', {
-        hasPresentationOutline: !!phase8BContent.executionPlan?.presentationOutline,
-        hasNextSteps: !!phase8BContent.executionPlan?.nextSteps,
-        nextStepsCount: phase8BContent.executionPlan?.nextSteps?.length || 0
-      });
-
-      // ========================================
-      // 14개 Phase 결과 병합
-      // ========================================
-      console.log('🔗 [Merge] 14개 Phase 병합 시작...');
+      console.log('🔗 [Merge] 9개 Phase 병합 시작 (간소화된 버전)...');
       const mergedReport = {
         // Phase 1A: 핵심 비즈니스 분석
         summary: phase1AContent.summary || '',
@@ -3287,7 +3083,7 @@ ${content}
           nextSteps: phase8BContent.executionPlan?.nextSteps || [],
         },
 
-        // 시각화 데이터 (병합)
+        // 시각화 데이터 (병합) - 간소화된 버전
         visualizationData: {
           ...(phase1AContent.visualizationData || {}),
           ...(phase1BContent.visualizationData || {}),
@@ -3298,11 +3094,7 @@ ${content}
           ...(phase5BContent.visualizationData || {}),
           ...(phase6Content.visualizationData || {}),
           ...(phase7AContent.visualizationData || {}),
-          ...(phase7B1Content.visualizationData || {}),
-          ...(phase7B2Content.visualizationData || {}),
-          ...(phase8A1Content.visualizationData || {}),
-          ...(phase8A2Content.visualizationData || {}),
-          ...(phase8BContent.visualizationData || {}),
+          // Phase 7B1~8B는 건너뛰었으므로 제외
         },
       };
 
@@ -3332,6 +3124,7 @@ ${content}
       });
 
       const processingTime = Date.now() - startTime;
+      // 🔥 9개 Phase만 사용 (7B1~8B는 건너뜀)
       const totalCost =
         phase1AResponse.cost.totalCost +
         phase1BResponse.cost.totalCost +
@@ -3341,12 +3134,7 @@ ${content}
         phase5AResponse.cost.totalCost +
         phase5BResponse.cost.totalCost +
         phase6Response.cost.totalCost +
-        phase7AResponse.cost.totalCost +
-        phase7B1Response.cost.totalCost +
-        phase7B2Response.cost.totalCost +
-        phase8A1Response.cost.totalCost +
-        phase8A2Response.cost.totalCost +
-        phase8BResponse.cost.totalCost;
+        phase7AResponse.cost.totalCost;
 
       const totalInputTokens =
         phase1AResponse.usage.inputTokens +
@@ -3357,12 +3145,7 @@ ${content}
         phase5AResponse.usage.inputTokens +
         phase5BResponse.usage.inputTokens +
         phase6Response.usage.inputTokens +
-        phase7AResponse.usage.inputTokens +
-        phase7B1Response.usage.inputTokens +
-        phase7B2Response.usage.inputTokens +
-        phase8A1Response.usage.inputTokens +
-        phase8A2Response.usage.inputTokens +
-        phase8BResponse.usage.inputTokens;
+        phase7AResponse.usage.inputTokens;
 
       const totalOutputTokens =
         phase1AResponse.usage.outputTokens +
@@ -3373,12 +3156,7 @@ ${content}
         phase5AResponse.usage.outputTokens +
         phase5BResponse.usage.outputTokens +
         phase6Response.usage.outputTokens +
-        phase7AResponse.usage.outputTokens +
-        phase7B1Response.usage.outputTokens +
-        phase7B2Response.usage.outputTokens +
-        phase8A1Response.usage.outputTokens +
-        phase8A2Response.usage.outputTokens +
-        phase8BResponse.usage.outputTokens;
+        phase7AResponse.usage.outputTokens;
 
       console.log('⏱️ [Complete] 총 처리 시간:', processingTime, 'ms');
       console.log('💰 [Complete] 총 비용:', totalCost);
@@ -4584,8 +4362,10 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
 - 설명, 주석, 추가 텍스트 일체 금지`;
   }
 
-  // 🔥 Phase 8 프롬프트 - 제안서 + 발표자료 + 다음 단계
-  private generateReportPhase8Prompt(
+  // 🔥 Phase 8 프롬프트 - 제안서 + 발표자료 + 다음 단계 (현재 사용 안함 - Phase 8 건너뜀)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // @ts-expect-error TS6133 - 수익성 분석/실행 계획 제거로 미사용, 향후 재사용 가능성 유지
+  private _generateReportPhase8Prompt(
     _analyses: any[],
     _questions: any[],
     _answers: any[],
@@ -4838,8 +4618,10 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
 - 설명, 주석, 추가 텍스트 일체 금지`;
   }
 
-  // 🔥 NEW: Phase 7B-1 프롬프트 - 팀 구성 (Team Composition)
-  private generateReportPhase7B1Prompt(
+  // 🔥 NEW: Phase 7B-1 프롬프트 - 팀 구성 (현재 사용 안함 - Phase 7B-1 건너뜀)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // @ts-expect-error TS6133 - 수익성 분석/실행 계획 제거로 미사용, 향후 재사용 가능성 유지
+  private _generateReportPhase7B1Prompt(
     _analyses: any[],
     _questions: any[],
     _answers: any[],
@@ -4953,8 +4735,10 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
 - **최대 2000자 엄수**`;
   }
 
-  // 🔥 NEW: Phase 7B-2 프롬프트 - 비용 산정 (Cost Estimate)
-  private generateReportPhase7B2Prompt(
+  // 🔥 NEW: Phase 7B-2 프롬프트 - 비용 산정 (현재 사용 안함 - Phase 7B-2 건너뜀)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // @ts-expect-error TS6133 - 수익성 분석/실행 계획 제거로 미사용, 향후 재사용 가능성 유지
+  private _generateReportPhase7B2Prompt(
     _analyses: any[],
     _questions: any[],
     _answers: any[],
@@ -5038,8 +4822,10 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
 - **최대 2000자 엄수**`;
   }
 
-  // 🔥 NEW: Phase 8A-1 프롬프트 - 제안서 목차 (Proposal Outline)
-  private generateReportPhase8A1Prompt(
+  // 🔥 NEW: Phase 8A-1 프롬프트 - 제안서 목차 (현재 사용 안함 - Phase 8A-1 건너뜀)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // @ts-expect-error TS6133 - 수익성 분석/실행 계획 제거로 미사용, 향후 재사용 가능성 유지
+  private _generateReportPhase8A1Prompt(
     _analyses: any[],
     _questions: any[],
     _answers: any[],
@@ -5161,8 +4947,10 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
 - **최대 1500자 엄수**`;
   }
 
-  // 🔥 NEW: Phase 8A-2 프롬프트 - 제안서 핵심 내용 (Key Content)
-  private generateReportPhase8A2Prompt(
+  // 🔥 NEW: Phase 8A-2 프롬프트 - 제안서 핵심 내용 (현재 사용 안함 - Phase 8A-2 건너뜀)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // @ts-expect-error TS6133 - 수익성 분석/실행 계획 제거로 미사용, 향후 재사용 가능성 유지
+  private _generateReportPhase8A2Prompt(
     _analyses: any[],
     _questions: any[],
     _answers: any[],
@@ -5404,38 +5192,101 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
     }
 
     // =====================================================
-    // 🔥 NEW 시도 2.5: 불완전한 JSON 복구 시도 (배열/객체 처리 강화)
+    // 🔥 NEW 시도 2.5: 불완전한 JSON 복구 시도 (문자열 잘림 처리 강화)
     // =====================================================
     try {
-      console.log('🔎 [parseReportResponse] 시도 2.5: 불완전한 JSON 복구 (배열/객체)...');
+      console.log('🔎 [parseReportResponse] 시도 2.5: 불완전한 JSON 복구 (문자열 잘림 처리)...');
 
       const firstBrace = cleanedResponse.indexOf('{');
       if (firstBrace !== -1) {
         let jsonString = cleanedResponse.substring(firstBrace);
 
-        // 🔥 여러 패턴으로 마지막 완전한 요소 찾기
+        // 🔥 STEP 1: 불완전한 문자열 찾아서 잘라내기
+        // JSON에서 마지막으로 완전하게 닫힌 문자열 위치 찾기
+        let lastValidPosition = 0;
+        let inString = false;
+        let escapeNext = false;
+        let depth = 0;
+
+        for (let i = 0; i < jsonString.length; i++) {
+          const char = jsonString[i];
+
+          if (escapeNext) {
+            escapeNext = false;
+            continue;
+          }
+
+          if (char === '\\') {
+            escapeNext = true;
+            continue;
+          }
+
+          if (char === '"') {
+            inString = !inString;
+            if (!inString) {
+              // 문자열이 닫힘 - 유효한 위치 업데이트
+              lastValidPosition = i + 1;
+            }
+            continue;
+          }
+
+          if (!inString) {
+            if (char === '{' || char === '[') {
+              depth++;
+            } else if (char === '}' || char === ']') {
+              depth--;
+              lastValidPosition = i + 1;
+            } else if (char === ',' || char === ':') {
+              lastValidPosition = i + 1;
+            }
+          }
+        }
+
+        // 🔥 문자열 내부에서 끊긴 경우 처리
+        if (inString) {
+          console.log('⚠️ [parseReportResponse] 문자열 내부에서 잘림 감지, 복구 시도...');
+          // 마지막 완전한 문자열까지 잘라냄
+          jsonString = jsonString.substring(0, lastValidPosition);
+
+          // 불완전한 문자열 제거: 마지막 "key": " 패턴 제거
+          jsonString = jsonString.replace(/,?\s*"[^"]*":\s*"[^"]*$/g, '');
+          jsonString = jsonString.replace(/,?\s*"[^"]*":\s*$/g, '');
+          jsonString = jsonString.replace(/,?\s*"[^"]*$/g, '');
+
+          console.log('🔧 [parseReportResponse] 문자열 잘림 복구 후:', jsonString.substring(Math.max(0, jsonString.length - 200)));
+        }
+
+        // 🔥 STEP 2: 마지막 완전한 요소 찾기
         const patterns = [
-          { pattern: /",\s*$/g, desc: '객체 필드 끝' },           // "value",
-          { pattern: /"\s*\]/g, desc: '배열 문자열 끝' },         // "value"]
-          { pattern: /},\s*$/g, desc: '배열 내 객체 끝' },        // {...},
-          { pattern: /\}\s*\]/g, desc: '배열 내 마지막 객체' },   // {...}]
+          { pattern: /"\s*,\s*$/g, desc: '객체 필드 끝 (콤마)' },
+          { pattern: /"\s*$/g, desc: '문자열 값 끝' },
+          { pattern: /\d+\s*,?\s*$/g, desc: '숫자 값 끝' },
+          { pattern: /true\s*,?\s*$/g, desc: 'true 값 끝' },
+          { pattern: /false\s*,?\s*$/g, desc: 'false 값 끝' },
+          { pattern: /null\s*,?\s*$/g, desc: 'null 값 끝' },
+          { pattern: /\]\s*,?\s*$/g, desc: '배열 끝' },
+          { pattern: /\}\s*,?\s*$/g, desc: '객체 끝' },
         ];
 
-        let bestMatch = -1;
-        let bestPattern = null;
+        let bestMatch = jsonString.length;
+        let bestPattern = '원본';
 
-        // 모든 패턴에서 가장 마지막 위치 찾기
+        // 모든 패턴에서 가장 마지막 유효 위치 찾기
         for (const { pattern, desc } of patterns) {
           const matches = [...jsonString.matchAll(pattern)];
           if (matches.length > 0) {
             const lastMatch = matches[matches.length - 1];
             const matchEnd = lastMatch.index! + lastMatch[0].length;
-            if (matchEnd > bestMatch) {
+            if (matchEnd <= bestMatch && matchEnd > 0) {
               bestMatch = matchEnd;
               bestPattern = desc;
             }
           }
         }
+
+        // 후행 콤마 제거
+        let truncatedJson = jsonString.substring(0, bestMatch);
+        truncatedJson = truncatedJson.replace(/,\s*$/g, '');
 
         console.log('🔍 [parseReportResponse] 마지막 완전한 요소:', {
           위치: bestMatch,
@@ -5443,36 +5294,32 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
           원본길이: jsonString.length
         });
 
-        if (bestMatch > 0) {
-          // 마지막 완전한 요소까지 잘라냄
-          let truncatedJson = jsonString.substring(0, bestMatch);
+        // 🔥 STEP 3: 닫히지 않은 배열과 객체 닫기
+        const openBrackets = (truncatedJson.match(/\[/g) || []).length;
+        const closeBrackets = (truncatedJson.match(/\]/g) || []).length;
+        const openBraces = (truncatedJson.match(/\{/g) || []).length;
+        const closeBraces = (truncatedJson.match(/\}/g) || []).length;
 
-          // 🔥 닫히지 않은 배열과 객체 닫기
-          const openBrackets = (truncatedJson.match(/\[/g) || []).length;
-          const closeBrackets = (truncatedJson.match(/\]/g) || []).length;
-          const openBraces = (truncatedJson.match(/\{/g) || []).length;
-          const closeBraces = (truncatedJson.match(/\}/g) || []).length;
+        const missingBrackets = openBrackets - closeBrackets;
+        const missingBraces = openBraces - closeBraces;
 
-          const missingBrackets = openBrackets - closeBrackets;
-          const missingBraces = openBraces - closeBraces;
+        // 배열 먼저 닫기
+        for (let i = 0; i < missingBrackets; i++) {
+          truncatedJson += ']';
+        }
+        // 객체 닫기
+        for (let i = 0; i < missingBraces; i++) {
+          truncatedJson += '}';
+        }
 
-          // 배열 먼저 닫기
-          for (let i = 0; i < missingBrackets; i++) {
-            truncatedJson += '\n]';
-          }
-          // 객체 닫기
-          for (let i = 0; i < missingBraces; i++) {
-            truncatedJson += '\n}';
-          }
+        console.log('🔧 [parseReportResponse] JSON 복구 시도:', {
+          원본길이: jsonString.length,
+          복구길이: truncatedJson.length,
+          추가된배열닫기: missingBrackets,
+          추가된객체닫기: missingBraces
+        });
 
-          console.log('🔧 [parseReportResponse] JSON 복구 시도:', {
-            원본길이: jsonString.length,
-            복구길이: truncatedJson.length,
-            추가된배열닫기: missingBrackets,
-            추가된객체닫기: missingBraces,
-            미리보기: truncatedJson.substring(Math.max(0, truncatedJson.length - 300))
-          });
-
+        try {
           const parsedReport = JSON.parse(truncatedJson);
           console.warn('✅ [parseReportResponse] 불완전한 JSON 복구 성공!');
           console.log('📊 [parseReportResponse] 복구된 키:', Object.keys(parsedReport));
@@ -5481,18 +5328,35 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
           parsedReport._recovered = true;
           parsedReport._recoveryNote = '응답이 중간에 끊겨서 일부 내용이 누락되었습니다.';
 
-          // 🔥 baselineData 내용 상세 로깅
-          console.log('📋 [parseReportResponse] baselineData 상세 (복구됨):', {
-            exists: !!parsedReport.baselineData,
-            requirementsCount: parsedReport.baselineData?.requirements?.length || 0,
-            stakeholdersCount: parsedReport.baselineData?.stakeholders?.length || 0,
-            constraintsCount: parsedReport.baselineData?.constraints?.length || 0,
-            techStackCount: parsedReport.baselineData?.technicalStack?.length || 0,
-          });
-
           return parsedReport;
-        } else {
-          console.warn('⚠️ [parseReportResponse] 완전한 요소를 찾을 수 없음');
+        } catch (innerError) {
+          console.error('❌ [parseReportResponse] 1차 복구 실패, 2차 복구 시도...');
+
+          // 🔥 2차 복구: 더 공격적인 잘라내기
+          let secondAttempt = truncatedJson;
+
+          // 마지막 불완전한 키-값 쌍 제거
+          secondAttempt = secondAttempt.replace(/,?\s*"[^"]*":\s*(\{[^\}]*)?$/g, '');
+          secondAttempt = secondAttempt.replace(/,?\s*"[^"]*":\s*\[[^\]]*$/g, '');
+
+          // 다시 중괄호/대괄호 균형 맞추기
+          const ob2 = (secondAttempt.match(/\[/g) || []).length;
+          const cb2 = (secondAttempt.match(/\]/g) || []).length;
+          const ob3 = (secondAttempt.match(/\{/g) || []).length;
+          const cb3 = (secondAttempt.match(/\}/g) || []).length;
+
+          for (let i = 0; i < (ob2 - cb2); i++) secondAttempt += ']';
+          for (let i = 0; i < (ob3 - cb3); i++) secondAttempt += '}';
+
+          try {
+            const parsedReport2 = JSON.parse(secondAttempt);
+            console.warn('✅ [parseReportResponse] 2차 복구 성공!');
+            parsedReport2._recovered = true;
+            parsedReport2._recoveryNote = '2차 복구로 일부 데이터가 손실되었습니다.';
+            return parsedReport2;
+          } catch (secondError) {
+            console.error('❌ [parseReportResponse] 2차 복구도 실패:', secondError);
+          }
         }
       }
     } catch (error) {
