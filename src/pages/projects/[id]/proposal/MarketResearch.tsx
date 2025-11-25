@@ -209,7 +209,7 @@ export function MarketResearchPage() {
                 .select('id')
                 .eq('provider', selectedModelForQuestions.provider)
                 .eq('model_id', selectedModelForQuestions.model_id)
-                .eq('status', 'available')
+                .eq('status', 'active')
                 .single()
 
               if (!dbError && dbModel) {

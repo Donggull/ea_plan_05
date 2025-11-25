@@ -193,7 +193,7 @@ export function PersonasPage() {
                 .select('id')
                 .eq('provider', selectedModelForQuestions.provider)
                 .eq('model_id', selectedModelForQuestions.model_id)
-                .eq('status', 'available')
+                .eq('status', 'active')
                 .maybeSingle()
 
               if (!dbError && dbModel) {
