@@ -1247,6 +1247,170 @@ RFP와 시장 조사 결과를 바탕으로, **우리 에이전시 UX팀이 정�
     return prompt
   }
 
+  // 비용 산정 질문 생성 (웹 에이전시 관점 - 견적 산출용)
+  if (context?.requestType === 'budget_questions') {
+    // 사전 분석 데이터 확인
+    const hasPreAnalysisData = preAnalysisData && (
+      (preAnalysisData.report && Object.keys(preAnalysisData.report).length > 0) ||
+      (preAnalysisData.documentAnalyses && preAnalysisData.documentAnalyses.length > 0)
+    )
+
+    console.log('📊 [buildPrompt] budget_questions 데이터 확인:', {
+      hasPreAnalysisData,
+      reportSummaryLength: preAnalysisData?.report?.summary?.length || 0,
+      keyFindingsCount: preAnalysisData?.report?.key_findings?.length || 0,
+      technicalInsightsCount: preAnalysisData?.report?.technical_insights?.length || 0
+    })
+
+    let prompt = `당신은 웹 에이전시의 프로젝트 견적 담당 PM입니다.
+
+# 상황
+우리 웹에이전시는 RFP를 분석하고, 시장 조사와 페르소나 분석을 완료했습니다.
+이제 **클라이언트에게 제출할 견적서 작성**을 위해 비용 산정 정보를 수집해야 합니다.
+
+# 미션
+RFP 분석 결과를 바탕으로, **우리 에이전시 내부 팀이 견적 산출을 위해 답변해야 할 질문**을 생성해주세요.
+이 질문들의 답변이 곧 **클라이언트에게 제출할 견적서**의 근거가 됩니다.
+
+⚠️ **중요**: 반드시 아래 제공된 RFP 분석 데이터의 **구체적인 요구사항과 기술 스택**을 인용하여 질문을 작성하세요.
+
+# 프로젝트 기본 정보
+- **프로젝트명**: ${projectInfo?.name || '미정'}
+- **프로젝트 설명**: ${projectInfo?.description || '미정'}
+- **산업 분야**: ${projectInfo?.industry || '미정'}
+
+`
+
+    // 사전 분석 데이터 포함
+    if (hasPreAnalysisData) {
+      prompt += `---
+## 🔍 RFP 분석 결과 (견적 산출 시 반드시 참조)
+
+`
+
+      if (preAnalysisData.report) {
+        if (preAnalysisData.report.summary) {
+          prompt += `### 📋 프로젝트 요약
+${preAnalysisData.report.summary}
+
+`
+        }
+
+        if (preAnalysisData.report.key_findings && preAnalysisData.report.key_findings.length > 0) {
+          prompt += `### 🎯 핵심 요구사항 (비용 산정 기준)
+`
+          preAnalysisData.report.key_findings.forEach((f: string, idx: number) => {
+            prompt += `${idx + 1}. ${f}\n`
+          })
+          prompt += `\n`
+        }
+
+        if (preAnalysisData.report.technical_insights && preAnalysisData.report.technical_insights.length > 0) {
+          prompt += `### 🔧 기술적 요구사항 (개발 비용 산정 근거)
+`
+          preAnalysisData.report.technical_insights.forEach((t: string, idx: number) => {
+            prompt += `${idx + 1}. ${t}\n`
+          })
+          prompt += `\n`
+        }
+
+        if (preAnalysisData.report.recommendations && preAnalysisData.report.recommendations.length > 0) {
+          prompt += `### 💡 제안 방향 (추가 비용 요소 고려)
+`
+          preAnalysisData.report.recommendations.forEach((r: string, idx: number) => {
+            prompt += `${idx + 1}. ${r}\n`
+          })
+          prompt += `\n`
+        }
+
+        // structured_data가 있으면 추가 정보 포함
+        if (preAnalysisData.report.structured_data) {
+          const sd = preAnalysisData.report.structured_data
+          prompt += `### 📊 구조화된 분석 데이터\n`
+          if (sd.project_scope) prompt += `- **프로젝트 범위**: ${sd.project_scope}\n`
+          if (sd.key_features && Array.isArray(sd.key_features)) prompt += `- **주요 기능**: ${sd.key_features.join(', ')}\n`
+          if (sd.tech_requirements && Array.isArray(sd.tech_requirements)) prompt += `- **기술 요구사항**: ${sd.tech_requirements.join(', ')}\n`
+          if (sd.budget_info) prompt += `- **예산 정보**: ${sd.budget_info}\n`
+          if (sd.timeline_info) prompt += `- **일정 정보**: ${sd.timeline_info}\n`
+          prompt += `\n`
+        }
+      }
+    }
+
+    prompt += `---
+
+# 비용 산정 질문 생성 전략
+
+## 중요: 질문의 대상과 목적
+- ❌ 질문 대상은 클라이언트가 **아닙니다**
+- ✅ 질문 대상은 **우리 에이전시 내부 팀** (PM, 개발팀장, 인프라 담당)입니다
+- ✅ 질문의 답변이 **클라이언트 제출용 견적서**의 근거가 됩니다
+
+## 견적 산출 필수 영역
+
+### 1. 프로젝트 규모 (Project Scope)
+- RFP 요구사항 기반 총 개발 범위와 복잡도
+- 예시: "RFP에서 요구한 [XX 기능들]을 구현하기 위한 예상 개발 규모는?"
+
+### 2. 인력 구성 (Team Composition)
+- 역할별 필요 인원과 투입 기간
+- 예시: "[기술 요구사항]을 충족하기 위해 필요한 개발 인력 구성은?"
+
+### 3. 개발 기간 (Timeline)
+- 단계별 예상 소요 기간과 마일스톤
+- 예시: "[RFP에서 언급된 일정]을 고려할 때 우리가 제시할 개발 일정은?"
+
+### 4. 기술 스택 비용 (Technology Costs)
+- 프레임워크, 라이선스, 클라우드 서비스 비용
+- 예시: "[기술 요구사항의 XX 스택] 도입에 필요한 라이선스/서비스 비용은?"
+
+### 5. 인프라/운영 비용 (Infrastructure)
+- 서버, 호스팅, 유지보수 비용
+- 예시: "프로젝트 운영에 필요한 인프라 월간 비용은?"
+
+### 6. 리스크 버퍼 (Risk Buffer)
+- 예상치 못한 요구사항 변경, 기술적 난이도 대비
+- 예시: "[프로젝트 복잡도]를 고려한 리스크 버퍼 비율은?"
+
+## ⚠️ 질문 작성 원칙
+
+### 🚨 절대 금지
+- 일반적인 비용 질문 ("프로젝트 예산은?", "개발 기간은?") 금지
+- RFP 분석 데이터를 무시한 범용 질문 금지
+
+### ✅ 반드시 해야 할 것
+1. **RFP에서 파악한 구체적인 기능/요구사항을 질문에 명시**
+2. **기술 요구사항을 인용하여 비용 산정 근거 제시**
+3. **질문만 봐도 이 프로젝트의 견적임을 알 수 있어야 함**
+
+### 예시: 프로젝트 맞춤형 질문 변환
+- ❌ 나쁜 예: "프로젝트 전체 기간은?"
+- ✅ 좋은 예: "RFP에서 요구한 [회원 시스템, 결제 연동, 관리자 대시보드] 개발에 필요한 총 기간은?"
+
+- ❌ 나쁜 예: "투입 인력 규모는?"
+- ✅ 좋은 예: "[React + Node.js + PostgreSQL 스택]을 기반으로 [XX 기능]을 개발하기 위한 프론트엔드/백엔드/QA 인력 구성은?"
+
+## 질문 개수: 8-12개
+- 6가지 비용 영역을 고르게 분포
+
+---
+
+# 출력 형식 (매우 중요!)
+
+## ⚠️ 반드시 지켜야 할 JSON 형식 규칙:
+1. **마크다운 코드 블록(\`\`\`) 절대 사용 금지**
+2. **JSON 앞뒤에 설명 텍스트 추가 금지** - 순수 JSON만 출력
+3. **문자열 내 줄바꿈 금지** - \\n 사용 금지, 한 줄로 작성
+4. **큰따옴표(")만 사용** - 작은따옴표(') 사용 금지
+
+## 정확한 출력 예시:
+{"questions":[{"category":"프로젝트 규모","question":"RFP에서 요구한 XX 기능 구현을 위한 예상 개발 규모(MM)는?","expectedFormat":"number","options":[],"required":true,"context":"RFP 분석 결과 XX가 핵심 기능으로 파악됨","priority":"high","confidenceScore":0.9}]}
+
+지금 바로 JSON을 출력하세요:`
+
+    return prompt
+  }
+
   // 사전 분석 질문 생성 (웹에이전시 관점 - RFP 대응 전략)
   let prompt = `당신은 경험 많은 웹에이전시의 사업개발팀 PM입니다.
 
@@ -1880,6 +2044,67 @@ function parseQuestions(response: string, requestType?: string): GeneratedQuesti
           helpText: '우리 에이전시의 강점, 유사 프로젝트 경험, 독특한 제안 포인트를 설명해주세요.',
           priority: 'high',
           confidence: 0.9
+        }
+      ];
+    }
+
+    // 비용 산정 질문 기본값
+    if (requestType === 'budget_questions') {
+      return [
+        {
+          category: '프로젝트 규모',
+          text: 'RFP 요구사항 기반 총 개발 범위와 예상 규모(MM)는?',
+          type: 'textarea',
+          required: true,
+          helpText: 'RFP에서 파악한 기능들을 기준으로 개발 규모를 산정해주세요.',
+          priority: 'high',
+          confidence: 0.9
+        },
+        {
+          category: '개발 비용',
+          text: '프로젝트 개발에 필요한 인건비 총액은?',
+          type: 'number',
+          required: true,
+          helpText: '역할별 투입 인원과 기간을 기준으로 인건비를 산정해주세요.',
+          priority: 'high',
+          confidence: 0.9
+        },
+        {
+          category: '인력 구성',
+          text: '프로젝트에 투입할 인력 구성(역할/인원/기간)은?',
+          type: 'textarea',
+          required: true,
+          helpText: 'PM, 프론트엔드, 백엔드, 디자이너 등 역할별 인원과 투입 기간을 명시해주세요.',
+          priority: 'high',
+          confidence: 0.9
+        },
+        {
+          category: '기술 스택 비용',
+          text: '프로젝트에 필요한 라이선스/서비스 비용은?',
+          type: 'textarea',
+          required: true,
+          helpText: '클라우드 서비스, API, 라이선스 등 외부 서비스 비용을 산정해주세요.',
+          priority: 'medium',
+          confidence: 0.85
+        },
+        {
+          category: '인프라 비용',
+          text: '프로젝트 운영에 필요한 인프라 비용은?',
+          type: 'textarea',
+          required: true,
+          helpText: '서버, 호스팅, CDN 등 인프라 구축 및 운영 비용을 산정해주세요.',
+          priority: 'medium',
+          confidence: 0.85
+        },
+        {
+          category: '리스크 버퍼',
+          text: '예상치 못한 상황을 대비한 리스크 버퍼는 몇 %로 설정할 것인가?',
+          type: 'select',
+          options: ['5%', '10%', '15%', '20%', '25%'],
+          required: true,
+          helpText: '프로젝트 복잡도와 불확실성을 고려하여 리스크 버퍼를 선택해주세요.',
+          priority: 'medium',
+          confidence: 0.85
         }
       ];
     }

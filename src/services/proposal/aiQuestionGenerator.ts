@@ -321,8 +321,10 @@ export class AIQuestionGenerator {
       console.log('🤖 AIQuestionGenerator.generateAIQuestions 시작 (새로운 API)');
       console.log('📊 입력 파라미터:', { step, projectId, userId, context });
 
-      // 사전 분석이 아닌 경우 AND 시장 조사가 아닌 경우 AND 페르소나가 아닌 경우 AND 제안서가 아닌 경우 기본 질문만 반환
-      if (step !== 'pre_analysis' && step !== 'questions' && step !== 'market_research' && step !== 'personas' && step !== 'proposal') {
+      // AI 질문 생성 대상이 아닌 경우 기본 질문만 반환
+      // budget 단계도 AI 질문 생성 대상에 포함
+      const aiEnabledSteps: WorkflowStep[] = ['pre_analysis', 'questions', 'market_research', 'personas', 'proposal', 'budget']
+      if (!aiEnabledSteps.includes(step)) {
         const baseQuestions = this.generateQuestions(step, projectId)
         return baseQuestions
       }
@@ -399,6 +401,7 @@ export class AIQuestionGenerator {
           requestType: step === 'market_research' ? 'market_research_questions' :
                        step === 'personas' ? 'personas_questions' :
                        step === 'proposal' ? 'proposal_questions' :
+                       step === 'budget' ? 'budget_questions' :
                        'pre_analysis_questions'
         }
       };
