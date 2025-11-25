@@ -490,26 +490,18 @@ ${documents.map((doc, index) => `${index + 1}. ${doc.name}`).join('\n')}
 
 ---
 
-# 출력 형식
+# 출력 형식 (매우 중요!)
 
-**JSON 형식으로만 반환하세요. 다른 텍스트는 포함하지 마세요.**
+## ⚠️ 반드시 지켜야 할 JSON 형식 규칙:
+1. **마크다운 코드 블록(\`\`\`) 절대 사용 금지**
+2. **JSON 앞뒤에 설명 텍스트 추가 금지** - 순수 JSON만 출력
+3. **문자열 내 줄바꿈 금지** - \\n 사용 금지, 한 줄로 작성
+4. **큰따옴표(")만 사용** - 작은따옴표(') 사용 금지
 
-{
-  "questions": [
-    {
-      "category": "시장 규모|경쟁 분석|비즈니스 환경|기술 트렌드|차별화 전략",
-      "question": "우리 에이전시 리서치 팀이 조사할 내용",
-      "expectedFormat": "text|select|multiselect|number|textarea",
-      "options": ["옵션1", "옵션2"],
-      "required": true|false,
-      "context": "RFP 분석 결과 + 이 정보가 제안서에 어떻게 활용되는지",
-      "priority": "high|medium|low",
-      "confidenceScore": 0.0-1.0
-    }
-  ]
-}
+## 정확한 출력 예시:
+{"questions":[{"category":"경쟁 분석","question":"RFP에서 언급된 XX 기능 관련 경쟁사 현황은?","expectedFormat":"textarea","options":[],"required":true,"context":"RFP 분석 결과 XX가 핵심 요구사항으로 파악됨","priority":"high","confidenceScore":0.9}]}
 
-정확한 JSON만 반환하세요.`
+지금 바로 JSON을 출력하세요:`
 
     return prompt
   }
@@ -1006,26 +998,29 @@ ${preAnalysisData.report.summary}
 
 ---
 
-# 출력 형식
+# 출력 형식 (매우 중요!)
 
-반드시 아래 JSON 형식만 반환하세요. 마크다운 코드 블록(\`\`\`)을 사용하지 마세요.
+## ⚠️ 반드시 지켜야 할 JSON 형식 규칙:
+1. **마크다운 코드 블록(\`\`\`) 절대 사용 금지**
+2. **JSON 앞뒤에 설명 텍스트 추가 금지** - 순수 JSON만 출력
+3. **문자열 내 줄바꿈 금지** - \\n 사용 금지, 한 줄로 작성
+4. **큰따옴표(")만 사용** - 작은따옴표(') 사용 금지
+5. **특수 문자 주의** - 문자열 내 큰따옴표는 \\"로 이스케이프
 
-{
-  "questions": [
-    {
-      "category": "제안 솔루션|기술 아키텍처|팀 구성|일정 계획|비용 산정|차별화 요소",
-      "question": "[RFP 분석 내용 인용] + 우리가 제안할/구현할/선택한 구체적 내용",
-      "expectedFormat": "textarea|multiselect|text|number|select",
-      "options": [],
-      "required": true,
-      "context": "[RFP 분석 결과 직접 인용] + 제안서에서 이 답변이 활용되는 방식",
-      "priority": "high|medium",
-      "confidenceScore": 0.9
-    }
-  ]
-}
+## 정확한 출력 예시:
+{"questions":[{"category":"제안 솔루션","question":"RFP에서 요구한 XX 기능을 구현하기 위해 우리가 제안하는 접근 방식은?","expectedFormat":"textarea","options":[],"required":true,"context":"RFP 분석 결과 XX 기능이 핵심 요구사항으로 파악됨","priority":"high","confidenceScore":0.9}]}
 
-JSON만 반환하세요.`
+## 필수 필드:
+- category: 문자열 (제안 솔루션, 기술 아키텍처, 팀 구성, 일정 계획, 비용 산정, 차별화 요소 중 선택)
+- question: 문자열 (RFP 내용 인용 포함)
+- expectedFormat: textarea, multiselect, text, number, select 중 선택
+- options: 배열 (multiselect/select인 경우만 값 포함, 아니면 빈 배열)
+- required: true 또는 false
+- context: 문자열 (RFP 분석 내용 인용)
+- priority: high 또는 medium
+- confidenceScore: 0.0~1.0 사이 숫자
+
+지금 바로 JSON을 출력하세요:`
 
     return prompt
   }
@@ -1236,26 +1231,18 @@ RFP와 시장 조사 결과를 바탕으로, **우리 에이전시 UX팀이 정�
 
 ---
 
-# 출력 형식
+# 출력 형식 (매우 중요!)
 
-**JSON 형식으로만 반환하세요. 다른 텍스트는 포함하지 마세요.**
+## ⚠️ 반드시 지켜야 할 JSON 형식 규칙:
+1. **마크다운 코드 블록(\`\`\`) 절대 사용 금지**
+2. **JSON 앞뒤에 설명 텍스트 추가 금지** - 순수 JSON만 출력
+3. **문자열 내 줄바꿈 금지** - \\n 사용 금지, 한 줄로 작성
+4. **큰따옴표(")만 사용** - 작은따옴표(') 사용 금지
 
-{
-  "questions": [
-    {
-      "category": "사용자 프로필|사용자 니즈|Pain Points|행동 패턴|기술 숙련도|접점/채널",
-      "question": "우리 에이전시 UX 팀이 정의할 내용",
-      "expectedFormat": "text|select|multiselect|number|textarea",
-      "options": ["옵션1", "옵션2"],
-      "required": true|false,
-      "context": "RFP 분석 결과 + 이 정보가 제안서에 어떻게 활용되는지",
-      "priority": "high|medium|low",
-      "confidenceScore": 0.0-1.0
-    }
-  ]
-}
+## 정확한 출력 예시:
+{"questions":[{"category":"사용자 프로필","question":"RFP 프로젝트의 주요 최종 사용자 그룹을 어떻게 정의할 것인가?","expectedFormat":"textarea","options":[],"required":true,"context":"제안서의 타겟 사용자 정의 섹션에 활용","priority":"high","confidenceScore":0.9}]}
 
-정확한 JSON만 반환하세요.`
+지금 바로 JSON을 출력하세요:`
 
     return prompt
   }
@@ -1518,35 +1505,141 @@ function parseQuestions(response: string, requestType?: string): GeneratedQuesti
   try {
     console.log('🔍 [parseQuestions] 파싱 시작, 응답 길이:', response.length, 'requestType:', requestType);
 
-    // AI 응답 내용 로깅 (처음 1000자)
-    console.log('📝 [parseQuestions] AI 응답 내용 (처음 1000자):', response.substring(0, 1000));
+    // AI 응답 내용 로깅 (처음 2000자 - 디버깅 강화)
+    console.log('📝 [parseQuestions] AI 응답 내용 (처음 2000자):', response.substring(0, 2000));
+    console.log('📝 [parseQuestions] AI 응답 내용 (마지막 500자):', response.substring(Math.max(0, response.length - 500)));
 
-    // 0. 마크다운 코드 블록 제거 (```json ... ``` 또는 ``` ... ```)
+    // 0. 마크다운 코드 블록 제거 및 정규화
     let cleanedResponse = response
+      // 마크다운 코드 블록 제거
       .replace(/```json\s*/gi, '')
-      .replace(/```\s*/g, '')
+      .replace(/```\s*/gi, '')
+      .replace(/^\s*json\s*/i, '')
+      // JSON 앞뒤의 불필요한 텍스트 제거
+      .replace(/^[^{]*(?={)/s, '')  // { 앞의 모든 텍스트 제거
+      .replace(/}[^}]*$/s, '}')     // 마지막 } 뒤의 모든 텍스트 제거
       .trim();
 
     console.log('🧹 [parseQuestions] 마크다운 제거 후 길이:', cleanedResponse.length);
-    console.log('📝 [parseQuestions] 정리된 응답 (처음 500자):', cleanedResponse.substring(0, 500));
+    console.log('📝 [parseQuestions] 정리된 응답 (처음 800자):', cleanedResponse.substring(0, 800));
 
-    // 1. JSON 부분만 추출 (더 유연한 매칭)
-    let jsonMatch = cleanedResponse.match(/\{[\s\S]*"questions"[\s\S]*\[[\s\S]*\][\s\S]*\}/);
+    let parsed: any = null;
 
-    if (!jsonMatch) {
-      console.warn('⚠️ [parseQuestions] 전체 JSON 구조를 찾을 수 없음, questions 배열만 추출 시도');
-      // questions 배열만 추출 시도
-      const questionsArrayMatch = cleanedResponse.match(/"questions"\s*:\s*(\[[\s\S]*\])/);
-      if (questionsArrayMatch) {
-        jsonMatch = [`{"questions": ${questionsArrayMatch[1]}}`];
-        console.log('✅ [parseQuestions] questions 배열 추출 성공');
+    // 방법 1: 직접 JSON.parse 시도
+    try {
+      parsed = JSON.parse(cleanedResponse);
+      console.log('✅ [parseQuestions] 방법1 - 직접 JSON.parse 성공');
+    } catch (directParseError) {
+      console.log('⚠️ [parseQuestions] 방법1 실패:', (directParseError as Error).message);
+
+      // 방법 2: JSON 객체 추출 (첫 번째 { 부터 마지막 } 까지)
+      const firstBrace = cleanedResponse.indexOf('{');
+      const lastBrace = cleanedResponse.lastIndexOf('}');
+
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        const jsonString = cleanedResponse.substring(firstBrace, lastBrace + 1);
+        console.log('🔧 [parseQuestions] 방법2 - JSON 객체 추출, 길이:', jsonString.length);
+
+        try {
+          parsed = JSON.parse(jsonString);
+          console.log('✅ [parseQuestions] 방법2 - 추출된 JSON 파싱 성공');
+        } catch (extractParseError) {
+          console.log('⚠️ [parseQuestions] 방법2 실패:', (extractParseError as Error).message);
+
+          // 방법 3: Balanced bracket matching으로 questions 배열 추출
+          console.log('🔧 [parseQuestions] 방법3 - Balanced bracket matching 시도');
+
+          const questionsStart = cleanedResponse.indexOf('"questions"');
+          if (questionsStart !== -1) {
+            // questions 키 이후 첫 번째 [ 찾기
+            const arrayStart = cleanedResponse.indexOf('[', questionsStart);
+            if (arrayStart !== -1) {
+              // balanced bracket matching으로 배열 끝 찾기
+              let depth = 0;
+              let arrayEnd = -1;
+              let inString = false;
+              let escapeNext = false;
+
+              for (let i = arrayStart; i < cleanedResponse.length; i++) {
+                const char = cleanedResponse[i];
+
+                if (escapeNext) {
+                  escapeNext = false;
+                  continue;
+                }
+
+                if (char === '\\') {
+                  escapeNext = true;
+                  continue;
+                }
+
+                if (char === '"' && !escapeNext) {
+                  inString = !inString;
+                  continue;
+                }
+
+                if (!inString) {
+                  if (char === '[') depth++;
+                  else if (char === ']') {
+                    depth--;
+                    if (depth === 0) {
+                      arrayEnd = i;
+                      break;
+                    }
+                  }
+                }
+              }
+
+              if (arrayEnd !== -1) {
+                const questionsArrayString = cleanedResponse.substring(arrayStart, arrayEnd + 1);
+                console.log('📋 [parseQuestions] 추출된 배열 길이:', questionsArrayString.length);
+                console.log('📋 [parseQuestions] 추출된 배열 시작:', questionsArrayString.substring(0, 200));
+
+                try {
+                  const questionsArray = JSON.parse(questionsArrayString);
+                  parsed = { questions: questionsArray };
+                  console.log('✅ [parseQuestions] 방법3 - Balanced bracket 추출 성공, 질문 수:', questionsArray.length);
+                } catch (balancedParseError) {
+                  console.log('⚠️ [parseQuestions] 방법3 실패:', (balancedParseError as Error).message);
+
+                  // 방법 4: 개별 질문 객체 추출
+                  console.log('🔧 [parseQuestions] 방법4 - 개별 질문 객체 추출 시도');
+                  const questionObjects: any[] = [];
+                  const questionRegex = /\{\s*"category"\s*:\s*"[^"]+"\s*,[\s\S]*?"confidenceScore"\s*:\s*[\d.]+\s*\}/g;
+                  let match;
+
+                  while ((match = questionRegex.exec(cleanedResponse)) !== null) {
+                    try {
+                      const questionObj = JSON.parse(match[0]);
+                      questionObjects.push(questionObj);
+                    } catch (e) {
+                      console.log('⚠️ 개별 질문 파싱 실패:', match[0].substring(0, 100));
+                    }
+                  }
+
+                  if (questionObjects.length > 0) {
+                    parsed = { questions: questionObjects };
+                    console.log('✅ [parseQuestions] 방법4 - 개별 객체 추출 성공, 질문 수:', questionObjects.length);
+                  } else {
+                    throw new Error('방법 4 실패: 유효한 질문 객체를 찾을 수 없습니다.');
+                  }
+                }
+              } else {
+                throw new Error('배열 끝을 찾을 수 없습니다.');
+              }
+            } else {
+              throw new Error('questions 배열 시작 [을 찾을 수 없습니다.');
+            }
+          } else {
+            throw new Error('"questions" 키를 찾을 수 없습니다.');
+          }
+        }
       } else {
-        throw new Error('JSON 형식을 찾을 수 없습니다.');
+        throw new Error('JSON 객체 구조를 찾을 수 없습니다. firstBrace=' + firstBrace + ', lastBrace=' + lastBrace);
       }
     }
 
-    const parsed = JSON.parse(jsonMatch[0]);
-    console.log('✅ [parseQuestions] JSON 파싱 성공');
+    console.log('✅ [parseQuestions] 최종 JSON 파싱 완료, 키:', Object.keys(parsed || {}));
 
     if (!parsed.questions || !Array.isArray(parsed.questions)) {
       console.error('❌ [parseQuestions] questions 배열이 없거나 배열이 아님:', {

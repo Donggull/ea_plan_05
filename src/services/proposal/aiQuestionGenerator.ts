@@ -490,6 +490,22 @@ export class AIQuestionGenerator {
         cost: response.cost?.totalCost || 0
       });
 
+      // 첫 번째 질문 상세 내용 로깅 (폴백 여부 확인용)
+      if (response.questions && response.questions.length > 0) {
+        const firstQ = response.questions[0];
+        console.log('📋 [AIQuestionGenerator] 첫 번째 질문 상세:', {
+          category: firstQ.category,
+          text: firstQ.text?.substring(0, 100),
+          helpText: firstQ.helpText?.substring(0, 100),
+          isFallback: firstQ.text?.includes('RFP의 핵심 요구사항을 충족하기 위해 우리가 제안하는')
+        });
+
+        // 폴백 질문인 경우 경고
+        if (firstQ.text?.includes('RFP의 핵심 요구사항을 충족하기 위해 우리가 제안하는')) {
+          console.warn('⚠️ [AIQuestionGenerator] 폴백 질문이 반환되었습니다! AI JSON 파싱 실패 가능성');
+        }
+      }
+
       if (!response.questions || response.questions.length === 0) {
         throw new Error('AI에서 유효한 질문을 생성하지 못했습니다.');
       }
