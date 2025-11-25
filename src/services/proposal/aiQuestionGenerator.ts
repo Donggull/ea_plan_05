@@ -431,6 +431,28 @@ export class AIQuestionGenerator {
         console.warn('⚠️ 사전 분석 데이터가 API 요청에 포함되지 않았습니다!');
       }
 
+      // 시장 조사 데이터 상세 로깅
+      if (requestPayload.marketResearchData) {
+        console.log('📊 시장 조사 데이터 상세:');
+        console.log('  - 데이터 키:', Object.keys(requestPayload.marketResearchData));
+        console.log('  - structured_output 존재:', !!requestPayload.marketResearchData.structured_output);
+        console.log('  - analysis_data 존재:', !!requestPayload.marketResearchData.analysis_data);
+        console.log('  - responses_summary 존재:', !!requestPayload.marketResearchData.responses_summary);
+      } else if (step === 'proposal') {
+        console.warn('⚠️ 시장 조사 데이터가 API 요청에 포함되지 않았습니다!');
+      }
+
+      // 페르소나 데이터 상세 로깅
+      if (requestPayload.personasData) {
+        console.log('📊 페르소나 데이터 상세:');
+        console.log('  - 데이터 키:', Object.keys(requestPayload.personasData));
+        console.log('  - structured_output 존재:', !!requestPayload.personasData.structured_output);
+        console.log('  - analysis_data 존재:', !!requestPayload.personasData.analysis_data);
+        console.log('  - responses_summary 존재:', !!requestPayload.personasData.responses_summary);
+      } else if (step === 'proposal') {
+        console.warn('⚠️ 페르소나 데이터가 API 요청에 포함되지 않았습니다!');
+      }
+
       // 인증 토큰 추출
       let authToken: string | undefined
       try {

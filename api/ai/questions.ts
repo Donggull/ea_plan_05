@@ -593,6 +593,13 @@ ${documents.map((doc, index) => `${index + 1}. ${doc.name}`).join('\n')}
     if (marketResearchData) {
       prompt += `## 2. 시장 조사 분석 결과 (경쟁 환경)\n\n`
 
+      console.log('📊 [buildPrompt] 시장 조사 데이터 수신:', {
+        keys: Object.keys(marketResearchData),
+        hasStructuredOutput: !!marketResearchData.structured_output,
+        hasAnalysisData: !!marketResearchData.analysis_data,
+        hasResponsesSummary: !!marketResearchData.responses_summary
+      })
+
       if (marketResearchData.structured_output) {
         const structuredOutput = marketResearchData.structured_output
 
@@ -628,13 +635,83 @@ ${documents.map((doc, index) => `${index + 1}. ${doc.name}`).join('\n')}
           prompt += `\n`
         }
       } else if (marketResearchData.analysis_data) {
-        prompt += `### 시장 분석 결과\n${JSON.stringify(marketResearchData.analysis_data, null, 2)}\n\n`
+        // analysis_data가 객체인 경우 포맷팅
+        const analysisData = marketResearchData.analysis_data
+        if (typeof analysisData === 'object') {
+          prompt += `### 시장 분석 결과\n`
+          if (analysisData.summary) {
+            prompt += `**요약**: ${analysisData.summary}\n\n`
+          }
+          if (analysisData.key_findings && Array.isArray(analysisData.key_findings)) {
+            prompt += `**핵심 발견사항**:\n`
+            analysisData.key_findings.forEach((finding: string, idx: number) => {
+              prompt += `${idx + 1}. ${finding}\n`
+            })
+            prompt += `\n`
+          }
+          if (analysisData.recommendations && Array.isArray(analysisData.recommendations)) {
+            prompt += `**권장사항**:\n`
+            analysisData.recommendations.forEach((rec: string, idx: number) => {
+              prompt += `${idx + 1}. ${rec}\n`
+            })
+            prompt += `\n`
+          }
+          // 나머지 데이터 포함
+          const otherKeys = Object.keys(analysisData).filter(k => !['summary', 'key_findings', 'recommendations'].includes(k))
+          if (otherKeys.length > 0) {
+            prompt += `**추가 분석**:\n`
+            otherKeys.forEach(key => {
+              const value = analysisData[key]
+              if (typeof value === 'string') {
+                prompt += `- ${key}: ${value}\n`
+              } else if (Array.isArray(value)) {
+                prompt += `- ${key}: ${value.join(', ')}\n`
+              }
+            })
+            prompt += `\n`
+          }
+        } else {
+          prompt += `### 시장 분석 결과\n${String(analysisData)}\n\n`
+        }
+      } else if (marketResearchData.responses_summary) {
+        // responses_summary 폴백 (질문-답변 형식의 데이터)
+        const responsesSummary = marketResearchData.responses_summary
+        prompt += `### 시장 조사 질문 및 답변 요약\n`
+        if (typeof responsesSummary === 'object') {
+          Object.entries(responsesSummary).forEach(([key, value]) => {
+            prompt += `**${key}**: ${value}\n`
+          })
+        } else if (typeof responsesSummary === 'string') {
+          prompt += `${responsesSummary}\n`
+        }
+        prompt += `\n`
+      } else {
+        // 기타 데이터 형식 - 모든 필드 출력
+        prompt += `### 시장 조사 데이터\n`
+        const relevantFields = ['status', 'workflow_step', 'id', 'project_id', 'created_at', 'updated_at']
+        Object.entries(marketResearchData).forEach(([key, value]) => {
+          if (!relevantFields.includes(key) && value) {
+            if (typeof value === 'string' && value.length < 1000) {
+              prompt += `- ${key}: ${value}\n`
+            } else if (typeof value === 'object') {
+              prompt += `- ${key}: ${JSON.stringify(value, null, 2).substring(0, 500)}...\n`
+            }
+          }
+        })
+        prompt += `\n`
       }
     }
 
     // 페르소나 데이터 통합
     if (personasData) {
       prompt += `## 3. 최종 사용자 페르소나 분석 결과\n\n`
+
+      console.log('📊 [buildPrompt] 페르소나 데이터 수신:', {
+        keys: Object.keys(personasData),
+        hasStructuredOutput: !!personasData.structured_output,
+        hasAnalysisData: !!personasData.analysis_data,
+        hasResponsesSummary: !!personasData.responses_summary
+      })
 
       if (personasData.structured_output) {
         const structuredOutput = personasData.structured_output
@@ -671,7 +748,85 @@ ${documents.map((doc, index) => `${index + 1}. ${doc.name}`).join('\n')}
           prompt += `\n`
         }
       } else if (personasData.analysis_data) {
-        prompt += `### 페르소나 분석 결과\n${JSON.stringify(personasData.analysis_data, null, 2)}\n\n`
+        // analysis_data가 객체인 경우 포맷팅
+        const analysisData = personasData.analysis_data
+        if (typeof analysisData === 'object') {
+          prompt += `### 페르소나 분석 결과\n`
+          if (analysisData.summary) {
+            prompt += `**요약**: ${analysisData.summary}\n\n`
+          }
+          if (analysisData.personas && Array.isArray(analysisData.personas)) {
+            prompt += `**정의된 페르소나**:\n`
+            analysisData.personas.forEach((persona: any, idx: number) => {
+              prompt += `${idx + 1}. ${typeof persona === 'string' ? persona : JSON.stringify(persona)}\n`
+            })
+            prompt += `\n`
+          }
+          if (analysisData.key_findings && Array.isArray(analysisData.key_findings)) {
+            prompt += `**핵심 발견사항**:\n`
+            analysisData.key_findings.forEach((finding: string, idx: number) => {
+              prompt += `${idx + 1}. ${finding}\n`
+            })
+            prompt += `\n`
+          }
+          if (analysisData.pain_points && Array.isArray(analysisData.pain_points)) {
+            prompt += `**사용자 Pain Points**:\n`
+            analysisData.pain_points.forEach((pain: string, idx: number) => {
+              prompt += `${idx + 1}. ${pain}\n`
+            })
+            prompt += `\n`
+          }
+          if (analysisData.user_goals && Array.isArray(analysisData.user_goals)) {
+            prompt += `**사용자 목표**:\n`
+            analysisData.user_goals.forEach((goal: string, idx: number) => {
+              prompt += `${idx + 1}. ${goal}\n`
+            })
+            prompt += `\n`
+          }
+          // 나머지 데이터 포함
+          const usedKeys = ['summary', 'personas', 'key_findings', 'pain_points', 'user_goals']
+          const otherKeys = Object.keys(analysisData).filter(k => !usedKeys.includes(k))
+          if (otherKeys.length > 0) {
+            prompt += `**추가 분석**:\n`
+            otherKeys.forEach(key => {
+              const value = analysisData[key]
+              if (typeof value === 'string') {
+                prompt += `- ${key}: ${value}\n`
+              } else if (Array.isArray(value)) {
+                prompt += `- ${key}: ${value.join(', ')}\n`
+              }
+            })
+            prompt += `\n`
+          }
+        } else {
+          prompt += `### 페르소나 분석 결과\n${String(analysisData)}\n\n`
+        }
+      } else if (personasData.responses_summary) {
+        // responses_summary 폴백 (질문-답변 형식의 데이터)
+        const responsesSummary = personasData.responses_summary
+        prompt += `### 페르소나 분석 질문 및 답변 요약\n`
+        if (typeof responsesSummary === 'object') {
+          Object.entries(responsesSummary).forEach(([key, value]) => {
+            prompt += `**${key}**: ${value}\n`
+          })
+        } else if (typeof responsesSummary === 'string') {
+          prompt += `${responsesSummary}\n`
+        }
+        prompt += `\n`
+      } else {
+        // 기타 데이터 형식 - 모든 필드 출력
+        prompt += `### 페르소나 데이터\n`
+        const relevantFields = ['status', 'workflow_step', 'id', 'project_id', 'created_at', 'updated_at']
+        Object.entries(personasData).forEach(([key, value]) => {
+          if (!relevantFields.includes(key) && value) {
+            if (typeof value === 'string' && value.length < 1000) {
+              prompt += `- ${key}: ${value}\n`
+            } else if (typeof value === 'object') {
+              prompt += `- ${key}: ${JSON.stringify(value, null, 2).substring(0, 500)}...\n`
+            }
+          }
+        })
+        prompt += `\n`
       }
     }
 
