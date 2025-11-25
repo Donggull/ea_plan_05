@@ -2974,6 +2974,33 @@ ${content}
         // Phase 2/9: 프로젝트 수락 결정
         agencyPerspective: {
           projectDecision: phase1BContent.agencyPerspective?.projectDecision || {},
+          // UI에서 사용하는 perspectives 구조 매핑 (Phase 6/9, 7/9 결과)
+          perspectives: {
+            planning: {
+              feasibility: this.extractComplexityToPercent(phase5AContent.agencyDetailedAnalysis?.detailedPerspectives?.planning?.complexity?.level),
+              estimatedEffort: this.formatEstimatedEffort(phase5AContent.agencyDetailedAnalysis?.detailedPerspectives?.planning?.estimatedEffort),
+              challenges: this.extractChallenges(phase5AContent.agencyDetailedAnalysis?.detailedPerspectives?.planning?.challenges),
+              risks: this.extractRisks(phase5AContent.agencyDetailedAnalysis?.detailedPerspectives?.planning?.risks),
+            },
+            design: {
+              complexity: phase5AContent.agencyDetailedAnalysis?.detailedPerspectives?.design?.complexity?.level || '-',
+              estimatedHours: phase5AContent.agencyDetailedAnalysis?.detailedPerspectives?.design?.estimatedEffort?.hours || 0,
+              challenges: this.extractChallenges(phase5AContent.agencyDetailedAnalysis?.detailedPerspectives?.design?.challenges),
+              risks: this.extractRisks(phase5AContent.agencyDetailedAnalysis?.detailedPerspectives?.design?.risks),
+            },
+            publishing: {
+              responsiveComplexity: phase5BContent.agencyDetailedAnalysis?.detailedPerspectives?.publishing?.complexity?.level || '-',
+              estimatedHours: phase5BContent.agencyDetailedAnalysis?.detailedPerspectives?.publishing?.estimatedEffort?.hours || 0,
+              challenges: this.extractChallenges(phase5BContent.agencyDetailedAnalysis?.detailedPerspectives?.publishing?.challenges),
+              risks: this.extractRisks(phase5BContent.agencyDetailedAnalysis?.detailedPerspectives?.publishing?.risks),
+            },
+            development: {
+              technicalComplexity: phase5BContent.agencyDetailedAnalysis?.detailedPerspectives?.development?.complexity?.level || '-',
+              estimatedManMonths: phase5BContent.agencyDetailedAnalysis?.detailedPerspectives?.development?.estimatedEffort?.manMonths || 0,
+              challenges: this.extractChallenges(phase5BContent.agencyDetailedAnalysis?.detailedPerspectives?.development?.challenges),
+              risks: this.extractRisks(phase5BContent.agencyDetailedAnalysis?.detailedPerspectives?.development?.risks),
+            },
+          },
         },
 
         // Phase 3/9: 리스크 평가
@@ -6716,6 +6743,72 @@ ${incompleteItems.length > 0 ? `- 우선순위 2: ${incompleteItems.length}개 �
       },
       visualizationData: {}
     };
+  }
+
+  // ========================================
+  // UI 데이터 변환 헬퍼 메서드
+  // ========================================
+
+  /**
+   * 복잡도 레벨을 퍼센트로 변환
+   */
+  private extractComplexityToPercent(level: string | undefined): number {
+    if (!level) return 50;
+    const levelMap: Record<string, number> = {
+      '상': 85,
+      '고': 85,
+      'high': 85,
+      '중상': 70,
+      '중': 60,
+      'medium': 60,
+      '중하': 45,
+      '하': 30,
+      'low': 30,
+    };
+    return levelMap[level.toLowerCase()] || 50;
+  }
+
+  /**
+   * 예상 공수를 문자열로 포맷
+   */
+  private formatEstimatedEffort(effort: any): string {
+    if (!effort) return '-';
+    if (typeof effort === 'string') return effort;
+
+    const parts: string[] = [];
+    if (effort.manMonths) parts.push(`${effort.manMonths}MM`);
+    if (effort.hours) parts.push(`${effort.hours}시간`);
+    if (effort.duration) parts.push(effort.duration);
+
+    return parts.length > 0 ? parts.join(' / ') : '-';
+  }
+
+  /**
+   * challenges 배열에서 문자열 추출
+   */
+  private extractChallenges(challenges: any[] | undefined): string[] {
+    if (!challenges || !Array.isArray(challenges)) return [];
+    return challenges.map(item => {
+      if (typeof item === 'string') return item;
+      if (item.challenge) return item.challenge;
+      if (item.title) return item.title;
+      if (item.description) return item.description;
+      return JSON.stringify(item);
+    }).filter(Boolean);
+  }
+
+  /**
+   * risks 배열에서 문자열 추출
+   */
+  private extractRisks(risks: any[] | undefined): string[] {
+    if (!risks || !Array.isArray(risks)) return [];
+    return risks.map(item => {
+      if (typeof item === 'string') return item;
+      if (item.risk) return item.risk;
+      if (item.title) return item.title;
+      if (item.description) return item.description;
+      return JSON.stringify(item);
+    }).filter(Boolean);
   }
 }
 
