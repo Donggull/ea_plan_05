@@ -378,8 +378,8 @@ export class AIQuestionGenerator {
           summary: doc.content ? doc.content.substring(0, 200) : undefined,
           content: doc.content
         })) || [],
-        // 시장 조사, 페르소나, 제안서 단계는 사전 분석 데이터 포함
-        preAnalysisData: (step === 'market_research' || step === 'personas' || step === 'proposal') && context.preAnalysisData?.hasPreAnalysis
+        // 시장 조사, 페르소나, 제안서, 비용 산정 단계는 사전 분석 데이터 포함
+        preAnalysisData: (step === 'market_research' || step === 'personas' || step === 'proposal' || step === 'budget') && context.preAnalysisData?.hasPreAnalysis
           ? {
               hasPreAnalysis: context.preAnalysisData.hasPreAnalysis,
               report: context.preAnalysisData.report,
