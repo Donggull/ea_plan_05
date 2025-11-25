@@ -338,15 +338,26 @@ export default async function handler(
     return res.status(200).json(response)
 
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorStack = error instanceof Error ? error.stack : undefined
+
     console.error('❌ [AI Questions API] 오류 상세:', {
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-      timestamp: new Date().toISOString()
+      error: errorMessage,
+      stack: errorStack,
+      timestamp: new Date().toISOString(),
+      requestType: req.body?.context?.requestType,
+      provider: req.body?.provider,
+      model: req.body?.model
     })
+
+    // AI API 오류인 경우 더 자세한 정보 포함
+    const isAiApiError = errorMessage.includes('API 오류')
 
     return res.status(500).json({
       error: 'AI 질문 생성 중 오류가 발생했습니다.',
-      details: error instanceof Error ? error.message : String(error),
+      details: errorMessage,
+      errorType: isAiApiError ? 'AI_API_ERROR' : 'INTERNAL_ERROR',
+      requestType: req.body?.context?.requestType,
       timestamp: new Date().toISOString()
     })
   }
@@ -1593,6 +1604,13 @@ async function callAIForQuestions(
 
   if (!response.ok) {
     const errorText = await response.text()
+    console.error(`❌ [callAIForQuestions] ${provider} API 호출 실패:`, {
+      status: response.status,
+      statusText: response.statusText,
+      errorText: errorText.substring(0, 1000),
+      model: model,
+      promptLength: prompt.length
+    })
     throw new Error(`${provider} API 오류: ${response.status} - ${errorText}`)
   }
 

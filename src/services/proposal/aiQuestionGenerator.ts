@@ -483,7 +483,15 @@ export class AIQuestionGenerator {
 
       if (!apiResponse.ok) {
         const errorData = await apiResponse.json().catch(() => ({}));
-        throw new Error(`AI 질문 생성 API 호출 실패: ${apiResponse.status} - ${errorData.error || apiResponse.statusText}`);
+        console.error('❌ [AIQuestionGenerator] API 오류 응답 상세:', {
+          status: apiResponse.status,
+          statusText: apiResponse.statusText,
+          errorData: errorData,
+          details: errorData.details,
+          errorType: errorData.errorType,
+          requestType: errorData.requestType
+        });
+        throw new Error(`AI 질문 생성 API 호출 실패: ${apiResponse.status} - ${errorData.details || errorData.error || apiResponse.statusText}`);
       }
 
       const response = await apiResponse.json();
