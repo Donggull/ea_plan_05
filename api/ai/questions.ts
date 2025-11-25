@@ -518,39 +518,68 @@ ${documents.map((doc, index) => `${index + 1}. ${doc.name}`).join('\n')}
   if (context?.requestType === 'proposal_questions') {
     const { marketResearchData, personasData } = request as any
 
+    // 사전 분석 데이터 확인
+    const hasPreAnalysisData = preAnalysisData && (
+      (preAnalysisData.report && Object.keys(preAnalysisData.report).length > 0) ||
+      (preAnalysisData.documentAnalyses && preAnalysisData.documentAnalyses.length > 0)
+    )
+    const hasMarketResearch = !!marketResearchData
+    const hasPersonas = !!personasData
+
+    console.log('📊 [buildPrompt] proposal_questions 데이터 확인:', {
+      hasPreAnalysisData,
+      hasMarketResearch,
+      hasPersonas,
+      reportSummaryLength: preAnalysisData?.report?.summary?.length || 0,
+      keyFindingsCount: preAnalysisData?.report?.key_findings?.length || 0,
+      recommendationsCount: preAnalysisData?.report?.recommendations?.length || 0,
+      technicalInsightsCount: preAnalysisData?.report?.technical_insights?.length || 0,
+      documentAnalysesCount: preAnalysisData?.documentAnalyses?.length || 0
+    })
+
+    // 동적으로 상황 설명 생성
+    let situationDesc = `우리는 웹 에이전시이며, 클라이언트로부터 받은 RFP(제안요청서)를 분석했습니다.\n`
+    situationDesc += `- ✅ 사전 분석: RFP 문서 분석 완료\n`
+    situationDesc += hasMarketResearch ? `- ✅ 시장 조사: 타겟 시장 및 경쟁 환경 파악 완료\n` : `- ⏭️ 시장 조사: 미완료 (사전 분석 기반으로 진행)\n`
+    situationDesc += hasPersonas ? `- ✅ 페르소나 분석: 최종 사용자 특성 파악 완료\n` : `- ⏭️ 페르소나 분석: 미완료 (사전 분석 기반으로 진행)\n`
+
     let prompt = `당신은 웹 에이전시의 제안서 작성 전문가입니다.
 
 # 상황
-우리는 웹 에이전시이며, 클라이언트로부터 받은 RFP(제안요청서)를 분석 완료했습니다.
-- 사전 분석: RFP 문서 분석 완료
-- 시장 조사: 타겟 시장 및 경쟁 환경 파악 완료
-- 페르소나 분석: 최종 사용자 특성 파악 완료
-
+${situationDesc}
 # 미션
-이제 **우리 에이전시가 클라이언트에게 제출할 제안서**를 작성하기 위한 질문들을 생성해주세요.
-질문은 **우리 에이전시 팀(PM, 개발자, 디자이너)이 답변**하며, 답변 내용이 클라이언트 제출용 제안서가 됩니다.
+**우리 에이전시가 클라이언트에게 제출할 제안서**를 작성하기 위한 **구체적이고 프로젝트 맞춤형 질문**들을 생성해주세요.
 
-# 프로젝트 기본 정보 (RFP 분석 결과)
+⚠️ **중요**: 반드시 아래 제공된 RFP 분석 데이터의 **구체적인 내용을 인용**하여 질문을 작성해야 합니다.
+- 일반적인 질문이 아닌, **이 프로젝트에만 해당되는 구체적인 질문**을 생성하세요.
+- RFP에서 언급된 **특정 기능, 요구사항, 기술 스택**을 질문에 명시하세요.
+- 클라이언트가 "우리 프로젝트를 정말 이해했구나"라고 느낄 수 있는 수준의 질문이어야 합니다.
+
+# 프로젝트 기본 정보
 - **프로젝트명**: ${projectInfo?.name || '미정'}
 - **프로젝트 설명**: ${projectInfo?.description || '미정'}
 - **산업 분야**: ${projectInfo?.industry || '미정'}
 
 `
 
-    // 사전 분석 데이터 확인 및 핵심 인사이트 추출
-    const hasPreAnalysisData = preAnalysisData && (
-      (preAnalysisData.report && Object.keys(preAnalysisData.report).length > 0) ||
-      (preAnalysisData.documentAnalyses && preAnalysisData.documentAnalyses.length > 0)
-    )
-
+    // 사전 분석 데이터 포함 (핵심 데이터 소스)
     if (hasPreAnalysisData) {
-      prompt += `## 1. RFP 사전 분석 결과 (클라이언트 요구사항)\n\n`
+      prompt += `---
+## 🔍 RFP 사전 분석 결과 (핵심 데이터 - 반드시 활용할 것)
+
+`
 
       if (preAnalysisData.report) {
-        prompt += `### 클라이언트 요구사항 요약\n${preAnalysisData.report.summary || '없음'}\n\n`
+        if (preAnalysisData.report.summary) {
+          prompt += `### 📋 클라이언트 요구사항 요약
+${preAnalysisData.report.summary}
+
+`
+        }
 
         if (preAnalysisData.report.key_findings && preAnalysisData.report.key_findings.length > 0) {
-          prompt += `### 핵심 요구사항 및 과제\n`
+          prompt += `### 🎯 핵심 요구사항 및 과제 (질문 생성 시 반드시 참조)
+`
           preAnalysisData.report.key_findings.forEach((f: string, idx: number) => {
             prompt += `${idx + 1}. ${f}\n`
           })
@@ -558,7 +587,8 @@ ${documents.map((doc, index) => `${index + 1}. ${doc.name}`).join('\n')}
         }
 
         if (preAnalysisData.report.recommendations && preAnalysisData.report.recommendations.length > 0) {
-          prompt += `### 제안 방향 권장사항\n`
+          prompt += `### 💡 제안 방향 권장사항 (질문 생성 시 반드시 참조)
+`
           preAnalysisData.report.recommendations.forEach((r: string, idx: number) => {
             prompt += `${idx + 1}. ${r}\n`
           })
@@ -566,27 +596,63 @@ ${documents.map((doc, index) => `${index + 1}. ${doc.name}`).join('\n')}
         }
 
         if (preAnalysisData.report.technical_insights && preAnalysisData.report.technical_insights.length > 0) {
-          prompt += `### 기술적 요구사항\n`
+          prompt += `### 🔧 기술적 요구사항
+`
           preAnalysisData.report.technical_insights.forEach((t: string, idx: number) => {
             prompt += `${idx + 1}. ${t}\n`
           })
           prompt += `\n`
         }
+
+        // structured_data가 있으면 추가 정보 포함
+        if (preAnalysisData.report.structured_data) {
+          const sd = preAnalysisData.report.structured_data
+          prompt += `### 📊 구조화된 분석 데이터\n`
+          if (sd.project_scope) prompt += `- **프로젝트 범위**: ${sd.project_scope}\n`
+          if (sd.target_users) prompt += `- **타겟 사용자**: ${sd.target_users}\n`
+          if (sd.key_features && Array.isArray(sd.key_features)) prompt += `- **주요 기능**: ${sd.key_features.join(', ')}\n`
+          if (sd.tech_requirements && Array.isArray(sd.tech_requirements)) prompt += `- **기술 요구사항**: ${sd.tech_requirements.join(', ')}\n`
+          if (sd.constraints && Array.isArray(sd.constraints)) prompt += `- **제약사항**: ${sd.constraints.join(', ')}\n`
+          if (sd.success_criteria && Array.isArray(sd.success_criteria)) prompt += `- **성공 기준**: ${sd.success_criteria.join(', ')}\n`
+          if (sd.budget_info) prompt += `- **예산 정보**: ${sd.budget_info}\n`
+          if (sd.timeline_info) prompt += `- **일정 정보**: ${sd.timeline_info}\n`
+          prompt += `\n`
+        }
       }
 
       if (preAnalysisData.documentAnalyses && preAnalysisData.documentAnalyses.length > 0) {
-        prompt += `### RFP 문서 분석 결과\n`
+        prompt += `### 📄 RFP 문서 분석 상세 결과
+`
         preAnalysisData.documentAnalyses.forEach((analysis: any, index: number) => {
-          prompt += `**${index + 1}. ${analysis.document_name || '문서'}**\n`
+          prompt += `**문서 ${index + 1}: ${analysis.document_name || '문서'}**\n`
           if (analysis.summary) {
-            prompt += `   - 요약: ${analysis.summary}\n`
+            prompt += `- 요약: ${analysis.summary}\n`
           }
           if (analysis.key_points && analysis.key_points.length > 0) {
-            prompt += `   - 핵심 포인트: ${analysis.key_points.join(', ')}\n`
+            prompt += `- 핵심 포인트:\n`
+            analysis.key_points.forEach((point: string, idx: number) => {
+              prompt += `  ${idx + 1}. ${point}\n`
+            })
           }
+          if (analysis.requirements && analysis.requirements.length > 0) {
+            prompt += `- 요구사항:\n`
+            analysis.requirements.forEach((req: string, idx: number) => {
+              prompt += `  ${idx + 1}. ${req}\n`
+            })
+          }
+          if (analysis.technical_details) {
+            prompt += `- 기술 세부사항: ${analysis.technical_details}\n`
+          }
+          prompt += `\n`
         })
-        prompt += `\n`
       }
+    } else {
+      // 사전 분석 데이터가 없는 경우
+      prompt += `## ⚠️ 주의: RFP 사전 분석 데이터 없음
+프로젝트 기본 정보만으로 일반적인 제안서 질문을 생성합니다.
+프로젝트명과 설명을 참고하여 최대한 구체적인 질문을 생성해주세요.
+
+`
     }
 
     // 시장 조사 데이터 통합
@@ -902,73 +968,64 @@ ${documents.map((doc, index) => `${index + 1}. ${doc.name}`).join('\n')}
 
 ## Step 2: 질문 생성 원칙
 
-### ✅ 올바른 질문 예시 (에이전시 팀에게 묻기)
-- "RFP의 [핵심 요구사항]을 충족하기 위해 **우리가 제안할** 솔루션의 주요 기능과 기술적 접근 방식은?"
-- "경쟁사 분석 결과를 바탕으로, **우리 에이전시만의** 차별화된 강점과 제안 포인트는?"
-- "페르소나 분석에서 파악된 사용자 Pain Point를 해결하기 위해 **우리가 구현할** UX/UI 전략은?"
-- "프로젝트에 **우리가 투입할 팀** 구성은? (역할, 인원, 투입 기간)"
-- "**우리가 제시하는** 프로젝트 일정은 어떻게 되며, 주요 마일스톤과 산출물은?"
-- "**우리가 산정한** 프로젝트 총 비용과 항목별 비용 breakdown은?"
-- "RFP 기술 요구사항을 고려할 때, **우리가 선택한** 기술 스택과 그 근거는?"
+## ⚠️ 필수 준수 사항: 프로젝트 맞춤형 질문 생성
 
-### ❌ 잘못된 질문 예시 (클라이언트에게 묻는 것처럼 들림)
-- "타겟 고객의 주요 Pain Point를 해결하기 위한 기능은?" ← 주체 불명확
-- "프로젝트의 목표는?" ← 이미 RFP에서 파악했어야 함
-- "예산 범위는?" ← 우리가 견적을 제시해야 함
-- "원하는 기술 스택은?" ← 우리가 제안해야 함
+### 🚨 절대 금지
+- 위에 제공된 RFP 분석 데이터를 무시하고 일반적인 질문 생성 금지
+- "프로젝트의 목표는?", "예산 범위는?" 같은 **RFP에서 이미 파악한 내용을 다시 묻는 질문 금지**
+- 어떤 프로젝트에나 적용될 수 있는 **범용적인 질문 금지**
+
+### ✅ 반드시 해야 할 것
+1. **RFP 분석 데이터에서 구체적인 내용을 인용**하여 질문 작성
+2. 권장사항/요구사항에 **명시된 기능, 기술, 요구사항을 질문에 포함**
+3. 질문만 봐도 **어떤 프로젝트인지 알 수 있어야 함**
+4. helpText(context)에 **RFP 분석 내용을 직접 인용**
+
+### 예시: 프로젝트 맞춤형 질문 변환
+- ❌ 나쁜 예: "우리가 제안하는 솔루션의 주요 기능은?"
+- ✅ 좋은 예: "[RFP에서 언급된 'OO 기능 구현' 요구사항]을 충족하기 위해 우리가 제안하는 구체적인 구현 방식과 사용할 기술은?"
+
+- ❌ 나쁜 예: "프로젝트 일정 계획은?"
+- ✅ 좋은 예: "[RFP 요약에서 언급된 XX개월 일정과 YY 마일스톤]을 고려할 때, 우리가 제시하는 단계별 개발 일정과 각 단계의 산출물은?"
 
 ## Step 3: 질문 구성
 
 ### 질문 개수 및 분포
-- **총 10-15개 질문 생성**
-- 8가지 제안서 영역이 고르게 분포 (각 영역당 1-2개)
-- 핵심 영역(솔루션, 기술, 팀, 비용, 일정)은 2개 이상 심화 질문
+- **총 8-12개 질문 생성**
+- 6가지 제안서 영역 (제안 솔루션, 기술 아키텍처, 팀 구성, 일정 계획, 비용 산정, 차별화 요소)
 
-### 질문 유형 (type) 선택
-- **textarea**: 솔루션 개요, 기술 설명, 차별화 전략 등 상세 설명
-- **multiselect**: 기술 스택, 주요 기능 목록, 팀 역할 등
-- **text**: 프로젝트 기간, 팀원 이름/역할 등 간단한 입력
-- **number**: 비용, 인원 수, 개발 기간(주) 등 숫자
-- **select**: 개발 방법론, 배포 환경 등 단일 선택
+### 질문 유형 (expectedFormat)
+- **textarea**: 솔루션 설명, 기술 선택 근거, 차별화 전략 등
+- **multiselect**: 기술 스택 선택, 주요 기능 목록 등
+- **text**: 간단한 정보 입력
+- **number**: 비용, 인원 수, 기간 등
 
-### helpText 작성 원칙
-- RFP 분석 결과를 구체적으로 인용
-- "우리 에이전시가 작성할 제안서에 포함될 내용"임을 명시
-- 답변 작성 가이드 제공 (예: "클라이언트에게 우리의 기술 선택을 어필할 수 있도록...")
-
-### category 선택
-- "프로젝트 이해" - Executive Summary
-- "제안 솔루션" - Proposed Solution
-- "기술 아키텍처" - Technical Architecture
-- "팀 구성" - Team Composition
-- "일정 계획" - Timeline & Milestones
-- "비용 산정" - Cost Breakdown
-- "리스크 관리" - Risk Management
-- "차별화 요소" - Why Us
+### context 작성 (중요!)
+- **반드시 위에서 제공된 RFP 분석 내용을 직접 인용**
+- 예: "RFP 권장사항 2번 '[권장사항 내용]'에 대한 우리의 제안을 작성합니다"
 
 ---
 
 # 출력 형식
 
-**JSON 형식으로만 반환하세요. 다른 텍스트는 포함하지 마세요.**
+반드시 아래 JSON 형식만 반환하세요. 마크다운 코드 블록(\`\`\`)을 사용하지 마세요.
 
-JSON 형식:
 {
   "questions": [
     {
-      "category": "프로젝트 이해|제안 솔루션|기술 아키텍처|팀 구성|일정 계획|비용 산정|리스크 관리|차별화 요소",
-      "question": "우리 에이전시 팀이 답변할 질문 (주체를 '우리'로 명확히)",
-      "expectedFormat": "text|select|multiselect|number|textarea",
-      "options": ["옵션1", "옵션2"],
-      "required": true|false,
-      "context": "RFP 분석 결과 인용 + 이 답변이 제안서에 어떻게 활용되는지 설명",
-      "priority": "high|medium|low",
-      "confidenceScore": 0.0-1.0
+      "category": "제안 솔루션|기술 아키텍처|팀 구성|일정 계획|비용 산정|차별화 요소",
+      "question": "[RFP 분석 내용 인용] + 우리가 제안할/구현할/선택한 구체적 내용",
+      "expectedFormat": "textarea|multiselect|text|number|select",
+      "options": [],
+      "required": true,
+      "context": "[RFP 분석 결과 직접 인용] + 제안서에서 이 답변이 활용되는 방식",
+      "priority": "high|medium",
+      "confidenceScore": 0.9
     }
   ]
 }
 
-정확한 JSON만 반환하세요.`
+JSON만 반환하세요.`
 
     return prompt
   }
@@ -1461,6 +1518,9 @@ function parseQuestions(response: string, requestType?: string): GeneratedQuesti
   try {
     console.log('🔍 [parseQuestions] 파싱 시작, 응답 길이:', response.length, 'requestType:', requestType);
 
+    // AI 응답 내용 로깅 (처음 1000자)
+    console.log('📝 [parseQuestions] AI 응답 내용 (처음 1000자):', response.substring(0, 1000));
+
     // 0. 마크다운 코드 블록 제거 (```json ... ``` 또는 ``` ... ```)
     let cleanedResponse = response
       .replace(/```json\s*/gi, '')
@@ -1468,6 +1528,7 @@ function parseQuestions(response: string, requestType?: string): GeneratedQuesti
       .trim();
 
     console.log('🧹 [parseQuestions] 마크다운 제거 후 길이:', cleanedResponse.length);
+    console.log('📝 [parseQuestions] 정리된 응답 (처음 500자):', cleanedResponse.substring(0, 500));
 
     // 1. JSON 부분만 추출 (더 유연한 매칭)
     let jsonMatch = cleanedResponse.match(/\{[\s\S]*"questions"[\s\S]*\[[\s\S]*\][\s\S]*\}/);
@@ -1525,6 +1586,12 @@ function parseQuestions(response: string, requestType?: string): GeneratedQuesti
           expectedFormat필드: q.expectedFormat || q.type,
           context필드: q.context || q.helpText,
           confidenceScore필드: q.confidenceScore || q.confidence
+        });
+        // 첫 번째 질문 전체 내용 로깅
+        console.log('📋 [parseQuestions] 첫 번째 질문 전체 내용:', {
+          category: normalized.category,
+          text: normalized.text?.substring(0, 200),
+          helpText: normalized.helpText?.substring(0, 200)
         });
       }
 
