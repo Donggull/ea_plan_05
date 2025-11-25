@@ -2531,16 +2531,16 @@ ${content}
       // ========================================
       // Phase 1A: 핵심 비즈니스 분석만 (40-44%)
       // ========================================
-      console.log('🚀 [Phase 1A/12] 핵심 비즈니스 분석 시작...');
+      console.log('🚀 [Phase 1A/14] 핵심 비즈니스 분석 시작...');
       const phase1APrompt = this.generateReportPhase1Prompt(analyses, questions, answers); // 기존 Phase1 재사용
-      console.log('📝 [Phase 1A/12] 프롬프트 길이:', phase1APrompt.length);
+      console.log('📝 [Phase 1A/14] 프롬프트 길이:', phase1APrompt.length);
 
       this.emitProgressUpdate({
         sessionId,
         stage: 'report_generation',
         status: 'processing',
         progress: 40,
-        message: 'Phase 1A/12: 핵심 비즈니스 분석 생성 중...',
+        message: 'Phase 1A/14: 핵심 비즈니스 분석 생성 중...',
         timestamp: new Date(),
       }).catch(() => {});
 
@@ -2548,27 +2548,27 @@ ${content}
         aiProvider,
         aiModel,
         phase1APrompt,
-        3500, // Phase 1A: 비즈니스 분석만
+        8000, // Phase 1A: 비즈니스 분석만 (한글 특성상 토큰 많이 필요)
         0.2,
         (_chunk, fullContent) => {
           const charCount = fullContent.length;
           const progress = Math.min(44, 40 + Math.floor(charCount / 900));
-          console.log(`📊 [Phase 1A/12 Streaming] ${charCount} chars, ${progress}%`);
+          console.log(`📊 [Phase 1A/14 Streaming] ${charCount} chars, ${progress}%`);
 
           this.emitProgressUpdate({
             sessionId,
             stage: 'report_generation',
             status: 'processing',
             progress,
-            message: `Phase 1A/12 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
+            message: `Phase 1A/14 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
             timestamp: new Date(),
           }).catch(() => {});
         }
       );
 
-      console.log('✅ [Phase 1A/12] 응답 완료:', { length: phase1AResponse.content?.length });
+      console.log('✅ [Phase 1A/14] 응답 완료:', { length: phase1AResponse.content?.length });
       const phase1AContent = this.parseReportResponse(phase1AResponse.content, analyses, answers);
-      console.log('✅ [Phase 1A/12] 파싱 완료:', {
+      console.log('✅ [Phase 1A/14] 파싱 완료:', {
         hasSummary: !!phase1AContent.summary,
         hasExecutiveSummary: !!phase1AContent.executiveSummary,
         hasKeyInsights: !!phase1AContent.keyInsights,
@@ -2578,16 +2578,16 @@ ${content}
       // ========================================
       // Phase 1B: 프로젝트 수락 결정만 (44-48%)
       // ========================================
-      console.log('🚀 [Phase 1B/12] 프로젝트 수락 결정 시작...');
+      console.log('🚀 [Phase 1B/14] 프로젝트 수락 결정 시작...');
       const phase1BPrompt = this.generateReportPhase1Prompt(analyses, questions, answers); // 임시로 같은 함수 사용
-      console.log('📝 [Phase 1B/12] 프롬프트 길이:', phase1BPrompt.length);
+      console.log('📝 [Phase 1B/14] 프롬프트 길이:', phase1BPrompt.length);
 
       this.emitProgressUpdate({
         sessionId,
         stage: 'report_generation',
         status: 'processing',
         progress: 44,
-        message: 'Phase 1B/12: 프로젝트 수락 결정 중...',
+        message: 'Phase 1B/14: 프로젝트 수락 결정 중...',
         timestamp: new Date(),
       }).catch(() => {});
 
@@ -2595,27 +2595,27 @@ ${content}
         aiProvider,
         aiModel,
         phase1BPrompt,
-        2500, // Phase 1B: 수락 결정만
+        5000, // Phase 1B: 수락 결정만 (한글 특성상 토큰 많이 필요)
         0.2,
         (_chunk, fullContent) => {
           const charCount = fullContent.length;
           const progress = Math.min(48, 44 + Math.floor(charCount / 625));
-          console.log(`📊 [Phase 1B/12 Streaming] ${charCount} chars, ${progress}%`);
+          console.log(`📊 [Phase 1B/14 Streaming] ${charCount} chars, ${progress}%`);
 
           this.emitProgressUpdate({
             sessionId,
             stage: 'report_generation',
             status: 'processing',
             progress,
-            message: `Phase 1B/12 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
+            message: `Phase 1B/14 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
             timestamp: new Date(),
           }).catch(() => {});
         }
       );
 
-      console.log('✅ [Phase 1B/12] 응답 완료:', { length: phase1BResponse.content?.length });
+      console.log('✅ [Phase 1B/14] 응답 완료:', { length: phase1BResponse.content?.length });
       const phase1BContent = this.parseReportResponse(phase1BResponse.content, analyses, answers);
-      console.log('✅ [Phase 1B/12] 파싱 완료:', {
+      console.log('✅ [Phase 1B/14] 파싱 완료:', {
         hasAgencyPerspective: !!phase1BContent.agencyPerspective,
         hasProjectDecision: !!phase1BContent.agencyPerspective?.projectDecision
       });
@@ -2623,16 +2623,16 @@ ${content}
       // ========================================
       // Phase 2: 리스크 평가 (48-52%)
       // ========================================
-      console.log('🚀 [Phase 2/12] 리스크 평가 시작...');
+      console.log('🚀 [Phase 2/14] 리스크 평가 시작...');
       const phase2Prompt = this.generateReportPhase2Prompt(analyses, questions, answers, phase1AContent);
-      console.log('📝 [Phase 2/12] 프롬프트 길이:', phase2Prompt.length);
+      console.log('📝 [Phase 2/14] 프롬프트 길이:', phase2Prompt.length);
 
       this.emitProgressUpdate({
         sessionId,
         stage: 'report_generation',
         status: 'processing',
         progress: 48,
-        message: 'Phase 2/12: 리스크 평가 중...',
+        message: 'Phase 2/14: 리스크 평가 중...',
         timestamp: new Date(),
       }).catch(() => {});
 
@@ -2640,27 +2640,27 @@ ${content}
         aiProvider,
         aiModel,
         phase2Prompt,
-        3000, // Phase 2: 리스크
+        6000, // Phase 2: 리스크 (한글 특성상 토큰 많이 필요)
         0.2,
         (_chunk, fullContent) => {
           const charCount = fullContent.length;
           const progress = Math.min(52, 48 + Math.floor(charCount / 750));
-          console.log(`📊 [Phase 2/12 Streaming] ${charCount} chars, ${progress}%`);
+          console.log(`📊 [Phase 2/14 Streaming] ${charCount} chars, ${progress}%`);
 
           this.emitProgressUpdate({
             sessionId,
             stage: 'report_generation',
             status: 'processing',
             progress,
-            message: `Phase 2/12 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
+            message: `Phase 2/14 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
             timestamp: new Date(),
           }).catch(() => {});
         }
       );
 
-      console.log('✅ [Phase 2/12] 응답 완료:', { length: phase2Response.content?.length });
+      console.log('✅ [Phase 2/14] 응답 완료:', { length: phase2Response.content?.length });
       const phase2Content = this.parseReportResponse(phase2Response.content, analyses, answers);
-      console.log('✅ [Phase 2/12] 파싱 완료:', {
+      console.log('✅ [Phase 2/14] 파싱 완료:', {
         hasRiskAssessment: !!phase2Content.riskAssessment,
         highRisksCount: phase2Content.riskAssessment?.high?.length || 0
       });
@@ -2668,16 +2668,16 @@ ${content}
       // ========================================
       // Phase 3: 권장사항 (52-56%)
       // ========================================
-      console.log('🚀 [Phase 3/12] 실행 권장사항 작성 시작...');
+      console.log('🚀 [Phase 3/14] 실행 권장사항 작성 시작...');
       const phase3Prompt = this.generateReportPhase3Prompt(analyses, questions, answers, phase1AContent, phase2Content);
-      console.log('📝 [Phase 3/12] 프롬프트 길이:', phase3Prompt.length);
+      console.log('📝 [Phase 3/14] 프롬프트 길이:', phase3Prompt.length);
 
       this.emitProgressUpdate({
         sessionId,
         stage: 'report_generation',
         status: 'processing',
         progress: 52,
-        message: 'Phase 3/12: 실행 권장사항 작성 중...',
+        message: 'Phase 3/14: 실행 권장사항 작성 중...',
         timestamp: new Date(),
       }).catch(() => {});
 
@@ -2685,27 +2685,27 @@ ${content}
         aiProvider,
         aiModel,
         phase3Prompt,
-        3000, // Phase 3: 권장사항
+        6000, // Phase 3: 권장사항 (한글 특성상 토큰 많이 필요)
         0.2,
         (_chunk, fullContent) => {
           const charCount = fullContent.length;
           const progress = Math.min(56, 52 + Math.floor(charCount / 750));
-          console.log(`📊 [Phase 3/12 Streaming] ${charCount} chars, ${progress}%`);
+          console.log(`📊 [Phase 3/14 Streaming] ${charCount} chars, ${progress}%`);
 
           this.emitProgressUpdate({
             sessionId,
             stage: 'report_generation',
             status: 'processing',
             progress,
-            message: `Phase 3/12 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
+            message: `Phase 3/14 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
             timestamp: new Date(),
           }).catch(() => {});
         }
       );
 
-      console.log('✅ [Phase 3/12] 응답 완료:', { length: phase3Response.content?.length });
+      console.log('✅ [Phase 3/14] 응답 완료:', { length: phase3Response.content?.length });
       const phase3Content = this.parseReportResponse(phase3Response.content, analyses, answers);
-      console.log('✅ [Phase 3/12] 파싱 완료:', {
+      console.log('✅ [Phase 3/14] 파싱 완료:', {
         hasRecommendations: !!phase3Content.recommendations,
         recommendationsCount: phase3Content.recommendations?.length || 0
       });
@@ -2713,16 +2713,16 @@ ${content}
       // ========================================
       // Phase 4: 기초 데이터 (56-60%)
       // ========================================
-      console.log('🚀 [Phase 4/12] 기초 데이터 구조화 시작...');
+      console.log('🚀 [Phase 4/14] 기초 데이터 구조화 시작...');
       const phase4Prompt = this.generateReportPhase4Prompt(analyses, questions, answers, phase1AContent, phase2Content, phase3Content);
-      console.log('📝 [Phase 4/12] 프롬프트 길이:', phase4Prompt.length);
+      console.log('📝 [Phase 4/14] 프롬프트 길이:', phase4Prompt.length);
 
       this.emitProgressUpdate({
         sessionId,
         stage: 'report_generation',
         status: 'processing',
         progress: 56,
-        message: 'Phase 4/12: 기초 데이터 구조화 중...',
+        message: 'Phase 4/14: 기초 데이터 구조화 중...',
         timestamp: new Date(),
       }).catch(() => {});
 
@@ -2730,27 +2730,27 @@ ${content}
         aiProvider,
         aiModel,
         phase4Prompt,
-        3500, // Phase 4: 기초 데이터
+        7000, // Phase 4: 기초 데이터 (한글 특성상 토큰 많이 필요)
         0.2,
         (_chunk, fullContent) => {
           const charCount = fullContent.length;
           const progress = Math.min(60, 56 + Math.floor(charCount / 875));
-          console.log(`📊 [Phase 4/12 Streaming] ${charCount} chars, ${progress}%`);
+          console.log(`📊 [Phase 4/14 Streaming] ${charCount} chars, ${progress}%`);
 
           this.emitProgressUpdate({
             sessionId,
             stage: 'report_generation',
             status: 'processing',
             progress,
-            message: `Phase 4/12 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
+            message: `Phase 4/14 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
             timestamp: new Date(),
           }).catch(() => {});
         }
       );
 
-      console.log('✅ [Phase 4/12] 응답 완료:', { length: phase4Response.content?.length });
+      console.log('✅ [Phase 4/14] 응답 완료:', { length: phase4Response.content?.length });
       const phase4Content = this.parseReportResponse(phase4Response.content, analyses, answers);
-      console.log('✅ [Phase 4/12] 파싱 완료:', {
+      console.log('✅ [Phase 4/14] 파싱 완료:', {
         hasBaselineData: !!phase4Content.baselineData,
         requirementsCount: phase4Content.baselineData?.requirements?.length || 0,
         stakeholdersCount: phase4Content.baselineData?.stakeholders?.length || 0
@@ -2759,16 +2759,16 @@ ${content}
       // ========================================
       // Phase 5A: 기획/디자인 관점 (60-65%)
       // ========================================
-      console.log('🚀 [Phase 5A/12] 기획/디자인 관점 분석 시작...');
+      console.log('🚀 [Phase 5A/14] 기획/디자인 관점 분석 시작...');
       const phase5APrompt = this.generateReportPhase5Prompt(analyses, questions, answers, phase1AContent, phase2Content, phase3Content, phase4Content); // 기존 Phase5 재사용
-      console.log('📝 [Phase 5A/12] 프롬프트 길이:', phase5APrompt.length);
+      console.log('📝 [Phase 5A/14] 프롬프트 길이:', phase5APrompt.length);
 
       this.emitProgressUpdate({
         sessionId,
         stage: 'report_generation',
         status: 'processing',
         progress: 60,
-        message: 'Phase 5A/12: 기획/디자인 관점 분석 중...',
+        message: 'Phase 5A/14: 기획/디자인 관점 분석 중...',
         timestamp: new Date(),
       }).catch(() => {});
 
@@ -2776,27 +2776,27 @@ ${content}
         aiProvider,
         aiModel,
         phase5APrompt,
-        3500, // Phase 5A: 기획/디자인
+        7000, // Phase 5A: 기획/디자인 (한글 특성상 토큰 많이 필요)
         0.2,
         (_chunk, fullContent) => {
           const charCount = fullContent.length;
           const progress = Math.min(65, 60 + Math.floor(charCount / 700));
-          console.log(`📊 [Phase 5A/12 Streaming] ${charCount} chars, ${progress}%`);
+          console.log(`📊 [Phase 5A/14 Streaming] ${charCount} chars, ${progress}%`);
 
           this.emitProgressUpdate({
             sessionId,
             stage: 'report_generation',
             status: 'processing',
             progress,
-            message: `Phase 5A/12 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
+            message: `Phase 5A/14 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
             timestamp: new Date(),
           }).catch(() => {});
         }
       );
 
-      console.log('✅ [Phase 5A/12] 응답 완료:', { length: phase5AResponse.content?.length });
+      console.log('✅ [Phase 5A/14] 응답 완료:', { length: phase5AResponse.content?.length });
       const phase5AContent = this.parseReportResponse(phase5AResponse.content, analyses, answers);
-      console.log('✅ [Phase 5A/12] 파싱 완료:', {
+      console.log('✅ [Phase 5A/14] 파싱 완료:', {
         hasDetailedPerspectives: !!phase5AContent.agencyDetailedAnalysis?.detailedPerspectives,
         hasPlanningPerspective: !!phase5AContent.agencyDetailedAnalysis?.detailedPerspectives?.planning,
         hasDesignPerspective: !!phase5AContent.agencyDetailedAnalysis?.detailedPerspectives?.design
@@ -2805,16 +2805,16 @@ ${content}
       // ========================================
       // Phase 5B: 퍼블리싱/개발 관점 (65-70%)
       // ========================================
-      console.log('🚀 [Phase 5B/12] 퍼블리싱/개발 관점 분석 시작...');
+      console.log('🚀 [Phase 5B/14] 퍼블리싱/개발 관점 분석 시작...');
       const phase5BPrompt = this.generateReportPhase5Prompt(analyses, questions, answers, phase1AContent, phase2Content, phase3Content, phase4Content); // 임시로 같은 함수 사용
-      console.log('📝 [Phase 5B/12] 프롬프트 길이:', phase5BPrompt.length);
+      console.log('📝 [Phase 5B/14] 프롬프트 길이:', phase5BPrompt.length);
 
       this.emitProgressUpdate({
         sessionId,
         stage: 'report_generation',
         status: 'processing',
         progress: 65,
-        message: 'Phase 5B/12: 퍼블리싱/개발 관점 분석 중...',
+        message: 'Phase 5B/14: 퍼블리싱/개발 관점 분석 중...',
         timestamp: new Date(),
       }).catch(() => {});
 
@@ -2822,27 +2822,27 @@ ${content}
         aiProvider,
         aiModel,
         phase5BPrompt,
-        3500, // Phase 5B: 퍼블/개발
+        7000, // Phase 5B: 퍼블/개발 (한글 특성상 토큰 많이 필요)
         0.2,
         (_chunk, fullContent) => {
           const charCount = fullContent.length;
           const progress = Math.min(70, 65 + Math.floor(charCount / 700));
-          console.log(`📊 [Phase 5B/12 Streaming] ${charCount} chars, ${progress}%`);
+          console.log(`📊 [Phase 5B/14 Streaming] ${charCount} chars, ${progress}%`);
 
           this.emitProgressUpdate({
             sessionId,
             stage: 'report_generation',
             status: 'processing',
             progress,
-            message: `Phase 5B/12 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
+            message: `Phase 5B/14 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
             timestamp: new Date(),
           }).catch(() => {});
         }
       );
 
-      console.log('✅ [Phase 5B/12] 응답 완료:', { length: phase5BResponse.content?.length });
+      console.log('✅ [Phase 5B/14] 응답 완료:', { length: phase5BResponse.content?.length });
       const phase5BContent = this.parseReportResponse(phase5BResponse.content, analyses, answers);
-      console.log('✅ [Phase 5B/12] 파싱 완료:', {
+      console.log('✅ [Phase 5B/14] 파싱 완료:', {
         hasPublishingPerspective: !!phase5BContent.agencyDetailedAnalysis?.detailedPerspectives?.publishing,
         hasDevelopmentPerspective: !!phase5BContent.agencyDetailedAnalysis?.detailedPerspectives?.development
       });
@@ -2850,16 +2850,16 @@ ${content}
       // ========================================
       // Phase 6: 수익성+경쟁력+최종결정 (70-75%)
       // ========================================
-      console.log('🚀 [Phase 6/12] 수익성 분석 + 최종 수주 결정 시작...');
+      console.log('🚀 [Phase 6/14] 수익성 분석 + 최종 수주 결정 시작...');
       const phase6Prompt = this.generateReportPhase6Prompt(analyses, questions, answers, phase1AContent, phase2Content, phase3Content, phase4Content, phase5AContent);
-      console.log('📝 [Phase 6/12] 프롬프트 길이:', phase6Prompt.length);
+      console.log('📝 [Phase 6/14] 프롬프트 길이:', phase6Prompt.length);
 
       this.emitProgressUpdate({
         sessionId,
         stage: 'report_generation',
         status: 'processing',
         progress: 70,
-        message: 'Phase 6/12: 수익성 분석 및 최종 수주 결정 중...',
+        message: 'Phase 6/14: 수익성 분석 및 최종 수주 결정 중...',
         timestamp: new Date(),
       }).catch(() => {});
 
@@ -2867,27 +2867,27 @@ ${content}
         aiProvider,
         aiModel,
         phase6Prompt,
-        3500, // Phase 6: 수익성+최종결정
+        7000, // Phase 6: 수익성+최종결정 (한글 특성상 토큰 많이 필요)
         0.2,
         (_chunk, fullContent) => {
           const charCount = fullContent.length;
           const progress = Math.min(75, 70 + Math.floor(charCount / 700));
-          console.log(`📊 [Phase 6/12 Streaming] ${charCount} chars, ${progress}%`);
+          console.log(`📊 [Phase 6/14 Streaming] ${charCount} chars, ${progress}%`);
 
           this.emitProgressUpdate({
             sessionId,
             stage: 'report_generation',
             status: 'processing',
             progress,
-            message: `Phase 6/12 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
+            message: `Phase 6/14 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
             timestamp: new Date(),
           }).catch(() => {});
         }
       );
 
-      console.log('✅ [Phase 6/12] 응답 완료:', { length: phase6Response.content?.length });
+      console.log('✅ [Phase 6/14] 응답 완료:', { length: phase6Response.content?.length });
       const phase6Content = this.parseReportResponse(phase6Response.content, analyses, answers);
-      console.log('✅ [Phase 6/12] 파싱 완료:', {
+      console.log('✅ [Phase 6/14] 파싱 완료:', {
         hasProfitability: !!phase6Content.agencyDetailedAnalysis?.profitability,
         hasFinalDecision: !!phase6Content.agencyDetailedAnalysis?.finalDecision,
         profitMargin: phase6Content.agencyDetailedAnalysis?.profitability?.profitMargin || 0
@@ -2896,16 +2896,16 @@ ${content}
       // ========================================
       // Phase 7A: WBS (75-82%)
       // ========================================
-      console.log('🚀 [Phase 7A/12] WBS 작성 시작...');
+      console.log('🚀 [Phase 7A/14] WBS 작성 시작...');
       const phase7APrompt = this.generateReportPhase7Prompt(analyses, questions, answers, phase1AContent, phase2Content, phase3Content, phase4Content, phase5AContent, phase6Content); // 기존 Phase7 재사용
-      console.log('📝 [Phase 7A/12] 프롬프트 길이:', phase7APrompt.length);
+      console.log('📝 [Phase 7A/14] 프롬프트 길이:', phase7APrompt.length);
 
       this.emitProgressUpdate({
         sessionId,
         stage: 'report_generation',
         status: 'processing',
         progress: 75,
-        message: 'Phase 7A/12: WBS 작성 중...',
+        message: 'Phase 7A/14: WBS 작성 중...',
         timestamp: new Date(),
       }).catch(() => {});
 
@@ -2913,27 +2913,27 @@ ${content}
         aiProvider,
         aiModel,
         phase7APrompt,
-        4500, // Phase 7A: WBS (가장 큼)
+        10000, // Phase 7A: WBS (가장 큼, 한글 특성상 토큰 많이 필요)
         0.2,
         (_chunk, fullContent) => {
           const charCount = fullContent.length;
           const progress = Math.min(82, 75 + Math.floor(charCount / 650));
-          console.log(`📊 [Phase 7A/12 Streaming] ${charCount} chars, ${progress}%`);
+          console.log(`📊 [Phase 7A/14 Streaming] ${charCount} chars, ${progress}%`);
 
           this.emitProgressUpdate({
             sessionId,
             stage: 'report_generation',
             status: 'processing',
             progress,
-            message: `Phase 7A/12 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
+            message: `Phase 7A/14 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
             timestamp: new Date(),
           }).catch(() => {});
         }
       );
 
-      console.log('✅ [Phase 7A/12] 응답 완료:', { length: phase7AResponse.content?.length });
+      console.log('✅ [Phase 7A/14] 응답 완료:', { length: phase7AResponse.content?.length });
       const phase7AContent = this.parseReportResponse(phase7AResponse.content, analyses, answers);
-      console.log('✅ [Phase 7A/12] 파싱 완료:', {
+      console.log('✅ [Phase 7A/14] 파싱 완료:', {
         hasExecutionPlan: !!phase7AContent.executionPlan,
         hasWBS: !!phase7AContent.executionPlan?.wbs,
         wbsCount: phase7AContent.executionPlan?.wbs?.length || 0
@@ -2959,7 +2959,7 @@ ${content}
         aiProvider,
         aiModel,
         phase7B1Prompt,
-        2000, // Phase 7B-1: 팀 구성
+        5000, // Phase 7B-1: 팀 구성 (한글 특성상 토큰 많이 필요)
         0.2,
         (_chunk, fullContent) => {
           const charCount = fullContent.length;
@@ -3004,7 +3004,7 @@ ${content}
         aiProvider,
         aiModel,
         phase7B2Prompt,
-        2000, // Phase 7B-2: 비용 산정
+        5000, // Phase 7B-2: 비용 산정 (한글 특성상 토큰 많이 필요)
         0.2,
         (_chunk, fullContent) => {
           const charCount = fullContent.length;
@@ -3049,7 +3049,7 @@ ${content}
         aiProvider,
         aiModel,
         phase8A1Prompt,
-        1500, // Phase 8A-1: 제안서 목차
+        4000, // Phase 8A-1: 제안서 목차 (한글 특성상 토큰 많이 필요)
         0.2,
         (_chunk, fullContent) => {
           const charCount = fullContent.length;
@@ -3094,7 +3094,7 @@ ${content}
         aiProvider,
         aiModel,
         phase8A2Prompt,
-        2500, // Phase 8A-2: 제안서 핵심 내용
+        6000, // Phase 8A-2: 제안서 핵심 내용 (한글 특성상 토큰 많이 필요)
         0.2,
         (_chunk, fullContent) => {
           const charCount = fullContent.length;
@@ -3139,7 +3139,7 @@ ${content}
         aiProvider,
         aiModel,
         phase8BPrompt,
-        3000, // Phase 8B: 발표+다음단계
+        6000, // Phase 8B: 발표+다음단계 (한글 특성상 토큰 많이 필요)
         0.2,
         (_chunk, fullContent) => {
           const charCount = fullContent.length;
