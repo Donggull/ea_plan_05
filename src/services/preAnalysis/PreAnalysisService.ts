@@ -2529,18 +2529,18 @@ ${content}
       }
 
       // ========================================
-      // Phase 1A: 핵심 비즈니스 분석만 (40-44%)
+      // Phase 1/9: 핵심 비즈니스 분석 (40-47%)
       // ========================================
-      console.log('🚀 [Phase 1A/14] 핵심 비즈니스 분석 시작...');
-      const phase1APrompt = this.generateReportPhase1Prompt(analyses, questions, answers); // 기존 Phase1 재사용
-      console.log('📝 [Phase 1A/14] 프롬프트 길이:', phase1APrompt.length);
+      console.log('🚀 [Phase 1/9] 핵심 비즈니스 분석 시작...');
+      const phase1APrompt = this.generateReportPhase1Prompt(analyses, questions, answers);
+      console.log('📝 [Phase 1/9] 프롬프트 길이:', phase1APrompt.length);
 
       this.emitProgressUpdate({
         sessionId,
         stage: 'report_generation',
         status: 'processing',
         progress: 40,
-        message: 'Phase 1A/14: 핵심 비즈니스 분석 생성 중...',
+        message: 'Phase 1/9: 핵심 비즈니스 분석 생성 중...',
         timestamp: new Date(),
       }).catch(() => {});
 
@@ -2548,27 +2548,27 @@ ${content}
         aiProvider,
         aiModel,
         phase1APrompt,
-        8000, // Phase 1A: 비즈니스 분석만 (한글 특성상 토큰 많이 필요)
+        3000,
         0.2,
         (_chunk, fullContent) => {
           const charCount = fullContent.length;
-          const progress = Math.min(44, 40 + Math.floor(charCount / 900));
-          console.log(`📊 [Phase 1A/14 Streaming] ${charCount} chars, ${progress}%`);
+          const progress = Math.min(47, 40 + Math.floor(charCount / 500));
+          console.log(`📊 [Phase 1/9 Streaming] ${charCount} chars, ${progress}%`);
 
           this.emitProgressUpdate({
             sessionId,
             stage: 'report_generation',
             status: 'processing',
             progress,
-            message: `Phase 1A/14 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
+            message: `Phase 1/9 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
             timestamp: new Date(),
           }).catch(() => {});
         }
       );
 
-      console.log('✅ [Phase 1A/14] 응답 완료:', { length: phase1AResponse.content?.length });
+      console.log('✅ [Phase 1/9] 응답 완료:', { length: phase1AResponse.content?.length });
       const phase1AContent = this.parseReportResponse(phase1AResponse.content, analyses, answers);
-      console.log('✅ [Phase 1A/14] 파싱 완료:', {
+      console.log('✅ [Phase 1/9] 파싱 완료:', {
         hasSummary: !!phase1AContent.summary,
         hasExecutiveSummary: !!phase1AContent.executiveSummary,
         hasKeyInsights: !!phase1AContent.keyInsights,
@@ -2576,18 +2576,18 @@ ${content}
       });
 
       // ========================================
-      // Phase 1B: 프로젝트 수락 결정만 (44-48%)
+      // Phase 2/9: 프로젝트 수락 결정 (47-53%)
       // ========================================
-      console.log('🚀 [Phase 1B/14] 프로젝트 수락 결정 시작...');
-      const phase1BPrompt = this.generateReportPhase1Prompt(analyses, questions, answers); // 임시로 같은 함수 사용
-      console.log('📝 [Phase 1B/14] 프롬프트 길이:', phase1BPrompt.length);
+      console.log('🚀 [Phase 2/9] 프로젝트 수락 결정 시작...');
+      const phase1BPrompt = this.generateReportPhase1Prompt(analyses, questions, answers);
+      console.log('📝 [Phase 2/9] 프롬프트 길이:', phase1BPrompt.length);
 
       this.emitProgressUpdate({
         sessionId,
         stage: 'report_generation',
         status: 'processing',
-        progress: 44,
-        message: 'Phase 1B/14: 프로젝트 수락 결정 중...',
+        progress: 47,
+        message: 'Phase 2/9: 프로젝트 수락 결정 중...',
         timestamp: new Date(),
       }).catch(() => {});
 
@@ -2595,44 +2595,44 @@ ${content}
         aiProvider,
         aiModel,
         phase1BPrompt,
-        5000, // Phase 1B: 수락 결정만 (한글 특성상 토큰 많이 필요)
+        2500,
         0.2,
         (_chunk, fullContent) => {
           const charCount = fullContent.length;
-          const progress = Math.min(48, 44 + Math.floor(charCount / 625));
-          console.log(`📊 [Phase 1B/14 Streaming] ${charCount} chars, ${progress}%`);
+          const progress = Math.min(53, 47 + Math.floor(charCount / 500));
+          console.log(`📊 [Phase 2/9 Streaming] ${charCount} chars, ${progress}%`);
 
           this.emitProgressUpdate({
             sessionId,
             stage: 'report_generation',
             status: 'processing',
             progress,
-            message: `Phase 1B/14 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
+            message: `Phase 2/9 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
             timestamp: new Date(),
           }).catch(() => {});
         }
       );
 
-      console.log('✅ [Phase 1B/14] 응답 완료:', { length: phase1BResponse.content?.length });
+      console.log('✅ [Phase 2/9] 응답 완료:', { length: phase1BResponse.content?.length });
       const phase1BContent = this.parseReportResponse(phase1BResponse.content, analyses, answers);
-      console.log('✅ [Phase 1B/14] 파싱 완료:', {
+      console.log('✅ [Phase 2/9] 파싱 완료:', {
         hasAgencyPerspective: !!phase1BContent.agencyPerspective,
         hasProjectDecision: !!phase1BContent.agencyPerspective?.projectDecision
       });
 
       // ========================================
-      // Phase 2: 리스크 평가 (48-52%)
+      // Phase 3/9: 리스크 평가 (53-60%)
       // ========================================
-      console.log('🚀 [Phase 2/14] 리스크 평가 시작...');
+      console.log('🚀 [Phase 3/9] 리스크 평가 시작...');
       const phase2Prompt = this.generateReportPhase2Prompt(analyses, questions, answers, phase1AContent);
-      console.log('📝 [Phase 2/14] 프롬프트 길이:', phase2Prompt.length);
+      console.log('📝 [Phase 3/9] 프롬프트 길이:', phase2Prompt.length);
 
       this.emitProgressUpdate({
         sessionId,
         stage: 'report_generation',
         status: 'processing',
-        progress: 48,
-        message: 'Phase 2/14: 리스크 평가 중...',
+        progress: 53,
+        message: 'Phase 3/9: 리스크 평가 중...',
         timestamp: new Date(),
       }).catch(() => {});
 
@@ -2640,44 +2640,44 @@ ${content}
         aiProvider,
         aiModel,
         phase2Prompt,
-        6000, // Phase 2: 리스크 (한글 특성상 토큰 많이 필요)
+        2500, // Phase 2: 간소화 (토큰 축소)
         0.2,
         (_chunk, fullContent) => {
           const charCount = fullContent.length;
-          const progress = Math.min(52, 48 + Math.floor(charCount / 750));
-          console.log(`📊 [Phase 2/14 Streaming] ${charCount} chars, ${progress}%`);
+          const progress = Math.min(60, 53 + Math.floor(charCount / 500));
+          console.log(`📊 [Phase 3/9 Streaming] ${charCount} chars, ${progress}%`);
 
           this.emitProgressUpdate({
             sessionId,
             stage: 'report_generation',
             status: 'processing',
             progress,
-            message: `Phase 2/14 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
+            message: `Phase 3/9 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
             timestamp: new Date(),
           }).catch(() => {});
         }
       );
 
-      console.log('✅ [Phase 2/14] 응답 완료:', { length: phase2Response.content?.length });
+      console.log('✅ [Phase 3/9] 응답 완료:', { length: phase2Response.content?.length });
       const phase2Content = this.parseReportResponse(phase2Response.content, analyses, answers);
-      console.log('✅ [Phase 2/14] 파싱 완료:', {
+      console.log('✅ [Phase 3/9] 파싱 완료:', {
         hasRiskAssessment: !!phase2Content.riskAssessment,
         highRisksCount: phase2Content.riskAssessment?.high?.length || 0
       });
 
       // ========================================
-      // Phase 3: 권장사항 (52-56%)
+      // Phase 4/9: 권장사항 (60-67%)
       // ========================================
-      console.log('🚀 [Phase 3/14] 실행 권장사항 작성 시작...');
+      console.log('🚀 [Phase 4/9] 실행 권장사항 작성 시작...');
       const phase3Prompt = this.generateReportPhase3Prompt(analyses, questions, answers, phase1AContent, phase2Content);
-      console.log('📝 [Phase 3/14] 프롬프트 길이:', phase3Prompt.length);
+      console.log('📝 [Phase 4/9] 프롬프트 길이:', phase3Prompt.length);
 
       this.emitProgressUpdate({
         sessionId,
         stage: 'report_generation',
         status: 'processing',
-        progress: 52,
-        message: 'Phase 3/14: 실행 권장사항 작성 중...',
+        progress: 60,
+        message: 'Phase 4/9: 실행 권장사항 작성 중...',
         timestamp: new Date(),
       }).catch(() => {});
 
@@ -2685,44 +2685,44 @@ ${content}
         aiProvider,
         aiModel,
         phase3Prompt,
-        6000, // Phase 3: 권장사항 (한글 특성상 토큰 많이 필요)
+        2000, // Phase 3: 간소화 (토큰 축소)
         0.2,
         (_chunk, fullContent) => {
           const charCount = fullContent.length;
-          const progress = Math.min(56, 52 + Math.floor(charCount / 750));
-          console.log(`📊 [Phase 3/14 Streaming] ${charCount} chars, ${progress}%`);
+          const progress = Math.min(67, 60 + Math.floor(charCount / 500));
+          console.log(`📊 [Phase 4/9 Streaming] ${charCount} chars, ${progress}%`);
 
           this.emitProgressUpdate({
             sessionId,
             stage: 'report_generation',
             status: 'processing',
             progress,
-            message: `Phase 3/14 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
+            message: `Phase 4/9 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
             timestamp: new Date(),
           }).catch(() => {});
         }
       );
 
-      console.log('✅ [Phase 3/14] 응답 완료:', { length: phase3Response.content?.length });
+      console.log('✅ [Phase 4/9] 응답 완료:', { length: phase3Response.content?.length });
       const phase3Content = this.parseReportResponse(phase3Response.content, analyses, answers);
-      console.log('✅ [Phase 3/14] 파싱 완료:', {
+      console.log('✅ [Phase 4/9] 파싱 완료:', {
         hasRecommendations: !!phase3Content.recommendations,
         recommendationsCount: phase3Content.recommendations?.length || 0
       });
 
       // ========================================
-      // Phase 4: 기초 데이터 (56-60%)
+      // Phase 5/9: 기초 데이터 (67-73%)
       // ========================================
-      console.log('🚀 [Phase 4/14] 기초 데이터 구조화 시작...');
+      console.log('🚀 [Phase 5/9] 기초 데이터 구조화 시작...');
       const phase4Prompt = this.generateReportPhase4Prompt(analyses, questions, answers, phase1AContent, phase2Content, phase3Content);
-      console.log('📝 [Phase 4/14] 프롬프트 길이:', phase4Prompt.length);
+      console.log('📝 [Phase 5/9] 프롬프트 길이:', phase4Prompt.length);
 
       this.emitProgressUpdate({
         sessionId,
         stage: 'report_generation',
         status: 'processing',
-        progress: 56,
-        message: 'Phase 4/14: 기초 데이터 구조화 중...',
+        progress: 67,
+        message: 'Phase 5/9: 기초 데이터 구조화 중...',
         timestamp: new Date(),
       }).catch(() => {});
 
@@ -2730,45 +2730,45 @@ ${content}
         aiProvider,
         aiModel,
         phase4Prompt,
-        7000, // Phase 4: 기초 데이터 (한글 특성상 토큰 많이 필요)
+        3000, // Phase 4: 기초 데이터 (토큰 축소)
         0.2,
         (_chunk, fullContent) => {
           const charCount = fullContent.length;
-          const progress = Math.min(60, 56 + Math.floor(charCount / 875));
-          console.log(`📊 [Phase 4/14 Streaming] ${charCount} chars, ${progress}%`);
+          const progress = Math.min(73, 67 + Math.floor(charCount / 500));
+          console.log(`📊 [Phase 5/9 Streaming] ${charCount} chars, ${progress}%`);
 
           this.emitProgressUpdate({
             sessionId,
             stage: 'report_generation',
             status: 'processing',
             progress,
-            message: `Phase 4/14 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
+            message: `Phase 5/9 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
             timestamp: new Date(),
           }).catch(() => {});
         }
       );
 
-      console.log('✅ [Phase 4/14] 응답 완료:', { length: phase4Response.content?.length });
+      console.log('✅ [Phase 5/9] 응답 완료:', { length: phase4Response.content?.length });
       const phase4Content = this.parseReportResponse(phase4Response.content, analyses, answers);
-      console.log('✅ [Phase 4/14] 파싱 완료:', {
+      console.log('✅ [Phase 5/9] 파싱 완료:', {
         hasBaselineData: !!phase4Content.baselineData,
         requirementsCount: phase4Content.baselineData?.requirements?.length || 0,
         stakeholdersCount: phase4Content.baselineData?.stakeholders?.length || 0
       });
 
       // ========================================
-      // Phase 5A: 기획/디자인 관점 (60-65%)
+      // Phase 6/9: 기획/디자인 관점 (73-80%)
       // ========================================
-      console.log('🚀 [Phase 5A/14] 기획/디자인 관점 분석 시작...');
-      const phase5APrompt = this.generateReportPhase5Prompt(analyses, questions, answers, phase1AContent, phase2Content, phase3Content, phase4Content); // 기존 Phase5 재사용
-      console.log('📝 [Phase 5A/14] 프롬프트 길이:', phase5APrompt.length);
+      console.log('🚀 [Phase 6/9] 기획/디자인 관점 분석 시작...');
+      const phase5APrompt = this.generateReportPhase5Prompt(analyses, questions, answers, phase1AContent, phase2Content, phase3Content, phase4Content);
+      console.log('📝 [Phase 6/9] 프롬프트 길이:', phase5APrompt.length);
 
       this.emitProgressUpdate({
         sessionId,
         stage: 'report_generation',
         status: 'processing',
-        progress: 60,
-        message: 'Phase 5A/14: 기획/디자인 관점 분석 중...',
+        progress: 73,
+        message: 'Phase 6/9: 기획/디자인 관점 분석 중...',
         timestamp: new Date(),
       }).catch(() => {});
 
@@ -2776,45 +2776,45 @@ ${content}
         aiProvider,
         aiModel,
         phase5APrompt,
-        7000, // Phase 5A: 기획/디자인 (한글 특성상 토큰 많이 필요)
+        3000, // Phase 5A: 기획/디자인 (토큰 축소)
         0.2,
         (_chunk, fullContent) => {
           const charCount = fullContent.length;
-          const progress = Math.min(65, 60 + Math.floor(charCount / 700));
-          console.log(`📊 [Phase 5A/14 Streaming] ${charCount} chars, ${progress}%`);
+          const progress = Math.min(80, 73 + Math.floor(charCount / 500));
+          console.log(`📊 [Phase 6/9 Streaming] ${charCount} chars, ${progress}%`);
 
           this.emitProgressUpdate({
             sessionId,
             stage: 'report_generation',
             status: 'processing',
             progress,
-            message: `Phase 5A/14 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
+            message: `Phase 6/9 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
             timestamp: new Date(),
           }).catch(() => {});
         }
       );
 
-      console.log('✅ [Phase 5A/14] 응답 완료:', { length: phase5AResponse.content?.length });
+      console.log('✅ [Phase 6/9] 응답 완료:', { length: phase5AResponse.content?.length });
       const phase5AContent = this.parseReportResponse(phase5AResponse.content, analyses, answers);
-      console.log('✅ [Phase 5A/14] 파싱 완료:', {
+      console.log('✅ [Phase 6/9] 파싱 완료:', {
         hasDetailedPerspectives: !!phase5AContent.agencyDetailedAnalysis?.detailedPerspectives,
         hasPlanningPerspective: !!phase5AContent.agencyDetailedAnalysis?.detailedPerspectives?.planning,
         hasDesignPerspective: !!phase5AContent.agencyDetailedAnalysis?.detailedPerspectives?.design
       });
 
       // ========================================
-      // Phase 5B: 퍼블리싱/개발 관점 (65-70%)
+      // Phase 7/9: 퍼블리싱/개발 관점 (80-87%)
       // ========================================
-      console.log('🚀 [Phase 5B/14] 퍼블리싱/개발 관점 분석 시작...');
-      const phase5BPrompt = this.generateReportPhase5Prompt(analyses, questions, answers, phase1AContent, phase2Content, phase3Content, phase4Content); // 임시로 같은 함수 사용
-      console.log('📝 [Phase 5B/14] 프롬프트 길이:', phase5BPrompt.length);
+      console.log('🚀 [Phase 7/9] 퍼블리싱/개발 관점 분석 시작...');
+      const phase5BPrompt = this.generateReportPhase5Prompt(analyses, questions, answers, phase1AContent, phase2Content, phase3Content, phase4Content);
+      console.log('📝 [Phase 7/9] 프롬프트 길이:', phase5BPrompt.length);
 
       this.emitProgressUpdate({
         sessionId,
         stage: 'report_generation',
         status: 'processing',
-        progress: 65,
-        message: 'Phase 5B/14: 퍼블리싱/개발 관점 분석 중...',
+        progress: 80,
+        message: 'Phase 7/9: 퍼블리싱/개발 관점 분석 중...',
         timestamp: new Date(),
       }).catch(() => {});
 
@@ -2822,44 +2822,44 @@ ${content}
         aiProvider,
         aiModel,
         phase5BPrompt,
-        7000, // Phase 5B: 퍼블/개발 (한글 특성상 토큰 많이 필요)
+        3000, // Phase 5B: 퍼블/개발 (토큰 축소)
         0.2,
         (_chunk, fullContent) => {
           const charCount = fullContent.length;
-          const progress = Math.min(70, 65 + Math.floor(charCount / 700));
-          console.log(`📊 [Phase 5B/14 Streaming] ${charCount} chars, ${progress}%`);
+          const progress = Math.min(87, 80 + Math.floor(charCount / 500));
+          console.log(`📊 [Phase 7/9 Streaming] ${charCount} chars, ${progress}%`);
 
           this.emitProgressUpdate({
             sessionId,
             stage: 'report_generation',
             status: 'processing',
             progress,
-            message: `Phase 5B/14 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
+            message: `Phase 7/9 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
             timestamp: new Date(),
           }).catch(() => {});
         }
       );
 
-      console.log('✅ [Phase 5B/14] 응답 완료:', { length: phase5BResponse.content?.length });
+      console.log('✅ [Phase 7/9] 응답 완료:', { length: phase5BResponse.content?.length });
       const phase5BContent = this.parseReportResponse(phase5BResponse.content, analyses, answers);
-      console.log('✅ [Phase 5B/14] 파싱 완료:', {
+      console.log('✅ [Phase 7/9] 파싱 완료:', {
         hasPublishingPerspective: !!phase5BContent.agencyDetailedAnalysis?.detailedPerspectives?.publishing,
         hasDevelopmentPerspective: !!phase5BContent.agencyDetailedAnalysis?.detailedPerspectives?.development
       });
 
       // ========================================
-      // Phase 6: 수익성+경쟁력+최종결정 (70-75%)
+      // Phase 8/9: 수익성+경쟁력+최종결정 (87-93%)
       // ========================================
-      console.log('🚀 [Phase 6/14] 수익성 분석 + 최종 수주 결정 시작...');
+      console.log('🚀 [Phase 8/9] 수익성 분석 + 최종 수주 결정 시작...');
       const phase6Prompt = this.generateReportPhase6Prompt(analyses, questions, answers, phase1AContent, phase2Content, phase3Content, phase4Content, phase5AContent);
-      console.log('📝 [Phase 6/14] 프롬프트 길이:', phase6Prompt.length);
+      console.log('📝 [Phase 8/9] 프롬프트 길이:', phase6Prompt.length);
 
       this.emitProgressUpdate({
         sessionId,
         stage: 'report_generation',
         status: 'processing',
-        progress: 70,
-        message: 'Phase 6/14: 수익성 분석 및 최종 수주 결정 중...',
+        progress: 87,
+        message: 'Phase 8/9: 수익성 분석 및 최종 수주 결정 중...',
         timestamp: new Date(),
       }).catch(() => {});
 
@@ -2867,45 +2867,45 @@ ${content}
         aiProvider,
         aiModel,
         phase6Prompt,
-        7000, // Phase 6: 수익성+최종결정 (한글 특성상 토큰 많이 필요)
+        3000, // Phase 6: 수익성+최종결정 (토큰 축소)
         0.2,
         (_chunk, fullContent) => {
           const charCount = fullContent.length;
-          const progress = Math.min(75, 70 + Math.floor(charCount / 700));
-          console.log(`📊 [Phase 6/14 Streaming] ${charCount} chars, ${progress}%`);
+          const progress = Math.min(93, 87 + Math.floor(charCount / 500));
+          console.log(`📊 [Phase 8/9 Streaming] ${charCount} chars, ${progress}%`);
 
           this.emitProgressUpdate({
             sessionId,
             stage: 'report_generation',
             status: 'processing',
             progress,
-            message: `Phase 6/14 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
+            message: `Phase 8/9 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
             timestamp: new Date(),
           }).catch(() => {});
         }
       );
 
-      console.log('✅ [Phase 6/14] 응답 완료:', { length: phase6Response.content?.length });
+      console.log('✅ [Phase 8/9] 응답 완료:', { length: phase6Response.content?.length });
       const phase6Content = this.parseReportResponse(phase6Response.content, analyses, answers);
-      console.log('✅ [Phase 6/14] 파싱 완료:', {
+      console.log('✅ [Phase 8/9] 파싱 완료:', {
         hasProfitability: !!phase6Content.agencyDetailedAnalysis?.profitability,
         hasFinalDecision: !!phase6Content.agencyDetailedAnalysis?.finalDecision,
         profitMargin: phase6Content.agencyDetailedAnalysis?.profitability?.profitMargin || 0
       });
 
       // ========================================
-      // Phase 7A: WBS (75-82%)
+      // Phase 9/9: WBS (93-100%)
       // ========================================
-      console.log('🚀 [Phase 7A/14] WBS 작성 시작...');
-      const phase7APrompt = this.generateReportPhase7Prompt(analyses, questions, answers, phase1AContent, phase2Content, phase3Content, phase4Content, phase5AContent, phase6Content); // 기존 Phase7 재사용
-      console.log('📝 [Phase 7A/14] 프롬프트 길이:', phase7APrompt.length);
+      console.log('🚀 [Phase 9/9] WBS 작성 시작...');
+      const phase7APrompt = this.generateReportPhase7Prompt(analyses, questions, answers, phase1AContent, phase2Content, phase3Content, phase4Content, phase5AContent, phase6Content);
+      console.log('📝 [Phase 9/9] 프롬프트 길이:', phase7APrompt.length);
 
       this.emitProgressUpdate({
         sessionId,
         stage: 'report_generation',
         status: 'processing',
-        progress: 75,
-        message: 'Phase 7A/14: WBS 작성 중...',
+        progress: 93,
+        message: 'Phase 9/9: WBS 작성 중...',
         timestamp: new Date(),
       }).catch(() => {});
 
@@ -2913,36 +2913,36 @@ ${content}
         aiProvider,
         aiModel,
         phase7APrompt,
-        10000, // Phase 7A: WBS (가장 큼, 한글 특성상 토큰 많이 필요)
+        4000, // Phase 7A: WBS (토큰 축소)
         0.2,
         (_chunk, fullContent) => {
           const charCount = fullContent.length;
-          const progress = Math.min(82, 75 + Math.floor(charCount / 650));
-          console.log(`📊 [Phase 7A/14 Streaming] ${charCount} chars, ${progress}%`);
+          const progress = Math.min(100, 93 + Math.floor(charCount / 500));
+          console.log(`📊 [Phase 9/9 Streaming] ${charCount} chars, ${progress}%`);
 
           this.emitProgressUpdate({
             sessionId,
             stage: 'report_generation',
             status: 'processing',
             progress,
-            message: `Phase 7A/14 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
+            message: `Phase 9/9 생성 중... (${Math.floor(charCount / 100) * 100}자)`,
             timestamp: new Date(),
           }).catch(() => {});
         }
       );
 
-      console.log('✅ [Phase 7A/14] 응답 완료:', { length: phase7AResponse.content?.length });
+      console.log('✅ [Phase 9/9] 응답 완료:', { length: phase7AResponse.content?.length });
       const phase7AContent = this.parseReportResponse(phase7AResponse.content, analyses, answers);
-      console.log('✅ [Phase 7A/14] 파싱 완료:', {
+      console.log('✅ [Phase 9/9] 파싱 완료:', {
         hasExecutionPlan: !!phase7AContent.executionPlan,
         hasWBS: !!phase7AContent.executionPlan?.wbs,
         wbsCount: phase7AContent.executionPlan?.wbs?.length || 0
       });
 
       // ========================================
-      // Phase 7B-1, 7B-2, 8A-1, 8A-2, 8B: 건너뛰기 (수익성 분석, 실행 계획 제외)
+      // Phase 건너뛰기: 수익성 분석, 실행 계획 제외 (사용자 요청)
       // ========================================
-      console.log('⏭️ [Phase 7B~8B] 수익성 분석 및 실행 계획 Phase 건너뛰기 (사용자 요청)');
+      console.log('⏭️ [Skip] 수익성 분석 및 실행 계획 세부 Phase 건너뛰기 (사용자 요청)');
 
       // 빈 객체 할당 (병합 시 오류 방지)
       const phase7B1Content = { executionPlan: { resourcePlan: { teamComposition: [] } } };
@@ -2962,21 +2962,21 @@ ${content}
       }).catch(() => {});
 
       // ========================================
-      // 9개 Phase 결과 병합 (간소화됨)
+      // 9개 Phase 결과 병합
       // ========================================
-      console.log('🔗 [Merge] 9개 Phase 병합 시작 (간소화된 버전)...');
+      console.log('🔗 [Merge] 9개 Phase 결과 병합 시작...');
       const mergedReport = {
-        // Phase 1A: 핵심 비즈니스 분석
+        // Phase 1/9: 핵심 비즈니스 분석
         summary: phase1AContent.summary || '',
         executiveSummary: phase1AContent.executiveSummary || '',
         keyInsights: phase1AContent.keyInsights || [],
 
-        // Phase 1B: agencyPerspective (projectDecision만)
+        // Phase 2/9: 프로젝트 수락 결정
         agencyPerspective: {
           projectDecision: phase1BContent.agencyPerspective?.projectDecision || {},
         },
 
-        // Phase 2: 리스크 (중첩 속성 방어 강화)
+        // Phase 3/9: 리스크 평가
         riskAssessment: {
           high: phase2Content.riskAssessment?.high || [],
           medium: phase2Content.riskAssessment?.medium || [],
@@ -2986,10 +2986,10 @@ ${content}
           timeline: phase2Content.riskAssessment?.timeline || {},
         },
 
-        // Phase 3: 권장사항
+        // Phase 4/9: 권장사항
         recommendations: phase3Content.recommendations || [],
 
-        // Phase 4: 기초 데이터
+        // Phase 5/9: 기초 데이터
         baselineData: phase4Content.baselineData || {
           requirements: [],
           stakeholders: [],
@@ -3000,7 +3000,7 @@ ${content}
           integrationPoints: [],
         },
 
-        // Phase 5A + 5B + Phase 6: 웹에이전시 상세 분석 (중첩 속성 방어 강화)
+        // Phase 6/9 + 7/9 + 8/9: 웹에이전시 상세 분석
         agencyDetailedAnalysis: {
           detailedPerspectives: {
             planning: phase5AContent.agencyDetailedAnalysis?.detailedPerspectives?.planning || {
@@ -3053,10 +3053,10 @@ ${content}
           },
         },
 
-        // Phase 7A + 7B-1 + 7B-2 + 8A-1 + 8A-2 + 8B: 실행 계획 (중첩 속성 방어 강화)
+        // Phase 9/9: WBS + 실행 계획 (간소화)
         executionPlan: {
           wbs: phase7AContent.executionPlan?.wbs || [],
-          // 🔥 Phase 7B-1 (teamComposition) + Phase 7B-2 (cost) 병합
+          // 리소스 계획 (기본값)
           resourcePlan: {
             teamComposition: phase7B1Content.executionPlan?.resourcePlan?.teamComposition || [],
             totalManMonths: phase7B2Content.executionPlan?.resourcePlan?.totalManMonths || 0,
@@ -3065,7 +3065,7 @@ ${content}
             costBreakdown: phase7B2Content.executionPlan?.resourcePlan?.costBreakdown || {},
             paymentSchedule: phase7B2Content.executionPlan?.resourcePlan?.paymentSchedule || [],
           },
-          // 🔥 Phase 8A-1 (proposalOutline) + Phase 8A-2 (proposalContent) 병합
+          // 제안서 개요 (기본값)
           proposalOutline: phase8A1Content.executionPlan?.proposalOutline || {
             title: '',
             sections: [],
@@ -3083,18 +3083,17 @@ ${content}
           nextSteps: phase8BContent.executionPlan?.nextSteps || [],
         },
 
-        // 시각화 데이터 (병합) - 간소화된 버전
+        // 시각화 데이터 병합 (9개 Phase)
         visualizationData: {
-          ...(phase1AContent.visualizationData || {}),
-          ...(phase1BContent.visualizationData || {}),
-          ...(phase2Content.visualizationData || {}),
-          ...(phase3Content.visualizationData || {}),
-          ...(phase4Content.visualizationData || {}),
-          ...(phase5AContent.visualizationData || {}),
-          ...(phase5BContent.visualizationData || {}),
-          ...(phase6Content.visualizationData || {}),
-          ...(phase7AContent.visualizationData || {}),
-          // Phase 7B1~8B는 건너뛰었으므로 제외
+          ...(phase1AContent.visualizationData || {}),  // Phase 1/9
+          ...(phase1BContent.visualizationData || {}),  // Phase 2/9
+          ...(phase2Content.visualizationData || {}),   // Phase 3/9
+          ...(phase3Content.visualizationData || {}),   // Phase 4/9
+          ...(phase4Content.visualizationData || {}),   // Phase 5/9
+          ...(phase5AContent.visualizationData || {}),  // Phase 6/9
+          ...(phase5BContent.visualizationData || {}),  // Phase 7/9
+          ...(phase6Content.visualizationData || {}),   // Phase 8/9
+          ...(phase7AContent.visualizationData || {}),  // Phase 9/9
         },
       };
 
@@ -3175,306 +3174,60 @@ ${content}
     }
   }
 
-  // 🔥 6-Phase: Phase 1 프롬프트 - 핵심 비즈니스 분석 + 프로젝트 수락 결정
+  // 🔥 6-Phase: Phase 1 프롬프트 - 핵심 비즈니스 분석 + 프로젝트 수락 결정 (간소화 버전)
   private generateReportPhase1Prompt(analyses: any[], questions: any[], answers: any[]): string {
-    const analysisContext = analyses.map((analysis, index) =>
-      `### 문서 ${index + 1}: ${analysis.file_name || '제목 없음'}
-- 요약: ${analysis.analysis_result?.summary || '분석 요약 없음'}
-- 주요 내용: ${JSON.stringify(analysis.analysis_result?.keyPoints || []).substring(0, 500)}
-- 복잡도: ${analysis.analysis_result?.complexity || 'N/A'}`
-    ).join('\n\n');
+    // 🔥 데이터 요약 (토큰 절약)
+    const analysisContext = analyses.slice(0, 3).map((analysis, index) =>
+      `문서${index + 1}: ${(analysis.analysis_result?.summary || '').substring(0, 150)}`
+    ).join(' | ');
 
-    const qaContext = answers.map((a, index) => {
+    const qaContext = answers.slice(0, 5).map((a, index) => {
       const question = questions.find(q => q.id === a.question_id);
-      return `**Q${index + 1}**: ${question?.question || '질문 없음'}
-**A${index + 1}**: ${a.answer || '답변 없음'}
-**확신도**: ${a.confidence || 50}%
-**카테고리**: ${question?.category || 'general'}`;
-    }).join('\n\n');
+      return `Q${index + 1}: ${(question?.question || '').substring(0, 50)} → ${(a.answer || '').substring(0, 80)}`;
+    }).join(' | ');
 
-    return `# 🎯 웹에이전시 엘루오씨앤씨 - Phase 1/6: 핵심 분석 + 수락 결정
+    return `웹에이전시 엘루오씨앤씨 프로젝트 분석가입니다.
 
-당신은 **웹에이전시 엘루오씨앤씨**의 수석 프로젝트 분석가입니다.
-이 단계에서는 **핵심 비즈니스 분석**을 수행합니다.
+## 프로젝트 데이터
+문서(${analyses.length}개): ${analysisContext || '없음'}
+QA(${answers.length}개): ${qaContext || '없음'}
 
-## 📋 수집된 프로젝트 데이터
+## 출력: 순수 JSON만 (마크다운/코드블록 절대 금지)
 
-### 1. 업로드된 문서 분석 결과 (${analyses.length}개):
-${analysisContext || '분석된 문서가 없습니다.'}
+{"summary":"프로젝트 요약 200자","executiveSummary":"경영진 요약 100자","keyInsights":["인사이트1","인사이트2","인사이트3"],"agencyPerspective":{"projectDecision":{"recommendation":"accept또는conditional_accept또는decline","confidence":85,"reasoning":"결정 이유 50자","conditions":[]},"perspectives":{"planning":{"feasibility":80,"estimatedEffort":"2개월","challenges":["도전1","도전2"],"risks":["리스크1"]},"design":{"complexity":"medium","estimatedHours":120,"challenges":["도전1","도전2"],"risks":["리스크1"]},"publishing":{"responsiveComplexity":"medium","estimatedHours":80,"challenges":["도전1","도전2"],"risks":["리스크1"]},"development":{"technicalComplexity":"medium","estimatedManMonths":2,"challenges":["도전1","도전2"],"risks":["리스크1"]}}}}
 
-### 2. 질문-답변 데이터 (${answers.length}/${questions.length}개 답변 완료):
-${qaContext || '질문-답변 데이터가 없습니다.'}
+⚠️ 절대 규칙:
+1. 백틱(\`) 사용 금지
+2. "json" 텍스트 금지
+3. { 로 시작, } 로 끝
+4. 설명문 없이 JSON만
 
----
-
-## 🎨 Phase 1 작성 지침
-
-### 역할 및 관점:
-- **회사**: 웹에이전시 엘루오씨앤씨
-- **담당**: 웹사이트 기획, UI/UX 디자인, 퍼블리싱, 프론트엔드/백엔드 개발
-- **목표**: 프로젝트의 **수락 여부 결정** 및 **핵심 분석**
-
-### 분석 관점 (필수):
-1. **기획 관점**: 요구사항 명확성, 비즈니스 가치, 실행 가능성
-2. **디자인 관점**: UI/UX 복잡도, 디자인 시스템 필요성, 브랜딩 요소
-3. **퍼블리싱 관점**: 브라우저 호환성, 반응형 난이도, 접근성 요구사항
-4. **개발 관점**: 기술적 복잡도, 아키텍처 설계, 보안/성능 고려사항
-
----
-
-## 📝 Phase 1 출력 형식 (JSON)
-
-**⚠️ 이 단계에서는 핵심 분석 정보만 생성합니다.**
-
-다음 JSON 형식으로 **핵심 비즈니스 분석**을 작성하세요:
-
-\`\`\`json
-{
-  "summary": "프로젝트 전체에 대한 300자 이상의 종합 요약 (프로젝트명, 목적, 범위, 핵심 특징)",
-  "executiveSummary": "경영진용 핵심 요약 (200자 이상): 비즈니스 가치, 투자 대비 효과, 주요 리스크, 최종 권장사항",
-
-  "keyInsights": [
-    "프로젝트의 핵심 강점 또는 기회 (5개 이상)",
-    "각 인사이트는 구체적이고 실행 가능한 내용으로 작성"
-  ],
-
-  "agencyPerspective": {
-    "projectDecision": {
-      "recommendation": "accept|conditional_accept|decline",
-      "confidence": 0-100,
-      "reasoning": "프로젝트 수락/조건부수락/거절 결정 근거 (100자 이상)",
-      "conditions": ["조건부 수락 시 필요한 조건 (2개 이상, 없으면 빈 배열)"]
-    },
-
-    "perspectives": {
-      "planning": {
-        "feasibility": 0-100,
-        "estimatedEffort": "예상 공수 (예: 2주, 3개월)",
-        "challenges": [
-          "기획 단계에서 예상되는 구체적인 어려움 3개",
-          "각 어려움은 웹에이전시 입장에서 실제 직면할 문제 중심"
-        ],
-        "risks": [
-          "기획 관련 리스크 2개",
-          "각 리스크는 프로젝트 실패 가능성과 관련"
-        ]
-      },
-      "design": {
-        "complexity": "low|medium|high|very_high",
-        "estimatedHours": 예상 시간,
-        "challenges": [
-          "디자인 단계 예상 어려움 3개",
-          "UI/UX 복잡도, 디자인 시스템 구축 난이도 등"
-        ],
-        "risks": [
-          "디자인 리스크 2개",
-          "고객 요구 변경, 디자인 피드백 반복 등"
-        ]
-      },
-      "publishing": {
-        "responsiveComplexity": "low|medium|high",
-        "estimatedHours": 예상 시간,
-        "challenges": [
-          "퍼블리싱 어려움 3개",
-          "크로스브라우징, 반응형 구현 복잡도 등"
-        ],
-        "risks": [
-          "퍼블리싱 리스크 2개",
-          "브라우저 호환성 문제, 디바이스 대응 이슈 등"
-        ]
-      },
-      "development": {
-        "technicalComplexity": "low|medium|high|very_high",
-        "estimatedManMonths": 예상 인월,
-        "challenges": [
-          "개발 어려움 3개 (개발이 없으면 '개발 불필요 - 우리가 처리할 영역 아님')",
-          "기술 스택 난이도, 외부 API 연동, 보안 요구사항 등"
-        ],
-        "risks": [
-          "개발 리스크 2개 (개발이 없으면 '해당없음')",
-          "기술적 불확실성, 일정 지연 가능성 등"
-        ]
-      }
-    }
-  }
-}
-\`\`\`
-
-**⚠️ Phase 1 필수 작성 필드**:
-1. ✅ **summary** - 프로젝트 종합 요약 (300자 이상)
-2. ✅ **executiveSummary** - 경영진용 요약 (200자 이상)
-3. ✅ **keyInsights** - 핵심 인사이트 (5개 이상)
-4. ✅ **agencyPerspective** - projectDecision + perspectives (4가지 관점 모두 포함)
-   * 각 관점마다 challenges (3개), risks (2개) 필수
-
-**📌 Phase 1에서는 위의 4가지 핵심 분석만 생성합니다.**
-**리스크 평가(riskAssessment)와 권장사항(recommendations)은 Phase 2에서 작성됩니다.**
-
-**출력 형식 규칙**:
-- ❌ 설명문 없이
-- ❌ 마크다운 코드 블록 없이
-- ✅ 오직 순수 JSON 객체만 반환 ({ 로 시작, } 로 끝)
-
-위 JSON 형식을 **정확히 준수**하여 **Phase 1 핵심 분석**을 완성해주세요.`;
+위 형식대로 실제 분석 내용을 작성하세요.`;
   }
 
-  // 🔥 Phase 2 프롬프트 생성 - 리스크 평가 + 권장사항
+  // 🔥 Phase 2 프롬프트 생성 - 리스크 평가 (간소화)
   private generateReportPhase2Prompt(_analyses: any[], _questions: any[], _answers: any[], phase1Result: any): string {
-    return `# 🎯 웹에이전시 엘루오씨앤씨 - Phase 2/8: 리스크 평가
+    const decision = phase1Result.agencyPerspective?.projectDecision?.recommendation || 'N/A';
+    const complexity = phase1Result.agencyPerspective?.perspectives?.development?.technicalComplexity || 'medium';
 
-당신은 **웹에이전시 엘루오씨앤씨**의 **리스크 관리 전문가**입니다.
-이 단계에서는 Phase 1 분석을 기반으로 **프로젝트 리스크 평가**만 작성합니다.
-**권장사항은 Phase 3에서 별도로 작성**되므로 이 단계에서는 제외합니다.
+    return `리스크 관리 전문가로서 프로젝트 리스크 평가를 작성합니다.
 
-## 📋 Phase 1 핵심 분석 결과 (참고용)
+Phase 1 결과: 수락=${decision}, 개발복잡도=${complexity}
 
-- **프로젝트 수락 권장**: ${phase1Result.agencyPerspective?.projectDecision?.recommendation || 'N/A'}
-- **결정 확신도**: ${phase1Result.agencyPerspective?.projectDecision?.confidence || 0}%
-- **핵심 인사이트 수**: ${phase1Result.keyInsights?.length || 0}개
-- **기획 실행 가능성**: ${phase1Result.agencyPerspective?.perspectives?.planning?.feasibility || 0}%
-- **디자인 복잡도**: ${phase1Result.agencyPerspective?.perspectives?.design?.complexity || 'N/A'}
-- **퍼블리싱 복잡도**: ${phase1Result.agencyPerspective?.perspectives?.publishing?.responsiveComplexity || 'N/A'}
-- **개발 복잡도**: ${phase1Result.agencyPerspective?.perspectives?.development?.technicalComplexity || 'N/A'}
+## 출력: 순수 JSON만 (마크다운/코드블록 절대 금지)
 
----
+{"riskAssessment":{"high":[{"id":"risk-h1","category":"technical","title":"고위험1","description":"설명50자","probability":75,"impact":85,"severity":"high","mitigation":"완화방안30자"}],"medium":[{"id":"risk-m1","category":"business","title":"중위험1","description":"설명50자","probability":55,"impact":60,"severity":"medium","mitigation":"완화방안30자"},{"id":"risk-m2","category":"timeline","title":"중위험2","description":"설명50자","probability":50,"impact":55,"severity":"medium","mitigation":"완화방안30자"}],"low":[{"id":"risk-l1","category":"resource","title":"저위험1","description":"설명50자","probability":30,"impact":35,"severity":"low","mitigation":"완화방안30자"}],"overallScore":55}}
 
-## 🎨 Phase 2 작성 지침
+⚠️ 절대 규칙:
+1. 백틱(\`) 사용 금지
+2. "json" 텍스트 금지
+3. { 로 시작, } 로 끝
+4. 설명문 없이 JSON만
 
-### 목표:
-1. **리스크 식별 및 평가**: Phase 1에서 확인된 challenges와 risks를 기반으로 구체적 리스크 분석
-2. **완화 방안 수립**: 각 리스크에 대한 실행 가능한 대응 전략
-3. **전체 위험도 점수 산정**: overallScore 계산
-
-### 리스크 카테고리:
-- **technical**: 기술적 복잡도, 아키텍처, 보안, 성능
-- **business**: 비즈니스 가치, ROI, 시장 적합성
-- **timeline**: 일정 지연, 마일스톤 미준수
-- **budget**: 비용 초과, 자원 부족
-- **resource**: 인력 부족, 역량 격차
-
----
-
-## 📝 Phase 2 출력 형식 (JSON)
-
-**⚠️ 이 단계에서는 리스크 평가만 생성합니다. 권장사항은 Phase 3에서 작성됩니다.**
-
-다음 JSON 형식으로 작성하세요:
-
-\`\`\`json
-{
-  "riskAssessment": {
-    "high": [
-      {
-        "id": "risk-h1",
-        "category": "technical",
-        "title": "고위험 제목 (명확하고 구체적으로, 예: '레거시 시스템 통합 실패 가능성')",
-        "description": "위험 발생 시나리오와 영향 상세 설명 (150자 이상). 예: 'API 호환성 문제로 데이터 동기화 실패 시 전체 서비스 중단 가능'",
-        "probability": 75,
-        "impact": 85,
-        "severity": "high",
-        "mitigation": "구체적이고 실행 가능한 완화 방안 (100자 이상). 예: 'POC 단계에서 API 연동 테스트 필수, 대체 통합 방안 사전 준비'"
-      },
-      {
-        "id": "risk-h2",
-        "category": "timeline",
-        "title": "두 번째 고위험 항목",
-        "description": "위험 설명 (100자 이상)",
-        "probability": 70,
-        "impact": 80,
-        "severity": "high",
-        "mitigation": "완화 방안 (50자 이상)"
-      }
-    ],
-    "medium": [
-      {
-        "id": "risk-m1",
-        "category": "business",
-        "title": "중위험 제목 (예: '사용자 채택률 미달 가능성')",
-        "description": "위험 설명 (100자 이상)",
-        "probability": 55,
-        "impact": 60,
-        "severity": "medium",
-        "mitigation": "완화 방안 (50자 이상)"
-      },
-      {
-        "id": "risk-m2",
-        "category": "resource",
-        "title": "두 번째 중위험 항목",
-        "description": "위험 설명 (100자 이상)",
-        "probability": 50,
-        "impact": 55,
-        "severity": "medium",
-        "mitigation": "완화 방안 (50자 이상)"
-      },
-      {
-        "id": "risk-m3",
-        "category": "budget",
-        "title": "세 번째 중위험 항목",
-        "description": "위험 설명 (100자 이상)",
-        "probability": 45,
-        "impact": 60,
-        "severity": "medium",
-        "mitigation": "완화 방안 (50자 이상)"
-      }
-    ],
-    "low": [
-      {
-        "id": "risk-l1",
-        "category": "technical",
-        "title": "저위험 제목 (예: '마이너 브라우저 호환성 이슈')",
-        "description": "위험 설명 (100자 이상)",
-        "probability": 30,
-        "impact": 35,
-        "severity": "low",
-        "mitigation": "완화 방안 (50자 이상)"
-      },
-      {
-        "id": "risk-l2",
-        "category": "business",
-        "title": "두 번째 저위험 항목",
-        "description": "위험 설명 (100자 이상)",
-        "probability": 25,
-        "impact": 40,
-        "severity": "low",
-        "mitigation": "완화 방안 (50자 이상)"
-      },
-      {
-        "id": "risk-l3",
-        "category": "resource",
-        "title": "세 번째 저위험 항목",
-        "description": "위험 설명 (100자 이상)",
-        "probability": 20,
-        "impact": 30,
-        "severity": "low",
-        "mitigation": "완화 방안 (50자 이상)"
-      }
-    ],
-    "overallScore": 62
-  }
-}
-\`\`\`
-
-**⚠️ Phase 2 필수 작성 필드**:
-1. ✅ **riskAssessment.high** - 고위험 항목 (최소 3개, probability ≥ 60 AND impact ≥ 70)
-2. ✅ **riskAssessment.medium** - 중위험 항목 (최소 4개, probability 40-70 OR impact 50-70)
-3. ✅ **riskAssessment.low** - 저위험 항목 (최소 3개, probability < 50 AND impact < 60)
-4. ✅ **riskAssessment.overallScore** - 전체 위험 점수 (0-100, 높을수록 위험함)
-
-**리스크 평가 공식**:
-- overallScore = (Σ(probability × impact × weight) / total_risks)
-  - high weight = 3, medium weight = 2, low weight = 1
-
-**출력 형식 규칙**:
-- ❌ 설명문이나 주석 없이
-- ❌ 마크다운 코드 블록 없이
-- ✅ 오직 순수 JSON 객체만 반환 ({ 로 시작, } 로 끝)
-- ✅ 모든 문자열 필드는 큰따옴표(") 사용
-- ✅ description과 mitigation은 충분히 상세하게 작성 (각각 150자, 100자 이상)
-
-위 JSON 형식을 **정확히 준수**하여 **Phase 2 리스크 평가**를 완성해주세요.`;
+위 형식대로 실제 리스크 분석 내용을 작성하세요.`;
   }
 
-  // 🔥 Phase 3 프롬프트 생성 - 권장사항 (recommendations)
+  // 🔥 Phase 3 프롬프트 생성 - 권장사항 (간소화)
   private generateReportPhase3Prompt(
     _analyses: any[],
     _questions: any[],
@@ -3482,72 +3235,26 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
     phase1Result: any,
     phase2Result: any
   ): string {
-    return `# 🎯 웹에이전시 엘루오씨앤씨 - Phase 3/8: 실행 권장사항
+    const decision = phase1Result.agencyPerspective?.projectDecision?.recommendation || 'N/A';
+    const riskScore = phase2Result.riskAssessment?.overallScore || 50;
 
-당신은 **웹에이전시 엘루오씨앤씨**의 **프로젝트 컨설턴트**입니다.
-이 단계에서는 Phase 1 분석과 Phase 2 리스크 평가를 기반으로 **프로젝트 성공을 위한 실행 권장사항**을 작성합니다.
+    return `프로젝트 컨설턴트로서 실행 권장사항을 작성합니다.
 
-## 📋 이전 Phase 결과 (참고용)
+Phase 1 결과: 수락=${decision}
+Phase 2 결과: 위험도=${riskScore}/100
 
-**Phase 1 - 프로젝트 결정**:
-- 수락 권장: ${phase1Result.agencyPerspective?.projectDecision?.recommendation || 'N/A'}
-- 확신도: ${phase1Result.agencyPerspective?.projectDecision?.confidence || 0}%
+## 출력: 순수 JSON만 (마크다운/코드블록 절대 금지)
 
-**Phase 2 - 리스크 평가**:
-- 전체 위험도: ${phase2Result.riskAssessment?.overallScore || 0}/100
-- 고위험 항목: ${phase2Result.riskAssessment?.high?.length || 0}개
-- 중위험 항목: ${phase2Result.riskAssessment?.medium?.length || 0}개
+{"recommendations":["기술적 권장사항: 구체적 실행 방안 50자","비즈니스 권장사항: ROI 개선 방안 50자","관리적 권장사항: 프로젝트 관리 50자","품질 권장사항: 테스트 전략 50자","일정 권장사항: 마일스톤 계획 50자","리소스 권장사항: 팀 구성 방안 50자"]}
 
----
+⚠️ 절대 규칙:
+1. 백틱(\`) 사용 금지
+2. "json" 텍스트 금지
+3. { 로 시작, } 로 끝
+4. 설명문 없이 JSON만
+5. recommendations 배열에 최소 6개 항목
 
-## 📝 Phase 3 출력 형식 (JSON)
-
-**⚠️ 이 단계에서는 실행 권장사항만 생성합니다.**
-
-다음 JSON 형식으로 작성하세요:
-
-\`\`\`json
-{
-  "recommendations": [
-    "기술적 권장사항 1: 구체적 액션 아이템 (80자 이상). 예: 'React 18 + TypeScript 기반 SPA 구조 채택, Tailwind CSS로 디자인 시스템 구축하여 개발 생산성 30% 향상'",
-    "기술적 권장사항 2: 아키텍처 설계 관련 구체적 제안 (80자 이상)",
-    "기술적 권장사항 3: 성능 최적화 전략 (80자 이상)",
-    "비즈니스적 권장사항 1: 사용자 가치 극대화 방안 (80자 이상)",
-    "비즈니스적 권장사항 2: ROI 개선 전략 및 수익 모델 (80자 이상)",
-    "비즈니스적 권장사항 3: 시장 진입 전략 및 경쟁 우위 확보 (80자 이상)",
-    "관리적 권장사항 1: 프로젝트 관리 프로세스 및 도구 (80자 이상)",
-    "관리적 권장사항 2: 커뮤니케이션 체계 및 의사결정 프로세스 (80자 이상)",
-    "품질 관리 권장사항 1: 테스트 전략 및 자동화 계획 (80자 이상)",
-    "품질 관리 권장사항 2: 코드 리뷰 프로세스 및 품질 기준 (80자 이상)",
-    "일정 관리 권장사항: 마일스톤 설정 및 버퍼 계획 (80자 이상)",
-    "리소스 관리 권장사항: 팀 구성, 역할 분담 및 외부 리소스 활용 (80자 이상)"
-  ]
-}
-\`\`\`
-
-**⚠️ Phase 3 필수 작성 필드**:
-1. ✅ **recommendations** - 최소 12개 이상의 실행 가능한 권장사항
-   - 각 권장사항은 80자 이상으로 구체적으로 작성
-   - 기술적 측면 (3개 이상)
-   - 비즈니스적 측면 (3개 이상)
-   - 관리적 측면 (2개 이상)
-   - 품질 관리 (2개 이상)
-   - 일정/리소스 관리 (2개 이상)
-
-**권장사항 작성 가이드**:
-- Phase 2의 리스크 완화와 연계하여 구체적인 실행 방안 제시
-- 단순한 제안이 아닌, 실제로 적용 가능한 구체적 액션 아이템
-- 효과나 목표를 명시 (예: "개발 생산성 30% 향상", "배포 주기 50% 단축")
-- 우선순위와 의존성 고려
-
-**출력 형식 규칙**:
-- ❌ 설명문이나 주석 없이
-- ❌ 마크다운 코드 블록 없이
-- ✅ 오직 순수 JSON 객체만 반환 ({ 로 시작, } 로 끝)
-- ✅ 모든 문자열 필드는 큰따옴표(") 사용
-- ✅ 각 권장사항은 충분히 상세하게 작성 (80자 이상)
-
-위 JSON 형식을 **정확히 준수**하여 **Phase 3 실행 권장사항**을 완성해주세요.`;
+위 형식대로 실제 권장사항 내용을 작성하세요.`;
   }
 
   // 🔥 Phase 4 프롬프트 생성 - 기초 데이터 (baselineData)
@@ -5050,26 +4757,44 @@ ${qaContext || '질문-답변 데이터가 없습니다.'}
     try {
       console.log('🔍 [parseReportResponse] 파싱 시작');
       console.log('📏 [parseReportResponse] 응답 길이:', response.length);
-      console.log('📝 [parseReportResponse] 응답 미리보기:', response.substring(0, 500));
+      console.log('📝 [parseReportResponse] 응답 미리보기:', response.substring(0, 300));
 
       // 🔥 응답이 너무 짧으면 기본 객체 반환
-      if (!response || response.length < 50) {
+      if (!response || response.length < 20) {
         console.warn('⚠️ [parseReportResponse] 응답이 너무 짧음, 기본 객체 반환');
         return this.getDefaultReportObject();
       }
 
-    // 🔥 STEP 1: 모든 코드블록 마커 제거 (강화)
-    let cleanedResponse = response
+    // 🔥 STEP 0: 응답 정제 (강화된 버전)
+    let cleanedResponse = response;
+
+    // 마크다운 코드 블록에서 JSON 추출 시도 (```json ... ``` 형식)
+    const codeBlockRegex = /```(?:json)?\s*([\s\S]*?)```/;
+    const codeBlockMatch = response.match(codeBlockRegex);
+    if (codeBlockMatch && codeBlockMatch[1]) {
+      console.log('🔧 [parseReportResponse] 마크다운 코드 블록에서 JSON 추출');
+      cleanedResponse = codeBlockMatch[1];
+    } else {
+      // 불완전한 코드 블록 처리 (```json ... 으로 시작하지만 닫히지 않은 경우)
+      const incompleteBlockMatch = response.match(/```(?:json)?\s*([\s\S]*)/);
+      if (incompleteBlockMatch && incompleteBlockMatch[1]) {
+        console.log('🔧 [parseReportResponse] 불완전한 코드 블록에서 JSON 추출');
+        cleanedResponse = incompleteBlockMatch[1];
+      }
+    }
+
+    // 🔥 STEP 1: 모든 코드블록 마커 및 불필요한 문자 제거
+    cleanedResponse = cleanedResponse
       // 백틱 코드블록 완전 제거
-      .replace(/```json\s*/g, '')  // ```json 제거
+      .replace(/```json\s*/gi, '')  // ```json 제거
       .replace(/```\s*/g, '')       // ``` 제거
       .replace(/`/g, '')            // 단일 백틱 제거
       // "json" 단어 제거 (코드블록 잔여물)
       .replace(/^json\s*/i, '')     // 시작 부분의 json 제거
-      // 제어 문자 제거
-      .replace(/[\x00-\x1F\x7F-\x9F]/g, '')
+      // 제어 문자 제거 (개행/탭 제외)
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, '')
       // 잘못된 이스케이프 제거
-      .replace(/\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4})/g, '')
+      .replace(/\\(?!["\\/bfnrtu])/g, '')
       .trim();
 
     console.log('🧹 [parseReportResponse] 정제 후 길이:', cleanedResponse.length);
